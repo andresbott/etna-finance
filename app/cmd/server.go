@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	handlers "github.com/andresbott/etna/app/handlers"
 	"github.com/andresbott/etna/app/router"
+	handlers "github.com/andresbott/etna/app/router/handlers"
 	"log/slog"
 	"time"
 
@@ -106,7 +106,7 @@ func runServer(configFile string) error {
 		Handler:    mainAppHandler,
 		SkipObs:    false,
 		ObsAddr:    cfg.Obs.Addr(),
-		ObsHandler: handlers.Observability(),
+		ObsHandler: handlers.Admin(),
 		Logger: func(msg string, isErr bool) {
 			// TODO use slogger ?
 			if isErr {

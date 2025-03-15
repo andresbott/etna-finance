@@ -1,18 +1,17 @@
 package finance
 
 import (
-	"errors"
 	"fmt"
+	closuretree "github.com/go-bumbu/closure-tree"
 	"gorm.io/gorm"
 )
 
 type Store struct {
-	db       *gorm.DB
-	tblName  string            // hold the table name
-	colNames map[string]string // hold a map of struct field names to db column names
+	db              *gorm.DB
+	tree            *closuretree.Tree
+	tblName         string            // hold the table name
+	AccountColNames map[string]string // hold a map of struct field names to db column names
 }
-
-var NotFoundErr = errors.New("bookmark not found")
 
 type ValidationErr string
 
@@ -40,11 +39,18 @@ func New(db *gorm.DB) (*Store, error) {
 	for _, field := range stmt.Schema.Fields {
 		columnFieldMap[field.Name] = field.DBName
 	}
-	b.colNames = columnFieldMap
+	b.AccountColNames = columnFieldMap
 
 	err = db.AutoMigrate(&dbAccount{})
 	if err != nil {
 		return nil, err
 	}
+
+	tree, err := closuretree.New(db, Category{}) // init the closure tree, this includes gorm automigrate
+	if err != nil {
+		return nil, err
+	}
+	b.tree = tree
+
 	return &b, nil
 }

@@ -6,9 +6,9 @@ import (
 	"net/http"
 )
 
-// Observability handler adds an /metrics endpoint for prometheus
+// Admin handler adds an /metrics endpoint for prometheus
 // other observability features can and will be added in the future
-func Observability() http.Handler {
+func Admin() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 		content := `

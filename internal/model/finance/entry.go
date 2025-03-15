@@ -9,38 +9,40 @@ import (
 
 // Entry is a
 type Entry struct {
-	Name     string
-	Currency currency.Amount
-	Locked   bool // does not accept changes anymore
-	Type     int  //income, transfer, spend
+	Name       string
+	Amount     int
+	Locked     bool // does not accept changes anymore
+	Type       int  //income, transfer, spend
+	AccountId  uint `gorm:"index"`
+	CategoryId uint `gorm:"index"`
 }
 
 // getAccount is used internally to transform the db struct to public facing struct
 func getEntry(in dbEntry) Entry {
 	return Entry{
-		Name:     in.Name,
-		Currency: in.Currency,
+		Name:   in.Name,
+		Amount: in.Amount,
 	}
 }
 
 // dbAccount is the DB internal representation of a Bookmark
 type dbEntry struct {
-	ID       uint `gorm:"primarykey"`
-	Name     string
-	Currency currency.Amount
-	OwnerId  string `gorm:"index"`
+	ID      uint `gorm:"primarykey"`
+	Name    string
+	Amount  int
+	OwnerId string `gorm:"index"`
 
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt `gorm:"index"`
 }
 
-func (bkm *Store) LockEntries(ctx context.Context, date time.Time) error {
+func (store *Store) LockEntries(ctx context.Context, date time.Time) error {
 	// locks all entries older than certain date
 	return nil
 }
 
-func (bkm *Store) CreateEntry(ctx context.Context, item Account, tenant string) (uint, error) {
+func (store *Store) CreateEntry(ctx context.Context, item Account, tenant string) (uint, error) {
 
 	if item.Name == "" {
 		return 0, ValidationErr("name cannot be empty")
@@ -53,7 +55,7 @@ func (bkm *Store) CreateEntry(ctx context.Context, item Account, tenant string) 
 		Name:    item.Name,
 	}
 
-	d := bkm.db.WithContext(ctx).Create(&payload)
+	d := store.db.WithContext(ctx).Create(&payload)
 	if d.Error != nil {
 		return 0, d.Error
 	}

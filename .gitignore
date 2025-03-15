@@ -21,6 +21,8 @@ app/spa/files/ui/*
 !app/spa/files/ui/.gitkeep
 
 # project databases
+**/__tests__
+**/testdbs_sqlite
 carbon.db
 zarf/appData/session
 !zarf/appData/session/.gitkeep
