@@ -4,7 +4,6 @@ import Drawer from 'primevue/drawer'
 import Button from 'primevue/button'
 import { ref } from 'vue'
 import { useUserStore } from '@/lib/user/userstore.js'
-import { useTaskStore } from '@/stores/taskStore.js'
 import router from '@/router/index.js'
 
 const user = useUserStore()

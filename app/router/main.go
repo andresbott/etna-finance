@@ -57,10 +57,13 @@ func New(cfg Cfg) (*MainAppHandler, error) {
 	app.attachUserAuth(app.router.PathPrefix("/auth").Subrouter())
 
 	// add a handler for /api/v0, this includes authentication on tasks
-	//app.attachApiV0(app.router.PathPrefix("/api/v0").Subrouter())
+	err := app.attachApiV0(app.router.PathPrefix("/api/v0").Subrouter())
+	if err != nil {
+		return nil, err
+	}
 
 	// add the spa to path /
-	err := app.attachSpa(app.router.PathPrefix("/").Subrouter(), "/")
+	err = app.attachSpa(app.router.PathPrefix("/").Subrouter(), "/")
 	if err != nil {
 		return nil, err
 	}
@@ -103,5 +106,10 @@ func (h *MainAppHandler) attachUserAuth(r *mux.Router) {
 func StatusErr(status int) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(status), status)
+	}
+}
+func StatusErrText(status int, text string) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, text, status)
 	}
 }

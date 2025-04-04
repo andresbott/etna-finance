@@ -1,5 +1,6 @@
 <script setup>
 import { defineProps } from 'vue'
+import { PrimeIcons } from '@primevue/core/api'
 
 defineProps({
     icon: {
@@ -15,7 +16,7 @@ defineProps({
 
 <template>
     <div class="app-icon-text">
-        <i :class="icon" class="app-icon"></i>
+        <i :class="icon" class="pi app-icon"></i>
         <span v-if="text" class="app-text">{{ text }}</span>
     </div>
 </template>

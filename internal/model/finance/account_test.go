@@ -6,24 +6,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"golang.org/x/text/currency"
-	"os"
 	"testing"
 )
-
-const (
-	tenant1 = "tenant1"
-	tenant2 = "tenant2"
-)
-
-// TestMain modifies how test are run,
-// it makes sure that the needed DBs are ready and does cleanup in the end.
-func TestMain(m *testing.M) {
-	testdbs.InitDBS()
-	// main block that runs tests
-	code := m.Run()
-	testdbs.Clean()
-	os.Exit(code)
-}
 
 func TestCreateAccount(t *testing.T) {
 	for _, db := range testdbs.DBs() {
@@ -166,10 +150,6 @@ func TestGetAccount(t *testing.T) {
 			}
 		})
 	}
-}
-
-func ptr(in string) *string {
-	return &in
 }
 
 func TestUpdateAccount(t *testing.T) {
@@ -356,7 +336,7 @@ func TestListAccounts(t *testing.T) {
 					createTenant: tenant1,
 					create:       []Account{{Name: "Savings", Currency: currency.USD}, {Name: "Main", Currency: currency.EUR}},
 					checkTenant:  tenant1,
-					want:         []Account{{Name: "Main", Currency: currency.EUR}, {Name: "Savings", Currency: currency.USD}},
+					want:         []Account{{Name: "Savings", Currency: currency.EUR}, {Name: "Main", Currency: currency.USD}},
 				},
 				{
 					name:         "want empty result when listing for different tenant",

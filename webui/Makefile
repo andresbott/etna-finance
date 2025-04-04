@@ -3,13 +3,17 @@ PWD_DIR := ${CURDIR}
 
 default: help
 
+prepare: ## run dev preparation
+	@npm install
 
 fmt: ## format code
 	@npm run format
 
+lint: ## run eslint
+	@npm run lint
+
 run: ## run the local dev
 	@npm run dev
-
 
 build: ## build a production release
 	@npm run build

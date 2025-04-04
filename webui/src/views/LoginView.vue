@@ -13,7 +13,6 @@ import UserLogin from '@/lib/user/UserLogin.vue'
                 </template>
             </horizontal>
         </template>
-
         <template v-slot:footer> </template>
     </vertical>
 </template>

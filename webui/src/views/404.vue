@@ -3,10 +3,6 @@ import Vertical from '@/lib/layout/Vertical.vue'
 </script>
 
 <template>
-    <div class="about">
-        <h1>404</h1>
-    </div>
-
     <vertical>
         <template v-slot:header> head </template>
 

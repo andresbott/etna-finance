@@ -7,15 +7,31 @@ const router = createRouter({
     routes: [
         {
             path: '/', // Root path
-            redirect: '/bookmarks' // Redirect to '/home' or any desired location
+            redirect: '/status' // Redirect to '/home' or any desired location
         },
         {
-            path: '/bookmarks',
-            name: 'bookmarks',
+            path: '/status',
+            name: 'status',
             meta: {
                 requiresAuth: true
             },
-            component: () => import('@/views/404.vue')
+            component: () => import('@/views/status.vue')
+        },
+        {
+            path: '/accounts',
+            name: 'accounts',
+            meta: {
+                requiresAuth: true
+            },
+            component: () => import('@/views/accounts/accounts.vue')
+        },
+        {
+            path: '/playground',
+            name: 'playground',
+            meta: {
+                requiresAuth: true
+            },
+            component: () => import('@/views/playgroundView.vue')
         },
         {
             path: '/login',

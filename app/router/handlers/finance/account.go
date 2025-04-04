@@ -182,7 +182,7 @@ func (h *Handler) ListAccounts(userId string) http.Handler {
 			return
 		}
 
-		outputBkms := []accountPayload{}
+		outputItems := []accountPayload{}
 		for _, b := range accounts {
 
 			add := accountPayload{
@@ -191,11 +191,11 @@ func (h *Handler) ListAccounts(userId string) http.Handler {
 				Currency: b.Currency.String(),
 				Type:     b.Type.String(),
 			}
-			outputBkms = append(outputBkms, add)
+			outputItems = append(outputItems, add)
 		}
 
 		output := listResponse{
-			Items: outputBkms,
+			Items: outputItems,
 		}
 
 		respJson, err := json.Marshal(output)

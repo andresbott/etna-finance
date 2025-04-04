@@ -41,7 +41,7 @@ func New(db *gorm.DB) (*Store, error) {
 	}
 	b.AccountColNames = columnFieldMap
 
-	err = db.AutoMigrate(&dbAccount{})
+	err = db.AutoMigrate(&dbAccount{}, &dbEntry{})
 	if err != nil {
 		return nil, err
 	}

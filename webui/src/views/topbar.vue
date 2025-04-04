@@ -1,27 +1,25 @@
 <script setup>
-import Horizontal from '@/lib/layout/horizontal.vue'
+import { HorizontalLayout as HL } from '@go-bumbu/vue-components/layout'
+import '@go-bumbu/vue-components/layout.css'
+
 import UserProfile from '@/lib/user/UserProfile.vue'
 import { useUserStore } from '@/lib/user/userstore.js'
 import Button from 'primevue/button'
-import Search from '@/views/bookmarks/search.vue'
 import AppTitle from '@/views/parts/AppTitle.vue'
-import AppSelector from '@/views/parts/AppSelector.vue'
 
 const user = useUserStore()
 </script>
 
 <template>
-    <horizontal class="topbar" :horizontal-center="true" :vertical-center="true">
+    <HL class="topbar" :centerContent="true" :verticalCenterContent="false">
         <template #left>
             <!--            <AppSelector icon="pi pi-ellipsis-h" class="ml-4 mr-2" />-->
             <!--            <router-link to="/bookmarks" class="layout-topbar-logo">-->
-            <AppTitle icon="" text="Bookmarks" class="ml-4 mr-2" />
+            <AppTitle icon="pi-money-bill" text="Etna" class="ml-4 mr-2" />
             <!--            </router-link>-->
         </template>
 
-        <template #default>
-            <search />
-        </template>
+        <template #default> </template>
 
         <template #right>
             <UserProfile v-if="user.isLoggedIn" />
@@ -29,16 +27,12 @@ const user = useUserStore()
                 <Button label="Login" icon="pi pi-sign-in" />
             </router-link>
         </template>
-    </horizontal>
+    </HL>
 </template>
 
 <style scoped>
 .topbar {
-    background-color: var(--c-surface-600);
-    border-bottom: 1px solid #e5e5e5;
-    height: 5rem;
-}
-.c-horizontal {
-    grid-template-columns: 1fr 2fr 1fr;
+    background-color: var(--c-primary-600);
+    padding: 5px 0;
 }
 </style>

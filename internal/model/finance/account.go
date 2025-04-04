@@ -15,11 +15,11 @@ type AccountType int
 func (t AccountType) String() string {
 	switch t {
 	case Cash:
-		return "cash"
+		return CashAccount
 	case Bank:
-		return "bank"
+		return BankAccount
 	case Stocks:
-		return "stocks"
+		return StocksAccount
 	default:
 		return "unknown"
 	}
@@ -32,16 +32,16 @@ const (
 	Stocks
 )
 
-const cashAccount = "cash"
-const bankAccount = "bank"
+const CashAccount = "cash"
+const BankAccount = "bank"
 const StocksAccount = "stocks"
 
 func ParseAccountType(in string) (AccountType, error) {
 	switch strings.ToLower(in) {
-	case cashAccount:
+	case CashAccount:
 		return Cash, nil
 
-	case bankAccount:
+	case BankAccount:
 		return Bank, nil
 	case StocksAccount:
 		return Stocks, nil
@@ -171,7 +171,7 @@ func (store *Store) ListAccounts(ctx context.Context, tenant string) ([]Account,
 
 	db := store.db.WithContext(ctx)
 	// NOTE I don't forsee the need of pagination for private usage
-	db = db.Order("name ASC").Where("owner_id = ?", tenant)
+	db = db.Order("id ASC").Where("owner_id = ?", tenant)
 
 	var results []dbAccount
 	if err := db.Find(&results).Error; err != nil {
