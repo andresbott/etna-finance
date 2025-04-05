@@ -58,6 +58,23 @@ func getEntry(in dbEntry) Entry {
 
 type EntryType int8
 
+func (t EntryType) String() string {
+	switch t {
+	case IncomeEntry:
+		return IncomeEntryStr
+	case ExpenseEntry:
+		return ExpenseEntryStr
+	case TransferEntry:
+		return TransferEntryStr
+	case BuyStockEntry:
+		return BuyStockEntryStr
+	case SellStockEntry:
+		return SellStockEntryStr
+	default:
+		return "unknown"
+	}
+}
+
 const (
 	UnsetEntry EntryType = iota
 	IncomeEntry
