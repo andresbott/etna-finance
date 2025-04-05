@@ -1,10 +1,10 @@
 <script setup>
 import Avatar from 'primevue/avatar'
 import Drawer from 'primevue/drawer'
-import Button from 'primevue/button'
 import { ref } from 'vue'
 import { useUserStore } from '@/lib/user/userstore.js'
 import router from '@/router/index.js'
+import UserProfileMenu from './UserProfileMenu.vue'
 
 const user = useUserStore()
 const visible = ref(false)
@@ -28,21 +28,33 @@ const logOut = () => {
 
     <Drawer
         v-model:visible="visible"
-        :header="user.loggedInUser"
         style="width: 25rem"
         position="right"
     >
-        <Avatar
-            icon="pi pi-user"
-            class="mr-3"
-            size="xlarge"
-            @click="visible = true"
-            style="background-color: #ece9fc; color: #2a1261"
-        />
-
-        <p><Button label="Settings" icon="pi pi-cog" /></p>
-        <p>
-            <Button label="Logout" severity="danger" icon="pi pi-sign-out" @click="logOut()" />
-        </p>
+        <template #header>
+            <div class="drawer-header">
+                <Avatar
+                    icon="pi pi-user"
+                    size="large"
+                    style="background-color: #ece9fc; color: #2a1261"
+                />
+                <span class="username">{{ user.loggedInUser }}</span>
+            </div>
+        </template>
+        <UserProfileMenu @logout="logOut" />
     </Drawer>
 </template>
+
+<style scoped>
+.drawer-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.5rem;
+}
+
+.username {
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+</style>

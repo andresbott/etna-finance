@@ -3,33 +3,38 @@ package finance
 import (
 	"context"
 	"errors"
+	"fmt"
 	"gorm.io/gorm"
+	"strings"
 	"time"
 )
 
 // Entry is a
 type Entry struct {
-	Id         uint
-	Name       string
-	Amount     float64
-	Date       time.Time
-	Locked     bool      // does not accept changes anymore
-	Type       EntryType //income, transfer, spend
-	AccountId  uint
-	CategoryId uint
+	Id              uint
+	Name            string
+	Amount          float64
+	StockAmount     float64
+	Date            time.Time
+	Locked          bool      // does not accept changes anymore
+	Type            EntryType //income, transfer, spend, stock buy, stock sell ( like transfer with stock amounts added)
+	TargetAccountID uint
+	OriginAccountID uint
+	CategoryId      uint
 }
 
 // dbAccount is the DB internal representation of a Bookmark
 type dbEntry struct {
-	Id         uint `gorm:"primarykey"`
-	Name       string
-	Amount     float64
-	Type       int8
-	OwnerId    string    `gorm:"index"`
-	Date       time.Time `gorm:"index"`
-	Locked     bool
-	AccountId  uint `gorm:"index"`
-	CategoryId uint `gorm:"index"`
+	Id              uint `gorm:"primarykey"`
+	Name            string
+	Amount          float64
+	Type            int8
+	OwnerId         string    `gorm:"index"`
+	Date            time.Time `gorm:"index"`
+	Locked          bool
+	TargetAccountId uint `gorm:"index"`
+	OriginAccountId uint `gorm:"index"`
+	CategoryId      uint `gorm:"index"`
 
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -39,14 +44,15 @@ type dbEntry struct {
 // getAccount is used internally to transform the db struct to public facing struct
 func getEntry(in dbEntry) Entry {
 	return Entry{
-		Id:         in.Id,
-		Name:       in.Name,
-		Amount:     in.Amount,
-		Date:       in.Date,
-		Locked:     in.Locked,
-		AccountId:  in.AccountId,
-		CategoryId: in.CategoryId,
-		Type:       EntryType(in.Type),
+		Id:              in.Id,
+		Name:            in.Name,
+		Amount:          in.Amount,
+		Date:            in.Date,
+		Locked:          in.Locked,
+		TargetAccountID: in.TargetAccountId,
+		OriginAccountID: in.OriginAccountId,
+		CategoryId:      in.CategoryId,
+		Type:            EntryType(in.Type),
 	}
 }
 
@@ -57,7 +63,34 @@ const (
 	IncomeEntry
 	ExpenseEntry
 	TransferEntry
+	BuyStockEntry
+	SellStockEntry
 )
+
+const (
+	IncomeEntryStr    = "income"
+	ExpenseEntryStr   = "expense"
+	TransferEntryStr  = "transfer"
+	BuyStockEntryStr  = "buystock"
+	SellStockEntryStr = "sellstock"
+)
+
+func ParseEntryType(in string) (EntryType, error) {
+	switch strings.ToLower(in) {
+	case IncomeEntryStr:
+		return IncomeEntry, nil
+	case ExpenseEntryStr:
+		return ExpenseEntry, nil
+	case TransferEntryStr:
+		return TransferEntry, nil
+	case BuyStockEntryStr:
+		return BuyStockEntry, nil
+	case SellStockEntryStr:
+		return SellStockEntry, nil
+	default:
+		return UnsetEntry, fmt.Errorf("invalid entry type: %s", in)
+	}
+}
 
 var EntryNotFoundErr = errors.New("entry not found")
 
@@ -77,14 +110,14 @@ func (store *Store) CreateEntry(ctx context.Context, item Entry, tenant string) 
 	}
 
 	payload := dbEntry{
-		OwnerId:    tenant, // ensure tenant is set by the signature
-		Name:       item.Name,
-		Type:       int8(item.Type),
-		Amount:     item.Amount,
-		Date:       item.Date,
-		Locked:     false, // entries are always created unlocked
-		AccountId:  item.AccountId,
-		CategoryId: item.CategoryId,
+		OwnerId:         tenant, // ensure tenant is set by the signature
+		Name:            item.Name,
+		Type:            int8(item.Type),
+		Amount:          item.Amount,
+		Date:            item.Date,
+		Locked:          false, // entries are always created unlocked
+		TargetAccountId: item.TargetAccountID,
+		CategoryId:      item.CategoryId,
 	}
 
 	d := store.db.WithContext(ctx).Create(&payload)
@@ -119,9 +152,13 @@ func (store *Store) DeleteEntry(ctx context.Context, Id uint, tenant string) err
 }
 
 type EntryUpdatePayload struct {
-	Name   *string
-	Amount *int
-	Date   *time.Time
+	Name            *string
+	Amount          *float64
+	StockAmount     *float64
+	Date            *time.Time
+	TargetAccountID *uint
+	OriginAccountID *uint
+	CategoryId      *uint
 }
 
 func (store *Store) UpdateEntry(item EntryUpdatePayload, Id uint, tenant string) error {

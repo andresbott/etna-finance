@@ -1,5 +1,6 @@
 <script setup>
-import Horizontal from '@/lib/layout/horizontal.vue'
+import { HorizontalLayout } from '@go-bumbu/vue-components/layout'
+import '@go-bumbu/vue-components/layout.css'
 import UserProfile from '@/lib/user/UserProfile.vue'
 import { useUserStore } from '@/lib/user/userstore.js'
 import Button from 'primevue/button'
@@ -8,7 +9,7 @@ const user = useUserStore()
 </script>
 
 <template>
-    <horizontal :center-content="true">
+    <HorizontalLayout :centerContent="true">
         <template v-slot:left>
             <router-link to="/app" class="layout-topbar-logo"> </router-link>
         </template>
@@ -20,5 +21,5 @@ const user = useUserStore()
                 <Button label="Login" icon="pi pi-sign-in" />
             </router-link>
         </template>
-    </horizontal>
+    </HorizontalLayout>
 </template>

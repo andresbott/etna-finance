@@ -1,5 +1,6 @@
 <script setup>
-import Horizontal from '@/lib/layout/horizontal.vue'
+import { HorizontalLayout } from '@go-bumbu/vue-components/layout'
+import '@go-bumbu/vue-components/layout.css'
 import UserProfile from '@/lib/user/UserProfile.vue'
 import { useUserStore } from '@/lib/user/userstore.js'
 import Button from 'primevue/button'
@@ -11,13 +12,13 @@ const user = useUserStore()
 </script>
 
 <template>
-    <horizontal class="footer" :center-content="true">
+    <HorizontalLayout class="footer" :centerContent="true">
         <template #left> Powered by.. TODO </template>
 
         <template #default> </template>
 
         <template #right> </template>
-    </horizontal>
+    </HorizontalLayout>
 </template>
 
 <style scoped>

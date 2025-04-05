@@ -7,15 +7,15 @@ const router = createRouter({
     routes: [
         {
             path: '/', // Root path
-            redirect: '/status' // Redirect to '/home' or any desired location
+            redirect: '/start' // Redirect to start
         },
         {
-            path: '/status',
-            name: 'status',
+            path: '/start',
+            name: 'start',
             meta: {
                 requiresAuth: true
             },
-            component: () => import('@/views/status.vue')
+            component: () => import('@/views/MainView.vue')
         },
         {
             path: '/accounts',
@@ -24,6 +24,22 @@ const router = createRouter({
                 requiresAuth: true
             },
             component: () => import('@/views/accounts/accounts.vue')
+        },
+        {
+            path: '/entries',
+            name: 'entries',
+            meta: {
+                requiresAuth: true
+            },
+            component: () => import('@/views/EntriesView.vue')
+        },
+        {
+            path: '/categories',
+            name: 'categories',
+            meta: {
+                requiresAuth: true
+            },
+            component: () => import('@/views/categories/CategoriesView.vue')
         },
         {
             path: '/playground',
@@ -67,7 +83,7 @@ router.beforeEach((to, from, next) => {
             }
         } else if (to.matched.some((record) => record.meta.hideFromAuth)) {
             if (user.isLoggedIn) {
-                next({ name: 'home' }) // hide logged-in users from hitting the login page
+                next({ name: 'start' }) // hide logged-in users from hitting the login page
             } else {
                 next()
             }

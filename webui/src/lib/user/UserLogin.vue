@@ -24,7 +24,7 @@ const omFormSubmit = (e) => {
             e.states.password.value,
             e.states.loggedin.value,
             function () {
-                router.push('/bookmarks')
+                router.push('/')
             }
         )
     }

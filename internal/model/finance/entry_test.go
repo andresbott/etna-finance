@@ -108,9 +108,9 @@ func TestGetEntry(t *testing.T) {
 				{
 					name:         "get existing entry",
 					createTenant: tenant1,
-					create:       Entry{Name: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry, AccountId: 2},
+					create:       Entry{Name: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry, TargetAccountID: 2},
 					checkTenant:  tenant1,
-					want:         Entry{Name: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry, AccountId: 2},
+					want:         Entry{Name: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry, TargetAccountID: 2},
 				},
 				{
 					name:         "want error when reading from different tenant",
@@ -356,13 +356,13 @@ func getTime(timeStr string) time.Time {
 
 var sampleEntries = []Entry{
 	{Name: "e1", Amount: 1, Type: ExpenseEntry, Date: getTime("2025-01-01 00:00:00")}, // 0
-	{Name: "e2", Amount: 2, Type: ExpenseEntry, Date: getTime("2025-01-02 00:00:00"), AccountId: 1},
-	{Name: "e3", Amount: 3, Type: ExpenseEntry, Date: getTime("2025-01-03 00:00:00"), AccountId: 2},
+	{Name: "e2", Amount: 2, Type: ExpenseEntry, Date: getTime("2025-01-02 00:00:00"), TargetAccountID: 1},
+	{Name: "e3", Amount: 3, Type: ExpenseEntry, Date: getTime("2025-01-03 00:00:00"), TargetAccountID: 2},
 	{Name: "e4", Amount: 4, Type: ExpenseEntry, Date: getTime("2025-01-04 00:00:00")}, // 3
-	{Name: "e5", Amount: 5, Type: ExpenseEntry, Date: getTime("2025-01-05 00:00:00"), AccountId: 2},
-	{Name: "e6", Amount: 6, Type: ExpenseEntry, Date: getTime("2025-01-06 00:00:00"), AccountId: 1},
+	{Name: "e5", Amount: 5, Type: ExpenseEntry, Date: getTime("2025-01-05 00:00:00"), TargetAccountID: 2},
+	{Name: "e6", Amount: 6, Type: ExpenseEntry, Date: getTime("2025-01-06 00:00:00"), TargetAccountID: 1},
 	{Name: "e7", Amount: 7, Type: ExpenseEntry, Date: getTime("2025-01-07 00:00:00")}, // 6
-	{Name: "e8", Amount: 8, Type: ExpenseEntry, Date: getTime("2025-01-08 00:00:00"), AccountId: 2},
+	{Name: "e8", Amount: 8, Type: ExpenseEntry, Date: getTime("2025-01-08 00:00:00"), TargetAccountID: 2},
 	{Name: "e9", Amount: 9, Type: ExpenseEntry, Date: getTime("2025-01-09 00:00:00")},
 	{Name: "e10", Amount: 10, Type: ExpenseEntry, Date: getTime("2025-01-10 00:00:00")}, // 9
 }

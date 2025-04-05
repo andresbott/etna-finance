@@ -1,18 +1,18 @@
 <script setup>
-import Vertical from '@/lib/layout/Vertical.vue'
-import Horizontal from '@/lib/layout/horizontal.vue'
+import { VerticalLayout, HorizontalLayout } from '@go-bumbu/vue-components/layout'
+import '@go-bumbu/vue-components/layout.css'
 import UserLogin from '@/lib/user/UserLogin.vue'
 </script>
 
 <template>
-    <vertical :center-content="true">
+    <VerticalLayout :centerContent="true">
         <template #default>
-            <horizontal :vertical-center="true" :horizontal-center="true">
-                <template v-slot:default>
+            <HorizontalLayout :verticalCenterContent="true" :centerContent="true">
+                <template #default>
                     <UserLogin />
                 </template>
-            </horizontal>
+            </HorizontalLayout>
         </template>
-        <template v-slot:footer> </template>
-    </vertical>
+        <template #footer> </template>
+    </VerticalLayout>
 </template>

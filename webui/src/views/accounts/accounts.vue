@@ -59,38 +59,44 @@ const openNewAccountDialog = () => {
             >
                 <template #default>
                     <Placeholder :width="'960px'" :height="'auto'">
-                        <div>
-                            <div class="flex justify-content-end mb-3">
+                        <div class="accounts-view">
+                            <div class="header">
+                                <h1>Accounts</h1>
                                 <Button
-                                    label=""
-                                    severity="secondary"
-                                    variant="text"
+                                    label="Add Account"
                                     icon="pi pi-plus"
                                     @click="openNewAccountDialog"
                                 />
                             </div>
                             <DataTable
                                 :value="accounts"
-                                responsiveLayout="scroll"
-                                sortField="id"
-                                :sortOrder="1"
+                                :loading="isLoading"
+                                stripedRows
+                                class="p-datatable-sm"
                             >
-                                <Column field="id" header="ID" :sortable></Column>
-                                <Column field="name" header="Name"></Column>
-                                <Column field="currency" header="Currency"></Column>
-                                <Column field="type" header="Type"></Column>
-                                <Column header="Actions">
-                                    <template #body="slotProps">
-                                        <Button
-                                            icon="pi pi-pencil"
-                                            class="p-button-rounded p-button-warning p-mr-2"
-                                            @click="editAccount(slotProps.data)"
-                                        />
-                                        <Button
-                                            icon="pi pi-trash"
-                                            class="p-button-rounded p-button-danger"
-                                            @click="showDeleteDialog(slotProps.data)"
-                                        />
+                                <Column field="id" header="ID" sortable />
+                                <Column field="name" header="Name" sortable />
+                                <Column field="currency" header="Currency" sortable />
+                                <Column field="type" header="Type" sortable />
+                                <Column header="Actions" style="width: 100px">
+                                    <template #body="{ data }">
+                                        <div class="actions">
+                                            <Button
+                                                icon="pi pi-pencil"
+                                                text
+                                                rounded
+                                                class="action-button"
+                                                @click="editAccount(data)"
+                                            />
+                                            <Button
+                                                icon="pi pi-trash"
+                                                text
+                                                rounded
+                                                severity="danger"
+                                                class="action-button"
+                                                @click="showDeleteDialog(data)"
+                                            />
+                                        </div>
                                     </template>
                                 </Column>
                             </DataTable>
@@ -122,3 +128,26 @@ const openNewAccountDialog = () => {
         :onConfirm="handleDeleteAccount"
     />
 </template>
+
+<style scoped>
+.accounts-view {
+    padding: 2rem;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-start;
+}
+
+.action-button {
+    padding: 0.25rem;
+}
+</style>
