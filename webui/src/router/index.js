@@ -31,7 +31,7 @@ const router = createRouter({
             meta: {
                 requiresAuth: true
             },
-            component: () => import('@/views/EntriesView.vue')
+            component: () => import('@/views/entries/EntriesView.vue')
         },
         {
             path: '/categories',

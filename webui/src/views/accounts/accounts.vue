@@ -2,7 +2,7 @@
 import { VerticalLayout, HorizontalLayout, Placeholder } from '@go-bumbu/vue-components/layout'
 import '@go-bumbu/vue-components/layout.css'
 import TopBar from '@/views/topbar.vue'
-import { useAccounts } from '@/composable/useAccounts.js'
+import { useAccounts } from '@/composables/useAccounts.js'
 import { useUserStore } from '@/lib/user/userstore.js'
 import { onMounted, ref } from 'vue'
 import DataTable from 'primevue/datatable'

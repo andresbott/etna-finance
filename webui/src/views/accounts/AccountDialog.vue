@@ -8,7 +8,7 @@ import Message from 'primevue/message'
 import Select from 'primevue/select'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
-import { useAccounts } from '@/composable/useAccounts.js'
+import { useAccounts } from '@/composables/useAccounts.js'
 
 const { createAccount, updateAccount, isCreating, isUpdating } = useAccounts()
 

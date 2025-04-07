@@ -4,21 +4,22 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/andresbott/etna/internal/model/finance"
 	"net/http"
 	"time"
+
+	"github.com/andresbott/etna/internal/model/finance"
 )
 
 type entryPayload struct {
 	Id              uint      `json:"id"`
-	Name            string    `json:"name"`
+	Description     string    `json:"description"`
 	Amount          float64   `json:"amount"`
-	StockAmount     float64   `json:"stock_amount"`
+	StockAmount     float64   `json:"StockAmount"`
 	Date            time.Time `json:"date"`
 	Type            string    `json:"type"`
-	TargetAccountID uint      `json:"target_account_id"`
-	OriginAccountID uint      `json:"origin_account_id"`
-	CategoryId      uint      `json:"category_id"`
+	TargetAccountID uint      `json:"targetAccountId"`
+	OriginAccountID uint      `json:"originAccountId"`
+	CategoryId      uint      `json:"CategoryId"`
 }
 
 func (h *Handler) CreateEntry(userId string) http.Handler {
@@ -40,7 +41,7 @@ func (h *Handler) CreateEntry(userId string) http.Handler {
 		}
 
 		entry := finance.Entry{
-			Name:            payload.Name,
+			Description:     payload.Description,
 			Amount:          payload.Amount,
 			StockAmount:     payload.StockAmount,
 			Date:            payload.Date,
@@ -79,7 +80,7 @@ func (h *Handler) CreateEntry(userId string) http.Handler {
 }
 
 type entryUpdatePayload struct {
-	Name            *string    `json:"name"`
+	Description     *string    `json:"description"`
 	Amount          *float64   `json:"amount"`
 	Date            *time.Time `json:"date"`
 	TargetAccountID *uint      `json:"target_account_id"`
@@ -106,7 +107,7 @@ func (h *Handler) UpdateEntry(Id uint, userId string) http.Handler {
 		}
 
 		updatePayload := finance.EntryUpdatePayload{
-			Name:            payload.Name,
+			Description:     payload.Description,
 			Amount:          payload.Amount,
 			Date:            payload.Date,
 			TargetAccountID: payload.TargetAccountID,
@@ -167,16 +168,27 @@ func (h *Handler) ListEntries(userId string) http.Handler {
 		limitStr := r.URL.Query().Get("limit")
 		pageStr := r.URL.Query().Get("page")
 
-		// Parse dates
-		startDate, err := time.Parse(time.RFC3339, startDateStr)
-		if err != nil {
-			http.Error(w, "invalid start_date format", http.StatusBadRequest)
-			return
+		// Set default date range to last 30 days if not provided
+		now := time.Now()
+		endDate := now
+		startDate := now.AddDate(0, 0, -30) // 30 days ago
+
+		// Parse dates if provided
+		if startDateStr != "" {
+			var err error
+			startDate, err = time.Parse(time.RFC3339, startDateStr)
+			if err != nil {
+				http.Error(w, "invalid start_date format", http.StatusBadRequest)
+				return
+			}
 		}
-		endDate, err := time.Parse(time.RFC3339, endDateStr)
-		if err != nil {
-			http.Error(w, "invalid end_date format", http.StatusBadRequest)
-			return
+		if endDateStr != "" {
+			var err error
+			endDate, err = time.Parse(time.RFC3339, endDateStr)
+			if err != nil {
+				http.Error(w, "invalid end_date format", http.StatusBadRequest)
+				return
+			}
 		}
 
 		// Parse account ID if provided
@@ -220,7 +232,7 @@ func (h *Handler) ListEntries(userId string) http.Handler {
 		for i, entry := range entries {
 			response.Items[i] = entryPayload{
 				Id:              entry.Id,
-				Name:            entry.Name,
+				Description:     entry.Description,
 				Amount:          entry.Amount,
 				StockAmount:     entry.StockAmount,
 				Date:            entry.Date,
@@ -228,6 +240,31 @@ func (h *Handler) ListEntries(userId string) http.Handler {
 				TargetAccountID: entry.TargetAccountID,
 				OriginAccountID: entry.OriginAccountID,
 				CategoryId:      entry.CategoryId,
+			}
+		}
+
+		if len(response.Items) == 0 {
+			response.Items = []entryPayload{
+				{
+					Id:              1,
+					Description:     "income 1",
+					Amount:          1000.0,
+					Date:            time.Now(),
+					Type:            "income",
+					TargetAccountID: 1,
+					CategoryId:      1,
+				},
+				{
+					Id:              2,
+					Description:     "expense 2",
+					Amount:          25.5,
+					StockAmount:     0,
+					Date:            time.Time{},
+					Type:            "expense",
+					TargetAccountID: 0,
+					OriginAccountID: 0,
+					CategoryId:      0,
+				},
 			}
 		}
 

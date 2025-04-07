@@ -2,8 +2,10 @@ package finance
 
 import (
 	"bytes"
+	"strconv"
 
 	"encoding/json"
+
 	"github.com/andresbott/etna/internal/model/finance"
 
 	"io"
@@ -24,13 +26,13 @@ func TestFinanceHandler_CreateEntry(t *testing.T) {
 		{
 			name:       "successful request",
 			userId:     "user123",
-			payload:    bytes.NewBuffer([]byte(`{"name":"Salary", "amount":1000.0, "date":"2024-01-01T00:00:00Z", "type":"income", "target_account_id":1, "category_id":1}`)),
+			payload:    bytes.NewBuffer([]byte(`{"description":"Salary", "amount":1000.0, "date":"2024-01-01T00:00:00Z", "type":"income", "target_account_id":1, "category_id":1}`)),
 			expectCode: http.StatusOK,
 		},
 		{
 			name:       "empty userId",
 			userId:     "",
-			payload:    bytes.NewBuffer([]byte(`{"name":"Salary", "amount":1000.0, "date":"2024-01-01T00:00:00Z", "type":"income", "target_account_id":1, "category_id":1}`)),
+			payload:    bytes.NewBuffer([]byte(`{"description":"Salary", "amount":1000.0, "date":"2024-01-01T00:00:00Z", "type":"income", "target_account_id":1, "category_id":1}`)),
 			expecErr:   "unable to create entry: user not provided",
 			expectCode: http.StatusBadRequest,
 		},
@@ -44,7 +46,7 @@ func TestFinanceHandler_CreateEntry(t *testing.T) {
 		{
 			name:       "malformed payload",
 			userId:     "user123",
-			payload:    bytes.NewBuffer([]byte(`{"name":"Salary"`)),
+			payload:    bytes.NewBuffer([]byte(`{"description":"Salary"`)),
 			expecErr:   "unable to decode json: unexpected EOF",
 			expectCode: http.StatusBadRequest,
 		},
@@ -107,14 +109,14 @@ func TestFinanceHandler_UpdateEntry(t *testing.T) {
 			name:       "successful request",
 			userId:     "user123",
 			entryId:    1,
-			payload:    bytes.NewBuffer([]byte(`{"name":"Updated Salary", "amount":2000.0}`)),
+			payload:    bytes.NewBuffer([]byte(`{"description":"Updated Salary", "amount":2000.0}`)),
 			expectCode: http.StatusOK,
 		},
 		{
 			name:       "empty userId",
 			userId:     "",
 			entryId:    1,
-			payload:    bytes.NewBuffer([]byte(`{"name":"Updated Salary", "amount":2000.0}`)),
+			payload:    bytes.NewBuffer([]byte(`{"description":"Updated Salary", "amount":2000.0}`)),
 			expecErr:   "unable to update entry: user not provided",
 			expectCode: http.StatusBadRequest,
 		},
@@ -130,7 +132,7 @@ func TestFinanceHandler_UpdateEntry(t *testing.T) {
 			name:       "malformed payload",
 			userId:     "user123",
 			entryId:    1,
-			payload:    bytes.NewBuffer([]byte(`{"name":"Updated Salary"`)),
+			payload:    bytes.NewBuffer([]byte(`{"description":"Updated Salary"`)),
 			expecErr:   "unable to decode json: unexpected EOF",
 			expectCode: http.StatusBadRequest,
 		},
@@ -146,7 +148,7 @@ func TestFinanceHandler_UpdateEntry(t *testing.T) {
 			defer uDb.Close()
 
 			recorder := httptest.NewRecorder()
-			req, _ := http.NewRequest("PUT", "/api/entries/"+string(tc.entryId), tc.payload)
+			req, _ := http.NewRequest("PUT", "/api/entries/"+strconv.Itoa(int(tc.entryId)), tc.payload)
 			handler := h.UpdateEntry(tc.entryId, tc.userId)
 			handler.ServeHTTP(recorder, req)
 
@@ -204,7 +206,7 @@ func TestFinanceHandler_DeleteEntry(t *testing.T) {
 			defer uDb.Close()
 
 			recorder := httptest.NewRecorder()
-			req, _ := http.NewRequest("DELETE", "/api/entries/"+string(tc.entryId), nil)
+			req, _ := http.NewRequest("DELETE", "/api/entries/"+strconv.Itoa(int(tc.entryId)), nil)
 			handler := h.DeleteEntry(tc.entryId, tc.userId)
 			handler.ServeHTTP(recorder, req)
 
@@ -238,9 +240,27 @@ func TestFinanceHandler_ListEntries(t *testing.T) {
 		expectCode int
 	}{
 		{
-			name:       "successful request",
+			name:       "successful request with date range",
 			userId:     "user123",
 			query:      "?start_date=2024-01-01T00:00:00Z&end_date=2024-12-31T23:59:59Z",
+			expectCode: http.StatusOK,
+		},
+		{
+			name:       "successful request with default date range",
+			userId:     "user123",
+			query:      "",
+			expectCode: http.StatusOK,
+		},
+		{
+			name:       "successful request with only start date",
+			userId:     "user123",
+			query:      "?start_date=2024-01-01T00:00:00Z",
+			expectCode: http.StatusOK,
+		},
+		{
+			name:       "successful request with only end date",
+			userId:     "user123",
+			query:      "?end_date=2024-12-31T23:59:59Z",
 			expectCode: http.StatusOK,
 		},
 		{
@@ -251,10 +271,17 @@ func TestFinanceHandler_ListEntries(t *testing.T) {
 			expectCode: http.StatusBadRequest,
 		},
 		{
-			name:       "invalid date format",
+			name:       "invalid start date format",
 			userId:     "user123",
 			query:      "?start_date=invalid&end_date=2024-12-31T23:59:59Z",
 			expecErr:   "invalid start_date format",
+			expectCode: http.StatusBadRequest,
+		},
+		{
+			name:       "invalid end date format",
+			userId:     "user123",
+			query:      "?start_date=2024-01-01T00:00:00Z&end_date=invalid",
+			expecErr:   "invalid end_date format",
 			expectCode: http.StatusBadRequest,
 		},
 	}

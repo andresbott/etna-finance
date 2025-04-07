@@ -93,8 +93,70 @@ func (h *MainAppHandler) financeApi(r *mux.Router) error {
 		finHndlr.DeleteAccount(itemId, userData.UserId).ServeHTTP(w, r)
 	})
 
-	return nil
+	// ==========================================================================
+	// Entries
+	// ==========================================================================
 
+	r.Path("/fin/entries").Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userData, err := sessionauth.CtxGetUserData(r)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		finHndlr.ListEntries(userData.UserId).ServeHTTP(w, r)
+	})
+
+	r.Path("/fin/entries").Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userData, err := sessionauth.CtxGetUserData(r)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		finHndlr.CreateEntry(userData.UserId).ServeHTTP(w, r)
+	})
+
+	r.Path("/fin/entries/{ID}").Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userData, err := sessionauth.CtxGetUserData(r)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+
+		finHndlr.UpdateEntry(itemId, userData.UserId).ServeHTTP(w, r)
+	})
+
+	r.Path("/fin/entries/{ID}").Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userData, err := sessionauth.CtxGetUserData(r)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+
+		finHndlr.DeleteEntry(itemId, userData.UserId).ServeHTTP(w, r)
+	})
+
+	r.Path("/fin/entries/lock").Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userData, err := sessionauth.CtxGetUserData(r)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		finHndlr.LockEntries(userData.UserId).ServeHTTP(w, r)
+	})
+
+	return nil
 }
 
 // Extract the ID from the request url. based on gorilla url path vars

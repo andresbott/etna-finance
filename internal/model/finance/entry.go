@@ -4,29 +4,30 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gorm.io/gorm"
 	"strings"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // Entry is a
 type Entry struct {
 	Id              uint
-	Name            string
+	Description     string
 	Amount          float64
 	StockAmount     float64
 	Date            time.Time
 	Locked          bool      // does not accept changes anymore
 	Type            EntryType //income, transfer, spend, stock buy, stock sell ( like transfer with stock amounts added)
 	TargetAccountID uint
-	OriginAccountID uint
+	OriginAccountID uint // optional, used on case of transfer or stock operations
 	CategoryId      uint
 }
 
 // dbAccount is the DB internal representation of a Bookmark
 type dbEntry struct {
 	Id              uint `gorm:"primarykey"`
-	Name            string
+	Description     string
 	Amount          float64
 	Type            int8
 	OwnerId         string    `gorm:"index"`
@@ -45,7 +46,7 @@ type dbEntry struct {
 func getEntry(in dbEntry) Entry {
 	return Entry{
 		Id:              in.Id,
-		Name:            in.Name,
+		Description:     in.Description,
 		Amount:          in.Amount,
 		Date:            in.Date,
 		Locked:          in.Locked,
@@ -113,8 +114,8 @@ var EntryNotFoundErr = errors.New("entry not found")
 
 func (store *Store) CreateEntry(ctx context.Context, item Entry, tenant string) (uint, error) {
 
-	if item.Name == "" {
-		return 0, ValidationErr("name cannot be empty")
+	if item.Description == "" {
+		return 0, ValidationErr("description cannot be empty")
 	}
 	if item.Type == UnsetEntry {
 		return 0, ValidationErr("entry type cannot be empty")
@@ -128,12 +129,13 @@ func (store *Store) CreateEntry(ctx context.Context, item Entry, tenant string) 
 
 	payload := dbEntry{
 		OwnerId:         tenant, // ensure tenant is set by the signature
-		Name:            item.Name,
+		Description:     item.Description,
 		Type:            int8(item.Type),
 		Amount:          item.Amount,
 		Date:            item.Date,
 		Locked:          false, // entries are always created unlocked
 		TargetAccountId: item.TargetAccountID,
+		OriginAccountId: item.OriginAccountID,
 		CategoryId:      item.CategoryId,
 	}
 
@@ -169,7 +171,7 @@ func (store *Store) DeleteEntry(ctx context.Context, Id uint, tenant string) err
 }
 
 type EntryUpdatePayload struct {
-	Name            *string
+	Description     *string
 	Amount          *float64
 	StockAmount     *float64
 	Date            *time.Time
@@ -182,9 +184,9 @@ func (store *Store) UpdateEntry(item EntryUpdatePayload, Id uint, tenant string)
 	payload := map[string]any{}
 	hasChanges := false
 
-	if item.Name != nil {
+	if item.Description != nil {
 		hasChanges = true
-		payload["name"] = *item.Name
+		payload["description"] = *item.Description
 	}
 
 	if item.Amount != nil {

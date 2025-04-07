@@ -3,11 +3,12 @@ package finance
 import (
 	"context"
 	"fmt"
+	"testing"
+	"time"
+
 	"github.com/go-bumbu/testdbs"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"testing"
-	"time"
 )
 
 var date1 = time.Date(2025, time.March, 15, 0, 0, 0, 0, time.UTC)
@@ -25,30 +26,30 @@ func TestCreateEntry(t *testing.T) {
 				{
 					name:   "create valid entry",
 					tenant: tenant1,
-					input:  Entry{Name: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry},
+					input:  Entry{Description: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry},
 				},
 				{
-					name:    "want error on empty name",
+					name:    "want error on empty description",
 					tenant:  tenant1,
-					input:   Entry{Name: "", Amount: 1000, Date: date1, Type: ExpenseEntry},
-					wantErr: "name cannot be empty",
+					input:   Entry{Description: "", Amount: 1000, Date: date1, Type: ExpenseEntry},
+					wantErr: "description cannot be empty",
 				},
 				{
 					name:    "want error on zero amount",
 					tenant:  tenant1,
-					input:   Entry{Name: "Groceries", Amount: 0, Date: date1, Type: ExpenseEntry},
+					input:   Entry{Description: "Groceries", Amount: 0, Date: date1, Type: ExpenseEntry},
 					wantErr: "amount cannot be empty",
 				},
 				{
 					name:    "want error on zero date",
 					tenant:  tenant1,
-					input:   Entry{Name: "Investment", Amount: 500, Date: time.Time{}, Type: ExpenseEntry},
+					input:   Entry{Description: "Investment", Amount: 500, Date: time.Time{}, Type: ExpenseEntry},
 					wantErr: "date cannot be zero",
 				},
 				{
 					name:    "want error on empty type",
 					tenant:  tenant1,
-					input:   Entry{Name: "Groceries", Amount: 0, Date: date1},
+					input:   Entry{Description: "Groceries", Amount: 0, Date: date1},
 					wantErr: "entry type cannot be empty",
 				},
 			}
@@ -108,14 +109,14 @@ func TestGetEntry(t *testing.T) {
 				{
 					name:         "get existing entry",
 					createTenant: tenant1,
-					create:       Entry{Name: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry, TargetAccountID: 2},
+					create:       Entry{Description: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry, TargetAccountID: 2},
 					checkTenant:  tenant1,
-					want:         Entry{Name: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry, TargetAccountID: 2},
+					want:         Entry{Description: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry, TargetAccountID: 2},
 				},
 				{
 					name:         "want error when reading from different tenant",
 					createTenant: tenant1,
-					create:       Entry{Name: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry},
+					create:       Entry{Description: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry},
 					checkTenant:  tenant2,
 					wantErr:      "entry not found",
 				},
@@ -172,13 +173,13 @@ func TestDeleteEntry(t *testing.T) {
 				{
 					name:         "delete existing entry",
 					createTenant: tenant1,
-					create:       Entry{Name: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry},
+					create:       Entry{Description: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry},
 					deleteTenant: tenant1,
 				},
 				{
 					name:         "error when deleting non-existent entry",
 					createTenant: tenant1,
-					create:       Entry{Name: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry},
+					create:       Entry{Description: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry},
 					deleteTenant: tenant1,
 					deleteID:     9999,
 					wantErr:      "entry not found",
@@ -186,7 +187,7 @@ func TestDeleteEntry(t *testing.T) {
 				{
 					name:         "error when deleting entry  for other tenant",
 					createTenant: tenant1,
-					create:       Entry{Name: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry},
+					create:       Entry{Description: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry},
 					deleteTenant: tenant2,
 					wantErr:      "entry not found",
 				},
@@ -248,52 +249,52 @@ func TestUpdateEntry(t *testing.T) {
 				wantErr       string
 			}{
 				{
-					name:          "update existing entry name",
+					name:          "update existing entry description",
 					createTenant:  tenant1,
-					create:        Entry{Name: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry},
+					create:        Entry{Description: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry},
 					updateTenant:  tenant1,
-					updatePayload: EntryUpdatePayload{Name: ptr("Updated Entry Name")},
-					want:          Entry{Name: "Updated Entry Name", Amount: 1000, Date: date1, Type: ExpenseEntry},
+					updatePayload: EntryUpdatePayload{Description: ptr("Updated Entry Description")},
+					want:          Entry{Description: "Updated Entry Description", Amount: 1000, Date: date1, Type: ExpenseEntry},
 				},
 				{
 					name:          "update entry amount",
 					createTenant:  tenant1,
-					create:        Entry{Name: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry},
+					create:        Entry{Description: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry},
 					updateTenant:  tenant1,
-					updatePayload: EntryUpdatePayload{Amount: ptr(200)},
-					want:          Entry{Name: "Salary", Amount: 200, Date: date1, Type: ExpenseEntry},
+					updatePayload: EntryUpdatePayload{Amount: ptr(float64(200))},
+					want:          Entry{Description: "Salary", Amount: 200, Date: date1, Type: ExpenseEntry},
 				},
 				{
-					name:          "update entry name and amount",
+					name:          "update entry description and amount",
 					createTenant:  tenant1,
-					create:        Entry{Name: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry},
+					create:        Entry{Description: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry},
 					updateTenant:  tenant1,
-					updatePayload: EntryUpdatePayload{Name: ptr("Updated Entry Name"), Amount: ptr(300)},
-					want:          Entry{Name: "Updated Entry Name", Amount: 300, Date: date1, Type: ExpenseEntry},
+					updatePayload: EntryUpdatePayload{Description: ptr("Updated Entry Description"), Amount: ptr(float64(300))},
+					want:          Entry{Description: "Updated Entry Description", Amount: 300, Date: date1, Type: ExpenseEntry},
 				},
 				{
 					name:          "update entry date",
 					createTenant:  tenant1,
-					create:        Entry{Name: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry},
+					create:        Entry{Description: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry},
 					updateTenant:  tenant1,
 					updatePayload: EntryUpdatePayload{Date: &date2},
-					want:          Entry{Name: "Salary", Amount: 1000, Date: date2, Type: ExpenseEntry},
+					want:          Entry{Description: "Salary", Amount: 1000, Date: date2, Type: ExpenseEntry},
 				},
 				{
 					name:          "error when updating non-existent entry",
 					createTenant:  tenant1,
-					create:        Entry{Name: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry},
+					create:        Entry{Description: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry},
 					updateTenant:  tenant1,
 					updateID:      9999,
-					updatePayload: EntryUpdatePayload{Name: ptr("Updated Entry Name")},
+					updatePayload: EntryUpdatePayload{Description: ptr("Updated Entry Description")},
 					wantErr:       "entry not found",
 				},
 				{
 					name:          "error when updating anther's tenant entry",
 					createTenant:  tenant1,
-					create:        Entry{Name: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry},
+					create:        Entry{Description: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry},
 					updateTenant:  tenant2,
-					updatePayload: EntryUpdatePayload{Name: ptr("Updated Entry Name")},
+					updatePayload: EntryUpdatePayload{Description: ptr("Updated Entry Description")},
 					wantErr:       "entry not found",
 				},
 			}
@@ -355,16 +356,16 @@ func getTime(timeStr string) time.Time {
 }
 
 var sampleEntries = []Entry{
-	{Name: "e1", Amount: 1, Type: ExpenseEntry, Date: getTime("2025-01-01 00:00:00")}, // 0
-	{Name: "e2", Amount: 2, Type: ExpenseEntry, Date: getTime("2025-01-02 00:00:00"), TargetAccountID: 1},
-	{Name: "e3", Amount: 3, Type: ExpenseEntry, Date: getTime("2025-01-03 00:00:00"), TargetAccountID: 2},
-	{Name: "e4", Amount: 4, Type: ExpenseEntry, Date: getTime("2025-01-04 00:00:00")}, // 3
-	{Name: "e5", Amount: 5, Type: ExpenseEntry, Date: getTime("2025-01-05 00:00:00"), TargetAccountID: 2},
-	{Name: "e6", Amount: 6, Type: ExpenseEntry, Date: getTime("2025-01-06 00:00:00"), TargetAccountID: 1},
-	{Name: "e7", Amount: 7, Type: ExpenseEntry, Date: getTime("2025-01-07 00:00:00")}, // 6
-	{Name: "e8", Amount: 8, Type: ExpenseEntry, Date: getTime("2025-01-08 00:00:00"), TargetAccountID: 2},
-	{Name: "e9", Amount: 9, Type: ExpenseEntry, Date: getTime("2025-01-09 00:00:00")},
-	{Name: "e10", Amount: 10, Type: ExpenseEntry, Date: getTime("2025-01-10 00:00:00")}, // 9
+	{Description: "e1", Amount: 1, Type: ExpenseEntry, Date: getTime("2025-01-01 00:00:00")}, // 0
+	{Description: "e2", Amount: 2, Type: ExpenseEntry, Date: getTime("2025-01-02 00:00:00"), TargetAccountID: 1},
+	{Description: "e3", Amount: 3, Type: ExpenseEntry, Date: getTime("2025-01-03 00:00:00"), TargetAccountID: 2},
+	{Description: "e4", Amount: 4, Type: ExpenseEntry, Date: getTime("2025-01-04 00:00:00")}, // 3
+	{Description: "e5", Amount: 5, Type: ExpenseEntry, Date: getTime("2025-01-05 00:00:00"), TargetAccountID: 2},
+	{Description: "e6", Amount: 6, Type: ExpenseEntry, Date: getTime("2025-01-06 00:00:00"), TargetAccountID: 1},
+	{Description: "e7", Amount: 7, Type: ExpenseEntry, Date: getTime("2025-01-07 00:00:00")}, // 6
+	{Description: "e8", Amount: 8, Type: ExpenseEntry, Date: getTime("2025-01-08 00:00:00"), TargetAccountID: 2},
+	{Description: "e9", Amount: 9, Type: ExpenseEntry, Date: getTime("2025-01-09 00:00:00")},
+	{Description: "e10", Amount: 10, Type: ExpenseEntry, Date: getTime("2025-01-10 00:00:00")}, // 9
 }
 
 func TestSearchEntries(t *testing.T) {
