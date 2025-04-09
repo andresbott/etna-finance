@@ -237,7 +237,7 @@ func (store *Store) ListEntries(ctx context.Context, startDate, endDate time.Tim
 	}
 	offset := (page - 1) * limit
 
-	db = db.Order("created_at DESC").Limit(limit).Offset(offset)
+	db = db.Order("date DESC").Limit(limit).Offset(offset)
 
 	var results []dbEntry
 	if err := db.Find(&results).Error; err != nil {

@@ -12,6 +12,7 @@ import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
 import { useEntries } from '@/composables/useEntries.js'
 import { useAccounts } from '@/composables/useAccounts.js'
+import DatePicker from 'primevue/datepicker'
 
 const { createEntry, updateEntry, isCreating, isUpdating } = useEntries()
 const { accounts } = useAccounts()
@@ -141,7 +142,21 @@ const handleSubmit = async (e, form) => {
                     $form.stockAmount.error?.message
                 }}</Message>
 
-                <Calendar name="date" :showIcon="true" />
+                <DatePicker 
+                    name="date" 
+                    :showIcon="true"
+                    dateFormat="dd/mm/yy"
+                    :locale="{
+                        firstDayOfWeek: 1,
+                        dayNames: ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'],
+                        dayNamesShort: ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'],
+                        dayNamesMin: ['D', 'L', 'M', 'X', 'J', 'V', 'S'],
+                        monthNames: ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'],
+                        monthNamesShort: ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'],
+                        today: 'Hoy',
+                        clear: 'Limpiar'
+                    }"
+                />
                 <Message v-if="$form.date?.invalid" severity="error" size="small">{{
                     $form.date.error?.message
                 }}</Message>

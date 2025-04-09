@@ -162,11 +162,6 @@ func (h *Handler) ListEntries(userId string) http.Handler {
 		}
 
 		// Parse query parameters
-		startDateStr := r.URL.Query().Get("start_date")
-		endDateStr := r.URL.Query().Get("end_date")
-		accountIDStr := r.URL.Query().Get("account_id")
-		limitStr := r.URL.Query().Get("limit")
-		pageStr := r.URL.Query().Get("page")
 
 		// Set default date range to last 30 days if not provided
 		now := time.Now()
@@ -174,25 +169,34 @@ func (h *Handler) ListEntries(userId string) http.Handler {
 		startDate := now.AddDate(0, 0, -30) // 30 days ago
 
 		// Parse dates if provided
+		startDateStr := r.URL.Query().Get("startDate")
 		if startDateStr != "" {
 			var err error
-			startDate, err = time.Parse(time.RFC3339, startDateStr)
+			startDate, err = time.Parse(time.DateOnly, startDateStr)
 			if err != nil {
-				http.Error(w, "invalid start_date format", http.StatusBadRequest)
+				http.Error(w, "invalid startDate format", http.StatusBadRequest)
 				return
 			}
 		}
+		// set the start time to midnight
+		startDate = time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, startDate.Location())
+
+		endDateStr := r.URL.Query().Get("endDate")
 		if endDateStr != "" {
 			var err error
-			endDate, err = time.Parse(time.RFC3339, endDateStr)
+			endDate, err = time.Parse(time.DateOnly, endDateStr)
 			if err != nil {
-				http.Error(w, "invalid end_date format", http.StatusBadRequest)
+				http.Error(w, "invalid endDate format", http.StatusBadRequest)
 				return
 			}
 		}
+		// set the endDate time to midnight of the next day
+		endDate = endDate.AddDate(0, 0, 1)
+		endDate = time.Date(endDate.Year(), endDate.Month(), endDate.Day(), 0, 0, 0, 0, endDate.Location())
 
 		// Parse account ID if provided
 		var accountID *uint
+		accountIDStr := r.URL.Query().Get("accountId")
 		if accountIDStr != "" {
 			var id uint
 			if _, err := fmt.Sscanf(accountIDStr, "%d", &id); err != nil {
@@ -203,6 +207,7 @@ func (h *Handler) ListEntries(userId string) http.Handler {
 		}
 
 		// Parse pagination parameters
+		limitStr := r.URL.Query().Get("limit")
 		limit := 30 // default
 		if limitStr != "" {
 			if _, err := fmt.Sscanf(limitStr, "%d", &limit); err != nil {
@@ -212,6 +217,7 @@ func (h *Handler) ListEntries(userId string) http.Handler {
 		}
 
 		page := 1 // default
+		pageStr := r.URL.Query().Get("page")
 		if pageStr != "" {
 			if _, err := fmt.Sscanf(pageStr, "%d", &page); err != nil {
 				http.Error(w, "invalid page format", http.StatusBadRequest)

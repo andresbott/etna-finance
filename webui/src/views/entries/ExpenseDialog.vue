@@ -35,7 +35,7 @@ const formValues = ref({
     amount: props.amount,
     date: props.date,
     targetAccountId: props.targetAccountId,
-    categoryId: props.categoryId
+    //categoryId: props.categoryId
 })
 
 // Watch props to update form values when editing
@@ -97,7 +97,7 @@ const onFormSubmit = async (e) => {
             :resolver="resolver"
             :initialValues="formValues"
             :validateOnValueUpdate="false"
-            :validateOnBlur="true"
+            :validateOnBlur="false"
             @submit="onFormSubmit"
         >
             <div v-focustrap class="flex flex-column gap-4">
@@ -116,7 +116,11 @@ const onFormSubmit = async (e) => {
                     $form.amount.error?.message
                 }}</Message>
 
-                <DatePicker name="date" :showIcon="true" />
+                <DatePicker 
+                    name="date" 
+                    :showIcon="true"
+                    dateFormat="dd/mm/y"
+                />
                 <Message v-if="$form.date?.invalid" severity="error" size="small">{{
                     $form.date.error?.message
                 }}</Message>
