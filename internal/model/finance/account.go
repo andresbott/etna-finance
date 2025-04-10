@@ -85,6 +85,8 @@ type dbAccount struct {
 
 func (store *Store) CreateAccount(ctx context.Context, item Account, tenant string) (uint, error) {
 
+	// TODO: limit the amount of accounts a user can create (?)
+
 	if item.Name == "" {
 		return 0, ValidationErr("name cannot be empty")
 	}
@@ -188,4 +190,19 @@ func (store *Store) ListAccounts(ctx context.Context, tenant string) ([]Account,
 		}
 	}
 	return accounts, nil
+}
+
+// ListAccountsMap is a wrapper function around ListAccounts that returns a map [uint]Account where the
+// key is the account id
+func (store *Store) ListAccountsMap(ctx context.Context, tenant string) (map[uint]Account, error) {
+	accounts, err := store.ListAccounts(ctx, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[uint]Account, len(accounts))
+	for _, account := range accounts {
+		result[account.ID] = account
+	}
+	return result, nil
 }

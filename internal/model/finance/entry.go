@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"golang.org/x/text/currency"
 	"strings"
 	"time"
 
@@ -12,16 +13,21 @@ import (
 
 // Entry is a
 type Entry struct {
-	Id              uint
-	Description     string
-	Amount          float64
-	StockAmount     float64
-	Date            time.Time
-	Locked          bool      // does not accept changes anymore
-	Type            EntryType //income, transfer, spend, stock buy, stock sell ( like transfer with stock amounts added)
-	TargetAccountID uint
-	OriginAccountID uint // optional, used on case of transfer or stock operations
-	CategoryId      uint
+	Id          uint
+	Description string
+	Amount      float64
+	// TargetAmount TODO used for transfers between accounts of different currency
+	StockAmount           float64
+	Date                  time.Time
+	Locked                bool      // does not accept changes anymore
+	Type                  EntryType //income, transfer, spend, stock buy, stock sell ( like transfer with stock amounts added)
+	TargetAccountID       uint
+	TargetAccountName     string
+	TargetAccountCurrency currency.Unit
+	OriginAccountID       uint // optional, used on case of transfer or stock operations
+	OriginAccountName     string
+	OriginAccountCurrency currency.Unit
+	CategoryId            uint
 }
 
 // dbAccount is the DB internal representation of a Bookmark
@@ -205,7 +211,7 @@ func (store *Store) UpdateEntry(item EntryUpdatePayload, Id uint, tenant string)
 			return q.Error
 		}
 		if q.RowsAffected == 0 {
-			return errors.New("entry not found")
+			return EntryNotFoundErr
 		}
 	}
 	return nil
@@ -215,6 +221,12 @@ const MaxSearchResults = 90
 const DefaultSearchResults = 30
 
 func (store *Store) ListEntries(ctx context.Context, startDate, endDate time.Time, accountID *uint, limit, page int, tenant string) ([]Entry, error) {
+
+	accountsMap, err := store.ListAccountsMap(ctx, tenant)
+	if err != nil {
+		return nil, err
+	}
+
 	db := store.db.WithContext(ctx).Where("owner_id = ?", tenant)
 
 	// Filter by date range
@@ -222,7 +234,7 @@ func (store *Store) ListEntries(ctx context.Context, startDate, endDate time.Tim
 
 	// Filter by account ID if provided
 	if accountID != nil {
-		db = db.Where("account_id = ?", *accountID)
+		db = db.Where("target_account_id = ? OR origin_account_id = ?", *accountID, *accountID)
 	}
 
 	if limit == 0 {
@@ -240,7 +252,8 @@ func (store *Store) ListEntries(ctx context.Context, startDate, endDate time.Tim
 	db = db.Order("date DESC").Limit(limit).Offset(offset)
 
 	var results []dbEntry
-	if err := db.Find(&results).Error; err != nil {
+	err = db.Find(&results).Error
+	if err != nil {
 		return nil, err
 	}
 
@@ -250,7 +263,27 @@ func (store *Store) ListEntries(ctx context.Context, startDate, endDate time.Tim
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
-			entries = append(entries, getEntry(got))
+			newEntry := getEntry(got)
+
+			// inject account info into the results, I know this could also be done with sql
+			if newEntry.OriginAccountID != 0 {
+				if account, ok := accountsMap[newEntry.OriginAccountID]; ok {
+					newEntry.OriginAccountName = account.Name
+					newEntry.OriginAccountCurrency = account.Currency
+				} else {
+					return nil, fmt.Errorf("unable to find OriginAccountID  %d referenced by entry %d", newEntry.OriginAccountID, newEntry.Id)
+				}
+			}
+
+			if newEntry.TargetAccountID != 0 {
+				if account, ok := accountsMap[newEntry.TargetAccountID]; ok {
+					newEntry.TargetAccountName = account.Name
+					newEntry.TargetAccountCurrency = account.Currency
+				} else {
+					return nil, fmt.Errorf("unable to find TargetAccountID  %d referenced by entry %d", newEntry.TargetAccountID, newEntry.Id)
+				}
+			}
+			entries = append(entries, newEntry)
 		}
 	}
 	return entries, nil

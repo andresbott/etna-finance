@@ -36,11 +36,18 @@ const accountSearch = ref('')
 
 const filteredAccounts = computed(() => {
   if (!accountSearch.value) return accounts.value
-  return accounts.value.filter(account => 
+  return accounts.value?.filter(account => 
     account.name.toLowerCase().includes(accountSearch.value.toLowerCase())
   )
 })
 
+const filteredEntries = computed(() => {
+  if (!selectedAccount.value) return entries.value
+  return entries.value?.filter(entry => 
+    entry.targetAccountId === selectedAccount.value.id || 
+    entry.originAccountId === selectedAccount.value.id
+  )
+})
 
 // Dummy data for categories
 const incomeCategories = [
@@ -143,16 +150,6 @@ const getEntryTypeIcon = (type) => {
     }
 }
 
-const getAccountName = (accountId) => {
-    const account = accounts.value?.find(acc => acc.id === accountId)
-    return account ? account.name : 'Unknown Account'
-}
-
-const getAccountCurrency = (accountId) => {
-    const account = accounts.value?.find(acc => acc.id === accountId)
-    return account ? account.currency : ''
-}
-
 const getRowClass = (data) => {
     return {
         'expense-row': data.type === 'expense',
@@ -231,6 +228,7 @@ const handleDeleteEntry = async (entry) => {
             <DatePicker
               v-model="startDate"
               :showIcon="true"
+              :showButtonBar="true"
               dateFormat="dd/mm/y"
               placeholder="Start date"
               @date-select="refetch"
@@ -241,6 +239,7 @@ const handleDeleteEntry = async (entry) => {
             <DatePicker
               v-model="endDate"
               :showIcon="true"
+              :showButtonBar="true"
               dateFormat="dd/mm/y"
               placeholder="End date"
               @date-select="refetch"
@@ -266,7 +265,7 @@ const handleDeleteEntry = async (entry) => {
 
       <div class="entries-view">
         <DataTable
-            :value="entries"
+            :value="filteredEntries"
             :loading="isLoading"
             stripedRows
             paginator
@@ -275,30 +274,22 @@ const handleDeleteEntry = async (entry) => {
             :rowsPerPageOptions="[5, 10, 20, 50]"
             :rowClass="getRowClass"
         >
-          <Column header="" style="width: 50px">
+          <Column header="" style="width: 40px">
             <template #body="{ data }">
-              <i :class="getEntryTypeIcon(data.type)" style="font-size: 1.2rem" />
+              <i :class="getEntryTypeIcon(data.type)" style="font-size: 0.8rem" />
             </template>
           </Column>
+
           <Column field="description" header="Description" />
+
           <Column header="Account">
             <template #body="{ data }">
                                         <span v-if="data.type === 'transfer'">
-                                            {{ getAccountName(data.originAccountId) }}<i class="pi pi-arrow-right" style="font-size: 0.9rem; margin: 0 8px;" />{{ getAccountName(data.targetAccountId) }}
+                                            {{ data.originAccountName }}<i class="pi pi-arrow-right" style="font-size: 0.9rem; margin: 0 8px;" />{{ data.targetAccountName }}
                                         </span>
               <span v-else>
-                                            {{ getAccountName(data.targetAccountId) }}
+                                            {{ data.targetAccountName }}
                                         </span>
-            </template>
-          </Column>
-          <Column field="amount" header="Amount">
-            <template #body="{ data }">
-              <div v-if="data.type === 'expense'">
-                -{{ data.amount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ getAccountCurrency(data.targetAccountId) }}
-              </div>
-              <div v-else>
-                {{ data.amount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ getAccountCurrency(data.targetAccountId) }}
-              </div>
             </template>
           </Column>
           <Column field="date" header="Date">
@@ -306,6 +297,23 @@ const handleDeleteEntry = async (entry) => {
               {{ new Date(data.date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' }) }}
             </template>
           </Column>
+          <Column field="amount" header="Amount">
+            <template #body="{ data }">
+              <div v-if="data.type === 'expense'" class="amount expense">
+                -{{ data.amount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ data.targetAccountCurrency }}
+              </div>
+              <div v-else-if="data.type === 'income'" class="amount income">
+                {{ data.amount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ data.targetAccountCurrency }}
+              </div>
+              <div v-else-if="data.type === 'transfer'" class="amount transfer">
+                {{ data.amount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ data.targetAccountCurrency }}
+              </div>
+              <div v-else class="amount">
+                {{ data.amount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ data.targetAccountCurrency }}
+              </div>
+            </template>
+          </Column>
+    
           <Column header="Actions" style="width: 100px">
             <template #body="{ data }">
               <div class="actions">
@@ -417,45 +425,7 @@ const handleDeleteEntry = async (entry) => {
  padding-bottom: 0;
 }
 
-:deep(.p-datatable .p-datatable-tbody > tr.expense-row) {
-    background-color: rgba(190, 45, 45, 0.10);
-}
 
-:deep(.p-datatable.p-datatable-striped .p-datatable-tbody > tr.p-row-odd.expense-row) {
-    background-color: rgba(190, 45, 45, 0.2);
-}
-
-:deep(.p-datatable .p-datatable-tbody > tr.income-row) {
-    background-color: rgba(34, 197, 94, 0.10);
-}
-
-:deep(.p-datatable.p-datatable-striped .p-datatable-tbody > tr.p-row-odd.income-row) {
-    background-color: rgba(34, 197, 94, 0.2);
-}
-
-:deep(.p-datatable .p-datatable-tbody > tr.transfer-row) {
-    background-color: rgba(59, 130, 246, 0.10);
-}
-
-:deep(.p-datatable.p-datatable-striped .p-datatable-tbody > tr.p-row-odd.transfer-row) {
-    background-color: rgba(59, 130, 246, 0.2);
-}
-
-:deep(.p-datatable .p-datatable-tbody > tr.buystock-row) {
-    background-color: rgba(234, 179, 8, 0.10);
-}
-
-:deep(.p-datatable.p-datatable-striped .p-datatable-tbody > tr.p-row-odd.buystock-row) {
-    background-color: rgba(234, 179, 8, 0.2);
-}
-
-:deep(.p-datatable .p-datatable-tbody > tr.sellstock-row) {
-    background-color: rgba(249, 115, 22, 0.10);
-}
-
-:deep(.p-datatable.p-datatable-striped .p-datatable-tbody > tr.p-row-odd.sellstock-row) {
-    background-color: rgba(249, 115, 22, 0.2);
-}
 
 :deep(.p-datatable .p-datatable-tbody > tr:hover) {
     background-color: rgba(0, 0, 0, 0.1) !important;
@@ -569,6 +539,19 @@ const handleDeleteEntry = async (entry) => {
 
 :deep(.p-input-icon-left > i:first-of-type) {
   left: 0.5rem;
+}
+
+
+.amount.expense {
+  color: #dc2626;
+}
+
+.amount.income {
+  color: #16a34a;
+}
+
+.amount.transfer {
+  color: #2563eb;
 }
 
 </style> 

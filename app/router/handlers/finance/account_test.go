@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/andresbott/etna/internal/model/finance"
 	"github.com/glebarez/sqlite"
 	"github.com/google/go-cmp/cmp"
@@ -17,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestFinanceHandler_CreateAccount(t *testing.T) {
@@ -342,6 +344,20 @@ var sampleAccounts = []finance.Account{
 	{Name: "Under the bed", Currency: currency.EUR, Type: finance.Cash},
 }
 
+var sampleEntries = []finance.Entry{
+	{Description: "e1", Amount: 1, Type: finance.ExpenseEntry, Date: getTime("2025-01-01 00:00:00")}, // 0
+}
+
+func getTime(timeStr string) time.Time {
+	// Parse the string based on the provided layout
+	parsedTime, err := time.Parse("2006-01-02 15:04:05", timeStr)
+	if err != nil {
+		panic(fmt.Errorf("unable to parse time: %v", err))
+
+	}
+	return parsedTime
+}
+
 const (
 	user1 = "user1"
 	user2 = "user2"
@@ -363,6 +379,13 @@ func SampleHandler() (*Handler, *gorm.DB, error) {
 
 	for _, item := range sampleAccounts {
 		_, err = fiStore.CreateAccount(context.Background(), item, user1)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	for _, entry := range sampleEntries {
+		_, err = fiStore.CreateEntry(context.Background(), entry, user1)
 		if err != nil {
 			return nil, nil, err
 		}

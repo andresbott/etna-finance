@@ -107,9 +107,9 @@ func TestFinanceHandler_UpdateEntry(t *testing.T) {
 	}{
 		{
 			name:       "successful request",
-			userId:     "user123",
+			userId:     user1,
 			entryId:    1,
-			payload:    bytes.NewBuffer([]byte(`{"description":"Updated Salary", "amount":2000.0}`)),
+			payload:    bytes.NewBuffer([]byte(`{"description":"Updated Salary", "amount":2000.5}`)),
 			expectCode: http.StatusOK,
 		},
 		{
@@ -122,7 +122,7 @@ func TestFinanceHandler_UpdateEntry(t *testing.T) {
 		},
 		{
 			name:       "empty payload",
-			userId:     "user123",
+			userId:     user1,
 			entryId:    1,
 			payload:    nil,
 			expecErr:   "request had empty body",
@@ -130,7 +130,7 @@ func TestFinanceHandler_UpdateEntry(t *testing.T) {
 		},
 		{
 			name:       "malformed payload",
-			userId:     "user123",
+			userId:     user1,
 			entryId:    1,
 			payload:    bytes.NewBuffer([]byte(`{"description":"Updated Salary"`)),
 			expecErr:   "unable to decode json: unexpected EOF",
@@ -167,6 +167,11 @@ func TestFinanceHandler_UpdateEntry(t *testing.T) {
 			} else {
 				if status := recorder.Code; status != tc.expectCode {
 					t.Errorf("handler returned wrong status code: got %v want %v", status, tc.expectCode)
+					respText, err := io.ReadAll(recorder.Body)
+					if err != nil {
+						t.Fatal(err)
+					}
+					t.Log(string(respText))
 				}
 			}
 		})
@@ -183,7 +188,7 @@ func TestFinanceHandler_DeleteEntry(t *testing.T) {
 	}{
 		{
 			name:       "successful request",
-			userId:     "user123",
+			userId:     user1,
 			entryId:    1,
 			expectCode: http.StatusOK,
 		},
@@ -242,7 +247,7 @@ func TestFinanceHandler_ListEntries(t *testing.T) {
 		{
 			name:       "successful request with date range",
 			userId:     "user123",
-			query:      "?start_date=2024-01-01T00:00:00Z&end_date=2024-12-31T23:59:59Z",
+			query:      "?startDate=2024-01-01&end_date=2024-12-31",
 			expectCode: http.StatusOK,
 		},
 		{
@@ -254,34 +259,34 @@ func TestFinanceHandler_ListEntries(t *testing.T) {
 		{
 			name:       "successful request with only start date",
 			userId:     "user123",
-			query:      "?start_date=2024-01-01T00:00:00Z",
+			query:      "?startDate=2024-01-01",
 			expectCode: http.StatusOK,
 		},
 		{
 			name:       "successful request with only end date",
 			userId:     "user123",
-			query:      "?end_date=2024-12-31T23:59:59Z",
+			query:      "?end_date=2024-12-31",
 			expectCode: http.StatusOK,
 		},
 		{
 			name:       "empty userId",
 			userId:     "",
-			query:      "?start_date=2024-01-01T00:00:00Z&end_date=2024-12-31T23:59:59Z",
+			query:      "?startDate=2024-01-01&end_date=2024-12-31",
 			expecErr:   "unable to list entries: user not provided",
 			expectCode: http.StatusBadRequest,
 		},
 		{
 			name:       "invalid start date format",
 			userId:     "user123",
-			query:      "?start_date=invalid&end_date=2024-12-31T23:59:59Z",
-			expecErr:   "invalid start_date format",
+			query:      "?startDate=invalid&end_date=2024-12-31",
+			expecErr:   "invalid startDate format",
 			expectCode: http.StatusBadRequest,
 		},
 		{
 			name:       "invalid end date format",
 			userId:     "user123",
-			query:      "?start_date=2024-01-01T00:00:00Z&end_date=invalid",
-			expecErr:   "invalid end_date format",
+			query:      "?startDate=2024-01-01&endDate=invalid",
+			expecErr:   "invalid endDate format",
 			expectCode: http.StatusBadRequest,
 		},
 	}

@@ -62,14 +62,21 @@ export function useEntries(startDateRef, endDateRef) {
     const queryClient = useQueryClient()
 
 
-    const queryKey = computed(() => [
-        'entries',
-        unref(startDateRef),
-        unref(endDateRef)
-    ])
+    const queryKey = computed(() => {
+        const start = unref(startDateRef)
+        const end = unref(endDateRef)
+
+        console.log(startDateRef)
+        console.log(start)
+
+        return start && end
+            ? ['entries',formatDate(start), formatDate(end)]
+            : ['entries', 'invalid'] // fallback key to avoid undefined
+    })
 
     const entriesQuery = useQuery({
         queryKey,
+        // enabled: computed(() => !!unref(startDateRef) && !!unref(endDateRef)),
         queryFn: () => fetchEntries(unref(startDateRef), unref(endDateRef))
     })
 
@@ -77,8 +84,10 @@ export function useEntries(startDateRef, endDateRef) {
     const createEntryMutation = useMutation({
         mutationFn: createEntry,
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: QUERY_KEY })
-            queryClient.refetchQueries({ queryKey: QUERY_KEY })
+            console.log('Mutation success — refetching...')
+            console.log('Current queryKey:', queryKey.value)
+            queryClient.invalidateQueries({ queryKey: queryKey.value })
+            queryClient.refetchQueries({ queryKey: queryKey.value })
         }
     })
 
@@ -86,8 +95,8 @@ export function useEntries(startDateRef, endDateRef) {
     const updateEntryMutation = useMutation({
         mutationFn: updateEntry,
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: QUERY_KEY })
-            queryClient.refetchQueries({ queryKey: QUERY_KEY })
+            queryClient.invalidateQueries({ queryKey: queryKey.value })
+            queryClient.refetchQueries({ queryKey: queryKey.value })
         }
     })
 

@@ -3,6 +3,7 @@ package finance
 import (
 	"context"
 	"fmt"
+	"golang.org/x/text/currency"
 	"testing"
 	"time"
 
@@ -13,6 +14,9 @@ import (
 
 var date1 = time.Date(2025, time.March, 15, 0, 0, 0, 0, time.UTC)
 var date2 = time.Date(2025, time.March, 16, 0, 0, 0, 0, time.UTC)
+
+var ignoreEntryFields = cmpopts.IgnoreFields(Entry{},
+	"Id", "TargetAccountCurrency", "OriginAccountCurrency")
 
 func TestCreateEntry(t *testing.T) {
 	for _, db := range testdbs.DBs() {
@@ -85,7 +89,8 @@ func TestCreateEntry(t *testing.T) {
 						if err != nil {
 							t.Fatalf("expected entry to be found, but got error: %v", err)
 						}
-						if diff := cmp.Diff(got, tc.input, cmpopts.IgnoreFields(Entry{}, "Id")); diff != "" {
+
+						if diff := cmp.Diff(got, tc.input, ignoreEntryFields); diff != "" {
 							t.Errorf("unexpected result (-want +got):\n%s", diff)
 						}
 					}
@@ -149,7 +154,7 @@ func TestGetEntry(t *testing.T) {
 							t.Fatalf("unexpected error: %v", err)
 						}
 
-						if diff := cmp.Diff(got, tc.want, cmpopts.IgnoreFields(Entry{}, "Id")); diff != "" {
+						if diff := cmp.Diff(got, tc.want, ignoreEntryFields); diff != "" {
 							t.Errorf("unexpected result (-want +got):\n%s", diff)
 						}
 					}
@@ -335,7 +340,7 @@ func TestUpdateEntry(t *testing.T) {
 							t.Fatalf("expected entry to be found, but got error: %v", err)
 						}
 
-						if diff := cmp.Diff(got, tc.want, cmpopts.IgnoreFields(Entry{}, "Id")); diff != "" {
+						if diff := cmp.Diff(got, tc.want, ignoreEntryFields); diff != "" {
 							t.Errorf("unexpected result (-want +got):\n%s", diff)
 						}
 					}
@@ -357,15 +362,33 @@ func getTime(timeStr string) time.Time {
 
 var sampleEntries = []Entry{
 	{Description: "e1", Amount: 1, Type: ExpenseEntry, Date: getTime("2025-01-01 00:00:00")}, // 0
-	{Description: "e2", Amount: 2, Type: ExpenseEntry, Date: getTime("2025-01-02 00:00:00"), TargetAccountID: 1},
-	{Description: "e3", Amount: 3, Type: ExpenseEntry, Date: getTime("2025-01-03 00:00:00"), TargetAccountID: 2},
+	{Description: "e2", Amount: 2, Type: ExpenseEntry, Date: getTime("2025-01-02 00:00:00"),
+		TargetAccountID: 1, TargetAccountName: "acc1"},
+	{Description: "e3", Amount: 3, Type: ExpenseEntry, Date: getTime("2025-01-03 00:00:00"),
+		TargetAccountID: 2, TargetAccountName: "acc2"},
 	{Description: "e4", Amount: 4, Type: ExpenseEntry, Date: getTime("2025-01-04 00:00:00")}, // 3
-	{Description: "e5", Amount: 5, Type: ExpenseEntry, Date: getTime("2025-01-05 00:00:00"), TargetAccountID: 2},
-	{Description: "e6", Amount: 6, Type: ExpenseEntry, Date: getTime("2025-01-06 00:00:00"), TargetAccountID: 1},
+	{Description: "e5", Amount: 5, Type: ExpenseEntry, Date: getTime("2025-01-05 00:00:00"),
+		TargetAccountID: 2, TargetAccountName: "acc2"},
+	{Description: "e6", Amount: 6, Type: ExpenseEntry, Date: getTime("2025-01-06 00:00:00"),
+		TargetAccountID: 1, TargetAccountName: "acc1"},
 	{Description: "e7", Amount: 7, Type: ExpenseEntry, Date: getTime("2025-01-07 00:00:00")}, // 6
-	{Description: "e8", Amount: 8, Type: ExpenseEntry, Date: getTime("2025-01-08 00:00:00"), TargetAccountID: 2},
+	{Description: "e8", Amount: 8, Type: ExpenseEntry, Date: getTime("2025-01-08 00:00:00"),
+		TargetAccountID: 2, TargetAccountName: "acc2"},
 	{Description: "e9", Amount: 9, Type: ExpenseEntry, Date: getTime("2025-01-09 00:00:00")},
-	{Description: "e10", Amount: 10, Type: ExpenseEntry, Date: getTime("2025-01-10 00:00:00")}, // 9
+	{Description: "e10", Amount: 10, Type: TransferEntry, Date: getTime("2025-01-10 00:00:00"),
+		TargetAccountID: 2, TargetAccountName: "acc2", OriginAccountID: 1, OriginAccountName: "acc1"},
+	{Description: "e11", Amount: 10, Type: ExpenseEntry, Date: getTime("2025-01-11 00:00:00")}, // 10
+	{Description: "e12", Amount: 10, Type: ExpenseEntry, Date: getTime("2025-01-12 00:00:00")},
+	{Description: "e13", Amount: 10, Type: ExpenseEntry, Date: getTime("2025-01-13 00:00:00")},
+	{Description: "e14", Amount: 10, Type: ExpenseEntry, Date: getTime("2025-01-14 00:00:00")},
+	{Description: "e14", Amount: 10, Type: ExpenseEntry, Date: getTime("2025-01-15 00:00:00")},
+	{Description: "e15", Amount: 10, Type: ExpenseEntry, Date: getTime("2025-01-16 00:00:00")},
+}
+
+var sampleAccounts = []Account{
+	{ID: 1, Name: "acc1", Currency: currency.EUR, Type: 0},
+	{ID: 2, Name: "acc2", Currency: currency.EUR, Type: 0},
+	{ID: 3, Name: "acc3", Currency: currency.EUR, Type: 0},
 }
 
 func TestSearchEntries(t *testing.T) {
@@ -389,6 +412,14 @@ func TestSearchEntries(t *testing.T) {
 					endDate:   getTime("2025-01-03 00:00:00"),
 					tenant:    tenant1,
 					want:      []Entry{sampleEntries[2], sampleEntries[1]},
+				},
+				{
+					name:      "verify transfer type is correct",
+					startDate: getTime("2025-01-09 00:00:01"),
+					endDate:   getTime("2025-01-11 00:00:00"),
+					tenant:    tenant1,
+					limit:     2,
+					want:      []Entry{sampleEntries[10], sampleEntries[9]},
 				},
 				{
 					name:      "search with account ID filter",
@@ -419,11 +450,11 @@ func TestSearchEntries(t *testing.T) {
 				},
 				{
 					name:      "search for another tenant",
-					startDate: getTime("2025-01-01 00:00:01"),
-					endDate:   getTime("2025-01-09 00:00:00"),
+					startDate: getTime("2025-01-14 00:00:01"),
+					endDate:   getTime("2025-01-20 00:00:00"),
 					tenant:    tenant2,
 					limit:     2,
-					want:      []Entry{sampleEntries[4], sampleEntries[3]},
+					want:      []Entry{sampleEntries[15], sampleEntries[14]},
 				},
 			}
 
@@ -433,13 +464,20 @@ func TestSearchEntries(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			for _, acc := range sampleAccounts {
+				_, err = store.CreateAccount(context.Background(), acc, tenant1)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
 			for _, entry := range sampleEntries {
 				_, err = store.CreateEntry(context.Background(), entry, tenant1)
 				if err != nil {
 					t.Fatal(err)
 				}
 			}
-			for _, entry := range sampleEntries[2:5] {
+			for _, entry := range sampleEntries[9:16] {
 				_, err = store.CreateEntry(context.Background(), entry, tenant2)
 				if err != nil {
 					t.Fatal(err)
@@ -472,7 +510,7 @@ func TestSearchEntries(t *testing.T) {
 							t.Fatalf("unexpected error: %v", err)
 						}
 
-						if diff := cmp.Diff(got, tc.want, cmpopts.IgnoreFields(Entry{}, "Id")); diff != "" {
+						if diff := cmp.Diff(got, tc.want, ignoreEntryFields); diff != "" {
 							t.Errorf("unexpected result (-want +got):\n%s", diff)
 						}
 					}

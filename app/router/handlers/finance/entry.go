@@ -11,15 +11,19 @@ import (
 )
 
 type entryPayload struct {
-	Id              uint      `json:"id"`
-	Description     string    `json:"description"`
-	Amount          float64   `json:"amount"`
-	StockAmount     float64   `json:"StockAmount"`
-	Date            time.Time `json:"date"`
-	Type            string    `json:"type"`
-	TargetAccountID uint      `json:"targetAccountId"`
-	OriginAccountID uint      `json:"originAccountId"`
-	CategoryId      uint      `json:"CategoryId"`
+	Id                    uint      `json:"id"`
+	Description           string    `json:"description"`
+	Amount                float64   `json:"amount"`
+	StockAmount           float64   `json:"StockAmount"`
+	Date                  time.Time `json:"date"`
+	Type                  string    `json:"type"`
+	TargetAccountID       uint      `json:"targetAccountId"`
+	TargetAccountName     string    `json:"targetAccountName"`
+	TargetAccountCurrency string    `json:"targetAccountCurrency"`
+	OriginAccountID       uint      `json:"originAccountId"`
+	OriginAccountName     string    `json:"originAccountName"`
+	OriginAccountCurrency string    `json:"originAccountCurrency"`
+	CategoryId            uint      `json:"CategoryId"`
 }
 
 func (h *Handler) CreateEntry(userId string) http.Handler {
@@ -237,15 +241,19 @@ func (h *Handler) ListEntries(userId string) http.Handler {
 
 		for i, entry := range entries {
 			response.Items[i] = entryPayload{
-				Id:              entry.Id,
-				Description:     entry.Description,
-				Amount:          entry.Amount,
-				StockAmount:     entry.StockAmount,
-				Date:            entry.Date,
-				Type:            entry.Type.String(),
-				TargetAccountID: entry.TargetAccountID,
-				OriginAccountID: entry.OriginAccountID,
-				CategoryId:      entry.CategoryId,
+				Id:                    entry.Id,
+				Description:           entry.Description,
+				Amount:                entry.Amount,
+				StockAmount:           entry.StockAmount,
+				Date:                  entry.Date,
+				Type:                  entry.Type.String(),
+				TargetAccountID:       entry.TargetAccountID,
+				TargetAccountName:     entry.TargetAccountName,
+				TargetAccountCurrency: entry.TargetAccountCurrency.String(),
+				OriginAccountID:       entry.OriginAccountID,
+				OriginAccountName:     entry.OriginAccountName,
+				OriginAccountCurrency: entry.OriginAccountCurrency.String(),
+				CategoryId:            entry.CategoryId,
 			}
 		}
 
