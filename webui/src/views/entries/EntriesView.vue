@@ -15,6 +15,7 @@ import ExpenseDialog from './ExpenseDialog.vue'
 import IncomeDialog from './IncomeDialog.vue'
 import TransferDialog from './TransferDialog.vue'
 import StockDialog from './StockDialog.vue'
+import Card from 'primevue/card'
 
 const today = new Date()
 const startDate = ref(new Date(today.setDate(today.getDate() - 35)))

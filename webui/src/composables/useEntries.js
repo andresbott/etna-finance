@@ -65,10 +65,6 @@ export function useEntries(startDateRef, endDateRef) {
     const queryKey = computed(() => {
         const start = unref(startDateRef)
         const end = unref(endDateRef)
-
-        console.log(startDateRef)
-        console.log(start)
-
         return start && end
             ? ['entries',formatDate(start), formatDate(end)]
             : ['entries', 'invalid'] // fallback key to avoid undefined

@@ -15,7 +15,7 @@ const router = createRouter({
             meta: {
                 requiresAuth: true
             },
-            component: () => import('@/views/MainView.vue')
+            component: () => import('@/views/dashboard/DashboardView.vue')
         },
         {
             path: '/accounts',

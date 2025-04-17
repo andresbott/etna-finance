@@ -1,5 +1,21 @@
 # Brain dump
-
+* Accounts
+  * make sub-accounts:
+    * bank: post finance
+      * main account CHF
+      * saving EUR
+    * stocks IBKR
+      * savings USD
+      * VOO
+* dashbaord
+  * in the financial overview => time graph use main category aggregated
+  * in the accound distribution use aggregated category
+  * in the accounts status view makea  tree representation
+  * create another view of income to exprense ratio
+    * extrapolate savings
+* currency excahnge
+  * we need to keep track of currency exchange 
+  * user setting with main desired currency
 * category
   * tree
   * name
@@ -23,4 +39,4 @@
   * define csv structure column name to field mapping,
   * define concept to classification mapping
   * allow preview
-* import/export as backup option
+  * import/export as backup option
