@@ -71,3 +71,13 @@ func GetDefault(level slog.Level) (*slog.Logger, error) {
 func SilentLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 }
+
+type SlogWriter struct {
+	logger *slog.Logger
+}
+
+func (w SlogWriter) Write(p []byte) (n int, err error) {
+	msg := strings.TrimRight(string(p), "\n") // Remove trailing newline
+	w.logger.Debug(msg)
+	return len(p), nil
+}

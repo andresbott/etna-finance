@@ -8,6 +8,10 @@
 
 # Test binary, build with `go test -c`
 *.test
+*.cover.out
+*.report
+*.html
+
 
 # IDE shenanigans
 *.iml

@@ -10,6 +10,7 @@ import Column from 'primevue/column'
 import Button from 'primevue/button'
 import AccountDialog from '@/views/accounts/AccountDialog.vue'
 import DeleteDialog from '@/components/deleteDialog.vue'
+import TreeTable from 'primevue/treetable'
 
 const { accounts, isLoading, deleteAccount } = useAccounts()
 const userStore = useUserStore()
@@ -18,6 +19,7 @@ const deleteDialogVisible = ref(false)
 const accountDialogVisible = ref(false)
 const selectedAccount = ref(null)
 const isEdit = ref(false)
+const accountGroups = ref([])
 
 // userStore.registerLogoutAction(() => {
 //     resetAccounts()
@@ -45,6 +47,33 @@ const openNewAccountDialog = () => {
     isEdit.value = false
     accountDialogVisible.value = true
 }
+
+const addAccountGroup = () => {
+    accountGroups.value.push({
+        key: Date.now(),
+        data: {
+            name: '',
+            type: '',
+            description: ''
+        },
+        children: []
+    })
+    accountDialogVisible.value = true
+    isEdit.value = false
+}
+
+const addAccount = (group) => {
+    group.children.push({
+        key: Date.now(),
+        data: {
+            name: '',
+            currency: '',
+            icon: ''
+        }
+    })
+    accountDialogVisible.value = true
+    isEdit.value = false
+}
 </script>
 <template>
     <VerticalLayout :center-content="false" :fullHeight="true">
@@ -63,30 +92,31 @@ const openNewAccountDialog = () => {
                             <div class="header">
                                 <h1>Accounts</h1>
                                 <Button
-                                    label="Add Account"
+                                    label="Add Account Group"
                                     icon="pi pi-plus"
-                                    @click="openNewAccountDialog"
+                                    @click="addAccountGroup"
                                 />
                             </div>
-                            <DataTable
-                                :value="accounts"
-                                :loading="isLoading"
-                                stripedRows
-                                class="p-datatable-sm"
-                            >
-                                <Column field="id" header="ID" sortable />
+                            <TreeTable :value="accountGroups" :loading="isLoading" class="p-treetable-sm">
                                 <Column field="name" header="Name" sortable />
-                                <Column field="currency" header="Currency" sortable />
-                                <Column field="type" header="Type" sortable />
+                                <Column field="type" header="Type" sortable v-if="!isEdit" />
+                                <Column field="description" header="Description" sortable v-if="!isEdit" />
                                 <Column header="Actions" style="width: 100px">
-                                    <template #body="{ data }">
+                                    <template #body="{ node }">
                                         <div class="actions">
+                                            <Button
+                                                icon="pi pi-plus"
+                                                text
+                                                rounded
+                                                class="action-button"
+                                                @click="addAccount(node)"
+                                            />
                                             <Button
                                                 icon="pi pi-pencil"
                                                 text
                                                 rounded
                                                 class="action-button"
-                                                @click="editAccount(data)"
+                                                @click="editAccount(node.data)"
                                             />
                                             <Button
                                                 icon="pi pi-trash"
@@ -94,12 +124,12 @@ const openNewAccountDialog = () => {
                                                 rounded
                                                 severity="danger"
                                                 class="action-button"
-                                                @click="showDeleteDialog(data)"
+                                                @click="showDeleteDialog(node.data)"
                                             />
                                         </div>
                                     </template>
                                 </Column>
-                            </DataTable>
+                            </TreeTable>
                         </div>
                     </Placeholder>
                 </template>

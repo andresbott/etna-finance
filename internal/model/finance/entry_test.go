@@ -386,9 +386,9 @@ var sampleEntries = []Entry{
 }
 
 var sampleAccounts = []Account{
-	{ID: 1, Name: "acc1", Currency: currency.EUR, Type: 0},
-	{ID: 2, Name: "acc2", Currency: currency.EUR, Type: 0},
-	{ID: 3, Name: "acc3", Currency: currency.EUR, Type: 0},
+	{ID: 1, Name: "acc1", Currency: currency.EUR, Type: 0, AccountProviderID: 1},
+	{ID: 2, Name: "acc2", Currency: currency.EUR, Type: 0, AccountProviderID: 1},
+	{ID: 3, Name: "acc3", Currency: currency.EUR, Type: 0, AccountProviderID: 1},
 }
 
 func TestSearchEntries(t *testing.T) {

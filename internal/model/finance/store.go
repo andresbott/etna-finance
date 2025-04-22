@@ -7,10 +7,11 @@ import (
 )
 
 type Store struct {
-	db              *gorm.DB
-	tree            *closuretree.Tree
-	tblName         string            // hold the table name
-	AccountColNames map[string]string // hold a map of struct field names to db column names
+	db   *gorm.DB
+	tree *closuretree.Tree
+
+	AccountColNames         map[string]string // hold a map of struct field names to db column names
+	AccountProviderColNames map[string]string // hold a map of struct field names to db column names
 }
 
 type ValidationErr string
@@ -33,7 +34,7 @@ func New(db *gorm.DB) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error parsing schema: %w", err)
 	}
-	b.tblName = stmt.Schema.Table
+	//b.accountsTblName = stmt.Schema.Table
 
 	columnFieldMap := make(map[string]string)
 	for _, field := range stmt.Schema.Fields {
@@ -41,7 +42,18 @@ func New(db *gorm.DB) (*Store, error) {
 	}
 	b.AccountColNames = columnFieldMap
 
-	err = db.AutoMigrate(&dbAccount{}, &dbEntry{})
+	err = stmt.Parse(&dbAccountProvider{})
+	if err != nil {
+		return nil, fmt.Errorf("error parsing schema: %w", err)
+	}
+
+	accountProviderMap := make(map[string]string)
+	for _, field := range stmt.Schema.Fields {
+		accountProviderMap[field.Name] = field.DBName
+	}
+	b.AccountProviderColNames = accountProviderMap
+
+	err = db.AutoMigrate(&dbAccount{}, &dbAccountProvider{}, &dbEntry{})
 	if err != nil {
 		return nil, err
 	}

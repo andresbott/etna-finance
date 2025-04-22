@@ -16,6 +16,28 @@ lint: ## run go linter
 	# depends on https://github.com/golangci/golangci-lint
 	@golangci-lint run
 
+# Default coverage threshold is 80
+COVERAGE_THRESHOLD ?= 80
+
+.PHONY: coverage
+coverage:
+	@fail=0; \
+	for pkg in $$(go list ./internal/...); do \
+		go test -coverprofile=coverage.out -covermode=atomic $$pkg > /dev/null; \
+		if [ -f coverage.out ]; then \
+			coverage=$$(go tool cover -func=coverage.out | grep total: | awk '{print $$3}' | sed 's/%//'); \
+			if [ $$(echo "$$coverage < $(COVERAGE_THRESHOLD)" | bc -l) -eq 1 ]; then \
+				echo "❌ Coverage in $$pkg is below $(COVERAGE_THRESHOLD)!"; \
+				fail=1; \
+			fi; \
+			rm -f coverage.out; \
+		else \
+			echo "⚠️ No coverage data for $$pkg"; \
+			fail=1; \
+		fi; \
+	done; \
+	exit $$fail
+
 benchmark: ## run go benchmarks
 	@go test -run=^$$ -bench=. ./...
 
@@ -24,11 +46,12 @@ license-check: ## check for invalid licenses
 	@go list -m -mod=readonly -json all | go-licence-detector -includeIndirect -validate -rules allowedLicenses.json
 
 .PHONY: verify
-verify: test license-check lint benchmark ## run all tests
+verify: test license-check lint benchmark coverage ## run all tests
 
-cover-report: ## generate a coverage report
-	go test -covermode=count -coverpkg=./... -coverprofile cover.out  ./...
-	go tool cover -html cover.out -o cover.html
+coverage-report: ## generate a coverage report
+	go test -covermode=count -coverpkg=./... -coverprofile coverage.cover.out  ./...
+	@go tool cover -func=coverage.cover.out | tee coverage_internal.report
+	go tool cover -html coverage.cover.out -o cover.html
 	open cover.html
 
 #==========================================================================================

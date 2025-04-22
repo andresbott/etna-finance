@@ -48,7 +48,7 @@ type dbEntry struct {
 	DeletedAt gorm.DeletedAt `gorm:"index"`
 }
 
-// getAccount is used internally to transform the db struct to public facing struct
+// dbToAccount is used internally to transform the db struct to public facing struct
 func getEntry(in dbEntry) Entry {
 	return Entry{
 		Id:              in.Id,
