@@ -191,7 +191,7 @@ type Account struct {
 // dbAccount is the DB internal representation of an Account
 type dbAccount struct {
 	ID         uint `gorm:"primarykey"`
-	ProviderID uint
+	ProviderID uint `gorm:"index"`
 	Name       string
 	Type       AccountType
 	Currency   string
