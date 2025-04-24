@@ -10,7 +10,136 @@ import (
 )
 
 type Handler struct {
-	Store *finance.Store
+	store *finance.Store
+}
+
+type accountProviderPayload struct {
+	Id          uint   `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+func (h *Handler) CreateAccountProvider(userId string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if userId == "" {
+			http.Error(w, "unable to create account: user not provided", http.StatusBadRequest)
+			return
+		}
+		if r.Body == nil {
+			http.Error(w, "request had empty body", http.StatusBadRequest)
+			return
+		}
+
+		payload := accountProviderPayload{}
+		err := json.NewDecoder(r.Body).Decode(&payload)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to decode json: %s", err.Error()), http.StatusBadRequest)
+			return
+		}
+
+		account := finance.AccountProvider{
+			Name:        payload.Name,
+			Description: payload.Description,
+		}
+
+		accID, err := h.store.CreateAccountProvider(r.Context(), account, userId)
+		if err != nil {
+			if errors.As(err, &validationErr) {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			} else {
+				http.Error(w, fmt.Sprintf("unable to store account in DB: %s", err.Error()), http.StatusInternalServerError)
+				return
+			}
+		}
+
+		account.ID = accID
+		respJson, err := json.Marshal(account)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(respJson)
+	})
+}
+
+func (h *Handler) UpdateAccountProvider(Id uint, userId string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if userId == "" {
+			http.Error(w, "unable to update account: user not provided", http.StatusBadRequest)
+			return
+		}
+		if r.Body == nil {
+			http.Error(w, "request had empty body", http.StatusBadRequest)
+			return
+		}
+
+		payload := accountUpdatePayload{}
+		err := json.NewDecoder(r.Body).Decode(&payload)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to decode json: %s", err.Error()), http.StatusBadRequest)
+			return
+		}
+
+		account := finance.AccountUpdatePayload{
+			Name: payload.Name,
+		}
+
+		if payload.Currency != nil {
+			cur, err := currency.ParseISO(*payload.Currency)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("unable to parse currency: %s", err.Error()), http.StatusBadRequest)
+				return
+			}
+			account.Currency = &cur
+		}
+
+		if payload.Type != "" {
+			t, err := finance.ParseAccountType(payload.Type)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("unable to parse account type: %s", err.Error()), http.StatusBadRequest)
+				return
+			}
+			account.Type = t
+		}
+
+		err = h.store.UpdateAccount(account, Id, userId)
+		if err != nil {
+			if errors.As(err, &validationErr) {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+			} else if errors.Is(err, finance.AccountNotFoundErr) {
+				http.Error(w, fmt.Sprintf("unable to update account in DB: %s", err.Error()), http.StatusNotFound)
+				return
+			} else {
+				http.Error(w, fmt.Sprintf("unable to update account in DB: %s", err.Error()), http.StatusInternalServerError)
+				return
+			}
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+}
+
+func (h *Handler) DeleteAccountProvider(Id uint, userId string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		if userId == "" {
+			http.Error(w, "unable to get account: user not provided", http.StatusBadRequest)
+			return
+		}
+
+		err := h.store.DeleteAccount(r.Context(), Id, userId)
+		if err != nil {
+			if errors.Is(err, finance.AccountNotFoundErr) {
+				http.Error(w, err.Error(), http.StatusNotFound)
+			} else {
+				http.Error(w, fmt.Sprintf("unable to delete account: %s", err.Error()), http.StatusInternalServerError)
+			}
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
 }
 
 type accountPayload struct {
@@ -57,7 +186,7 @@ func (h *Handler) CreateAccount(userId string) http.Handler {
 		}
 		account.Type = t
 
-		accID, err := h.Store.CreateAccount(r.Context(), account, userId)
+		accID, err := h.store.CreateAccount(r.Context(), account, userId)
 		if err != nil {
 			if errors.As(err, &validationErr) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -126,7 +255,7 @@ func (h *Handler) UpdateAccount(Id uint, userId string) http.Handler {
 			account.Type = t
 		}
 
-		err = h.Store.UpdateAccount(account, Id, userId)
+		err = h.store.UpdateAccount(account, Id, userId)
 		if err != nil {
 			if errors.As(err, &validationErr) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -150,7 +279,7 @@ func (h *Handler) DeleteAccount(Id uint, userId string) http.Handler {
 			return
 		}
 
-		err := h.Store.DeleteAccount(r.Context(), Id, userId)
+		err := h.store.DeleteAccount(r.Context(), Id, userId)
 		if err != nil {
 			if errors.Is(err, finance.AccountNotFoundErr) {
 				http.Error(w, err.Error(), http.StatusNotFound)
@@ -176,7 +305,7 @@ func (h *Handler) ListAccounts(userId string) http.Handler {
 			return
 		}
 
-		accounts, err := h.Store.ListAccounts(r.Context(), userId)
+		accounts, err := h.store.ListAccounts(r.Context(), userId)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to update account: %s", err.Error()), http.StatusInternalServerError)
 			return

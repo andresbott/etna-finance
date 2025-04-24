@@ -107,7 +107,7 @@ func TestFinanceHandler_UpdateEntry(t *testing.T) {
 	}{
 		{
 			name:       "successful request",
-			userId:     user1,
+			userId:     tenant1,
 			entryId:    1,
 			payload:    bytes.NewBuffer([]byte(`{"description":"Updated Salary", "amount":2000.5}`)),
 			expectCode: http.StatusOK,
@@ -122,7 +122,7 @@ func TestFinanceHandler_UpdateEntry(t *testing.T) {
 		},
 		{
 			name:       "empty payload",
-			userId:     user1,
+			userId:     tenant1,
 			entryId:    1,
 			payload:    nil,
 			expecErr:   "request had empty body",
@@ -130,7 +130,7 @@ func TestFinanceHandler_UpdateEntry(t *testing.T) {
 		},
 		{
 			name:       "malformed payload",
-			userId:     user1,
+			userId:     tenant1,
 			entryId:    1,
 			payload:    bytes.NewBuffer([]byte(`{"description":"Updated Salary"`)),
 			expecErr:   "unable to decode json: unexpected EOF",
@@ -188,7 +188,7 @@ func TestFinanceHandler_DeleteEntry(t *testing.T) {
 	}{
 		{
 			name:       "successful request",
-			userId:     user1,
+			userId:     tenant1,
 			entryId:    1,
 			expectCode: http.StatusOK,
 		},
