@@ -116,7 +116,7 @@ func ParseEntryType(in string) (EntryType, error) {
 	}
 }
 
-var EntryNotFoundErr = errors.New("entry not found")
+var ErrEntryNotFound = errors.New("entry not found")
 
 func (store *Store) CreateEntry(ctx context.Context, item Entry, tenant string) (uint, error) {
 
@@ -157,7 +157,7 @@ func (store *Store) GetEntry(ctx context.Context, Id uint, tenant string) (Entry
 	d := store.db.WithContext(ctx).Where("id = ? AND owner_id = ?", Id, tenant).First(&payload)
 	if d.Error != nil {
 		if errors.Is(d.Error, gorm.ErrRecordNotFound) {
-			return Entry{}, EntryNotFoundErr
+			return Entry{}, ErrEntryNotFound
 		} else {
 			return Entry{}, d.Error
 		}
@@ -171,7 +171,7 @@ func (store *Store) DeleteEntry(ctx context.Context, Id uint, tenant string) err
 		return d.Error
 	}
 	if d.RowsAffected == 0 {
-		return EntryNotFoundErr
+		return ErrEntryNotFound
 	}
 	return nil
 }
@@ -211,7 +211,7 @@ func (store *Store) UpdateEntry(item EntryUpdatePayload, Id uint, tenant string)
 			return q.Error
 		}
 		if q.RowsAffected == 0 {
-			return EntryNotFoundErr
+			return ErrEntryNotFound
 		}
 	}
 	return nil

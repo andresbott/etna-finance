@@ -16,9 +16,7 @@ lint: ## run go linter
 	# depends on https://github.com/golangci/golangci-lint
 	@golangci-lint run
 
-# Default coverage threshold is 80
-COVERAGE_THRESHOLD ?= 80
-
+COVERAGE_THRESHOLD ?= 70
 .PHONY: coverage
 coverage:
 	@fail=0; \

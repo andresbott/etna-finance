@@ -94,7 +94,7 @@ func TestGetAccountProvider(t *testing.T) {
 					name:        "want error when reading from different tenant",
 					checkId:     1,
 					checkTenant: tenant2,
-					wantErr:     AccountProviderNotFoundErr.Error(),
+					wantErr:     ErrAccountProviderNotFound.Error(),
 				},
 			}
 
@@ -150,7 +150,7 @@ func TestDeleteAccountProvider(t *testing.T) {
 					name:         "error when deleting non-existent account",
 					deleteID:     9999,
 					deleteTenant: tenant1,
-					wantErr:      AccountProviderNotFoundErr.Error(),
+					wantErr:      ErrAccountProviderNotFound.Error(),
 				},
 				{
 					name:         "error when deleting while children are referenced", // expect DB constraint to prevent
@@ -225,14 +225,14 @@ func TestUpdateAccountProvider(t *testing.T) {
 					updateTenant:  tenant1,
 					updateID:      9999,
 					updatePayload: AccountProviderUpdatePayload{Description: ptr("Updated description")},
-					wantErr:       AccountProviderNotFoundErr.Error(),
+					wantErr:       ErrAccountProviderNotFound.Error(),
 				},
 				{
 					name:          "error when updating another tenant",
 					updateTenant:  tenant2,
 					updateID:      1,
 					updatePayload: AccountProviderUpdatePayload{Description: ptr("Updated description")},
-					wantErr:       AccountProviderNotFoundErr.Error(),
+					wantErr:       ErrAccountProviderNotFound.Error(),
 				},
 			}
 
@@ -451,7 +451,7 @@ func TestGetAccount(t *testing.T) {
 					name:        "want error when reading from different tenant",
 					checkId:     1,
 					checkTenant: tenant2,
-					wantErr:     AccountNotFoundErr.Error(),
+					wantErr:     ErrAccountNotFound.Error(),
 				},
 			}
 
@@ -513,13 +513,13 @@ func TestDeleteAccount(t *testing.T) {
 					name:         "error when deleting non-existent account",
 					deleteTenant: tenant1,
 					deleteID:     9999,
-					wantErr:      AccountNotFoundErr.Error(),
+					wantErr:      ErrAccountNotFound.Error(),
 				},
 				{
 					name:         "error when deleting non-existent tenant",
 					deleteTenant: emptyTenant,
 					deleteID:     2,
-					wantErr:      AccountNotFoundErr.Error(),
+					wantErr:      ErrAccountNotFound.Error(),
 				},
 			}
 
@@ -602,14 +602,14 @@ func TestUpdateAccount(t *testing.T) {
 					updateTenant:  tenant1,
 					updateID:      9999,
 					updatePayload: AccountUpdatePayload{Name: ptr("Updated Name")},
-					wantErr:       AccountNotFoundErr.Error(),
+					wantErr:       ErrAccountNotFound.Error(),
 				},
 				{
 					name:          "error when updating wron tenant",
 					updateTenant:  emptyTenant,
 					updateID:      1,
 					updatePayload: AccountUpdatePayload{Name: ptr("Updated Name")},
-					wantErr:       AccountNotFoundErr.Error(),
+					wantErr:       ErrAccountNotFound.Error(),
 				},
 			}
 

@@ -27,9 +27,13 @@ func (h *MainAppHandler) attachApiV0(r *mux.Router) error {
 	return nil
 }
 
+const finProviderPath = "/fin/provider"
+const finAccountPath = "/fin/account"
+
 // this api surface is quite inconsistent, I know....
 // I haven't put too much thought into it for now and I will change it in the future
-// nolint: gocognit // the function is quite big and verbose but easy to follow
+//
+//nolint:gocognit // the function is quite big and verbose but easy to follow
 func (h *MainAppHandler) financeApi(r *mux.Router) error {
 
 	fineStore, err := finance.New(h.db)
@@ -40,19 +44,63 @@ func (h *MainAppHandler) financeApi(r *mux.Router) error {
 	finHndlr := finHandler.Handler{Store: fineStore}
 
 	// ==========================================================================
-	// Accounts
+	// Account Providers
 	// ==========================================================================
 
-	r.Path("/fin/accounts").Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Path(finProviderPath).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userData, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read bookmark: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
-		finHndlr.ListAccounts(userData.UserId).ServeHTTP(w, r)
+		finHndlr.ListAccountProviders(userData.UserId).ServeHTTP(w, r)
 	})
 
-	r.Path("/fin/accounts").Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Path(finProviderPath).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userData, err := sessionauth.CtxGetUserData(r)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to read bookmark: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		finHndlr.CreateAccountProvider(userData.UserId).ServeHTTP(w, r)
+	})
+
+	r.Path(fmt.Sprintf("%s/{ID}", finProviderPath)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userData, err := sessionauth.CtxGetUserData(r)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to read bookmark: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+
+		finHndlr.UpdateAccountProvider(itemId, userData.UserId).ServeHTTP(w, r)
+	})
+
+	r.Path(fmt.Sprintf("%s/{ID}", finProviderPath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userData, err := sessionauth.CtxGetUserData(r)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to read bookmark: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+
+		finHndlr.DeleteAccountProvider(itemId, userData.UserId).ServeHTTP(w, r)
+	})
+	// ==========================================================================
+	// Accounts
+	// ==========================================================================
+
+	r.Path(finAccountPath).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userData, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read bookmark: %s", err.Error()), http.StatusInternalServerError)
@@ -61,7 +109,7 @@ func (h *MainAppHandler) financeApi(r *mux.Router) error {
 		finHndlr.CreateAccount(userData.UserId).ServeHTTP(w, r)
 	})
 
-	r.Path("/fin/accounts/{ID}").Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Path(fmt.Sprintf("%s/{ID}", finAccountPath)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userData, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read bookmark: %s", err.Error()), http.StatusInternalServerError)
@@ -77,7 +125,7 @@ func (h *MainAppHandler) financeApi(r *mux.Router) error {
 		finHndlr.UpdateAccount(itemId, userData.UserId).ServeHTTP(w, r)
 	})
 
-	r.Path("/fin/accounts/{ID}").Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Path(fmt.Sprintf("%s/{ID}", finAccountPath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userData, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read bookmark: %s", err.Error()), http.StatusInternalServerError)

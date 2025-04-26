@@ -61,12 +61,12 @@ func (h *Handler) CreateEntry(userId string) http.Handler {
 		}
 		entry.Type = t
 
-		entryID, err := h.store.CreateEntry(r.Context(), entry, userId)
+		entryID, err := h.Store.CreateEntry(r.Context(), entry, userId)
 		if err != nil {
 			if errors.As(err, &validationErr) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 			} else {
-				http.Error(w, fmt.Sprintf("unable to store entry in DB: %s", err.Error()), http.StatusInternalServerError)
+				http.Error(w, fmt.Sprintf("unable to Store entry in DB: %s", err.Error()), http.StatusInternalServerError)
 				return
 			}
 		}
@@ -119,9 +119,9 @@ func (h *Handler) UpdateEntry(Id uint, userId string) http.Handler {
 			CategoryId:      payload.CategoryId,
 		}
 
-		err = h.store.UpdateEntry(updatePayload, Id, userId)
+		err = h.Store.UpdateEntry(updatePayload, Id, userId)
 		if err != nil {
-			if errors.Is(err, finance.EntryNotFoundErr) {
+			if errors.Is(err, finance.ErrEntryNotFound) {
 				http.Error(w, "entry not found", http.StatusNotFound)
 			} else {
 				http.Error(w, fmt.Sprintf("unable to update entry: %s", err.Error()), http.StatusInternalServerError)
@@ -140,9 +140,9 @@ func (h *Handler) DeleteEntry(Id uint, userId string) http.Handler {
 			return
 		}
 
-		err := h.store.DeleteEntry(r.Context(), Id, userId)
+		err := h.Store.DeleteEntry(r.Context(), Id, userId)
 		if err != nil {
-			if errors.Is(err, finance.EntryNotFoundErr) {
+			if errors.Is(err, finance.ErrEntryNotFound) {
 				http.Error(w, "entry not found", http.StatusNotFound)
 			} else {
 				http.Error(w, fmt.Sprintf("unable to delete entry: %s", err.Error()), http.StatusInternalServerError)
@@ -229,7 +229,7 @@ func (h *Handler) ListEntries(userId string) http.Handler {
 			}
 		}
 
-		entries, err := h.store.ListEntries(r.Context(), startDate, endDate, accountID, limit, page, userId)
+		entries, err := h.Store.ListEntries(r.Context(), startDate, endDate, accountID, limit, page, userId)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to list entries: %s", err.Error()), http.StatusInternalServerError)
 			return
@@ -313,7 +313,7 @@ func (h *Handler) LockEntries(userId string) http.Handler {
 			return
 		}
 
-		err = h.store.LockEntries(r.Context(), date)
+		err = h.Store.LockEntries(r.Context(), date)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to lock entries: %s", err.Error()), http.StatusInternalServerError)
 			return

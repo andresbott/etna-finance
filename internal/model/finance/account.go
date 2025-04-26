@@ -24,7 +24,7 @@ type AccountProvider struct {
 }
 
 type dbAccountProvider struct {
-	ID        uint `gorm:"primarykey"`
+	ID        uint `gorm:"primaryKey"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt `gorm:"index"`
@@ -59,7 +59,7 @@ func (store *Store) GetAccountProvider(ctx context.Context, Id uint, tenant stri
 	d := store.db.WithContext(ctx).Where("id = ? AND owner_id = ?", Id, tenant).First(&payload)
 	if d.Error != nil {
 		if errors.Is(d.Error, gorm.ErrRecordNotFound) {
-			return AccountProvider{}, AccountProviderNotFoundErr
+			return AccountProvider{}, ErrAccountProviderNotFound
 		} else {
 			return AccountProvider{}, d.Error
 		}
@@ -70,7 +70,7 @@ func (store *Store) GetAccountProvider(ctx context.Context, Id uint, tenant stri
 type AccountProviderUpdatePayload struct {
 	Name        *string
 	Description *string
-	Accounts    []Account
+	//Accounts    []Accountw
 }
 
 func (store *Store) UpdateAccountProvider(item AccountProviderUpdatePayload, Id uint, tenant string) error {
@@ -88,17 +88,19 @@ func (store *Store) UpdateAccountProvider(item AccountProviderUpdatePayload, Id 
 	}
 	// TODO add account IDs
 
-	if hasChanges {
-		q := store.db.Where("id = ? AND owner_id = ?", Id, tenant).Model(&dbAccountProvider{}).Updates(payload)
-		if q.Error != nil {
-			return q.Error
-		}
+	if !hasChanges {
+		return ErrNoChanges
+	}
 
-		if q.RowsAffected == 0 {
-			return AccountProviderNotFoundErr
-		}
+	q := store.db.Where("id = ? AND owner_id = ?", Id, tenant).Model(&dbAccountProvider{}).Updates(payload)
+	if q.Error != nil {
+		return q.Error
+	}
+	if q.RowsAffected == 0 {
+		return ErrAccountProviderNotFound
 	}
 	return nil
+
 }
 
 func (store *Store) ListAccountsProvider(ctx context.Context, tenant string, fetchAccounts bool) ([]AccountProvider, error) {
@@ -142,7 +144,7 @@ func (store *Store) DeleteAccountProvider(ctx context.Context, id uint, tenant s
 	}
 
 	if count > 0 {
-		return AccountConstraintViolationErr
+		return ErrAccountConstraintViolation
 	}
 
 	d := store.db.WithContext(ctx).Where("id = ? AND owner_id = ?", id, tenant).Delete(&dbAccountProvider{})
@@ -151,7 +153,7 @@ func (store *Store) DeleteAccountProvider(ctx context.Context, id uint, tenant s
 	}
 
 	if d.RowsAffected == 0 {
-		return AccountProviderNotFoundErr
+		return ErrAccountProviderNotFound
 	}
 	return nil
 }
@@ -242,9 +244,10 @@ func ParseAccountType(in string) (AccountType, error) {
 	}
 }
 
-var AccountNotFoundErr = errors.New("account not found")
-var AccountProviderNotFoundErr = errors.New("account provider not found")
-var AccountConstraintViolationErr = errors.New("account constraint violation")
+var ErrAccountNotFound = errors.New("account not found")
+var ErrAccountProviderNotFound = errors.New("account provider not found")
+var ErrAccountConstraintViolation = errors.New("account constraint violation")
+var ErrNoChanges = errors.New("no changes were performed")
 
 // dbToAccount is used internally to transform the db struct to public facing struct
 func dbToAccount(in dbAccount) Account {
@@ -270,6 +273,12 @@ func (store *Store) CreateAccount(ctx context.Context, item Account, tenant stri
 	if item.AccountProviderID == 0 {
 		return 0, ValidationErr("account provider ID cannot be empty")
 	}
+	// validate that the account provider tenant is also account tenant
+	_, err := store.GetAccountProvider(ctx, item.AccountProviderID, tenant)
+	if err != nil && errors.Is(err, ErrAccountProviderNotFound) {
+		return 0, ValidationErr("account provider ID not found")
+	}
+
 	payload := dbAccount{
 		OwnerId:    tenant, // ensure tenant is set by the signature
 		ProviderID: item.AccountProviderID,
@@ -290,7 +299,7 @@ func (store *Store) GetAccount(ctx context.Context, Id uint, tenant string) (Acc
 	d := store.db.WithContext(ctx).Where("id = ? AND owner_id = ?", Id, tenant).First(&payload)
 	if d.Error != nil {
 		if errors.Is(d.Error, gorm.ErrRecordNotFound) {
-			return Account{}, AccountNotFoundErr
+			return Account{}, ErrAccountNotFound
 		} else {
 			return Account{}, d.Error
 		}
@@ -330,15 +339,18 @@ func (store *Store) UpdateAccount(item AccountUpdatePayload, Id uint, tenant str
 		payload[store.AccountColNames["ProviderID"]] = item.ProviderID
 	}
 
-	if hasChanges {
-		q := store.db.Where("id = ? AND owner_id = ?", Id, tenant).Model(&dbAccount{}).Updates(payload)
-		if q.Error != nil {
-			return q.Error
-		}
-		if q.RowsAffected == 0 {
-			return AccountNotFoundErr
-		}
+	if !hasChanges {
+		return ErrNoChanges
 	}
+
+	q := store.db.Where("id = ? AND owner_id = ?", Id, tenant).Model(&dbAccount{}).Updates(payload)
+	if q.Error != nil {
+		return q.Error
+	}
+	if q.RowsAffected == 0 {
+		return ErrAccountNotFound
+	}
+
 	return nil
 }
 
@@ -349,7 +361,7 @@ func (store *Store) DeleteAccount(ctx context.Context, Id uint, tenant string) e
 		return d.Error
 	}
 	if d.RowsAffected == 0 {
-		return AccountNotFoundErr
+		return ErrAccountNotFound
 	}
 	return nil
 }

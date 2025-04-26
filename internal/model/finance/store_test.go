@@ -15,7 +15,7 @@ func TestMain(m *testing.M) {
 	testdbs.InitDBS()
 	// main block that runs tests
 	code := m.Run()
-	testdbs.Clean()
+	_ = testdbs.Clean()
 	os.Exit(code)
 }
 
@@ -118,15 +118,6 @@ func sampleData(t *testing.T, store *Store) {
 			t.Fatalf("error creating account 1: %v", err)
 		}
 	}
-
-	// this account will be owned by tenant 2 but linked to a provider of tenant 1
-	acc = sampleAccounts[1]
-	acc.AccountProviderID = provider1
-	account3, err := store.CreateAccount(ctx, acc, tenant2)
-	if err != nil {
-		t.Fatalf("error creating account 2: %v", err)
-	}
-	_ = account3
 
 	// =========================================
 	// create entries

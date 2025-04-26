@@ -30,7 +30,7 @@ func TestFinanceHandler_CreateEntry(t *testing.T) {
 			expectCode: http.StatusOK,
 		},
 		{
-			name:       "empty userId",
+			name:       "empty tenant",
 			userId:     "",
 			payload:    bytes.NewBuffer([]byte(`{"description":"Salary", "amount":1000.0, "date":"2024-01-01T00:00:00Z", "type":"income", "target_account_id":1, "category_id":1}`)),
 			expecErr:   "unable to create entry: user not provided",
@@ -54,12 +54,8 @@ func TestFinanceHandler_CreateEntry(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			h, db, err := SampleHandler()
-			if err != nil {
-				t.Fatal(err)
-			}
-			uDb, _ := db.DB()
-			defer uDb.Close()
+			h, end := SampleHandler(t)
+			defer end()
 
 			recorder := httptest.NewRecorder()
 			req, _ := http.NewRequest("POST", "/api/entries", tc.payload)
@@ -113,7 +109,7 @@ func TestFinanceHandler_UpdateEntry(t *testing.T) {
 			expectCode: http.StatusOK,
 		},
 		{
-			name:       "empty userId",
+			name:       "empty tenant",
 			userId:     "",
 			entryId:    1,
 			payload:    bytes.NewBuffer([]byte(`{"description":"Updated Salary", "amount":2000.0}`)),
@@ -140,15 +136,11 @@ func TestFinanceHandler_UpdateEntry(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			h, db, err := SampleHandler()
-			if err != nil {
-				t.Fatal(err)
-			}
-			uDb, _ := db.DB()
-			defer uDb.Close()
+			h, end := SampleHandler(t)
+			defer end()
 
 			recorder := httptest.NewRecorder()
-			req, _ := http.NewRequest("PUT", "/api/entries/"+strconv.Itoa(int(tc.entryId)), tc.payload)
+			req, _ := http.NewRequest("PUT", "/api/entries/"+strconv.FormatUint(uint64(tc.entryId), 10), tc.payload)
 			handler := h.UpdateEntry(tc.entryId, tc.userId)
 			handler.ServeHTTP(recorder, req)
 
@@ -193,7 +185,7 @@ func TestFinanceHandler_DeleteEntry(t *testing.T) {
 			expectCode: http.StatusOK,
 		},
 		{
-			name:       "empty userId",
+			name:       "empty tenant",
 			userId:     "",
 			entryId:    1,
 			expecErr:   "unable to delete entry: user not provided",
@@ -203,15 +195,11 @@ func TestFinanceHandler_DeleteEntry(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			h, db, err := SampleHandler()
-			if err != nil {
-				t.Fatal(err)
-			}
-			uDb, _ := db.DB()
-			defer uDb.Close()
+			h, end := SampleHandler(t)
+			defer end()
 
 			recorder := httptest.NewRecorder()
-			req, _ := http.NewRequest("DELETE", "/api/entries/"+strconv.Itoa(int(tc.entryId)), nil)
+			req, _ := http.NewRequest("DELETE", "/api/entries/"+strconv.FormatUint(uint64(tc.entryId), 10), nil)
 			handler := h.DeleteEntry(tc.entryId, tc.userId)
 			handler.ServeHTTP(recorder, req)
 
@@ -269,7 +257,7 @@ func TestFinanceHandler_ListEntries(t *testing.T) {
 			expectCode: http.StatusOK,
 		},
 		{
-			name:       "empty userId",
+			name:       "empty tenant",
 			userId:     "",
 			query:      "?startDate=2024-01-01&end_date=2024-12-31",
 			expecErr:   "unable to list entries: user not provided",
@@ -293,12 +281,8 @@ func TestFinanceHandler_ListEntries(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			h, db, err := SampleHandler()
-			if err != nil {
-				t.Fatal(err)
-			}
-			uDb, _ := db.DB()
-			defer uDb.Close()
+			h, end := SampleHandler(t)
+			defer end()
 
 			recorder := httptest.NewRecorder()
 			req, _ := http.NewRequest("GET", "/api/entries"+tc.query, nil)
@@ -350,7 +334,7 @@ func TestFinanceHandler_LockEntries(t *testing.T) {
 			expectCode: http.StatusOK,
 		},
 		{
-			name:       "empty userId",
+			name:       "empty tenant",
 			userId:     "",
 			query:      "?date=2024-01-01T00:00:00Z",
 			expecErr:   "unable to lock entries: user not provided",
@@ -374,12 +358,8 @@ func TestFinanceHandler_LockEntries(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			h, db, err := SampleHandler()
-			if err != nil {
-				t.Fatal(err)
-			}
-			uDb, _ := db.DB()
-			defer uDb.Close()
+			h, end := SampleHandler(t)
+			defer end()
 
 			recorder := httptest.NewRecorder()
 			req, _ := http.NewRequest("POST", "/api/entries/lock"+tc.query, nil)
