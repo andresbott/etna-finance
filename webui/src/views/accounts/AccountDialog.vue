@@ -18,7 +18,8 @@ const props = defineProps({
     name: { type: String, default: '' },
     currency: { type: String, default: 'CHF' },
     type: { type: String, default: 'cash' },
-    visible: { type: Boolean, default: false }
+    visible: { type: Boolean, default: false },
+    providerId: { type: Number, required: true }
 })
 
 const emit = defineEmits(['update:visible'])
@@ -30,7 +31,8 @@ const formValues = ref({
     accountId: props.accountId,
     name: props.name,
     currency: props.currency,
-    type: props.type
+    type: props.type,
+    providerId: props.providerId
 })
 
 // Watch props to update form values when editing
@@ -43,7 +45,8 @@ const resolver = ref(
         z.object({
             name: z.string().min(1, { message: 'Name is required' }),
             currency: z.string().min(1, { message: 'Currency is required' }),
-            type: z.string().min(1, { message: 'Type is required' })
+            type: z.string().min(1, { message: 'Type is required' }),
+            providerId: z.number({ required_error: 'Provider ID is required' })
         })
     )
 )
@@ -61,7 +64,8 @@ const onFormSubmit = async (e) => {
                     id: formData.accountId,
                     name: formData.name,
                     currency: formData.currency,
-                    type: formData.type
+                    type: formData.type,
+                    providerId: formData.providerId
                 })
                 emit('update:visible', false)
             } catch (error) {
@@ -73,7 +77,8 @@ const onFormSubmit = async (e) => {
                 await createAccount({
                     name: formData.name,
                     currency: formData.currency,
-                    type: formData.type
+                    type: formData.type,
+                    providerId: formData.providerId
                 })
                 emit('update:visible', false)
             } catch (error) {

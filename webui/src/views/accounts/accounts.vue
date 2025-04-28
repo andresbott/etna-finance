@@ -4,37 +4,34 @@ import '@go-bumbu/vue-components/layout.css'
 import TopBar from '@/views/topbar.vue'
 import { useAccounts } from '@/composables/useAccounts.js'
 import { useUserStore } from '@/lib/user/userstore.js'
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Button from 'primevue/button'
 import AccountDialog from '@/views/accounts/AccountDialog.vue'
 import DeleteDialog from '@/components/deleteDialog.vue'
 import TreeTable from 'primevue/treetable'
+import AccountProviderDialog from './AccountProviderDialog.vue'
 
-const { accounts, isLoading, deleteAccount } = useAccounts()
+const { accounts, isLoading, deleteAccount, deleteAccountProvider } = useAccounts()
 const userStore = useUserStore()
 
 const deleteDialogVisible = ref(false)
 const accountDialogVisible = ref(false)
 const selectedAccount = ref(null)
 const isEdit = ref(false)
-const accountGroups = ref([])
 
 // userStore.registerLogoutAction(() => {
 //     resetAccounts()
 // })
 
+// Add expandedKeys ref and computed property
+const expandedKeys = ref({})
+
 const editAccount = (account) => {
     selectedAccount.value = account
     isEdit.value = true
     accountDialogVisible.value = true
-}
-
-const handleDeleteAccount = async () => {
-    if (selectedAccount.value) {
-        await deleteAccount(selectedAccount.value.id)
-    }
 }
 
 const showDeleteDialog = (account) => {
@@ -48,32 +45,93 @@ const openNewAccountDialog = () => {
     accountDialogVisible.value = true
 }
 
-const addAccountGroup = () => {
-    accountGroups.value.push({
-        key: Date.now(),
-        data: {
-            name: '',
-            type: '',
-            description: ''
-        },
-        children: []
-    })
-    accountDialogVisible.value = true
+// Add function to handle adding account to provider
+const addAccountToProvider = (provider) => {
+    selectedAccount.value = {
+        providerId: provider.data.id  // Set the provider ID for the new account
+    }
     isEdit.value = false
+    accountDialogVisible.value = true
 }
 
-const addAccount = (group) => {
-    group.children.push({
-        key: Date.now(),
+// Modify the computed property to also set expanded keys
+const treeTableData = computed(() => {
+    if (!accounts.value) return []
+    
+    const data = accounts.value.map(provider => ({
+        key: provider.id,
         data: {
-            name: '',
-            currency: '',
-            icon: ''
-        }
-    })
-    accountDialogVisible.value = true
-    isEdit.value = false
+            id: provider.id,
+            name: provider.name,
+            description: provider.description
+        },
+        children: provider.accounts?.map(account => ({
+            key: account.id,
+            data: {
+                id: account.id,
+                name: account.name,
+                type: account.type,
+                currency: account.currency
+            }
+        })) || []
+    }))
+
+    // Set all keys as expanded
+    expandedKeys.value = data.reduce((acc, node) => {
+        acc[node.key] = true
+        return acc
+    }, {})
+
+    return data
+})
+
+// Add refs for provider dialog
+const providerDialogVisible = ref(false)
+const selectedProvider = ref(null)
+const isEditProvider = ref(false)
+
+// Update openNewAccountDialog to handle provider creation
+const openNewProviderDialog = () => {
+    selectedProvider.value = null
+    isEditProvider.value = false
+    providerDialogVisible.value = true
 }
+
+// Add edit provider function
+const editProvider = (provider) => {
+    selectedProvider.value = provider
+    isEditProvider.value = true
+    providerDialogVisible.value = true
+}
+
+const deleteProviderDialogVisible = ref(false)
+const deleteAccountDialogVisible = ref(false)
+const selectedItem = ref(null)
+
+const handleDeleteAccount = async () => {
+    if (selectedItem.value) {
+        await deleteAccount(selectedItem.value.id)
+        deleteAccountDialogVisible.value = false
+    }
+}
+
+const handleDeleteProvider = async () => {
+    if (selectedItem.value) {
+        await deleteAccountProvider(selectedItem.value.id)
+        deleteProviderDialogVisible.value = false
+    }
+}
+
+const showDeleteAccountDialog = (account) => {
+    selectedItem.value = account
+    deleteAccountDialogVisible.value = true
+}
+
+const showDeleteProviderDialog = (provider) => {
+    selectedItem.value = provider
+    deleteProviderDialogVisible.value = true
+}
+
 </script>
 <template>
     <VerticalLayout :center-content="false" :fullHeight="true">
@@ -92,39 +150,60 @@ const addAccount = (group) => {
                             <div class="header">
                                 <h1>Accounts</h1>
                                 <Button
-                                    label="Add Account Group"
+                                    label="Add Account Provider"
                                     icon="pi pi-plus"
-                                    @click="addAccountGroup"
+                                    @click="openNewProviderDialog"
                                 />
                             </div>
-                            <TreeTable :value="accountGroups" :loading="isLoading" class="p-treetable-sm">
-                                <Column field="name" header="Name" sortable />
-                                <Column field="type" header="Type" sortable v-if="!isEdit" />
-                                <Column field="description" header="Description" sortable v-if="!isEdit" />
-                                <Column header="Actions" style="width: 100px">
+                            <TreeTable 
+                                :value="treeTableData" 
+                                :loading="isLoading" 
+                                :expandedKeys="expandedKeys"
+                                class="p-treetable-sm"
+                            >
+                                <Column field="name" header="Name" expander />
+                                <Column field="type" header="Type" v-if="!isEdit" />
+                                <Column field="description" header="Description" v-if="!isEdit" />
+                                <Column header="Actions" style="width: 150px">
                                     <template #body="{ node }">
                                         <div class="actions">
                                             <Button
+                                                v-if="node.children"
                                                 icon="pi pi-plus"
                                                 text
                                                 rounded
                                                 class="action-button"
-                                                @click="addAccount(node)"
+                                                @click="addAccountToProvider(node)"
                                             />
                                             <Button
                                                 icon="pi pi-pencil"
                                                 text
                                                 rounded
                                                 class="action-button"
-                                                @click="editAccount(node.data)"
+                                                @click="node.children ? editProvider(node.data) : editAccount(node.data)"
                                             />
                                             <Button
+                                                v-if="node.children"
                                                 icon="pi pi-trash"
                                                 text
                                                 rounded
                                                 severity="danger"
                                                 class="action-button"
-                                                @click="showDeleteDialog(node.data)"
+                                                @click="showDeleteProviderDialog(node.data)"
+                                                :disabled="node.children.length > 0"
+                                                tooltip="Delete Account Provider"
+                                                tooltipOptions="{ position: 'top' }"
+                                            />
+                                            <Button
+                                                v-else
+                                                icon="pi pi-trash"
+                                                text
+                                                rounded
+                                                severity="danger"
+                                                class="action-button"
+                                                @click="showDeleteAccountDialog(node.data)"
+                                                tooltip="Delete Account"
+                                                tooltipOptions="{ position: 'top' }"
                                             />
                                         </div>
                                     </template>
@@ -144,18 +223,36 @@ const addAccount = (group) => {
         v-model:visible="accountDialogVisible"
         :is-edit="isEdit"
         :account-id="selectedAccount?.id"
+        :provider-id="selectedAccount?.providerId"
         :name="selectedAccount?.name"
         :currency="selectedAccount?.currency"
         :type="selectedAccount?.type"
     />
 
     <DeleteDialog
-        v-model:visible="deleteDialogVisible"
-        v-if="selectedAccount"
-        :name="selectedAccount.name"
+        v-model:visible="deleteAccountDialogVisible"
+        v-if="selectedItem && !deleteProviderDialogVisible"
+        :name="selectedItem.name"
         title="Delete Account"
-        message="Are you sure you want to delete the account"
+        message="Are you sure you want to delete this account?"
         :onConfirm="handleDeleteAccount"
+    />
+
+    <DeleteDialog
+        v-model:visible="deleteProviderDialogVisible"
+        v-if="selectedItem && !deleteAccountDialogVisible"
+        :name="selectedItem.name"
+        title="Delete Account Provider"
+        message="Are you sure you want to delete this account provider?"
+        :onConfirm="handleDeleteProvider"
+    />
+
+    <AccountProviderDialog
+        v-model:visible="providerDialogVisible"
+        :is-edit="isEditProvider"
+        :provider-id="selectedProvider?.id"
+        :name="selectedProvider?.name"
+        :description="selectedProvider?.description"
     />
 </template>
 
