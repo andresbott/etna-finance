@@ -4,8 +4,8 @@ import '@go-bumbu/vue-components/layout.css'
 import TopBar from '@/views/topbar.vue'
 import { useAccounts } from '@/composables/useAccounts.js'
 import { useUserStore } from '@/lib/user/userstore.js'
-import { onMounted, ref, computed } from 'vue'
-import DataTable from 'primevue/datatable'
+import {  ref, computed } from 'vue'
+
 import Column from 'primevue/column'
 import Button from 'primevue/button'
 import AccountDialog from '@/views/accounts/AccountDialog.vue'
@@ -16,10 +16,48 @@ import AccountProviderDialog from './AccountProviderDialog.vue'
 const { accounts, isLoading, deleteAccount, deleteAccountProvider } = useAccounts()
 const userStore = useUserStore()
 
+// Modify the computed property to also set expanded keys
+const treeTableData = computed(() => {
+  if (!accounts.value) return []
+
+  const data = accounts.value.map(provider => ({
+    key: provider.id,
+    data: {
+      id: provider.id,
+      name: provider.name,
+      description: provider.description
+    },
+    children: provider.accounts?.map(account => ({
+      key: account.id,
+      data: {
+        id: account.id,
+        name: account.name,
+        type: account.type,
+        currency: account.currency
+      }
+    })) || []
+  }))
+
+  // Set all keys as expanded
+  expandedKeys.value = data.reduce((acc, node) => {
+    acc[node.key] = true
+    return acc
+  }, {})
+
+  return data
+})
+
+
 const deleteDialogVisible = ref(false)
 const accountDialogVisible = ref(false)
 const selectedAccount = ref(null)
 const isEdit = ref(false)
+const providerDialogVisible = ref(false)
+const selectedProvider = ref(null)
+const isEditProvider = ref(false)
+const deleteProviderDialogVisible = ref(false)
+const deleteAccountDialogVisible = ref(false)
+const selectedItem = ref(null)
 
 // userStore.registerLogoutAction(() => {
 //     resetAccounts()
@@ -34,17 +72,6 @@ const editAccount = (account) => {
     accountDialogVisible.value = true
 }
 
-const showDeleteDialog = (account) => {
-    selectedAccount.value = account
-    deleteDialogVisible.value = true
-}
-
-const openNewAccountDialog = () => {
-    selectedAccount.value = null
-    isEdit.value = false
-    accountDialogVisible.value = true
-}
-
 // Add function to handle adding account to provider
 const addAccountToProvider = (provider) => {
     selectedAccount.value = {
@@ -53,42 +80,6 @@ const addAccountToProvider = (provider) => {
     isEdit.value = false
     accountDialogVisible.value = true
 }
-
-// Modify the computed property to also set expanded keys
-const treeTableData = computed(() => {
-    if (!accounts.value) return []
-    
-    const data = accounts.value.map(provider => ({
-        key: provider.id,
-        data: {
-            id: provider.id,
-            name: provider.name,
-            description: provider.description
-        },
-        children: provider.accounts?.map(account => ({
-            key: account.id,
-            data: {
-                id: account.id,
-                name: account.name,
-                type: account.type,
-                currency: account.currency
-            }
-        })) || []
-    }))
-
-    // Set all keys as expanded
-    expandedKeys.value = data.reduce((acc, node) => {
-        acc[node.key] = true
-        return acc
-    }, {})
-
-    return data
-})
-
-// Add refs for provider dialog
-const providerDialogVisible = ref(false)
-const selectedProvider = ref(null)
-const isEditProvider = ref(false)
 
 // Update openNewAccountDialog to handle provider creation
 const openNewProviderDialog = () => {
@@ -103,10 +94,6 @@ const editProvider = (provider) => {
     isEditProvider.value = true
     providerDialogVisible.value = true
 }
-
-const deleteProviderDialogVisible = ref(false)
-const deleteAccountDialogVisible = ref(false)
-const selectedItem = ref(null)
 
 const handleDeleteAccount = async () => {
     if (selectedItem.value) {
@@ -161,51 +148,70 @@ const showDeleteProviderDialog = (provider) => {
                                 :expandedKeys="expandedKeys"
                                 class="p-treetable-sm"
                             >
-                                <Column field="name" header="Name" expander />
-                                <Column field="type" header="Type" v-if="!isEdit" />
-                                <Column field="description" header="Description" v-if="!isEdit" />
-                                <Column header="Actions" style="width: 150px">
+                                <Column field="name" expander />
+
+                                <Column field="description"  >
+                                  <template #body="{ node }">
+
+                                    <div  v-if="node.children" >
+                                    <span>{{ node.data.description }}</span>
+                                    </div>
+                                    <div v-else>
+                                      <i>{{ node.data.type }}</i>
+                                    </div>
+                                  </template>
+                                </Column>
+                              <Column field="currency"  />
+                                <Column  >
                                     <template #body="{ node }">
-                                        <div class="actions">
-                                            <Button
-                                                v-if="node.children"
-                                                icon="pi pi-plus"
-                                                text
-                                                rounded
-                                                class="action-button"
-                                                @click="addAccountToProvider(node)"
-                                            />
-                                            <Button
-                                                icon="pi pi-pencil"
-                                                text
-                                                rounded
-                                                class="action-button"
-                                                @click="node.children ? editProvider(node.data) : editAccount(node.data)"
-                                            />
-                                            <Button
-                                                v-if="node.children"
-                                                icon="pi pi-trash"
-                                                text
-                                                rounded
-                                                severity="danger"
-                                                class="action-button"
-                                                @click="showDeleteProviderDialog(node.data)"
-                                                :disabled="node.children.length > 0"
-                                                tooltip="Delete Account Provider"
-                                                tooltipOptions="{ position: 'top' }"
-                                            />
-                                            <Button
-                                                v-else
-                                                icon="pi pi-trash"
-                                                text
-                                                rounded
-                                                severity="danger"
-                                                class="action-button"
-                                                @click="showDeleteAccountDialog(node.data)"
-                                                tooltip="Delete Account"
-                                                tooltipOptions="{ position: 'top' }"
-                                            />
-                                        </div>
+                                      <div  v-if="node.children" class="actions">
+                                        <Button
+                                                      icon="pi pi-plus"
+                                            text
+                                            rounded
+                                            class="action-button"
+                                            @click="addAccountToProvider(node)"
+                                        />
+                                        <Button
+                                            icon="pi pi-pencil"
+                                            text
+                                            rounded
+                                            class="action-button"
+                                            @click="editProvider(node.data)"
+                                        />
+                                        <Button
+                                                                     icon="pi pi-trash"
+                                            text
+                                            rounded
+                                            severity="danger"
+                                            class="action-button"
+                                            @click="showDeleteProviderDialog(node.data)"
+                                            :disabled="node.children.length > 0"
+                                            tooltip="Delete Account Provider"
+                                            tooltipOptions="{ position: 'top' }"
+                                        />
+
+                                      </div>
+                                      <div v-else class="actions" style="margin-left:38px">
+                                        <Button
+                                            icon="pi pi-pencil"
+                                            text
+                                            rounded
+                                            class="action-button"
+                                            @click="editAccount(node.data)"
+                                        />
+                                        <Button
+                                            icon="pi pi-trash"
+                                            text
+                                            rounded
+                                            severity="danger"
+                                            class="action-button"
+                                            @click="showDeleteAccountDialog(node.data)"
+                                            tooltip="Delete Account"
+                                            tooltipOptions="{ position: 'top' }"
+                                        />
+                                      </div>
+
                                     </template>
                                 </Column>
                             </TreeTable>
@@ -270,7 +276,7 @@ const showDeleteProviderDialog = (provider) => {
 
 .actions {
     display: flex;
-    gap: 0.5rem;
+
     justify-content: flex-start;
 }
 
