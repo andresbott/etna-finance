@@ -181,24 +181,6 @@ func (h *Handler) ListAccountProviders(userId string) http.Handler {
 			outputItems[i] = provider
 		}
 
-		if len(outputItems) == 0 {
-			outputItems = []accountProviderPayload{
-				{
-					Id:          3,
-					Name:        "test",
-					Description: "test description",
-					Accounts: []accountPayload{
-						{
-							Id:       4,
-							Name:     "acc1",
-							Currency: "USD",
-							Type:     finance.BankAccount,
-						},
-					},
-				},
-			}
-		}
-
 		output := listResponse{
 			Items: outputItems,
 		}

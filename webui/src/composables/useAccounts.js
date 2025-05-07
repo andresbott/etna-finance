@@ -3,142 +3,88 @@ import axios from 'axios'
 import AccountProvider from '@/models/AccountProvider'
 import Account from '@/models/Account'
 
+// API Endpoints
 const API_BASE_URL = import.meta.env.VITE_SERVER_URL_V0
 const ACCOUNTS_ENDPOINT = `${API_BASE_URL}/fin/account`
 const PROVIDER_ENDPOINT = `${API_BASE_URL}/fin/provider`
 
-/**
- * Fetches all accounts from the API
- * @returns {Promise<Account[]>}
- */
+// Helper: standard response handlers
+const extractData = (res) => res.data
+const extractItems = (res) => res.data.items || []
+
+// API Functions
 const fetchProviders = async () => {
-    const { data } = await axios.get(PROVIDER_ENDPOINT)
-    return data.items || []
+    const res = await axios.get(PROVIDER_ENDPOINT)
+    return extractItems(res)
 }
 
-const createAccountProvider = async (accountData) => {
-    const { data } = await axios.post(PROVIDER_ENDPOINT, accountData)
-    return data
-}
-const updateAccountProvider = async (accountData) => {
-    const { data } = await axios.put(`${PROVIDER_ENDPOINT}/${accountData.id}`, accountData)
-    return data
-}
+const createAccountProvider = (data) => axios.post(PROVIDER_ENDPOINT, data).then(extractData)
+const updateAccountProvider = (data) => axios.put(`${PROVIDER_ENDPOINT}/${data.id}`, data).then(extractData)
+const deleteAccountProvider = (id) => axios.delete(`${PROVIDER_ENDPOINT}/${id}`)
 
-/**
- * Deletes an account provider
- * @param {number} id - Account Provider ID
- * @returns {Promise<void>}
- */
-const deleteAccountProvider = async (id) => {
-    await axios.delete(`${PROVIDER_ENDPOINT}/${id}`)
-}
+const createAccount = (data) => axios.post(ACCOUNTS_ENDPOINT, data).then(extractData)
+const updateAccount = (data) => axios.put(`${ACCOUNTS_ENDPOINT}/${data.id}`, data).then(extractData)
+const deleteAccount = (id) => axios.delete(`${ACCOUNTS_ENDPOINT}/${id}`)
 
-/**
- * Creates a new account
- * @param {CreateAccountDTO} accountData
- * @returns {Promise<Account>}
- */
-const createAccount = async (accountData) => {
-    const { data } = await axios.post(ACCOUNTS_ENDPOINT, accountData)
-    return data
-}
+// Helper: normalize API response
+const transformProviders = (data) =>
+    data.map(item => new AccountProvider({
+        id: item.id,
+        name: item.name,
+        description: item.description,
+        accounts: item.accounts.map(acc => new Account({
+            id: acc.id,
+            name: acc.name,
+            currency: acc.currency,
+            type: acc.type
+        }))
+    }))
 
-/**
- * Updates an existing account
- * @param {UpdateAccountDTO} accountData
- * @returns {Promise<Account>}
- */
-const updateAccount = async (accountData) => {
-    const { data } = await axios.put(`${ACCOUNTS_ENDPOINT}/${accountData.id}`, accountData)
-    return data
-}
-
-/**
- * Deletes an account
- * @param {string} id - Account ID
- * @returns {Promise<void>}
- */
-const deleteAccount = async (id) => {
-    await axios.delete(`${ACCOUNTS_ENDPOINT}/${id}`)
-}
-
+// Vue Query Hook
 export function useAccounts() {
     const queryClient = useQueryClient()
     const QUERY_KEY = ['accounts']
 
+    const invalidateAndRefetch = () => {
+        queryClient.invalidateQueries({ queryKey: QUERY_KEY })
+        queryClient.refetchQueries({ queryKey: QUERY_KEY })
+    }
+
     const accountsQuery = useQuery({
         queryKey: QUERY_KEY,
         queryFn: fetchProviders,
-        select: (data) => data.map(item => new AccountProvider({
-            id: item.id,
-            name: item.name,
-            description: item.description,
-            accounts: item.accounts.map(acc => new Account({
-                id: acc.id,
-                name: acc.name,
-                currency: acc.currency,
-                type: acc.type
-            }))
-        }))
+        select: transformProviders
     })
-
-
 
     const createAccountProviderMutation = useMutation({
         mutationFn: createAccountProvider,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: QUERY_KEY })
-            queryClient.refetchQueries({ queryKey: QUERY_KEY })
-        }
+        onSuccess: invalidateAndRefetch
     })
 
     const updateAccountProviderMutation = useMutation({
         mutationFn: updateAccountProvider,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: QUERY_KEY })
-            queryClient.refetchQueries({ queryKey: QUERY_KEY })
-        }
+        onSuccess: invalidateAndRefetch
     })
 
-    // Mutation for deleting an account provider
     const deleteAccountProviderMutation = useMutation({
         mutationFn: deleteAccountProvider,
-        onSuccess: (_, deletedId) => {
-            queryClient.setQueryData(QUERY_KEY, (oldProviders = []) =>
-                oldProviders.filter((provider) => provider.id !== deletedId)
-            )
-        }
+        onSuccess: invalidateAndRefetch
     })
 
-    // Mutation for creating an account
     const createAccountMutation = useMutation({
         mutationFn: createAccount,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: QUERY_KEY })
-            queryClient.refetchQueries({ queryKey: QUERY_KEY })
-        }
+        onSuccess: invalidateAndRefetch
     })
 
-    // Mutation for updating an account
     const updateAccountMutation = useMutation({
         mutationFn: updateAccount,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: QUERY_KEY })
-            queryClient.refetchQueries({ queryKey: QUERY_KEY })
-        }
+        onSuccess: invalidateAndRefetch
     })
 
-    // Mutation for deleting an account
     const deleteAccountMutation = useMutation({
         mutationFn: deleteAccount,
-        onSuccess: (_, deletedId) => {
-            queryClient.setQueryData(QUERY_KEY, (oldAccounts = []) =>
-                oldAccounts.filter((account) => account.id !== deletedId)
-            )
-        }
+        onSuccess: invalidateAndRefetch
     })
-
 
     return {
         // Queries
@@ -147,7 +93,6 @@ export function useAccounts() {
         isError: accountsQuery.isError,
         error: accountsQuery.error,
         refetch: accountsQuery.refetch,
-
 
         // Mutations
         createAccountProvider: createAccountProviderMutation.mutateAsync,
@@ -161,6 +106,7 @@ export function useAccounts() {
         // Mutation states
         isCreating: createAccountMutation.isLoading,
         isUpdating: updateAccountMutation.isLoading,
-        isDeleting: deleteAccountMutation.isLoading || deleteAccountProviderMutation.isLoading
+        isDeleting:
+            deleteAccountMutation.isLoading || deleteAccountProviderMutation.isLoading
     }
 }
