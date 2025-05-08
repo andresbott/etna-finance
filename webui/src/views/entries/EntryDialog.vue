@@ -18,12 +18,13 @@ const { accounts } = useAccounts()
 
 const props = defineProps({
     isEdit: { type: Boolean, default: false },
-    entryType: { type: String, required: true }, // 'expense' or 'income'
+    entryType: { type: String, required: true }, // 'expense', 'income', or 'transfer'
     entryId: { type: Number, default: null },
     description: { type: String, default: '' },
     amount: { type: Number, default: 0 },
     date: { type: Date, default: () => new Date() },
     targetAccountId: { type: Number, default: null },
+    originAccountId: { type: Number, default: null }, // Added for transfers
     visible: { type: Boolean, default: false }
 })
 
@@ -32,7 +33,8 @@ const formValues = ref({
     description: props.description,
     amount: props.amount,
     date: props.date,
-    targetAccountId: props.targetAccountId
+    targetAccountId: props.targetAccountId,
+    originAccountId: props.originAccountId // Added for transfers
 })
 
 // Watch props to update form values when editing
@@ -40,20 +42,36 @@ watch(props, (newProps) => {
     formValues.value = { ...newProps }
 })
 
-const resolver = ref(
-    zodResolver(
-        z.object({
-            description: z.string().min(1, { message: 'Description is required' }),
-            amount: z.number().min(0.01, { message: 'Amount must be greater than 0' }),
-            date: z.date(),
-            targetAccountId: z.number().min(1, { message: 'Target account is required' })
-        })
-    )
-)
+// Dynamically build the resolver based on entryType
+const resolver = computed(() => {
+    // Base validation schema
+    const baseSchema = {
+        description: z.string().min(1, { message: 'Description is required' }),
+        amount: z.number().min(0.01, { message: 'Amount must be greater than 0' }),
+        date: z.date(),
+        targetAccountId: z.number().min(1, { message: 'Target account is required' })
+    }
+    
+    // Add originAccountId validation for transfers
+    if (props.entryType === 'transfer') {
+        baseSchema.originAccountId = z.number().min(1, { message: 'Origin account is required' })
+    }
+    
+    return zodResolver(z.object(baseSchema))
+})
 
 const dialogTitle = computed(() => {
     const action = props.isEdit ? 'Edit' : 'Add New'
-    const type = props.entryType === 'income' ? 'Income' : 'Expense'
+    let type = 'Entry'
+    
+    if (props.entryType === 'income') {
+        type = 'Income'
+    } else if (props.entryType === 'expense') {
+        type = 'Expense'
+    } else if (props.entryType === 'transfer') {
+        type = 'Transfer'
+    }
+    
     return `${action} ${type}`
 })
 
@@ -122,12 +140,26 @@ const emit = defineEmits(['update:visible'])
                     {{ $form.date.error?.message }}
                 </Message>
 
+                <!-- Origin Account field (only for transfers) -->
+                <Select
+                    v-if="props.entryType === 'transfer'"
+                    :options="accounts"
+                    optionLabel="name"
+                    optionValue="id"
+                    name="originAccountId"
+                    placeholder="Select Origin Account"
+                />
+                <Message v-if="$form.originAccountId?.invalid" severity="error" size="small">
+                    {{ $form.originAccountId.error?.message }}
+                </Message>
+
+                <!-- Target Account field (for all types) -->
                 <Select
                     :options="accounts"
                     optionLabel="name"
                     optionValue="id"
                     name="targetAccountId"
-                    placeholder="Select Target Account"
+                    :placeholder="props.entryType === 'transfer' ? 'Select Target Account' : 'Select Account'"
                 />
                 <Message v-if="$form.targetAccountId?.invalid" severity="error" size="small">
                     {{ $form.targetAccountId.error?.message }}

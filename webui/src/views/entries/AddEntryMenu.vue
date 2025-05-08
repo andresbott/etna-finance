@@ -3,9 +3,7 @@ import { ref } from 'vue'
 import Button from 'primevue/button'
 import Menu from 'primevue/menu'
 import EntryDialog from '@/views/entries/EntryDialog.vue'
-import TransferDialog from './TransferDialog.vue'
 import StockDialog from './StockDialog.vue'
-
 
 /* Internal state for menu and dialog visibility */
 const menu = ref(null)
@@ -43,7 +41,6 @@ const menuItems = ref([
     icon: 'pi pi-arrow-right-arrow-left',
     command: () => openDialog('transfer')
   },
-
   {
     label: 'Stock Operation',
     icon: 'pi pi-chart-line',
@@ -53,9 +50,12 @@ const menuItems = ref([
   {
     label: 'CSV import',
     icon: 'pi pi-bolt',
-    command: () => openDialog('transfer')
+    command: () => openDialog('transfer') // This still points to transfer - keep as is?
   }
 ])
+
+// Define selectedEntry for the stock dialog
+const selectedEntry = ref(null)
 </script>
 
 <template>
@@ -86,17 +86,11 @@ const menuItems = ref([
             @update:visible="dialogs.income = $event"
         />
 
-        <!-- Transfer Dialog -->
-        <TransferDialog
+        <!-- Transfer Dialog - Updated to use EntryDialog -->
+        <EntryDialog
             v-model:visible="dialogs.transfer"
             :isEdit="false"
-            :entryId="selectedEntry?.id"
-            :description="selectedEntry?.description"
-            :amount="selectedEntry?.amount"
-            :date="selectedEntry?.date"
-            :targetAccountId="selectedEntry?.targetAccountId"
-            :originAccountId="selectedEntry?.originAccountId"
-            :categoryId="selectedEntry?.categoryId"
+            entryType="transfer"
             @update:visible="dialogs.transfer = $event"
         />
 
