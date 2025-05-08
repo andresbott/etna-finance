@@ -1,5 +1,5 @@
 <script setup>
-import { ref,  } from 'vue'
+import { ref } from 'vue'
 import AutoComplete from 'primevue/autocomplete'
 import Tag from 'primevue/tag'
 import Button from 'primevue/button'
@@ -10,14 +10,12 @@ import { useTagStore } from '@/stores/tags.js'
 const tagStore = useTagStore() // Initialize the store
 
 const props = defineProps({
-  modelValue: {
+    modelValue: {
         type: Array, // Important if this is not initialized tags won't be visible when using the component
         default: () => []
     }
 })
 const emit = defineEmits(['update:modelValue'])
-
-
 
 const searchTerm = ref('')
 const filteredTags = ref([])

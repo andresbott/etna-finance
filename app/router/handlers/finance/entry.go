@@ -11,19 +11,24 @@ import (
 )
 
 type entryPayload struct {
-	Id                    uint      `json:"id"`
-	Description           string    `json:"description"`
-	Amount                float64   `json:"amount"`
-	StockAmount           float64   `json:"StockAmount"`
-	Date                  time.Time `json:"date"`
-	Type                  string    `json:"type"`
-	TargetAccountID       uint      `json:"targetAccountId"`
-	TargetAccountName     string    `json:"targetAccountName"`
-	TargetAccountCurrency string    `json:"targetAccountCurrency"`
-	OriginAccountID       uint      `json:"originAccountId"`
-	OriginAccountName     string    `json:"originAccountName"`
-	OriginAccountCurrency string    `json:"originAccountCurrency"`
-	CategoryId            uint      `json:"CategoryId"`
+	Id          uint      `json:"id"`
+	Description string    `json:"description"`
+	Date        time.Time `json:"date"`
+	Type        string    `json:"type"`
+
+	StockAmount float64 `json:"StockAmount"`
+
+	TargetAmount          float64 `json:"targetAmount"`
+	TargetAccountID       uint    `json:"targetAccountId"`
+	TargetAccountName     string  `json:"targetAccountName"`
+	TargetAccountCurrency string  `json:"targetAccountCurrency"`
+
+	OriginAmount          float64 `json:"originAmount"`
+	OriginAccountID       uint    `json:"originAccountId"`
+	OriginAccountName     string  `json:"originAccountName"`
+	OriginAccountCurrency string  `json:"originAccountCurrency"`
+
+	CategoryId uint `json:"CategoryId"`
 }
 
 func (h *Handler) CreateEntry(userId string) http.Handler {
@@ -45,13 +50,18 @@ func (h *Handler) CreateEntry(userId string) http.Handler {
 		}
 
 		entry := finance.Entry{
-			Description:     payload.Description,
-			Amount:          payload.Amount,
-			StockAmount:     payload.StockAmount,
-			Date:            payload.Date,
+			Description: payload.Description,
+			Date:        payload.Date,
+
+			StockAmount: payload.StockAmount,
+
+			TargetAmount:    payload.TargetAmount,
 			TargetAccountID: payload.TargetAccountID,
+
+			OriginAmount:    payload.OriginAmount,
 			OriginAccountID: payload.OriginAccountID,
-			CategoryId:      payload.CategoryId,
+
+			CategoryId: payload.CategoryId,
 		}
 
 		t, err := finance.ParseEntryType(payload.Type)
@@ -84,12 +94,18 @@ func (h *Handler) CreateEntry(userId string) http.Handler {
 }
 
 type entryUpdatePayload struct {
-	Description     *string    `json:"description"`
-	Amount          *float64   `json:"amount"`
-	Date            *time.Time `json:"date"`
-	TargetAccountID *uint      `json:"target_account_id"`
-	OriginAccountID *uint      `json:"origin_account_id"`
-	CategoryId      *uint      `json:"category_id"`
+	Description *string    `json:"description"`
+	Date        *time.Time `json:"date"`
+
+	StockAmount *float64 `json:"stockAmount"`
+
+	TargetAmount    *float64 `json:"targetAmount"`
+	TargetAccountID *uint    `json:"targetAccountId"`
+
+	OriginAmount    *float64 `json:"originAmount"`
+	OriginAccountID *uint    `json:"originIccountId"`
+
+	CategoryId *uint `json:"categoryId"`
 }
 
 func (h *Handler) UpdateEntry(Id uint, userId string) http.Handler {
@@ -111,12 +127,18 @@ func (h *Handler) UpdateEntry(Id uint, userId string) http.Handler {
 		}
 
 		updatePayload := finance.EntryUpdatePayload{
-			Description:     payload.Description,
-			Amount:          payload.Amount,
-			Date:            payload.Date,
+			Description: payload.Description,
+			Date:        payload.Date,
+
+			StockAmount: payload.StockAmount,
+
+			TargetAmount:    payload.TargetAmount,
 			TargetAccountID: payload.TargetAccountID,
+
+			OriginAmount:    payload.OriginAmount,
 			OriginAccountID: payload.OriginAccountID,
-			CategoryId:      payload.CategoryId,
+
+			CategoryId: payload.CategoryId,
 		}
 
 		err = h.Store.UpdateEntry(updatePayload, Id, userId)
@@ -241,43 +263,51 @@ func (h *Handler) ListEntries(userId string) http.Handler {
 
 		for i, entry := range entries {
 			response.Items[i] = entryPayload{
-				Id:                    entry.Id,
-				Description:           entry.Description,
-				Amount:                entry.Amount,
-				StockAmount:           entry.StockAmount,
-				Date:                  entry.Date,
-				Type:                  entry.Type.String(),
+				Id:          entry.Id,
+				Description: entry.Description,
+				Date:        entry.Date,
+				Type:        entry.Type.String(),
+
+				StockAmount: entry.StockAmount,
+
+				TargetAmount:          entry.TargetAmount,
 				TargetAccountID:       entry.TargetAccountID,
 				TargetAccountName:     entry.TargetAccountName,
 				TargetAccountCurrency: entry.TargetAccountCurrency.String(),
+
+				OriginAmount:          entry.OriginAmount,
 				OriginAccountID:       entry.OriginAccountID,
 				OriginAccountName:     entry.OriginAccountName,
 				OriginAccountCurrency: entry.OriginAccountCurrency.String(),
-				CategoryId:            entry.CategoryId,
+
+				CategoryId: entry.CategoryId,
 			}
 		}
 
+		// TODO delete
 		if len(response.Items) == 0 {
 			response.Items = []entryPayload{
 				{
-					Id:              1,
-					Description:     "income 1",
-					Amount:          1000.0,
-					Date:            time.Now(),
-					Type:            "income",
-					TargetAccountID: 1,
-					CategoryId:      1,
+					Id:                    1,
+					Description:           "income 1",
+					TargetAmount:          1000.0,
+					Date:                  time.Now(),
+					Type:                  "income",
+					TargetAccountID:       1,
+					TargetAccountCurrency: "USD",
+					CategoryId:            1,
 				},
 				{
-					Id:              2,
-					Description:     "expense 2",
-					Amount:          25.5,
-					StockAmount:     0,
-					Date:            time.Time{},
-					Type:            "expense",
-					TargetAccountID: 0,
-					OriginAccountID: 0,
-					CategoryId:      0,
+					Id:                    2,
+					Description:           "expense 2",
+					TargetAmount:          25.5,
+					StockAmount:           0,
+					Date:                  time.Time{},
+					Type:                  "expense",
+					TargetAccountID:       0,
+					TargetAccountCurrency: "USD",
+					OriginAccountID:       0,
+					CategoryId:            0,
 				},
 			}
 		}

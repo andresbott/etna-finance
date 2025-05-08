@@ -647,28 +647,28 @@ var sampleAccounts = []finance.Account{
 }
 
 var sampleEntries = []finance.Entry{
-	{Description: "e1", Amount: 1, Type: finance.ExpenseEntry, Date: getTime("2025-01-01 00:00:00")}, // 1
-	{Description: "e2", Amount: 2, Type: finance.ExpenseEntry, Date: getTime("2025-01-02 00:00:00"),
+	{Description: "e1", TargetAmount: 1, Type: finance.ExpenseEntry, Date: getTime("2025-01-01 00:00:00")}, // 1
+	{Description: "e2", TargetAmount: 2, Type: finance.ExpenseEntry, Date: getTime("2025-01-02 00:00:00"),
 		TargetAccountID: 1, TargetAccountName: "acc1"},
-	{Description: "e3", Amount: 3, Type: finance.ExpenseEntry, Date: getTime("2025-01-03 00:00:00"),
+	{Description: "e3", TargetAmount: 3, Type: finance.ExpenseEntry, Date: getTime("2025-01-03 00:00:00"),
 		TargetAccountID: 2, TargetAccountName: "acc2"},
-	{Description: "e4", Amount: 4, Type: finance.ExpenseEntry, Date: getTime("2025-01-04 00:00:00")},
-	{Description: "e5", Amount: 5, Type: finance.ExpenseEntry, Date: getTime("2025-01-05 00:00:00"),
+	{Description: "e4", TargetAmount: 4, Type: finance.ExpenseEntry, Date: getTime("2025-01-04 00:00:00")},
+	{Description: "e5", TargetAmount: 5, Type: finance.ExpenseEntry, Date: getTime("2025-01-05 00:00:00"),
 		TargetAccountID: 2, TargetAccountName: "acc2"},
-	{Description: "e6", Amount: 6, Type: finance.ExpenseEntry, Date: getTime("2025-01-06 00:00:00"),
+	{Description: "e6", TargetAmount: 6, Type: finance.ExpenseEntry, Date: getTime("2025-01-06 00:00:00"),
 		TargetAccountID: 1, TargetAccountName: "acc1"},
-	{Description: "e7", Amount: 7, Type: finance.ExpenseEntry, Date: getTime("2025-01-07 00:00:00")},
-	{Description: "e8", Amount: 8, Type: finance.ExpenseEntry, Date: getTime("2025-01-08 00:00:00"),
+	{Description: "e7", TargetAmount: 7, Type: finance.ExpenseEntry, Date: getTime("2025-01-07 00:00:00")},
+	{Description: "e8", TargetAmount: 8, Type: finance.ExpenseEntry, Date: getTime("2025-01-08 00:00:00"),
 		TargetAccountID: 2, TargetAccountName: "acc2"},
-	{Description: "e9", Amount: 9, Type: finance.ExpenseEntry, Date: getTime("2025-01-09 00:00:00")},
-	{Description: "e10", Amount: 10, Type: finance.TransferEntry, Date: getTime("2025-01-10 00:00:00"),
+	{Description: "e9", TargetAmount: 9, Type: finance.ExpenseEntry, Date: getTime("2025-01-09 00:00:00")},
+	{Description: "e10", TargetAmount: 10, Type: finance.TransferEntry, Date: getTime("2025-01-10 00:00:00"),
 		TargetAccountID: 2, TargetAccountName: "acc2", OriginAccountID: 1, OriginAccountName: "acc1"},
-	{Description: "e11", Amount: 10, Type: finance.ExpenseEntry, Date: getTime("2025-01-11 00:00:00")},
-	{Description: "e12", Amount: 10, Type: finance.ExpenseEntry, Date: getTime("2025-01-12 00:00:00")},
-	{Description: "e13", Amount: 10, Type: finance.ExpenseEntry, Date: getTime("2025-01-13 00:00:00")},
-	{Description: "e14", Amount: 10, Type: finance.ExpenseEntry, Date: getTime("2025-01-14 00:00:00")},
-	{Description: "e14", Amount: 10, Type: finance.ExpenseEntry, Date: getTime("2025-01-15 00:00:00")},
-	{Description: "e15", Amount: 10, Type: finance.ExpenseEntry, Date: getTime("2025-01-16 00:00:00")},
+	{Description: "e11", TargetAmount: 10, Type: finance.ExpenseEntry, Date: getTime("2025-01-11 00:00:00")},
+	{Description: "e12", TargetAmount: 10, Type: finance.ExpenseEntry, Date: getTime("2025-01-12 00:00:00")},
+	{Description: "e13", TargetAmount: 10, Type: finance.ExpenseEntry, Date: getTime("2025-01-13 00:00:00")},
+	{Description: "e14", TargetAmount: 10, Type: finance.ExpenseEntry, Date: getTime("2025-01-14 00:00:00")},
+	{Description: "e14", TargetAmount: 10, Type: finance.ExpenseEntry, Date: getTime("2025-01-15 00:00:00")},
+	{Description: "e15", TargetAmount: 10, Type: finance.ExpenseEntry, Date: getTime("2025-01-16 00:00:00")},
 }
 
 const (

@@ -26,13 +26,13 @@ func TestFinanceHandler_CreateEntry(t *testing.T) {
 		{
 			name:       "successful request",
 			userId:     "user123",
-			payload:    bytes.NewBuffer([]byte(`{"description":"Salary", "amount":1000.0, "date":"2024-01-01T00:00:00Z", "type":"income", "target_account_id":1, "category_id":1}`)),
+			payload:    bytes.NewBuffer([]byte(`{"description":"Salary", "targetAmount":1000.0, "date":"2024-01-01T00:00:00Z", "type":"income", "target_account_id":1, "category_id":1}`)),
 			expectCode: http.StatusOK,
 		},
 		{
 			name:       "empty tenant",
 			userId:     "",
-			payload:    bytes.NewBuffer([]byte(`{"description":"Salary", "amount":1000.0, "date":"2024-01-01T00:00:00Z", "type":"income", "target_account_id":1, "category_id":1}`)),
+			payload:    bytes.NewBuffer([]byte(`{"description":"Salary", "targetAmount":1000.0, "date":"2024-01-01T00:00:00Z", "type":"income", "target_account_id":1, "category_id":1}`)),
 			expecErr:   "unable to create entry: user not provided",
 			expectCode: http.StatusBadRequest,
 		},

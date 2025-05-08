@@ -15,51 +15,68 @@ import (
 type Entry struct {
 	Id          uint
 	Description string
-	Amount      float64
-	// TargetAmount TODO used for transfers between accounts of different currency
-	StockAmount           float64
-	Date                  time.Time
-	Locked                bool      // does not accept changes anymore
-	Type                  EntryType //income, transfer, spend, stock buy, stock sell ( like transfer with stock amounts added)
+	Date        time.Time
+	Locked      bool      // does not accept changes anymore
+	Type        EntryType //income, transfer, spend, stock buy, stock sell ( like transfer with stock amounts added)
+
+	StockAmount float64 // used to track the amount of stocks in the account
+
+	// target is the account that gets the operation type, e.g. income or expense
+	TargetAmount          float64
 	TargetAccountID       uint
 	TargetAccountName     string
 	TargetAccountCurrency currency.Unit
-	OriginAccountID       uint // optional, used on case of transfer or stock operations
+
+	// origin is only mandatory for transfer operations where we move from one account to another
+	OriginAmount          float64
+	OriginAccountID       uint
 	OriginAccountName     string
 	OriginAccountCurrency currency.Unit
-	CategoryId            uint
+
+	// category is used to classify the operation
+	CategoryId uint
 }
 
 // dbAccount is the DB internal representation of a Bookmark
 type dbEntry struct {
-	Id              uint `gorm:"primarykey"`
-	Description     string
-	Amount          float64
-	Type            int8
-	OwnerId         string    `gorm:"index"`
-	Date            time.Time `gorm:"index"`
-	Locked          bool
-	TargetAccountId uint `gorm:"index"`
-	OriginAccountId uint `gorm:"index"`
-	CategoryId      uint `gorm:"index"`
+	Id          uint `gorm:"primarykey"`
+	Description string
+	Date        time.Time `gorm:"index"`
+	Locked      bool
+	Type        int8
 
+	OwnerId   string `gorm:"index"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt `gorm:"index"`
+
+	TargetAmount    float64
+	OriginAmount    float64
+	StockAmount     float64
+	TargetAccountId uint `gorm:"index"`
+	OriginAccountId uint `gorm:"index"`
+
+	CategoryId uint `gorm:"index"`
 }
 
 // dbToAccount is used internally to transform the db struct to public facing struct
 func getEntry(in dbEntry) Entry {
 	return Entry{
-		Id:              in.Id,
-		Description:     in.Description,
-		Amount:          in.Amount,
-		Date:            in.Date,
-		Locked:          in.Locked,
+		Id:          in.Id,
+		Description: in.Description,
+		Date:        in.Date,
+		Locked:      in.Locked,
+		Type:        EntryType(in.Type),
+
+		StockAmount: in.StockAmount,
+
+		TargetAmount:    in.TargetAmount,
 		TargetAccountID: in.TargetAccountId,
+
+		OriginAmount:    in.OriginAmount,
 		OriginAccountID: in.OriginAccountId,
-		CategoryId:      in.CategoryId,
-		Type:            EntryType(in.Type),
+
+		CategoryId: in.CategoryId,
 	}
 }
 
@@ -77,6 +94,8 @@ func (t EntryType) String() string {
 		return BuyStockEntryStr
 	case SellStockEntry:
 		return SellStockEntryStr
+	case StockValueEntry:
+		return StockValueEntryStr
 	default:
 		return "unknown"
 	}
@@ -89,14 +108,16 @@ const (
 	TransferEntry
 	BuyStockEntry
 	SellStockEntry
+	StockValueEntry
 )
 
 const (
-	IncomeEntryStr    = "income"
-	ExpenseEntryStr   = "expense"
-	TransferEntryStr  = "transfer"
-	BuyStockEntryStr  = "buystock"
-	SellStockEntryStr = "sellstock"
+	IncomeEntryStr     = "income"
+	ExpenseEntryStr    = "expense"
+	TransferEntryStr   = "transfer"
+	BuyStockEntryStr   = "buystock"
+	SellStockEntryStr  = "sellstock"
+	StockValueEntryStr = "stockvalue"
 )
 
 func ParseEntryType(in string) (EntryType, error) {
@@ -109,8 +130,8 @@ func ParseEntryType(in string) (EntryType, error) {
 		return TransferEntry, nil
 	case BuyStockEntryStr:
 		return BuyStockEntry, nil
-	case SellStockEntryStr:
-		return SellStockEntry, nil
+	case StockValueEntryStr:
+		return StockValueEntry, nil
 	default:
 		return UnsetEntry, fmt.Errorf("invalid entry type: %s", in)
 	}
@@ -126,23 +147,26 @@ func (store *Store) CreateEntry(ctx context.Context, item Entry, tenant string) 
 	if item.Type == UnsetEntry {
 		return 0, ValidationErr("entry type cannot be empty")
 	}
-	if item.Amount == 0 {
-		return 0, ValidationErr("amount cannot be empty")
+	if item.TargetAmount == 0 {
+		return 0, ValidationErr("target amount cannot be empty")
 	}
 	if item.Date.IsZero() {
 		return 0, ValidationErr("date cannot be zero")
 	}
 
 	payload := dbEntry{
-		OwnerId:         tenant, // ensure tenant is set by the signature
-		Description:     item.Description,
-		Type:            int8(item.Type),
-		Amount:          item.Amount,
-		Date:            item.Date,
-		Locked:          false, // entries are always created unlocked
+		Description: item.Description,
+		Date:        item.Date,
+		Type:        int8(item.Type),
+		OwnerId:     tenant, // ensure tenant is set by the signature
+		Locked:      false,  // entries are always created unlocked
+
+		TargetAmount:    item.TargetAmount,
 		TargetAccountId: item.TargetAccountID,
+		OriginAmount:    item.OriginAmount,
 		OriginAccountId: item.OriginAccountID,
-		CategoryId:      item.CategoryId,
+
+		CategoryId: item.CategoryId,
 	}
 
 	d := store.db.WithContext(ctx).Create(&payload)
@@ -177,13 +201,16 @@ func (store *Store) DeleteEntry(ctx context.Context, Id uint, tenant string) err
 }
 
 type EntryUpdatePayload struct {
-	Description     *string
-	Amount          *float64
+	Description *string
+	Date        *time.Time
+
 	StockAmount     *float64
-	Date            *time.Time
+	TargetAmount    *float64
 	TargetAccountID *uint
+	OriginAmount    *float64
 	OriginAccountID *uint
-	CategoryId      *uint
+
+	CategoryId *uint
 }
 
 func (store *Store) UpdateEntry(item EntryUpdatePayload, Id uint, tenant string) error {
@@ -195,9 +222,14 @@ func (store *Store) UpdateEntry(item EntryUpdatePayload, Id uint, tenant string)
 		payload["description"] = *item.Description
 	}
 
-	if item.Amount != nil {
+	if item.TargetAmount != nil {
 		hasChanges = true
-		payload["amount"] = *item.Amount
+		payload["target_amount"] = *item.TargetAmount
+	}
+
+	if item.OriginAmount != nil {
+		hasChanges = true
+		payload["origin_amount"] = *item.OriginAmount
 	}
 
 	if item.Date != nil {

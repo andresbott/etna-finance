@@ -5,7 +5,7 @@ import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
 import { Form } from '@primevue/forms'
 import Message from 'primevue/message'
-import DatePicker from 'primevue/datepicker';
+import DatePicker from 'primevue/datepicker'
 import InputNumber from 'primevue/inputnumber'
 import Select from 'primevue/select'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
@@ -34,7 +34,7 @@ const formValues = ref({
     description: props.description,
     amount: props.amount,
     date: props.date,
-    targetAccountId: props.targetAccountId,
+    targetAccountId: props.targetAccountId
     //categoryId: props.categoryId
 })
 
@@ -49,7 +49,7 @@ const resolver = ref(
             description: z.string().min(1, { message: 'Description is required' }),
             amount: z.number().min(0.01, { message: 'Amount must be greater than 0' }),
             date: z.date(),
-            targetAccountId: z.number().min(1, { message: 'Target account is required' }),
+            targetAccountId: z.number().min(1, { message: 'Target account is required' })
             // categoryId: z.number().min(1, { message: 'Category is required' })
         })
     )
@@ -116,11 +116,7 @@ const onFormSubmit = async (e) => {
                     $form.amount.error?.message
                 }}</Message>
 
-                <DatePicker 
-                    name="date" 
-                    :showIcon="true"
-                    dateFormat="dd/mm/y"
-                />
+                <DatePicker name="date" :showIcon="true" dateFormat="dd/mm/y" />
                 <Message v-if="$form.date?.invalid" severity="error" size="small">{{
                     $form.date.error?.message
                 }}</Message>
@@ -154,4 +150,4 @@ const onFormSubmit = async (e) => {
             </div>
         </Form>
     </Dialog>
-</template> 
+</template>

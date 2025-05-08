@@ -30,7 +30,7 @@ const accountTypes = ref(['cash', 'bank', 'stocks'])
 const formValues = ref({
     name: props.name,
     currency: props.currency,
-    type: props.type,
+    type: props.type
 })
 
 // Watch props to update form values when editing
@@ -43,7 +43,7 @@ const resolver = ref(
         z.object({
             name: z.string().min(1, { message: 'Name is required' }),
             currency: z.string().min(1, { message: 'Currency is required' }),
-            type: z.string().min(1, { message: 'Type is required' }),
+            type: z.string().min(1, { message: 'Type is required' })
         })
     )
 )
@@ -53,7 +53,7 @@ const onFormSubmit = async (e) => {
         const formData = {
             ...e.values,
             accountId: props.accountId,
-          providerId: props.providerId,
+            providerId: props.providerId
         }
 
         if (props.isEdit) {
@@ -106,7 +106,7 @@ const onFormSubmit = async (e) => {
                 @submit="onFormSubmit"
             >
                 <div v-focustrap class="flex flex-column gap-4">
-                  <!-- Hidden Provider ID Field -->
+                    <!-- Hidden Provider ID Field -->
 
                     <InputText name="name" placeholder="Account Name" />
                     <Message v-if="$form.name?.invalid" severity="error" size="small">{{

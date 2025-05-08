@@ -177,16 +177,16 @@ const onFormSubmit = async (e) => {
                         $form.targetAccountId.error?.message
                     }}</Message>
 
-<!--                    <Select-->
-<!--                        :options="categories"-->
-<!--                        optionLabel="name"-->
-<!--                        optionValue="id"-->
-<!--                        name="categoryId"-->
-<!--                        placeholder="Select Category"-->
-<!--                    />-->
-<!--                    <Message v-if="$form.categoryId?.invalid" severity="error" size="small">{{-->
-<!--                        $form.categoryId.error?.message-->
-<!--                    }}</Message>-->
+                    <!--                    <Select-->
+                    <!--                        :options="categories"-->
+                    <!--                        optionLabel="name"-->
+                    <!--                        optionValue="id"-->
+                    <!--                        name="categoryId"-->
+                    <!--                        placeholder="Select Category"-->
+                    <!--                    />-->
+                    <!--                    <Message v-if="$form.categoryId?.invalid" severity="error" size="small">{{-->
+                    <!--                        $form.categoryId.error?.message-->
+                    <!--                    }}</Message>-->
 
                     <div class="flex justify-content-end gap-3">
                         <Button
@@ -207,4 +207,4 @@ const onFormSubmit = async (e) => {
             </Form>
         </Dialog>
     </div>
-</template> 
+</template>

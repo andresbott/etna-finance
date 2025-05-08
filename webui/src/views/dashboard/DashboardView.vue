@@ -1,12 +1,17 @@
 <script setup>
-import { VerticalLayout, HorizontalLayout, Placeholder, ResponsiveHorizontal} from '@go-bumbu/vue-components/layout'
+import {
+    VerticalLayout,
+    HorizontalLayout,
+    Placeholder,
+    ResponsiveHorizontal
+} from '@go-bumbu/vue-components/layout'
 import '@go-bumbu/vue-components/layout.css'
 import TopBar from '@/views/topbar.vue'
 import { useUserStore } from '@/lib/user/userstore.js'
 import { onMounted, ref, computed } from 'vue'
 import Card from 'primevue/card'
-import Button from "primevue/button";
-import Chart from 'primevue/chart';
+import Button from 'primevue/button'
+import Chart from 'primevue/chart'
 import { useAccounts } from '@/composables/useAccounts.js'
 
 const userStore = useUserStore()
@@ -28,7 +33,7 @@ const getRandomColor = () => {
         '#8b5cf6', // purple
         '#ec4899', // pink
         '#14b8a6', // teal
-        '#f97316'  // orange
+        '#f97316' // orange
     ]
     return colors[Math.floor(Math.random() * colors.length)]
 }
@@ -37,13 +42,14 @@ const chartLabels = ['January', 'February', 'March', 'April', 'May', 'June', 'Ju
 
 const chartData = computed(() => ({
     labels: chartLabels,
-    datasets: accounts.value?.map(account => ({
-        label: account.name,
-        data: generateRandomData(7),
-        fill: false,
-        borderColor: getRandomColor(),
-        tension: 0.1
-    })) || []
+    datasets:
+        accounts.value?.map((account) => ({
+            label: account.name,
+            data: generateRandomData(7),
+            fill: false,
+            borderColor: getRandomColor(),
+            tension: 0.1
+        })) || []
 }))
 
 const pieChartData = ref({
@@ -51,12 +57,7 @@ const pieChartData = ref({
     datasets: [
         {
             data: [3000, 5000, 10000, 2000],
-            backgroundColor: [
-                '#22c55e',
-                '#3b82f6',
-                '#eab308',
-                '#ef4444'
-            ]
+            backgroundColor: ['#22c55e', '#3b82f6', '#eab308', '#ef4444']
         }
     ]
 })
@@ -116,7 +117,7 @@ onMounted(() => {
 const leftSidebarCollapsed = ref(true)
 
 const getAccountTypeIcon = (type) => {
-    switch(type) {
+    switch (type) {
         case 'Cash':
             return 'pi pi-money-bill'
         case 'Bank':
@@ -137,81 +138,100 @@ const getAccountTypeIcon = (type) => {
             <TopBar />
         </template>
         <template #default>
-          <ResponsiveHorizontal :leftSidebarCollapsed="leftSidebarCollapsed">
-            <template #default>
-              <div class="grid p-3">
-                <!-- Chart Card -->
-                <div class="col-12">
-                  <Card>
-                    <template #title>Financial Overview</template>
-                    <template #content>
-                      <Chart type="line" :data="chartData" :options="chartOptions" style="height: 300px" />
-                    </template>
-                  </Card>
-                </div>
-
-                <!-- Account Types List Card -->
-                <div class="col-12 md:col-6">
-                  <Card>
-                    <template #title>Account Types</template>
-                    <template #content>
-                      <div class="flex flex-column gap-2">
-                        <div v-for="(amount, type) in { 'Cash': 3000, 'Bank': 5000, 'Investment': 10000, 'Credit': 2000 }" 
-                             :key="type" 
-                             class="flex justify-content-between align-items-center p-2 border-round" 
-                             style="background: var(--surface-ground)">
-                          <div class="flex align-items-center gap-2">
-                            <i :class="getAccountTypeIcon(type)"></i>
-                            <span>{{ type }}</span>
-                          </div>
-                          <div class="flex align-items-center gap-2">
-                            <span class="font-bold">{{ amount }}</span>
-                            <span>CHF</span>
-                          </div>
+            <ResponsiveHorizontal :leftSidebarCollapsed="leftSidebarCollapsed">
+                <template #default>
+                    <div class="grid p-3">
+                        <!-- Chart Card -->
+                        <div class="col-12">
+                            <Card>
+                                <template #title>Financial Overview</template>
+                                <template #content>
+                                    <Chart
+                                        type="line"
+                                        :data="chartData"
+                                        :options="chartOptions"
+                                        style="height: 300px"
+                                    />
+                                </template>
+                            </Card>
                         </div>
-                      </div>
-                    </template>
-                  </Card>
-                </div>
 
-                <!-- Account Types Distribution Card -->
-                <div class="col-12 md:col-6">
-                  <Card>
-                    <template #title>Account Distribution</template>
-                    <template #content>
-                      <Chart type="pie" :data="pieChartData" :options="pieChartOptions" style="height: 300px" />
-                    </template>
-                  </Card>
-                </div>
-
-                <!-- Accounts Card -->
-                <div class="col-12">
-                  <Card>
-                    <template #title>Accounts</template>
-                    <template #content>
-                      <div class="flex flex-column gap-2">
-                        <div v-for="account in accounts" :key="account.id" class="flex justify-content-between align-items-center p-2 border-round" style="background: var(--surface-ground)">
-                          <div class="flex align-items-center gap-2">
-                            <i class="pi pi-wallet"></i>
-                            <span>{{ account.name }}</span>
-                          </div>
-                          <div class="flex align-items-center gap-2">
-                            <span class="font-bold">{{ account.balance || 0 }}</span>
-                            <span>{{ account.currency }}</span>
-                          </div>
+                        <!-- Account Types List Card -->
+                        <div class="col-12 md:col-6">
+                            <Card>
+                                <template #title>Account Types</template>
+                                <template #content>
+                                    <div class="flex flex-column gap-2">
+                                        <div
+                                            v-for="(amount, type) in {
+                                                Cash: 3000,
+                                                Bank: 5000,
+                                                Investment: 10000,
+                                                Credit: 2000
+                                            }"
+                                            :key="type"
+                                            class="flex justify-content-between align-items-center p-2 border-round"
+                                            style="background: var(--surface-ground)"
+                                        >
+                                            <div class="flex align-items-center gap-2">
+                                                <i :class="getAccountTypeIcon(type)"></i>
+                                                <span>{{ type }}</span>
+                                            </div>
+                                            <div class="flex align-items-center gap-2">
+                                                <span class="font-bold">{{ amount }}</span>
+                                                <span>CHF</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </Card>
                         </div>
-                      </div>
-                    </template>
-                  </Card>
-                </div>
 
+                        <!-- Account Types Distribution Card -->
+                        <div class="col-12 md:col-6">
+                            <Card>
+                                <template #title>Account Distribution</template>
+                                <template #content>
+                                    <Chart
+                                        type="pie"
+                                        :data="pieChartData"
+                                        :options="pieChartOptions"
+                                        style="height: 300px"
+                                    />
+                                </template>
+                            </Card>
+                        </div>
 
-
-
-        
-              </div>
-            </template>
-          </ResponsiveHorizontal>
+                        <!-- Accounts Card -->
+                        <div class="col-12">
+                            <Card>
+                                <template #title>Accounts</template>
+                                <template #content>
+                                    <div class="flex flex-column gap-2">
+                                        <div
+                                            v-for="account in accounts"
+                                            :key="account.id"
+                                            class="flex justify-content-between align-items-center p-2 border-round"
+                                            style="background: var(--surface-ground)"
+                                        >
+                                            <div class="flex align-items-center gap-2">
+                                                <i class="pi pi-wallet"></i>
+                                                <span>{{ account.name }}</span>
+                                            </div>
+                                            <div class="flex align-items-center gap-2">
+                                                <span class="font-bold">{{
+                                                    account.balance || 0
+                                                }}</span>
+                                                <span>{{ account.currency }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </Card>
+                        </div>
+                    </div>
+                </template>
+            </ResponsiveHorizontal>
         </template>
         <template #footer>
             <Placeholder :width="'100%'" :height="30" :color="12">Footer</Placeholder>
@@ -223,4 +243,4 @@ const getAccountTypeIcon = (type) => {
 .card {
     height: 100%;
 }
-</style> 
+</style>

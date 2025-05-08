@@ -49,18 +49,18 @@ const resolver = ref(
             description: z.string().min(1, { message: 'Description is required' }),
             amount: z.number().min(0.01, { message: 'Amount must be greater than 0' }),
             date: z.date(),
-            targetAccountId: z.number().min(1, { message: 'Target account is required' }),
+            targetAccountId: z.number().min(1, { message: 'Target account is required' })
             // categoryId: z.number().min(1, { message: 'Category is required' })
         })
     )
 )
 
 const handleSubmit = async (e, form) => {
-  if (e.valid) {
-    const entryData = {
-      ...e.values,
-      type: 'income'
-    }
+    if (e.valid) {
+        const entryData = {
+            ...e.values,
+            type: 'income'
+        }
 
         if (props.isEdit) {
             try {
@@ -150,4 +150,4 @@ const handleSubmit = async (e, form) => {
             </div>
         </Form>
     </Dialog>
-</template> 
+</template>

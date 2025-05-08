@@ -11,21 +11,36 @@ const sections = [
     {
         title: 'Account',
         items: [
-            { label: 'Profile', icon: 'pi pi-user', route: '/profile' ,disabled: true },
-            { label: 'Settings', icon: 'pi pi-cog', route: '/settings' , disabled: true }
+            { label: 'Profile', icon: 'pi pi-user', route: '/profile', disabled: true },
+            { label: 'Settings', icon: 'pi pi-cog', route: '/settings', disabled: true }
         ]
     },
     {
         title: 'Security',
         items: [
-            { label: 'Change Password', icon: 'pi pi-lock', route: '/security/password', disabled: true },
-            { label: 'Two-Factor Auth', icon: 'pi pi-shield', route: '/security/2fa', disabled: true }
+            {
+                label: 'Change Password',
+                icon: 'pi pi-lock',
+                route: '/security/password',
+                disabled: true
+            },
+            {
+                label: 'Two-Factor Auth',
+                icon: 'pi pi-shield',
+                route: '/security/2fa',
+                disabled: true
+            }
         ]
     },
     {
         title: 'Application Data',
         items: [
-            { label: 'CSV Import Profiles', icon: 'pi pi-file-import', route: '/setup/csv-profiles', disabled: true  },
+            {
+                label: 'CSV Import Profiles',
+                icon: 'pi pi-file-import',
+                route: '/setup/csv-profiles',
+                disabled: true
+            },
             { label: 'Categories', icon: 'pi pi-tags', route: '/categories' },
             { label: 'Account Setup', icon: 'pi pi-wallet', route: '/accounts' }
         ]
@@ -52,7 +67,7 @@ const sections = [
             </div>
             <Divider />
         </div>
-        
+
         <div class="section">
             <Button
                 label="Logout"
@@ -113,4 +128,4 @@ const sections = [
     opacity: 0.5;
     cursor: not-allowed;
 }
-</style> 
+</style>

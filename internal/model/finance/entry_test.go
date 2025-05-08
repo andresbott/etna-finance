@@ -24,30 +24,30 @@ func TestCreateEntry(t *testing.T) {
 		{
 			name:   "create valid entry",
 			tenant: tenant1,
-			input:  Entry{Description: "Salary", Amount: 1000, Date: date1, Type: ExpenseEntry},
+			input:  Entry{Description: "Salary", TargetAmount: 1000, Date: date1, Type: ExpenseEntry},
 		},
 		{
 			name:    "want error on empty description",
 			tenant:  tenant1,
-			input:   Entry{Description: "", Amount: 1000, Date: date1, Type: ExpenseEntry},
+			input:   Entry{Description: "", TargetAmount: 1000, Date: date1, Type: ExpenseEntry},
 			wantErr: "description cannot be empty",
 		},
 		{
 			name:    "want error on zero amount",
 			tenant:  tenant1,
-			input:   Entry{Description: "Groceries", Amount: 0, Date: date1, Type: ExpenseEntry},
-			wantErr: "amount cannot be empty",
+			input:   Entry{Description: "Groceries", TargetAmount: 0, Date: date1, Type: ExpenseEntry},
+			wantErr: "target amount cannot be empty",
 		},
 		{
 			name:    "want error on zero date",
 			tenant:  tenant1,
-			input:   Entry{Description: "Investment", Amount: 500, Date: time.Time{}, Type: ExpenseEntry},
+			input:   Entry{Description: "Investment", TargetAmount: 500, Date: time.Time{}, Type: ExpenseEntry},
 			wantErr: "date cannot be zero",
 		},
 		{
 			name:    "want error on empty type",
 			tenant:  tenant1,
-			input:   Entry{Description: "Groceries", Amount: 0, Date: date1},
+			input:   Entry{Description: "Groceries", TargetAmount: 0, Date: date1},
 			wantErr: "entry type cannot be empty",
 		},
 	}
@@ -230,22 +230,22 @@ func TestUpdateEntry(t *testing.T) {
 			updateID:      1,
 			updateTenant:  tenant1,
 			updatePayload: EntryUpdatePayload{Description: ptr("Updated Entry Description")},
-			want:          Entry{Description: "Updated Entry Description", Amount: 1, Type: ExpenseEntry, Date: getTime("2025-01-01 00:00:00")},
+			want:          Entry{Description: "Updated Entry Description", TargetAmount: 1, Type: ExpenseEntry, Date: getTime("2025-01-01 00:00:00")},
 		},
 		{
-			name:          "update entry amount",
+			name:          "update entry target amount",
 			updateID:      2,
 			updateTenant:  tenant1,
-			updatePayload: EntryUpdatePayload{Amount: ptr(float64(200))},
-			want: Entry{Description: "e2", Amount: 200, Type: ExpenseEntry, Date: getTime("2025-01-02 00:00:00"),
+			updatePayload: EntryUpdatePayload{TargetAmount: ptr(float64(200))},
+			want: Entry{Description: "e2", TargetAmount: 200, Type: ExpenseEntry, Date: getTime("2025-01-02 00:00:00"),
 				TargetAccountID: 1},
 		},
 		{
-			name:          "update entry description and amount",
+			name:          "update entry description and target amount",
 			updateID:      3,
 			updateTenant:  tenant1,
-			updatePayload: EntryUpdatePayload{Description: ptr("Updated Entry Description"), Amount: ptr(float64(300))},
-			want: Entry{Description: "Updated Entry Description", Amount: 300, Type: ExpenseEntry, Date: getTime("2025-01-03 00:00:00"),
+			updatePayload: EntryUpdatePayload{Description: ptr("Updated Entry Description"), TargetAmount: ptr(float64(300))},
+			want: Entry{Description: "Updated Entry Description", TargetAmount: 300, Type: ExpenseEntry, Date: getTime("2025-01-03 00:00:00"),
 				TargetAccountID: 2},
 		},
 		{
@@ -253,7 +253,7 @@ func TestUpdateEntry(t *testing.T) {
 			updateID:      4,
 			updateTenant:  tenant1,
 			updatePayload: EntryUpdatePayload{Date: &date2},
-			want:          Entry{Description: "e4", Amount: 4, Type: ExpenseEntry, Date: date2},
+			want:          Entry{Description: "e4", TargetAmount: 4, Type: ExpenseEntry, Date: date2},
 		},
 		{
 			name:          "error when updating non-existent entry",
@@ -263,8 +263,9 @@ func TestUpdateEntry(t *testing.T) {
 			wantErr:       "entry not found",
 		},
 		{
-			name:          "error when updating anther's tenant entry",
+			name:          "error when updating another tenant's entry",
 			updateTenant:  tenant2,
+			updateID:      1,
 			updatePayload: EntryUpdatePayload{Description: ptr("Updated Entry Description")},
 			wantErr:       "entry not found",
 		},
@@ -278,7 +279,7 @@ func TestUpdateEntry(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			sampleData(t, store) // note: test operates on one set of data
+			sampleData(t, store)
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {

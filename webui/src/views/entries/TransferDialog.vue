@@ -53,18 +53,18 @@ const resolver = ref(
             amount: z.number().min(0.01, { message: 'Amount must be greater than 0' }),
             date: z.date(),
             targetAccountId: z.number().min(1, { message: 'Target account is required' }),
-            originAccountId: z.number().min(1, { message: 'Origin account is required' }),
+            originAccountId: z.number().min(1, { message: 'Origin account is required' })
             // categoryId: z.number().min(1, { message: 'Category is required' })
         })
     )
 )
 
 const handleSubmit = async (e, form) => {
-  if (e.valid) {
-    const entryData = {
-      ...e.values,
-      type: 'transfer'
-    }
+    if (e.valid) {
+        const entryData = {
+            ...e.values,
+            type: 'transfer'
+        }
 
         if (props.isEdit) {
             try {
@@ -120,17 +120,51 @@ const handleSubmit = async (e, form) => {
                     $form.amount.error?.message
                 }}</Message>
 
-                <DatePicker 
-                    name="date" 
+                <DatePicker
+                    name="date"
                     :showIcon="true"
                     dateFormat="dd/mm/yy"
                     :locale="{
                         firstDayOfWeek: 1,
-                        dayNames: ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'],
+                        dayNames: [
+                            'domingo',
+                            'lunes',
+                            'martes',
+                            'miércoles',
+                            'jueves',
+                            'viernes',
+                            'sábado'
+                        ],
                         dayNamesShort: ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'],
                         dayNamesMin: ['D', 'L', 'M', 'X', 'J', 'V', 'S'],
-                        monthNames: ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'],
-                        monthNamesShort: ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'],
+                        monthNames: [
+                            'enero',
+                            'febrero',
+                            'marzo',
+                            'abril',
+                            'mayo',
+                            'junio',
+                            'julio',
+                            'agosto',
+                            'septiembre',
+                            'octubre',
+                            'noviembre',
+                            'diciembre'
+                        ],
+                        monthNamesShort: [
+                            'ene',
+                            'feb',
+                            'mar',
+                            'abr',
+                            'may',
+                            'jun',
+                            'jul',
+                            'ago',
+                            'sep',
+                            'oct',
+                            'nov',
+                            'dic'
+                        ],
                         today: 'Hoy',
                         clear: 'Limpiar'
                     }"
@@ -179,4 +213,4 @@ const handleSubmit = async (e, form) => {
             </div>
         </Form>
     </Dialog>
-</template> 
+</template>

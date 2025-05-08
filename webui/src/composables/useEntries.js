@@ -5,14 +5,14 @@ import { unref, computed } from 'vue'
 const API_BASE_URL = import.meta.env.VITE_SERVER_URL_V0
 const ENTRIES_ENDPOINT = `${API_BASE_URL}/fin/entries`
 
-
 function formatDate(date) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-}
+    if (!(date instanceof Date) || isNaN(date)) return ''
 
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+}
 
 /**
  * Fetches entries from the API with date range filtering
@@ -61,18 +61,17 @@ const deleteEntry = async (id) => {
 export function useEntries(startDateRef, endDateRef) {
     const queryClient = useQueryClient()
 
-
     const queryKey = computed(() => {
         const start = unref(startDateRef)
         const end = unref(endDateRef)
         return start && end
-            ? ['entries',formatDate(start), formatDate(end)]
+            ? ['entries', formatDate(start), formatDate(end)]
             : ['entries', 'invalid'] // fallback key to avoid undefined
     })
 
     const entriesQuery = useQuery({
         queryKey,
-        // enabled: computed(() => !!unref(startDateRef) && !!unref(endDateRef)),
+        enabled: computed(() => !!unref(startDateRef) && !!unref(endDateRef)),
         queryFn: () => fetchEntries(unref(startDateRef), unref(endDateRef))
     })
 
@@ -80,8 +79,6 @@ export function useEntries(startDateRef, endDateRef) {
     const createEntryMutation = useMutation({
         mutationFn: createEntry,
         onSuccess: () => {
-            console.log('Mutation success — refetching...')
-            console.log('Current queryKey:', queryKey.value)
             queryClient.invalidateQueries({ queryKey: queryKey.value })
             queryClient.refetchQueries({ queryKey: queryKey.value })
         }
@@ -99,10 +96,9 @@ export function useEntries(startDateRef, endDateRef) {
     // Mutation for deleting an entry
     const deleteEntryMutation = useMutation({
         mutationFn: deleteEntry,
-        onSuccess: (_, deletedId) => {
-            queryClient.setQueryData(QUERY_KEY, (oldEntries = []) =>
-                oldEntries.filter((entry) => entry.id !== deletedId)
-            )
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKey.value })
+            queryClient.refetchQueries({ queryKey: queryKey.value })
         }
     })
 
@@ -124,4 +120,4 @@ export function useEntries(startDateRef, endDateRef) {
         isUpdating: updateEntryMutation.isLoading,
         isDeleting: deleteEntryMutation.isLoading
     }
-} 
+}

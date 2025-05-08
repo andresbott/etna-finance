@@ -19,7 +19,8 @@ const fetchProviders = async () => {
 }
 
 const createAccountProvider = (data) => axios.post(PROVIDER_ENDPOINT, data).then(extractData)
-const updateAccountProvider = (data) => axios.put(`${PROVIDER_ENDPOINT}/${data.id}`, data).then(extractData)
+const updateAccountProvider = (data) =>
+    axios.put(`${PROVIDER_ENDPOINT}/${data.id}`, data).then(extractData)
 const deleteAccountProvider = (id) => axios.delete(`${PROVIDER_ENDPOINT}/${id}`)
 
 const createAccount = (data) => axios.post(ACCOUNTS_ENDPOINT, data).then(extractData)
@@ -28,17 +29,23 @@ const deleteAccount = (id) => axios.delete(`${ACCOUNTS_ENDPOINT}/${id}`)
 
 // Helper: normalize API response
 const transformProviders = (data) =>
-    data.map(item => new AccountProvider({
-        id: item.id,
-        name: item.name,
-        description: item.description,
-        accounts: item.accounts.map(acc => new Account({
-            id: acc.id,
-            name: acc.name,
-            currency: acc.currency,
-            type: acc.type
-        }))
-    }))
+    data.map(
+        (item) =>
+            new AccountProvider({
+                id: item.id,
+                name: item.name,
+                description: item.description,
+                accounts: item.accounts.map(
+                    (acc) =>
+                        new Account({
+                            id: acc.id,
+                            name: acc.name,
+                            currency: acc.currency,
+                            type: acc.type
+                        })
+                )
+            })
+    )
 
 // Vue Query Hook
 export function useAccounts() {
@@ -106,7 +113,6 @@ export function useAccounts() {
         // Mutation states
         isCreating: createAccountMutation.isLoading,
         isUpdating: updateAccountMutation.isLoading,
-        isDeleting:
-            deleteAccountMutation.isLoading || deleteAccountProviderMutation.isLoading
+        isDeleting: deleteAccountMutation.isLoading || deleteAccountProviderMutation.isLoading
     }
 }

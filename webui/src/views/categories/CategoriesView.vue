@@ -37,7 +37,7 @@ const fetchCategories = async () => {
 const saveExpenseCategory = async () => {
     try {
         // TODO: Replace with actual API call
-        const newId = Math.max(...categories.value.map(c => c.id)) + 1
+        const newId = Math.max(...categories.value.map((c) => c.id)) + 1
         categories.value.push({
             id: newId,
             name: newExpenseCategory.value.name,
@@ -54,7 +54,7 @@ const saveExpenseCategory = async () => {
 const saveIncomeCategory = async () => {
     try {
         // TODO: Replace with actual API call
-        const newId = Math.max(...categories.value.map(c => c.id)) + 1
+        const newId = Math.max(...categories.value.map((c) => c.id)) + 1
         categories.value.push({
             id: newId,
             name: newIncomeCategory.value.name,
@@ -92,14 +92,14 @@ onMounted(() => {
                             <TabView>
                                 <TabPanel header="Expense Categories">
                                     <div class="tab-header">
-                                        <Button 
-                                            label="Add Expense Category" 
-                                            icon="pi pi-plus" 
-                                            @click="expenseDialogVisible = true" 
+                                        <Button
+                                            label="Add Expense Category"
+                                            icon="pi pi-plus"
+                                            @click="expenseDialogVisible = true"
                                         />
                                     </div>
                                     <DataTable
-                                        :value="categories.filter(c => c.type === 'expense')"
+                                        :value="categories.filter((c) => c.type === 'expense')"
                                         :loading="loading"
                                         stripedRows
                                         class="p-datatable-sm"
@@ -129,14 +129,14 @@ onMounted(() => {
                                 </TabPanel>
                                 <TabPanel header="Income Categories">
                                     <div class="tab-header">
-                                        <Button 
-                                            label="Add Income Category" 
-                                            icon="pi pi-plus" 
-                                            @click="incomeDialogVisible = true" 
+                                        <Button
+                                            label="Add Income Category"
+                                            icon="pi pi-plus"
+                                            @click="incomeDialogVisible = true"
                                         />
                                     </div>
                                     <DataTable
-                                        :value="categories.filter(c => c.type === 'income')"
+                                        :value="categories.filter((c) => c.type === 'income')"
                                         :loading="loading"
                                         stripedRows
                                         class="p-datatable-sm"
@@ -176,16 +176,31 @@ onMounted(() => {
                                 <div class="p-fluid">
                                     <div class="field">
                                         <label for="expense-name">Name</label>
-                                        <InputText id="expense-name" v-model="newExpenseCategory.name" />
+                                        <InputText
+                                            id="expense-name"
+                                            v-model="newExpenseCategory.name"
+                                        />
                                     </div>
                                     <div class="field">
                                         <label for="expense-description">Description</label>
-                                        <InputText id="expense-description" v-model="newExpenseCategory.description" />
+                                        <InputText
+                                            id="expense-description"
+                                            v-model="newExpenseCategory.description"
+                                        />
                                     </div>
                                 </div>
                                 <template #footer>
-                                    <Button label="Cancel" icon="pi pi-times" text @click="expenseDialogVisible = false" />
-                                    <Button label="Save" icon="pi pi-check" @click="saveExpenseCategory" />
+                                    <Button
+                                        label="Cancel"
+                                        icon="pi pi-times"
+                                        text
+                                        @click="expenseDialogVisible = false"
+                                    />
+                                    <Button
+                                        label="Save"
+                                        icon="pi pi-check"
+                                        @click="saveExpenseCategory"
+                                    />
                                 </template>
                             </Dialog>
 
@@ -199,16 +214,31 @@ onMounted(() => {
                                 <div class="p-fluid">
                                     <div class="field">
                                         <label for="income-name">Name</label>
-                                        <InputText id="income-name" v-model="newIncomeCategory.name" />
+                                        <InputText
+                                            id="income-name"
+                                            v-model="newIncomeCategory.name"
+                                        />
                                     </div>
                                     <div class="field">
                                         <label for="income-description">Description</label>
-                                        <InputText id="income-description" v-model="newIncomeCategory.description" />
+                                        <InputText
+                                            id="income-description"
+                                            v-model="newIncomeCategory.description"
+                                        />
                                     </div>
                                 </div>
                                 <template #footer>
-                                    <Button label="Cancel" icon="pi pi-times" text @click="incomeDialogVisible = false" />
-                                    <Button label="Save" icon="pi pi-check" @click="saveIncomeCategory" />
+                                    <Button
+                                        label="Cancel"
+                                        icon="pi pi-times"
+                                        text
+                                        @click="incomeDialogVisible = false"
+                                    />
+                                    <Button
+                                        label="Save"
+                                        icon="pi pi-check"
+                                        @click="saveIncomeCategory"
+                                    />
                                 </template>
                             </Dialog>
                         </div>
@@ -251,4 +281,4 @@ onMounted(() => {
     display: block;
     margin-bottom: 0.5rem;
 }
-</style> 
+</style>
