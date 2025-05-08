@@ -120,52 +120,68 @@ const emit = defineEmits(['update:visible'])
             :validateOnBlur="false"
             @submit="handleSubmit"
         >
-            <div v-focustrap class="flex flex-column gap-4">
-                <InputText name="description" placeholder="Description" />
-                <Message v-if="$form.description?.invalid" severity="error" size="small">
-                    {{ $form.description.error?.message }}
-                </Message>
+            <div v-focustrap class="flex flex-column gap-3">
+                <!-- Description Field -->
+                <div>
+                    <label for="description" class="form-label">Description</label>
+                    <InputText id="description" name="description" />
+                    <Message v-if="$form.description?.invalid" severity="error" size="small">
+                        {{ $form.description.error?.message }}
+                    </Message>
+                </div>
 
-                <InputNumber
-                    name="amount"
-                    placeholder="Amount"
-                    :minFractionDigits="2"
-                    :maxFractionDigits="2"
-                />
-                <Message v-if="$form.amount?.invalid" severity="error" size="small">
-                    {{ $form.amount.error?.message }}
-                </Message>
+                <!-- Amount Field -->
+                <div>
+                    <label for="amount" class="form-label">Amount</label>
+                    <InputNumber
+                        id="amount"
+                        name="amount"
+                        :minFractionDigits="2"
+                        :maxFractionDigits="2"
+                    />
+                    <Message v-if="$form.amount?.invalid" severity="error" size="small">
+                        {{ $form.amount.error?.message }}
+                    </Message>
+                </div>
 
-                <Calendar name="date" :showIcon="true" dateFormat="dd/mm/yy" />
-                <Message v-if="$form.date?.invalid" severity="error" size="small">
-                    {{ $form.date.error?.message }}
-                </Message>
+                <!-- Date Field -->
+                <div>
+                    <label for="date" class="form-label">Date</label>
+                    <Calendar id="date" name="date" :showIcon="true" dateFormat="dd/mm/yy" />
+                    <Message v-if="$form.date?.invalid" severity="error" size="small">
+                        {{ $form.date.error?.message }}
+                    </Message>
+                </div>
 
-                <!-- Origin Account field (only for transfers) -->
-                <AccountSelector
-                    v-if="props.entryType === 'transfer'"
-                    v-model="formValues.originAccountId"
-                    name="originAccountId"
-                    placeholder="Select Origin Account"
-                    required
-                />
-                <Message v-if="$form.originAccountId?.invalid" severity="error" size="small">
-                    {{ $form.originAccountId.error?.message }}
-                </Message>
+                <div v-if="props.entryType === 'transfer'">
+                    <label for="date" class="form-label">Origin Account</label>
+                    <!-- Origin Account field (only for transfers) -->
+                    <AccountSelector
+                        v-model="formValues.originAccountId"
+                        name="originAccountId"
+                        placeholder="Select"
+                        required
+                    />
+                    <Message v-if="$form.originAccountId?.invalid" severity="error" size="small">
+                        {{ $form.originAccountId.error?.message }}
+                    </Message>
+                </div>
 
                 <!-- Target Account field (for all types) -->
-                <AccountSelector
-                    v-model="formValues.targetAccountId"
-                    name="targetAccountId"
-                    :placeholder="
-                        props.entryType === 'transfer' ? 'Select Target Account' : 'Select Account'
-                    "
-                    required
-                />
-
-                <Message v-if="$form.targetAccountId?.invalid" severity="error" size="small">
-                    {{ $form.targetAccountId.error?.message }}
-                </Message>
+                <div>
+                    <label for="date" class="form-label">{{
+                        props.entryType === 'transfer' ? 'Target Account' : 'Account'
+                    }}</label>
+                    <AccountSelector
+                        v-model="formValues.targetAccountId"
+                        name="targetAccountId"
+                        placeholder="Select"
+                        required
+                    />
+                    <Message v-if="$form.targetAccountId?.invalid" severity="error" size="small">
+                        {{ $form.targetAccountId.error?.message }}
+                    </Message>
+                </div>
 
                 <div class="flex justify-content-end gap-3">
                     <Button
@@ -186,3 +202,10 @@ const emit = defineEmits(['update:visible'])
         </Form>
     </Dialog>
 </template>
+
+<style>
+.form-label {
+    display: block;
+    font-weight: 500;
+}
+</style>
