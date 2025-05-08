@@ -8,50 +8,50 @@ import StockDialog from './StockDialog.vue'
 /* Internal state for menu and dialog visibility */
 const menu = ref(null)
 const dialogs = ref({
-  expense: false,
-  income: false,
-  transfer: false,
-  stock: false
+    expense: false,
+    income: false,
+    transfer: false,
+    stock: false
 })
 
 /* Toggle function to control menu visibility */
 const toggleMenu = (event) => {
-  menu.value.toggle(event)
+    menu.value.toggle(event)
 }
 
 /* Open the respective dialog when a menu item is clicked */
 const openDialog = (dialogType) => {
-  dialogs.value[dialogType] = true
+    dialogs.value[dialogType] = true
 }
 
 /* Setup menu items with their corresponding dialog actions */
 const menuItems = ref([
-  {
-    label: 'Add Expense',
-    icon: 'pi pi-minus',
-    command: () => openDialog('expense')
-  },
-  {
-    label: 'Add Income',
-    icon: 'pi pi-plus',
-    command: () => openDialog('income')
-  },
-  {
-    label: 'Add Transfer',
-    icon: 'pi pi-arrow-right-arrow-left',
-    command: () => openDialog('transfer')
-  },
-  {
-    label: 'Stock Operation',
-    icon: 'pi pi-chart-line',
-    command: () => openDialog('stock')
-  },
-  { separator: true },
-  {
-    label: 'CSV import',
-    icon: 'pi pi-bolt',
-    command: () => openDialog('transfer') // This still points to transfer - keep as is?
-  }
+    {
+        label: 'Add Expense',
+        icon: 'pi pi-minus',
+        command: () => openDialog('expense')
+    },
+    {
+        label: 'Add Income',
+        icon: 'pi pi-plus',
+        command: () => openDialog('income')
+    },
+    {
+        label: 'Add Transfer',
+        icon: 'pi pi-arrow-right-arrow-left',
+        command: () => openDialog('transfer')
+    },
+    {
+        label: 'Stock Operation',
+        icon: 'pi pi-chart-line',
+        command: () => openDialog('stock')
+    },
+    { separator: true },
+    {
+        label: 'CSV import',
+        icon: 'pi pi-bolt',
+        command: () => openDialog('transfer') // This still points to transfer - keep as is?
+    }
 ])
 
 // Define selectedEntry for the stock dialog

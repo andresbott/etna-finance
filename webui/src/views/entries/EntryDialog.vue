@@ -8,7 +8,7 @@ import Message from 'primevue/message'
 import Calendar from 'primevue/calendar'
 import InputNumber from 'primevue/inputnumber'
 import Select from 'primevue/select'
-import AccountSelector from "@/components/AccountSelector.vue";
+import AccountSelector from '@/components/AccountSelector.vue'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
 import { useEntries } from '@/composables/useEntries.js'
@@ -52,19 +52,19 @@ const resolver = computed(() => {
         date: z.date(),
         targetAccountId: z.number().min(1, { message: 'Target account is required' })
     }
-    
+
     // Add originAccountId validation for transfers
     if (props.entryType === 'transfer') {
         baseSchema.originAccountId = z.number().min(1, { message: 'Origin account is required' })
     }
-    
+
     return zodResolver(z.object(baseSchema))
 })
 
 const dialogTitle = computed(() => {
     const action = props.isEdit ? 'Edit' : 'Add New'
     let type = 'Entry'
-    
+
     if (props.entryType === 'income') {
         type = 'Income'
     } else if (props.entryType === 'expense') {
@@ -72,7 +72,7 @@ const dialogTitle = computed(() => {
     } else if (props.entryType === 'transfer') {
         type = 'Transfer'
     }
-    
+
     return `${action} ${type}`
 })
 
@@ -142,25 +142,26 @@ const emit = defineEmits(['update:visible'])
                 </Message>
 
                 <!-- Origin Account field (only for transfers) -->
-                <Select
+                <AccountSelector
                     v-if="props.entryType === 'transfer'"
-                    :options="accounts"
-                    optionLabel="name"
-                    optionValue="id"
+                    v-model="formValues.originAccountId"
                     name="originAccountId"
                     placeholder="Select Origin Account"
+                    required
                 />
                 <Message v-if="$form.originAccountId?.invalid" severity="error" size="small">
                     {{ $form.originAccountId.error?.message }}
                 </Message>
 
                 <!-- Target Account field (for all types) -->
-                   <AccountSelector
-    v-model="formValues.targetAccountId"
-    name="targetAccountId"
-    :placeholder="props.entryType === 'transfer' ? 'Select Target Account' : 'Select Account'"
-    required
-  />
+                <AccountSelector
+                    v-model="formValues.targetAccountId"
+                    name="targetAccountId"
+                    :placeholder="
+                        props.entryType === 'transfer' ? 'Select Target Account' : 'Select Account'
+                    "
+                    required
+                />
 
                 <Message v-if="$form.targetAccountId?.invalid" severity="error" size="small">
                     {{ $form.targetAccountId.error?.message }}

@@ -24,7 +24,7 @@ import StockDialog from './StockDialog.vue'
 import { useEntries } from '@/composables/useEntries.js'
 import { useAccounts } from '@/composables/useAccounts.js'
 import EntryDialog from '@/views/entries/EntryDialog.vue'
-import AddEntryMenu from "@/views/entries/AddEntryMenu.vue";
+import AddEntryMenu from '@/views/entries/AddEntryMenu.vue'
 
 /* --- Reactive State --- */
 const today = new Date()
@@ -238,7 +238,7 @@ const getRowClass = (data) => ({
                             </div>
                         </div>
                         <div class="add-entry-menu">
-                          <AddEntryMenu />
+                            <AddEntryMenu />
                         </div>
                     </div>
 
@@ -356,8 +356,6 @@ const getRowClass = (data) => ({
                                 </template>
                             </Column>
                         </DataTable>
-
-
                     </div>
                 </template>
             </ResponsiveHorizontal>
