@@ -1,10 +1,10 @@
 <script setup>
 import { ref, computed } from 'vue'
 import {
-  VerticalLayout,
-  HorizontalLayout,
-  Placeholder,
-  ResponsiveHorizontal
+    VerticalLayout,
+    HorizontalLayout,
+    Placeholder,
+    ResponsiveHorizontal
 } from '@go-bumbu/vue-components/layout'
 import '@go-bumbu/vue-components/layout.css'
 
@@ -23,6 +23,8 @@ import StockDialog from './StockDialog.vue'
 
 import { useEntries } from '@/composables/useEntries.js'
 import { useAccounts } from '@/composables/useAccounts.js'
+import EntryDialog from '@/views/entries/EntryDialog.vue'
+import AddEntryMenu from "@/views/entries/AddEntryMenu.vue";
 
 /* --- Reactive State --- */
 const today = new Date()
@@ -42,102 +44,112 @@ const isEditMode = ref(false)
 
 /* --- Dialog Visibility State --- */
 const dialogs = {
-  expense: ref(false),
-  income: ref(false),
-  transfer: ref(false),
-  stock: ref(false)
+    expense: ref(false),
+    income: ref(false),
+    transfer: ref(false),
+    stock: ref(false)
 }
+
+const expenseDialog = ref(false)
 
 /* --- Filtering Logic --- */
 const filteredAccounts = computed(() =>
     !accountSearch.value
         ? accounts.value
-        : accounts.value?.filter(account =>
-            account.name.toLowerCase().includes(accountSearch.value.toLowerCase())
-        )
+        : accounts.value?.filter((account) =>
+              account.name.toLowerCase().includes(accountSearch.value.toLowerCase())
+          )
 )
 
 const filteredEntries = computed(() =>
     !selectedAccount.value
         ? entries.value
         : entries.value?.filter(
-            entry =>
-                entry.targetAccountId === selectedAccount.value.id ||
-                entry.originAccountId === selectedAccount.value.id
-        )
+              (entry) =>
+                  entry.targetAccountId === selectedAccount.value.id ||
+                  entry.originAccountId === selectedAccount.value.id
+          )
 )
 
 /* --- Category Data --- */
 const incomeCategories = [
-  { id: 1, name: 'Salary' },
-  { id: 2, name: 'Freelance' },
-  { id: 3, name: 'Investments' },
-  { id: 4, name: 'Other Income' }
+    { id: 1, name: 'Salary' },
+    { id: 2, name: 'Freelance' },
+    { id: 3, name: 'Investments' },
+    { id: 4, name: 'Other Income' }
 ]
 
 const expenseCategories = [
-  { id: 1, name: 'Food' },
-  { id: 2, name: 'Transport' },
-  { id: 3, name: 'Housing' },
-  { id: 4, name: 'Entertainment' },
-  { id: 5, name: 'Utilities' },
-  { id: 6, name: 'Shopping' }
+    { id: 1, name: 'Food' },
+    { id: 2, name: 'Transport' },
+    { id: 3, name: 'Housing' },
+    { id: 4, name: 'Entertainment' },
+    { id: 5, name: 'Utilities' },
+    { id: 6, name: 'Shopping' }
 ]
 
 /* --- Menu Actions --- */
 const openNewEntryDialog = (type) => {
-  isEditMode.value = false
-  selectedEntry.value = null
-  dialogs[type].value = true
+    isEditMode.value = false
+    selectedEntry.value = null
+    dialogs[type].value = true
 }
 
 const menuItems = ref([
-  { label: 'Add Expense', icon: 'pi pi-minus', command: () => openNewEntryDialog('expense') },
-  { label: 'Add Income', icon: 'pi pi-plus', command: () => openNewEntryDialog('income') },
-  { label: 'Add Transfer', icon: 'pi pi-arrow-right-arrow-left', command: () => openNewEntryDialog('transfer') },
-  { label: 'CSV import', icon: 'pi pi-bolt', command: () => openNewEntryDialog('transfer') },
-  { label: 'Stock Operation', icon: 'pi pi-chart-line', command: () => openNewEntryDialog('stock') }
+    { label: 'Add Expense', icon: 'pi pi-minus', command: () => openNewEntryDialog('expense') },
+    { label: 'Add Income', icon: 'pi pi-plus', command: () => openNewEntryDialog('income') },
+    {
+        label: 'Add Transfer',
+        icon: 'pi pi-arrow-right-arrow-left',
+        command: () => openNewEntryDialog('transfer')
+    },
+    { label: 'CSV import', icon: 'pi pi-bolt', command: () => openNewEntryDialog('transfer') },
+    {
+        label: 'Stock Operation',
+        icon: 'pi pi-chart-line',
+        command: () => openNewEntryDialog('stock')
+    }
 ])
 
 /* --- Entry Actions --- */
 const openEditEntryDialog = (entry) => {
-  isEditMode.value = true
-  selectedEntry.value = entry
-  if (entry.type === 'expense' || entry.type === 'income' || entry.type === 'transfer') {
-    dialogs[entry.type].value = true
-  } else if (entry.type === 'buystock' || entry.type === 'sellstock') {
-    dialogs.stock.value = true
-  }
+    isEditMode.value = true
+    selectedEntry.value = entry
+    if (entry.type === 'expense' || entry.type === 'income' || entry.type === 'transfer') {
+        dialogs[entry.type].value = true
+    } else if (entry.type === 'buystock' || entry.type === 'sellstock') {
+        dialogs.stock.value = true
+    }
 }
 
 const handleDeleteEntry = async (entry) => {
-  if (confirm('Are you sure you want to delete this entry?')) {
-    try {
-      await deleteEntry(entry.id)
-    } catch (error) {
-      console.error('Failed to delete entry:', error)
+    if (confirm('Are you sure you want to delete this entry?')) {
+        try {
+            await deleteEntry(entry.id)
+        } catch (error) {
+            console.error('Failed to delete entry:', error)
+        }
     }
-  }
 }
 
 /* --- Helpers --- */
 const getEntryTypeIcon = (type) => {
-  const icons = {
-    expense: 'pi pi-minus text-red-500',
-    income: 'pi pi-plus text-green-500',
-    transfer: 'pi pi-arrow-right-arrow-left text-blue-500',
-    buystock: 'pi pi-chart-line text-yellow-500',
-    sellstock: 'pi pi-chart-line text-orange-500'
-  }
-  return icons[type] || 'pi pi-question-circle'
+    const icons = {
+        expense: 'pi pi-minus text-red-500',
+        income: 'pi pi-plus text-green-500',
+        transfer: 'pi pi-arrow-right-arrow-left text-blue-500',
+        buystock: 'pi pi-chart-line text-yellow-500',
+        sellstock: 'pi pi-chart-line text-orange-500'
+    }
+    return icons[type] || 'pi pi-question-circle'
 }
 
 const getRowClass = (data) => ({
-  'expense-row': data.type === 'expense',
-  'income-row': data.type === 'income',
-  'transfer-row': data.type === 'transfer',
-  'buystock-row': data.type === 'buystock',
-  'sellstock-row': data.type === 'sellstock'
+    'expense-row': data.type === 'expense',
+    'income-row': data.type === 'income',
+    'transfer-row': data.type === 'transfer',
+    'buystock-row': data.type === 'buystock',
+    'sellstock-row': data.type === 'sellstock'
 })
 </script>
 
@@ -226,14 +238,7 @@ const getRowClass = (data) => ({
                             </div>
                         </div>
                         <div class="add-entry-menu">
-                            <Button
-                                label=""
-                                icon="pi pi-plus"
-                                @click="menu.toggle($event)"
-                                aria-haspopup="true"
-                                aria-controls="overlay_menu"
-                            />
-                            <Menu ref="menu" :model="menuItems" :popup="true" id="overlay_menu" />
+                          <AddEntryMenu />
                         </div>
                     </div>
 
@@ -352,53 +357,7 @@ const getRowClass = (data) => ({
                             </Column>
                         </DataTable>
 
-                        <ExpenseDialog
-                            v-model:visible="expenseDialogVisible"
-                            :isEdit="isEditMode"
-                            :entryId="selectedEntry?.id"
-                            :description="selectedEntry?.description"
-                            :amount="selectedEntry?.amount"
-                            :date="selectedEntry?.date"
-                            :targetAccountId="selectedEntry?.targetAccountId"
-                            :categoryId="selectedEntry?.categoryId"
-                        />
 
-                        <IncomeDialog
-                            v-model:visible="incomeDialogVisible"
-                            :isEdit="isEditMode"
-                            :entryId="selectedEntry?.id"
-                            :description="selectedEntry?.description"
-                            :amount="selectedEntry?.amount"
-                            :date="selectedEntry?.date"
-                            :targetAccountId="selectedEntry?.targetAccountId"
-                            :categoryId="selectedEntry?.categoryId"
-                        />
-
-                        <TransferDialog
-                            v-model:visible="transferDialogVisible"
-                            :isEdit="isEditMode"
-                            :entryId="selectedEntry?.id"
-                            :description="selectedEntry?.description"
-                            :amount="selectedEntry?.amount"
-                            :date="selectedEntry?.date"
-                            :targetAccountId="selectedEntry?.targetAccountId"
-                            :originAccountId="selectedEntry?.originAccountId"
-                            :categoryId="selectedEntry?.categoryId"
-                        />
-
-                        <StockDialog
-                            v-model:visible="stockDialogVisible"
-                            :isEdit="isEditMode"
-                            :entryId="selectedEntry?.id"
-                            :description="selectedEntry?.description"
-                            :amount="selectedEntry?.amount"
-                            :stockAmount="selectedEntry?.stockAmount"
-                            :date="selectedEntry?.date"
-                            :type="selectedEntry?.type"
-                            :targetAccountId="selectedEntry?.targetAccountId"
-                            :originAccountId="selectedEntry?.originAccountId"
-                            :categoryId="selectedEntry?.categoryId"
-                        />
                     </div>
                 </template>
             </ResponsiveHorizontal>
