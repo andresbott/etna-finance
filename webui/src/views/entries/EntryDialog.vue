@@ -8,6 +8,7 @@ import Message from 'primevue/message'
 import Calendar from 'primevue/calendar'
 import InputNumber from 'primevue/inputnumber'
 import Select from 'primevue/select'
+import AccountSelector from "@/components/AccountSelector.vue";
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
 import { useEntries } from '@/composables/useEntries.js'
@@ -154,13 +155,13 @@ const emit = defineEmits(['update:visible'])
                 </Message>
 
                 <!-- Target Account field (for all types) -->
-                <Select
-                    :options="accounts"
-                    optionLabel="name"
-                    optionValue="id"
-                    name="targetAccountId"
-                    :placeholder="props.entryType === 'transfer' ? 'Select Target Account' : 'Select Account'"
-                />
+                   <AccountSelector
+    v-model="formValues.targetAccountId"
+    name="targetAccountId"
+    :placeholder="props.entryType === 'transfer' ? 'Select Target Account' : 'Select Account'"
+    required
+  />
+
                 <Message v-if="$form.targetAccountId?.invalid" severity="error" size="small">
                     {{ $form.targetAccountId.error?.message }}
                 </Message>
