@@ -41,24 +41,32 @@ watch(props, (newProps) => {
 
 // Dynamically build the resolver based on entryType
 const resolver = computed(() => {
-    // Base validation schema
+    // Account validation - handles {id: true} format from AccountSelector
     const accountValidation = z
-        .union([z.null(), z.record(z.boolean())]) // Allow either an object or null
+        .union([z.null(), z.record(z.boolean())])
         .refine(
-            (obj) => obj !== null, // Check if the object is not null
-            {
-                message: 'Account must be selected' // Error message for null values
-            }
+            (obj) => obj !== null,
+            { message: 'Account must be selected' }
         )
 
+    // Base schema common to all entry types
     const baseSchema = {
         description: z.string().min(1, { message: 'Description is required' }),
-      targetAmount: z.number().min(0.01, { message: 'Amount must be greater than 0' }),
-      originAmount: z.number().min(0.01, { message: 'Amount must be greater than 0' }),
         date: z.date(),
-        targetAccountId: accountValidation,
-      originAccountId: accountValidation
+        targetAmount: z.number().min(0.01, { message: 'Amount must be greater than 0' }),
+        targetAccountId: accountValidation
     }
+
+    // For transfers, extend the base schema with origin fields
+    if (props.entryType === 'transfer') {
+        return zodResolver(z.object({
+            ...baseSchema,
+            originAmount: z.number().min(0.01, { message: 'Origin amount must be greater than 0' }),
+            originAccountId: accountValidation
+        }))
+    }
+    
+    // For income and expense, use the base schema
     return zodResolver(z.object(baseSchema))
 })
 
