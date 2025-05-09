@@ -24,7 +24,7 @@ func TestCreateEntry(t *testing.T) {
 		{
 			name:   "create valid entry",
 			tenant: tenant1,
-			input:  Entry{Description: "Salary", TargetAmount: 1000, Date: date1, Type: ExpenseEntry},
+			input:  Entry{Description: "Salary", TargetAmount: 1000, TargetAccountID: 1, Date: date1, Type: ExpenseEntry},
 		},
 		{
 			name:    "want error on empty description",
@@ -41,7 +41,7 @@ func TestCreateEntry(t *testing.T) {
 		{
 			name:    "want error on zero date",
 			tenant:  tenant1,
-			input:   Entry{Description: "Investment", TargetAmount: 500, Date: time.Time{}, Type: ExpenseEntry},
+			input:   Entry{Description: "Investment", TargetAmount: 500, TargetAccountID: 1, Date: time.Time{}, Type: ExpenseEntry},
 			wantErr: "date cannot be zero",
 		},
 		{
@@ -230,7 +230,7 @@ func TestUpdateEntry(t *testing.T) {
 			updateID:      1,
 			updateTenant:  tenant1,
 			updatePayload: EntryUpdatePayload{Description: ptr("Updated Entry Description")},
-			want:          Entry{Description: "Updated Entry Description", TargetAmount: 1, Type: ExpenseEntry, Date: getTime("2025-01-01 00:00:00")},
+			want:          Entry{Description: "Updated Entry Description", TargetAmount: 1, TargetAccountID: 1, Type: ExpenseEntry, Date: getTime("2025-01-01 00:00:00")},
 		},
 		{
 			name:          "update entry target amount",
@@ -253,7 +253,7 @@ func TestUpdateEntry(t *testing.T) {
 			updateID:      4,
 			updateTenant:  tenant1,
 			updatePayload: EntryUpdatePayload{Date: &date2},
-			want:          Entry{Description: "e4", TargetAmount: 4, Type: ExpenseEntry, Date: date2},
+			want:          Entry{Description: "e4", TargetAmount: 4, TargetAccountID: 1, Type: ExpenseEntry, Date: date2},
 		},
 		{
 			name:          "error when updating non-existent entry",
@@ -384,7 +384,7 @@ func TestSearchEntries(t *testing.T) {
 			endDate:   getTime("2025-01-20 00:00:00"),
 			tenant:    tenant2,
 			limit:     2,
-			want:      []Entry{sampleEntries[15], sampleEntries[14]},
+			want:      []Entry{sampleEntries2[3], sampleEntries2[2]},
 		},
 	}
 

@@ -638,6 +638,10 @@ var sampleAccountProviders = []finance.AccountProvider{
 	{Name: "provider3", Description: "provider3", Accounts: []finance.Account{}}, // 3 does not have accounts
 }
 
+var sampleAccountProviders2 = []finance.AccountProvider{
+	{Name: "provider4_tenant2", Description: "provider4t2", Accounts: []finance.Account{}}, // 4
+}
+
 var sampleAccounts = []finance.Account{
 	{ID: 1, Name: "acc1", Currency: currency.EUR, Type: 0, AccountProviderID: 1},
 	{ID: 2, Name: "acc2", Currency: currency.USD, Type: 0, AccountProviderID: 2},
@@ -647,28 +651,39 @@ var sampleAccounts = []finance.Account{
 }
 
 var sampleEntries = []finance.Entry{
-	{Description: "e1", TargetAmount: 1, Type: finance.ExpenseEntry, Date: getTime("2025-01-01 00:00:00")}, // 1
+	{Description: "e1", TargetAmount: 1, Type: finance.ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-01 00:00:00")}, // 1
 	{Description: "e2", TargetAmount: 2, Type: finance.ExpenseEntry, Date: getTime("2025-01-02 00:00:00"),
 		TargetAccountID: 1, TargetAccountName: "acc1"},
 	{Description: "e3", TargetAmount: 3, Type: finance.ExpenseEntry, Date: getTime("2025-01-03 00:00:00"),
 		TargetAccountID: 2, TargetAccountName: "acc2"},
-	{Description: "e4", TargetAmount: 4, Type: finance.ExpenseEntry, Date: getTime("2025-01-04 00:00:00")},
+	{Description: "e4", TargetAmount: 4, Type: finance.ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-04 00:00:00")},
 	{Description: "e5", TargetAmount: 5, Type: finance.ExpenseEntry, Date: getTime("2025-01-05 00:00:00"),
 		TargetAccountID: 2, TargetAccountName: "acc2"},
 	{Description: "e6", TargetAmount: 6, Type: finance.ExpenseEntry, Date: getTime("2025-01-06 00:00:00"),
 		TargetAccountID: 1, TargetAccountName: "acc1"},
-	{Description: "e7", TargetAmount: 7, Type: finance.ExpenseEntry, Date: getTime("2025-01-07 00:00:00")},
+	{Description: "e7", TargetAmount: 7, Type: finance.ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-07 00:00:00")},
 	{Description: "e8", TargetAmount: 8, Type: finance.ExpenseEntry, Date: getTime("2025-01-08 00:00:00"),
 		TargetAccountID: 2, TargetAccountName: "acc2"},
-	{Description: "e9", TargetAmount: 9, Type: finance.ExpenseEntry, Date: getTime("2025-01-09 00:00:00")},
-	{Description: "e10", TargetAmount: 10, Type: finance.TransferEntry, Date: getTime("2025-01-10 00:00:00"),
+	{Description: "e9", TargetAmount: 9, Type: finance.ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-09 00:00:00")},
+	{Description: "e10", TargetAmount: 10, OriginAmount: 4.5, Type: finance.TransferEntry, Date: getTime("2025-01-10 00:00:00"),
 		TargetAccountID: 2, TargetAccountName: "acc2", OriginAccountID: 1, OriginAccountName: "acc1"},
-	{Description: "e11", TargetAmount: 10, Type: finance.ExpenseEntry, Date: getTime("2025-01-11 00:00:00")},
-	{Description: "e12", TargetAmount: 10, Type: finance.ExpenseEntry, Date: getTime("2025-01-12 00:00:00")},
-	{Description: "e13", TargetAmount: 10, Type: finance.ExpenseEntry, Date: getTime("2025-01-13 00:00:00")},
-	{Description: "e14", TargetAmount: 10, Type: finance.ExpenseEntry, Date: getTime("2025-01-14 00:00:00")},
-	{Description: "e14", TargetAmount: 10, Type: finance.ExpenseEntry, Date: getTime("2025-01-15 00:00:00")},
-	{Description: "e15", TargetAmount: 10, Type: finance.ExpenseEntry, Date: getTime("2025-01-16 00:00:00")},
+	{Description: "e11", TargetAmount: 10, Type: finance.ExpenseEntry, TargetAccountID: 1, TargetAccountName: "acc1", Date: getTime("2025-01-11 00:00:00")},
+	{Description: "e12", TargetAmount: 10, Type: finance.ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-12 00:00:00")},
+	{Description: "e13", TargetAmount: 10, Type: finance.ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-13 00:00:00")},
+	{Description: "e14", TargetAmount: 10, Type: finance.ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-14 00:00:00")},
+	{Description: "e14", TargetAmount: 10, Type: finance.ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-15 00:00:00")},
+	{Description: "e15", TargetAmount: 10, Type: finance.ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-16 00:00:00")},
+}
+
+var sampleAccounts2 = []finance.Account{
+	{ID: 6, Name: "acc1tenant2", Currency: currency.EUR, Type: 0, AccountProviderID: 4},
+}
+var sampleEntries2 = []finance.Entry{
+	{Description: "t2e13", TargetAmount: 10, Type: finance.ExpenseEntry, TargetAccountID: 6, Date: getTime("2025-01-13 00:00:00")},
+	{Description: "t2e14", TargetAmount: 10, Type: finance.ExpenseEntry, TargetAccountID: 6, Date: getTime("2025-01-14 00:00:00")},
+	{Description: "t2e15", TargetAmount: 10, Type: finance.ExpenseEntry, TargetAccountID: 6, TargetAccountName: "acc1tenant2", Date: getTime("2025-01-15 00:00:00")},
+	{Description: "t2e16", TargetAmount: 10, Type: finance.ExpenseEntry, TargetAccountID: 6, TargetAccountName: "acc1tenant2", Date: getTime("2025-01-16 00:00:00")},
+	{Description: "t2e17", TargetAmount: 10, Type: finance.ExpenseEntry, TargetAccountID: 6, Date: getTime("2025-02-17 00:00:00")},
 }
 
 const (
@@ -679,6 +694,7 @@ const (
 
 func sampleData(t *testing.T, store *finance.Store) {
 	ctx := context.Background()
+
 	// =========================================
 	// create accounts providers
 	// =========================================
@@ -695,6 +711,11 @@ func sampleData(t *testing.T, store *finance.Store) {
 		t.Fatalf("error creating provider 2: %v", err)
 	}
 	_ = provider3
+
+	provider4, err := store.CreateAccountProvider(ctx, sampleAccountProviders2[0], tenant2)
+	if err != nil {
+		t.Fatalf("error creating provider 2: %v", err)
+	}
 
 	// =========================================
 	// create accounts
@@ -724,6 +745,14 @@ func sampleData(t *testing.T, store *finance.Store) {
 			t.Fatalf("error creating account 1: %v", err)
 		}
 	}
+	for i := 0; i < len(sampleAccounts2); i++ {
+		acc2 := sampleAccounts2[i]
+		acc2.AccountProviderID = provider4
+		_, err := store.CreateAccount(ctx, acc2, tenant2)
+		if err != nil {
+			t.Fatalf("error creating account 1: %v", err)
+		}
+	}
 
 	// =========================================
 	// create entries
@@ -735,7 +764,8 @@ func sampleData(t *testing.T, store *finance.Store) {
 			t.Fatal(err)
 		}
 	}
-	for _, entry := range sampleEntries[9:16] {
+
+	for _, entry := range sampleEntries2 {
 		_, err = store.CreateEntry(context.Background(), entry, tenant2)
 		if err != nil {
 			t.Fatal(err)

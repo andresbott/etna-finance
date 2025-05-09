@@ -75,6 +75,7 @@ func (h *Handler) CreateEntry(userId string) http.Handler {
 		if err != nil {
 			if errors.As(err, &validationErr) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
 			} else {
 				http.Error(w, fmt.Sprintf("unable to Store entry in DB: %s", err.Error()), http.StatusInternalServerError)
 				return

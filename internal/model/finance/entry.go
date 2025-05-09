@@ -150,8 +150,23 @@ func (store *Store) CreateEntry(ctx context.Context, item Entry, tenant string) 
 	if item.TargetAmount == 0 {
 		return 0, ValidationErr("target amount cannot be empty")
 	}
+
+	if item.TargetAccountID == 0 {
+		return 0, ValidationErr("target account cannot be empty")
+	}
+
 	if item.Date.IsZero() {
 		return 0, ValidationErr("date cannot be zero")
+	}
+
+	if item.Type == TransferEntry {
+		if item.OriginAmount == 0 {
+			return 0, ValidationErr("origin amount cannot be empty")
+		}
+
+		if item.OriginAccountID == 0 {
+			return 0, ValidationErr("origin account cannot be empty")
+		}
 	}
 
 	payload := dbEntry{

@@ -5,9 +5,9 @@ import { useAccounts } from '@/composables/useAccounts.js'
 
 /**
  * AccountSelector Component
- * 
+ *
  * Provides a hierarchical account selector that groups accounts by provider.
- * 
+ *
  * IMPORTANT: The component passes {id:true} to form validation, not a number!
  */
 
@@ -126,7 +126,7 @@ watch(
 const handleSelectionChange = (val) => {
     const selected = unwrapNode(val)
     selectedTreeNode.value = selected
-    
+
     // Extract the ID (or null) and emit to parent
     const accountId = selected?.key ?? null
     emit('update:modelValue', accountId)
@@ -156,7 +156,7 @@ const handleSelectionChange = (val) => {
                 <div class="p-2 text-red-500" v-else-if="isError">Failed to load accounts</div>
                 <div class="p-2" v-else>No accounts found</div>
             </template>
-            
+
             <!-- Selected value display template -->
             <template #value="slotProps">
                 <div v-if="slotProps.value">
