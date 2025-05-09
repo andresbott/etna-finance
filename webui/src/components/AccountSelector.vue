@@ -58,23 +58,53 @@ const accountsTree = computed(() => {
     }))
 })
 
-// Handle value changes
-const handleChange = (e) => {
-    emit('update:modelValue', e.value)
+// Extract numeric ID from the selection object
+const extractId = (val) => {
+    if (!val) return null
+    
+    // If it's already a number, return it
+    if (typeof val === 'number') return val
+    
+    // If it's an object like {3: true}, extract the key (3)
+    if (typeof val === 'object') {
+        const keys = Object.keys(val)
+        if (keys.length > 0) {
+            // Convert the string key to a number
+            return parseInt(keys[0], 10)
+        }
+    }
+    
+    return null
 }
 
-// For form integration
-const value = computed({
-    get: () => props.modelValue,
-    set: (val) => emit('update:modelValue', val)
+// Handle value changes
+const handleChange = (e) => {
+    const accountId = extractId(e.value)
+    emit('update:modelValue', accountId)
+}
+
+// Format the incoming value for the TreeSelect
+const treeSelectValue = computed({
+    get: () => {
+        // If modelValue is a number, convert it to the format TreeSelect expects
+        if (typeof props.modelValue === 'number') {
+            return props.modelValue
+        }
+        return null
+    },
+    set: (val) => {
+        const accountId = extractId(val)
+        emit('update:modelValue', accountId)
+    }
 })
+
 const unwrapNode = (val) => (Array.isArray(val) ? val[0] : val)
 </script>
 
 <template>
     <div class="account-select">
         <TreeSelect
-            v-model="value"
+            v-model="treeSelectValue"
             :options="accountsTree"
             :expandedKeys="expandedKeys"
             :disabled="disabled || isLoading"

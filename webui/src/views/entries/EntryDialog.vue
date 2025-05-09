@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, nextTick } from 'vue'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
@@ -46,7 +46,7 @@ watch(props, (newProps) => {
 // Dynamically build the resolver based on entryType
 const resolver = computed(() => {
     // Base validation schema
-    const baseSchema = {
+      const baseSchema = {
         description: z.string().min(1, { message: 'Description is required' }),
         amount: z.number().min(0.01, { message: 'Amount must be greater than 0' }),
         date: z.date(),
@@ -77,6 +77,8 @@ const dialogTitle = computed(() => {
 })
 
 const handleSubmit = async (e) => {
+
+  console.log(e.states.targetAccountId.value)
     if (!e.valid) return
 
     const entryData = {
@@ -94,10 +96,6 @@ const handleSubmit = async (e) => {
     } catch (error) {
         console.error(`Failed to ${props.isEdit ? 'update' : 'create'} ${props.entryType}:`, error)
     }
-}
-
-const hideDialog = () => {
-    emit('update:visible', false)
 }
 
 // Define the emit for updating visibility
@@ -120,11 +118,11 @@ const emit = defineEmits(['update:visible'])
             :validateOnBlur="false"
             @submit="handleSubmit"
         >
-            <div v-focustrap class="flex flex-column gap-3">
+            <div class="flex flex-column gap-3">
                 <!-- Description Field -->
                 <div>
                     <label for="description" class="form-label">Description</label>
-                    <InputText id="description" name="description" />
+                    <InputText id="description" name="description" v-focus />
                     <Message v-if="$form.description?.invalid" severity="error" size="small">
                         {{ $form.description.error?.message }}
                     </Message>
