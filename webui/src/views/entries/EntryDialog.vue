@@ -15,7 +15,7 @@ import InputNumber from 'primevue/inputnumber'
 import DatePicker from 'primevue/datepicker'
 
 const { createEntry, updateEntry, isCreating, isUpdating } = useEntries()
-const { accounts } = useAccounts()
+
 
 const props = defineProps({
     isEdit: { type: Boolean, default: false },
@@ -56,7 +56,8 @@ const resolver = computed(() => {
       targetAmount: z.number().min(0.01, { message: 'Amount must be greater than 0' }),
       originAmount: z.number().min(0.01, { message: 'Amount must be greater than 0' }),
         date: z.date(),
-        targetAccountId: accountValidation
+        targetAccountId: accountValidation,
+      originAccountId: accountValidation
     }
     return zodResolver(z.object(baseSchema))
 })
@@ -101,6 +102,7 @@ const handleSubmit = async (e) => {
         type: props.entryType
     }
 
+    console.log(entryData)
     try {
         if (props.isEdit) {
             await updateEntry({ id: props.entryId, ...entryData })
@@ -185,7 +187,7 @@ const emit = defineEmits(['update:visible'])
                 <div v-if="props.entryType === 'transfer'">
                     <label for="date" class="form-label">Origin Account</label>
 
-                    <AccountSelector v-model="formValues.originAccountId" name="targetAccountId" />
+                    <AccountSelector v-model="formValues.originAccountId" name="originAccountId" />
 
                     <Message v-if="$form.originAccountId?.invalid" severity="error" size="small">
                         {{ $form.originAccountId.error?.message }}
