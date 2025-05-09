@@ -1,4 +1,4 @@
-import {createApp, nextTick} from 'vue'
+import { createApp, nextTick } from 'vue'
 import { VueQueryPlugin, QueryClient } from '@tanstack/vue-query'
 import App from './App.vue'
 import CustomTheme from '@/theme.js'
@@ -21,7 +21,6 @@ app.directive('focus', {
             el.focus()
         }, 300)
     }
-
 })
 
 app.use(PrimeVue, {
