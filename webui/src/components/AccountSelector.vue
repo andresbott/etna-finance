@@ -86,8 +86,16 @@ const formatSelectedLabel = (val) => {
     if (!val || (Array.isArray(val) && val.length === 0)) {
         return props.placeholder
     }
+    
     const node = unwrapNode(val)
-    return node?.provider && node?.label ? `${node.provider}/${node.label}` : props.placeholder
+    if (!node) return props.placeholder
+    
+    // Handle both direct selection and object with provider/label
+    if (node.provider && node.label) {
+        return `${node.provider}/${node.label}`
+    }
+    
+    return props.placeholder
 }
 
 // Function to convert between the numeric ID and the {id: true} format
@@ -226,11 +234,11 @@ const handleSelectionChange = (val) => {
             </template>
 
             <!-- Selected value display template -->
-            <template #value="slotProps">
-                <div v-if="slotProps.value">
-                    {{ formatSelectedLabel(slotProps.value) }}
+            <template #value>
+                <div v-if="selectedTreeNode">
+                    {{ selectedTreeNode.provider }}/{{ selectedTreeNode.label }}
                 </div>
-                <span v-else>{{ slotProps.placeholder }}</span>
+                <span v-else>{{ placeholder }}</span>
             </template>
         </TreeSelect>
     </div>
