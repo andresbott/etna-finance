@@ -18,12 +18,12 @@ import DatePicker from 'primevue/datepicker'
 
 import ExpenseDialog from './ExpenseDialog.vue'
 import IncomeDialog from './IncomeDialog.vue'
-import TransferDialog from './TransferDialog.vue'
+import TransferDialog from './dialogs/TransferDialog.vue'
 import StockDialog from './StockDialog.vue'
 
 import { useEntries } from '@/composables/useEntries.js'
 import { useAccounts } from '@/composables/useAccounts.js'
-import EntryDialog from '@/views/entries/EntryDialog.vue'
+import IncomeExpenseDialog from '@/views/entries/dialogs/IncomeExpenseDialog.vue'
 import AddEntryMenu from '@/views/entries/AddEntryMenu.vue'
 
 /* --- Reactive State --- */

@@ -1,12 +1,25 @@
+# TODO
+* income/expense dialog put account on top and depending on the selected account change behaviour
+
+
 # Brain dump
-* Accounts
-  * make sub-accounts:
-    * bank: post finance
-      * main account CHF
-      * saving EUR
-    * stocks IBKR
-      * savings USD
-      * VOO
+
+* movements
+  * income uses:  target account, amount, currency and category
+    * can be to a stock account -> in that case also capture amount of stocks
+  * expense uses: target account, amount, currency and category
+    * can be to a stock account ( not common) -> in that case also capture amount of stocks
+  * transfer uses: origin/target account, origin and target amount, currency, NO CATEGORY
+    * don't allow to move between stock money accounts
+  * Buy stocks / Sell stocks:
+    * 2 separate dialogs
+    * Dialog similar to transfer, but contains the amount of stocks
+      * here tha backend calculates the stock value based on money and amount
+  * Stock Value (extra Table) > auto import in the future
+    * add an extra entry that updates the value of a stock
+      * this is a time progressing entry to also see the evolution
+  
+
 * dashbaord
   * in the financial overview => time graph use main category aggregated
   * in the accound distribution use aggregated category
@@ -37,7 +50,7 @@
 * allow to upload files, e.g. invoices and link them to expenses
   * needs a blob store
 * add feature to import csv  
-  * define csv structure column name to field mapping,
+  * define csv structure column name to field mapping, ( For now hardcoded in the backend) 
     * frontend to make a mapping between required and optional fields and the column name of a csv
     * optionally upload a csv to the front end to pre-populate sources
     * store in the backend a template + a map of source=>target fields

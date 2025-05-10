@@ -19,19 +19,19 @@ const { createEntry, updateEntry, isCreating, isUpdating } = useEntries()
 
 const props = defineProps({
     isEdit: { type: Boolean, default: false },
-    entryType: { type: String, required: true }, // 'expense', 'income', or 'transfer'
     entryId: { type: Number, default: null },
     description: { type: String, default: '' },
-  targetAmount: { type: Number, default: 0 },
-  originAmount: { type: Number, default: 0 },
+    targetAmount: { type: Number, default: 0 },
+    originAmount: { type: Number, default: 0 },
     date: { type: Date, default: () => new Date() },
     targetAccountId: { type: Number, default: null },
-    originAccountId: { type: Number, default: null }, // Added for transfers
+    originAccountId: { type: Number, default: null },
     visible: { type: Boolean, default: false }
 })
 
 const formValues = ref({
-    targetAccountId: props.targetAccountId
+    targetAccountId: props.targetAccountId,
+    originAccountId: props.originAccountId
 })
 
 // Watch props to update form values when editing
@@ -39,7 +39,7 @@ watch(props, (newProps) => {
     formValues.value = { ...newProps }
 })
 
-// Dynamically build the resolver based on entryType
+// Build the resolver for transfer entries
 const resolver = computed(() => {
     // Account validation - handles {id: true} format from AccountSelector
     const accountValidation = z
@@ -49,40 +49,20 @@ const resolver = computed(() => {
             { message: 'Account must be selected' }
         )
 
-    // Base schema common to all entry types
-    const baseSchema = {
+    // Schema for transfer entries
+    return zodResolver(z.object({
         description: z.string().min(1, { message: 'Description is required' }),
         date: z.date(),
-        targetAmount: z.number().min(0.01, { message: 'Amount must be greater than 0' }),
-        targetAccountId: accountValidation
-    }
-
-    // For transfers, extend the base schema with origin fields
-    if (props.entryType === 'transfer') {
-        return zodResolver(z.object({
-            ...baseSchema,
-            originAmount: z.number().min(0.01, { message: 'Origin amount must be greater than 0' }),
-            originAccountId: accountValidation
-        }))
-    }
-    
-    // For income and expense, use the base schema
-    return zodResolver(z.object(baseSchema))
+        targetAmount: z.number().min(0.01, { message: 'Target amount must be greater than 0' }),
+        targetAccountId: accountValidation,
+        originAmount: z.number().min(0.01, { message: 'Origin amount must be greater than 0' }),
+        originAccountId: accountValidation
+    }))
 })
 
 const dialogTitle = computed(() => {
     const action = props.isEdit ? 'Edit' : 'Add New'
-    let type = 'Entry'
-
-    if (props.entryType === 'income') {
-        type = 'Income'
-    } else if (props.entryType === 'expense') {
-        type = 'Expense'
-    } else if (props.entryType === 'transfer') {
-        type = 'Transfer'
-    }
-
-    return `${action} ${type}`
+    return `${action} Transfer`
 })
 
 const handleSubmit = async (e) => {
@@ -99,7 +79,7 @@ const handleSubmit = async (e) => {
         formData.targetAccountId = targetKeys.length > 0 ? parseInt(targetKeys[0], 10) : null
     }
 
-    // Convert originAccountId from {id: true} to numeric id (for transfers)
+    // Convert originAccountId from {id: true} to numeric id
     if (formData.originAccountId && typeof formData.originAccountId === 'object') {
         const originKeys = Object.keys(formData.originAccountId)
         formData.originAccountId = originKeys.length > 0 ? parseInt(originKeys[0], 10) : null
@@ -107,7 +87,7 @@ const handleSubmit = async (e) => {
 
     const entryData = {
         ...formData,
-        type: props.entryType
+        type: 'transfer'
     }
 
     console.log(entryData)
@@ -119,7 +99,7 @@ const handleSubmit = async (e) => {
         }
         emit('update:visible', false)
     } catch (error) {
-        console.error(`Failed to ${props.isEdit ? 'update' : 'create'} ${props.entryType}:`, error)
+        console.error(`Failed to ${props.isEdit ? 'update' : 'create'} transfer:`, error)
     }
 }
 
@@ -153,25 +133,18 @@ const emit = defineEmits(['update:visible'])
                     </Message>
                 </div>
 
-              <!-- Amount Field -->
-              <div v-if="props.entryType === 'transfer'">
-                <label for="date" class="form-label">Origin Amount</label>
-                <InputNumber
-                    id="originAmount"
-                    name="originAmount"
-                    :minFractionDigits="2"
-                    :maxFractionDigits="2"
-                />
-                <Message v-if="$form.originAmount?.invalid" severity="error" size="small">
-                  {{ $form.originAmount.error?.message }}
-                </Message>
-              </div>
-
-                <!-- Amount Field -->
+                <!-- Target Account field -->
                 <div>
-                  <label for="date" class="form-label">{{
-                      props.entryType === 'transfer' ? 'Target Amount' : 'Amount'
-                    }}</label>
+                    <label for="targetAccountId" class="form-label">Target Account</label>
+                    <AccountSelector v-model="formValues.targetAccountId" name="targetAccountId" />
+                    <Message v-if="$form.targetAccountId?.invalid" severity="error" size="small">
+                        {{ $form.targetAccountId.error?.message }}
+                    </Message>
+                </div>
+
+                <!-- Target Amount Field -->
+                <div>
+                    <label for="targetAmount" class="form-label">Target Amount</label>
                     <InputNumber
                         id="targetAmount"
                         name="targetAmount"
@@ -183,35 +156,35 @@ const emit = defineEmits(['update:visible'])
                     </Message>
                 </div>
 
+                <!-- Origin Account field -->
+                <div>
+                    <label for="originAccountId" class="form-label">Origin Account</label>
+                    <AccountSelector v-model="formValues.originAccountId" name="originAccountId" />
+                    <Message v-if="$form.originAccountId?.invalid" severity="error" size="small">
+                        {{ $form.originAccountId.error?.message }}
+                    </Message>
+                </div>
+
+                <!-- Origin Amount Field -->
+                <div>
+                    <label for="originAmount" class="form-label">Origin Amount</label>
+                    <InputNumber
+                        id="originAmount"
+                        name="originAmount"
+                        :minFractionDigits="2"
+                        :maxFractionDigits="2"
+                    />
+                    <Message v-if="$form.originAmount?.invalid" severity="error" size="small">
+                        {{ $form.originAmount.error?.message }}
+                    </Message>
+                </div>
+
                 <!-- Date Field -->
                 <div>
                     <label for="date" class="form-label">Date</label>
                     <DatePicker id="date" name="date" :showIcon="true" dateFormat="dd/mm/yy" />
                     <Message v-if="$form.date?.invalid" severity="error" size="small">
                         {{ $form.date.error?.message }}
-                    </Message>
-                </div>
-
-                <div v-if="props.entryType === 'transfer'">
-                    <label for="date" class="form-label">Origin Account</label>
-
-                    <AccountSelector v-model="formValues.originAccountId" name="originAccountId" />
-
-                    <Message v-if="$form.originAccountId?.invalid" severity="error" size="small">
-                        {{ $form.originAccountId.error?.message }}
-                    </Message>
-                </div>
-
-                <!-- Target Account field (for all types) -->
-                <div>
-                    <label for="date" class="form-label">{{
-                        props.entryType === 'transfer' ? 'Target Account' : 'Account'
-                    }}</label>
-
-                    <AccountSelector v-model="formValues.targetAccountId" name="targetAccountId" />
-
-                    <Message v-if="$form.targetAccountId?.invalid" severity="error" size="small">
-                        {{ $form.targetAccountId.error?.message }}
                     </Message>
                 </div>
 

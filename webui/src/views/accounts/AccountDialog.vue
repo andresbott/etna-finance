@@ -105,23 +105,29 @@ const onFormSubmit = async (e) => {
                 :validateOnBlur="true"
                 @submit="onFormSubmit"
             >
-                <div v-focustrap class="flex flex-column gap-4">
+                <div v-focustrap class="flex flex-column gap-3">
                     <!-- Hidden Provider ID Field -->
-
+                  <div>
+                    <label for="name" class="form-label">Name</label>
                     <InputText name="name" placeholder="Account Name" />
                     <Message v-if="$form.name?.invalid" severity="error" size="small">{{
                         $form.name.error?.message
                     }}</Message>
-
+                  </div>
+                  <div>
+                    <label for="currency" class="form-label">Currency</label>
                     <Select :options="currencies" name="currency" placeholder="Select Currency" />
                     <Message v-if="$form.currency?.invalid" severity="error" size="small">{{
                         $form.currency.error?.message
                     }}</Message>
-
+                  </div>
+                  <div>
+                    <label for="accountTypes" class="form-label">Type</label>
                     <Select :options="accountTypes" name="type" placeholder="Select Account Type" />
                     <Message v-if="$form.type?.invalid" severity="error" size="small">{{
                         $form.type.error?.message
                     }}</Message>
+                  </div>
 
                     <div class="flex justify-content-end gap-3">
                         <Button
@@ -143,3 +149,9 @@ const onFormSubmit = async (e) => {
         </Dialog>
     </div>
 </template>
+<style>
+.form-label {
+  display: block;
+  font-weight: 500;
+}
+</style>

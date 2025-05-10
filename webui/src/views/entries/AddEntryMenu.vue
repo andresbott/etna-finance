@@ -2,8 +2,9 @@
 import { ref } from 'vue'
 import Button from 'primevue/button'
 import Menu from 'primevue/menu'
-import EntryDialog from '@/views/entries/EntryDialog.vue'
+import IncomeExpenseDialog from '@/views/entries/dialogs/IncomeExpenseDialog.vue'
 import StockDialog from './StockDialog.vue'
+import TransferDialog from "@/views/entries/dialogs/TransferDialog.vue";
 
 /* Internal state for menu and dialog visibility */
 const menu = ref(null)
@@ -71,7 +72,7 @@ const selectedEntry = ref(null)
         <Menu ref="menu" :model="menuItems" :popup="true" id="overlay_menu" />
 
         <!-- Expense Dialog -->
-        <EntryDialog
+        <IncomeExpenseDialog
             v-model:visible="dialogs.expense"
             :isEdit="false"
             entryType="expense"
@@ -79,18 +80,16 @@ const selectedEntry = ref(null)
         />
 
         <!-- Income Dialog -->
-        <EntryDialog
+        <IncomeExpenseDialog
             v-model:visible="dialogs.income"
             :isEdit="false"
             entryType="income"
             @update:visible="dialogs.income = $event"
         />
 
-        <!-- Transfer Dialog - Updated to use EntryDialog -->
-        <EntryDialog
+        <TransferDialog
             v-model:visible="dialogs.transfer"
             :isEdit="false"
-            entryType="transfer"
             @update:visible="dialogs.transfer = $event"
         />
 
