@@ -35,8 +35,6 @@ const endDate = ref(new Date())
 const { entries, isLoading, deleteEntry, isDeleting, refetch } = useEntries(startDate, endDate)
 const { accounts } = useAccounts()
 
-const selectedAccount = ref(null)
-const accountSearch = ref('')
 const leftSidebarCollapsed = ref(true)
 const menu = ref(null)
 
@@ -56,42 +54,6 @@ const dialogs = {
 }
 
 const expenseDialog = ref(false)
-
-/* --- Filtering Logic --- */
-const filteredAccounts = computed(() =>
-    !accountSearch.value
-        ? accounts.value
-        : accounts.value?.filter((account) =>
-              account.name.toLowerCase().includes(accountSearch.value.toLowerCase())
-          )
-)
-
-const filteredEntries = computed(() =>
-    !selectedAccount.value
-        ? entries.value
-        : entries.value?.filter(
-              (entry) =>
-                  entry.targetAccountId === selectedAccount.value.id ||
-                  entry.originAccountId === selectedAccount.value.id
-          )
-)
-
-/* --- Category Data --- */
-const incomeCategories = [
-    { id: 1, name: 'Salary' },
-    { id: 2, name: 'Freelance' },
-    { id: 3, name: 'Investments' },
-    { id: 4, name: 'Other Income' }
-]
-
-const expenseCategories = [
-    { id: 1, name: 'Food' },
-    { id: 2, name: 'Transport' },
-    { id: 3, name: 'Housing' },
-    { id: 4, name: 'Entertainment' },
-    { id: 5, name: 'Utilities' },
-    { id: 6, name: 'Shopping' }
-]
 
 /* --- Menu Actions --- */
 const openNewEntryDialog = (type) => {
@@ -168,50 +130,6 @@ const getRowClass = (data) => ({
         </template>
         <template #default>
             <ResponsiveHorizontal :leftSidebarCollapsed="leftSidebarCollapsed">
-                <template #left>
-                    <div class="left-sidebar-content">
-                        <div class="filter-section">
-                            <h3>Filter by Account</h3>
-                            <Listbox
-                                v-model="selectedAccount"
-                                :options="filteredAccounts"
-                                optionLabel="name"
-                                class="w-full"
-                                listStyle="max-height: 200px"
-                            />
-                        </div>
-
-                        <div class="categories-section">
-                            <h3>Income Categories</h3>
-                            <div class="category-list">
-                                <div
-                                    v-for="category in incomeCategories"
-                                    :key="category.id"
-                                    class="category-item"
-                                >
-                                    <i
-                                        class="pi pi-circle-fill"
-                                        style="color: var(--green-500)"
-                                    ></i>
-                                    <span>{{ category.name }}</span>
-                                </div>
-                            </div>
-
-                            <h3>Expense Categories</h3>
-                            <div class="category-list">
-                                <div
-                                    v-for="category in expenseCategories"
-                                    :key="category.id"
-                                    class="category-item"
-                                >
-                                    <i class="pi pi-circle-fill" style="color: var(--red-500)"></i>
-                                    <span>{{ category.name }}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </template>
-
                 <template #default>
                     <div class="sidebar-controls">
                         <Button
@@ -252,7 +170,7 @@ const getRowClass = (data) => ({
 
                     <div class="entries-view">
                         <DataTable
-                            :value="filteredEntries"
+                            :value="entries"
                             :loading="isLoading"
                             stripedRows
                             paginator
@@ -275,8 +193,7 @@ const getRowClass = (data) => ({
                             <Column header="Account">
                                 <template #body="{ data }">
                                     <span v-if="data.type === 'transfer'">
-                                        {{ data.originAccountName
-                                        }}<i
+                                        {{ data.originAccountName }}<i
                                             class="pi pi-arrow-right"
                                             style="font-size: 0.9rem; margin: 0 8px"
                                         />{{ data.targetAccountName }}
@@ -321,6 +238,17 @@ const getRowClass = (data) => ({
                                         v-else-if="data.type === 'transfer'"
                                         class="amount transfer"
                                     >
+                                        {{
+                                            data.originAmount?.toLocaleString('es-ES', {
+                                                minimumFractionDigits: 2,
+                                                maximumFractionDigits: 2
+                                            }) || '0.00'
+                                        }}
+                                        {{ data.originAccountCurrency || '' }}
+                                        <i
+                                            class="pi pi-arrow-right"
+                                            style="font-size: 0.9rem; margin: 0 8px"
+                                        />
                                         {{
                                             data.targetAmount.toLocaleString('es-ES', {
                                                 minimumFractionDigits: 2,

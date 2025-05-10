@@ -41,7 +41,7 @@ const transformProviders = (data) =>
                             id: acc.id,
                             name: acc.name,
                             currency: acc.currency,
-                            type: acc.type
+                            type: acc.type,
                         })
                 )
             })
