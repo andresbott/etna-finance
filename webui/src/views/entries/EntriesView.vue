@@ -20,6 +20,7 @@ import ExpenseDialog from './ExpenseDialog.vue'
 import IncomeDialog from './IncomeDialog.vue'
 import TransferDialog from './dialogs/TransferDialog.vue'
 import StockDialog from './StockDialog.vue'
+import DeleteDialog from '@/components/deleteDialog.vue'
 
 import { useEntries } from '@/composables/useEntries.js'
 import { useAccounts } from '@/composables/useAccounts.js'
@@ -41,6 +42,10 @@ const menu = ref(null)
 
 const selectedEntry = ref(null)
 const isEditMode = ref(false)
+
+/* --- Delete Dialog State --- */
+const deleteDialogVisible = ref(false)
+const entryToDelete = ref(null)
 
 /* --- Dialog Visibility State --- */
 const dialogs = {
@@ -122,13 +127,16 @@ const openEditEntryDialog = (entry) => {
     }
 }
 
-const handleDeleteEntry = async (entry) => {
-    if (confirm('Are you sure you want to delete this entry?')) {
-        try {
-            await deleteEntry(entry.id)
-        } catch (error) {
-            console.error('Failed to delete entry:', error)
-        }
+const openDeleteDialog = (entry) => {
+    entryToDelete.value = entry
+    deleteDialogVisible.value = true
+}
+
+const handleDeleteEntry = async () => {
+    try {
+        await deleteEntry(entryToDelete.value.id)
+    } catch (error) {
+        console.error('Failed to delete entry:', error)
     }
 }
 
@@ -350,7 +358,7 @@ const getRowClass = (data) => ({
                                             severity="danger"
                                             class="action-button"
                                             :loading="isDeleting"
-                                            @click="handleDeleteEntry(data)"
+                                            @click="openDeleteDialog(data)"
                                         />
                                     </div>
                                 </template>
@@ -364,6 +372,14 @@ const getRowClass = (data) => ({
             <Placeholder :width="'100%'" :height="30" :color="12">Footer</Placeholder>
         </template>
     </VerticalLayout>
+    
+    <!-- Delete Confirmation Dialog -->
+    <DeleteDialog
+        v-model:visible="deleteDialogVisible"
+        :name="entryToDelete?.description"
+        message="Are you sure you want to delete this entry?"
+        :onConfirm="handleDeleteEntry"
+    />
 </template>
 
 <style scoped>
