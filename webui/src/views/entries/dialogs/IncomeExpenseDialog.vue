@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, computed, nextTick } from 'vue'
+import { ref, watch, computed, nextTick, onMounted } from 'vue'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
 import { Form } from '@primevue/forms'
@@ -15,7 +15,7 @@ import InputNumber from 'primevue/inputnumber'
 import DatePicker from 'primevue/datepicker'
 
 const { createEntry, updateEntry, isCreating, isUpdating } = useEntries()
-
+const { accounts } = useAccounts()
 
 const props = defineProps({
     isEdit: { type: Boolean, default: false },
@@ -23,18 +23,94 @@ const props = defineProps({
     entryId: { type: Number, default: null },
     description: { type: String, default: '' },
     targetAmount: { type: Number, default: 0 },
+    stockAmount: { type: Number, default: 0 },
     date: { type: Date, default: () => new Date() },
     targetAccountId: { type: Number, default: null },
     visible: { type: Boolean, default: false }
 })
 
+// Convert numeric targetAccountId to {id: true} format for form validation
+const getFormattedAccountId = (accountId) => {
+    if (accountId === null || accountId === undefined) return null;
+    return { [accountId]: true };
+}
+
 const formValues = ref({
-    targetAccountId: props.targetAccountId
+    targetAccountId: getFormattedAccountId(props.targetAccountId),
+    stockAmount: props.stockAmount
 })
 
 // Watch props to update form values when editing
 watch(props, (newProps) => {
-    formValues.value = { ...newProps }
+    formValues.value = {
+        ...newProps,
+        targetAccountId: getFormattedAccountId(newProps.targetAccountId)
+    }
+})
+
+// Helper function to extract numeric ID from {id: true} object
+const extractAccountId = (formValue) => {
+    if (!formValue) return null;
+    
+    // Handle numeric ID (for backwards compatibility)
+    if (typeof formValue === 'number') return formValue;
+    
+    // Handle {id: true} format
+    if (typeof formValue === 'object') {
+        const keys = Object.keys(formValue);
+        if (keys.length > 0) {
+            return parseInt(keys[0], 10);
+        }
+    }
+    
+    return null;
+}
+
+// Track if selected account is of type stocks
+const selectedAccount = ref(null)
+
+// Direct handler for account selection changes
+const handleAccountSelection = (accountObject) => {
+    updateSelectedAccount(accountObject);
+}
+
+// Function to update selected account
+const updateSelectedAccount = (accountObject) => {
+    if (!accountObject || !accounts.value) {
+        selectedAccount.value = null
+        return
+    }
+
+    // Find the account in the accounts structure
+    const accountId = extractAccountId(accountObject);
+    
+    if (isNaN(accountId) || accountId === null) {
+        selectedAccount.value = null
+        return
+    }
+    
+    // Search through all providers and their accounts
+    let found = null
+    if (accounts.value) {
+        for (const provider of accounts.value) {
+            found = provider.accounts.find(acc => acc.id === accountId)
+            if (found) {
+                break
+            }
+        }
+    }
+    
+    selectedAccount.value = found
+}
+
+// Also keep the watch for reactive updates, with immediate flag
+watch(() => formValues.value.targetAccountId, (newValue) => {
+    updateSelectedAccount(newValue);
+}, { immediate: true })
+
+// Check if selected account is of type "stocks"
+const isStocksAccount = computed(() => {
+    return selectedAccount.value?.type === 'stocks'
 })
 
 // Build the resolver for income/expense entries
@@ -47,13 +123,20 @@ const resolver = computed(() => {
             { message: 'Account must be selected' }
         )
 
-    // Schema for income and expense entry types
-    return zodResolver(z.object({
+    // Base schema for income and expense entry types
+    const baseSchema = {
         description: z.string().min(1, { message: 'Description is required' }),
         date: z.date(),
         targetAmount: z.number().min(0.01, { message: 'Amount must be greater than 0' }),
         targetAccountId: accountValidation
-    }))
+    }
+
+    // Add stockAmount to schema if selected account is of type stocks
+    if (isStocksAccount.value) {
+        baseSchema.stockAmount = z.number().min(0.01, { message: 'Stock amount must be greater than 0' })
+    }
+
+    return zodResolver(z.object(baseSchema))
 })
 
 const dialogTitle = computed(() => {
@@ -63,8 +146,6 @@ const dialogTitle = computed(() => {
 })
 
 const handleSubmit = async (e) => {
-    console.log(e)
-
     if (!e.valid) return
 
     // Extract account IDs from the form values
@@ -81,7 +162,6 @@ const handleSubmit = async (e) => {
         type: props.entryType
     }
 
-    console.log(entryData)
     try {
         if (props.isEdit) {
             await updateEntry({ id: props.entryId, ...entryData })
@@ -126,8 +206,12 @@ const emit = defineEmits(['update:visible'])
 
                 <!-- Account field -->
                 <div>
-                    <label for="date" class="form-label">Account</label>
-                    <AccountSelector v-model="formValues.targetAccountId" name="targetAccountId" />
+                    <label for="targetAccountId" class="form-label">Account</label>
+                    <AccountSelector 
+                        v-model="formValues.targetAccountId" 
+                        name="targetAccountId"
+                        @update:modelValue="handleAccountSelection" 
+                    />
                     <Message v-if="$form.targetAccountId?.invalid" severity="error" size="small">
                         {{ $form.targetAccountId.error?.message }}
                     </Message>
@@ -135,7 +219,7 @@ const emit = defineEmits(['update:visible'])
 
                 <!-- Amount Field -->
                 <div>
-                    <label for="date" class="form-label">Amount</label>
+                    <label for="targetAmount" class="form-label">Amount</label>
                     <InputNumber
                         id="targetAmount"
                         name="targetAmount"
@@ -144,6 +228,20 @@ const emit = defineEmits(['update:visible'])
                     />
                     <Message v-if="$form.targetAmount?.invalid" severity="error" size="small">
                         {{ $form.targetAmount.error?.message }}
+                    </Message>
+                </div>
+
+                <!-- Stock Amount Field - only shown for stock accounts -->
+                <div v-if="isStocksAccount">
+                    <label for="stockAmount" class="form-label">Stock Amount</label>
+                    <InputNumber
+                        id="stockAmount"
+                        name="stockAmount"
+                        :minFractionDigits="2"
+                        :maxFractionDigits="2"
+                    />
+                    <Message v-if="$form.stockAmount?.invalid" severity="error" size="small">
+                        {{ $form.stockAmount.error?.message }}
                     </Message>
                 </div>
 

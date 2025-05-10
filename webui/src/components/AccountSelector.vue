@@ -16,7 +16,7 @@ import { useAccounts } from '@/composables/useAccounts.js'
 // -----------------------------------------------------------------------------
 const props = defineProps({
     modelValue: {
-        type: [Number, null],
+        type: [Number, Object, null],
         default: null
     },
     name: {
@@ -90,46 +90,114 @@ const formatSelectedLabel = (val) => {
     return node?.provider && node?.label ? `${node.provider}/${node.label}` : props.placeholder
 }
 
+// Function to convert between the numeric ID and the {id: true} format
+const convertToFormFormat = (accountId) => {
+    if (accountId === null || accountId === undefined) return null;
+    return { [accountId]: true };
+}
+
+const extractIdFromFormFormat = (formValue) => {
+    if (!formValue) return null;
+    
+    // Handle numeric ID
+    if (typeof formValue === 'number') return formValue;
+    
+    // Handle {id: true} format
+    if (typeof formValue === 'object') {
+        const keys = Object.keys(formValue);
+        if (keys.length > 0) {
+            return parseInt(keys[0], 10);
+        }
+    }
+    
+    return null;
+}
+
 // -----------------------------------------------------------------------------
 // Watchers & Event Handlers
 // -----------------------------------------------------------------------------
-// Update selected node when modelValue (account ID) changes
+// Update selected node when modelValue changes
 watch(
     () => props.modelValue,
-    (newAccountId) => {
-        if (!accounts.value || newAccountId == null) {
-            selectedTreeNode.value = null
-            return
+    (newValue) => {
+        if (!accounts.value || newValue == null) {
+            selectedTreeNode.value = null;
+            return;
+        }
+
+        // Extract the account ID from the model value (could be number or {id: true})
+        const accountId = extractIdFromFormFormat(newValue);
+        
+        if (accountId === null) {
+            selectedTreeNode.value = null;
+            return;
         }
 
         // Find the account that matches the ID and set it as selected
         for (const provider of accounts.value) {
-            const account = provider.accounts.find((acc) => acc.id === newAccountId)
+            const account = provider.accounts.find((acc) => acc.id === accountId);
             if (account) {
                 selectedTreeNode.value = {
                     key: account.id,
                     label: `${account.name} (${account.currency})`,
                     provider: provider.name,
                     data: account
-                }
-                return
+                };
+                return;
             }
         }
 
         // Reset if account not found
-        selectedTreeNode.value = null
+        selectedTreeNode.value = null;
     },
     { immediate: true }
 )
 
 // Handle selection change from TreeSelect component
 const handleSelectionChange = (val) => {
-    const selected = unwrapNode(val)
-    selectedTreeNode.value = selected
-
-    // Extract the ID (or null) and emit to parent
-    const accountId = selected?.key ?? null
-    emit('update:modelValue', accountId)
+    // Check if clearing the selection
+    if (!val) {
+        selectedTreeNode.value = null;
+        emit('update:modelValue', null);
+        return;
+    }
+    
+    // Handle both direct node selection and object selection
+    let accountId = null;
+    
+    if (val.key) {
+        // Standard node selection containing a key property
+        selectedTreeNode.value = val;
+        accountId = val.key;
+    } else if (typeof val === 'object') {
+        // We're getting a direct {id: true} object from TreeSelect
+        const keys = Object.keys(val);
+        if (keys.length > 0) {
+            accountId = parseInt(keys[0], 10);
+            
+            // Find the corresponding node to update selectedTreeNode
+            if (accounts.value) {
+                for (const provider of accounts.value) {
+                    const account = provider.accounts.find(acc => acc.id === accountId);
+                    if (account) {
+                        selectedTreeNode.value = {
+                            key: account.id,
+                            label: `${account.name} (${account.currency})`,
+                            provider: provider.name,
+                            data: account
+                        };
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    
+    // Convert to {id: true} format for form validation
+    const formValue = convertToFormFormat(accountId);
+    
+    // Emit to parent
+    emit('update:modelValue', formValue);
 }
 </script>
 
