@@ -13,6 +13,7 @@ import Message from 'primevue/message'
 import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
 import DatePicker from 'primevue/datepicker'
+import Divider from 'primevue/divider'
 
 const { createEntry, updateEntry, isCreating, isUpdating } = useEntries()
 
@@ -66,8 +67,6 @@ const dialogTitle = computed(() => {
 })
 
 const handleSubmit = async (e) => {
-    console.log(e)
-
     if (!e.valid) return
 
     // Extract account IDs from the form values
@@ -90,7 +89,6 @@ const handleSubmit = async (e) => {
         type: 'transfer'
     }
 
-    console.log(entryData)
     try {
         if (props.isEdit) {
             await updateEntry({ id: props.entryId, ...entryData })
@@ -114,6 +112,7 @@ const emit = defineEmits(['update:visible'])
         :draggable="false"
         modal
         :header="dialogTitle"
+        :style="{ width: '700px' }"
     >
         <Form
             v-slot="$form"
@@ -124,71 +123,98 @@ const emit = defineEmits(['update:visible'])
             @submit="handleSubmit"
         >
             <div class="flex flex-column gap-3">
-                <!-- Description Field -->
-                <div>
-                    <label for="description" class="form-label">Description</label>
-                    <InputText id="description" name="description" v-focus />
-                    <Message v-if="$form.description?.invalid" severity="error" size="small">
-                        {{ $form.description.error?.message }}
-                    </Message>
+                <!-- Top section with common fields -->
+                <div class="flex flex-column gap-3">
+                    <!-- Description Field -->
+                    <div>
+                        <label for="description" class="form-label">Description</label>
+                        <InputText id="description" name="description" v-focus class="w-full" />
+                        <Message v-if="$form.description?.invalid" severity="error" size="small">
+                            {{ $form.description.error?.message }}
+                        </Message>
+                    </div>
+
+                    <!-- Date Field -->
+                    <div>
+                        <label for="date" class="form-label">Date</label>
+                        <DatePicker id="date" name="date" :showIcon="true" dateFormat="dd/mm/yy" class="w-full" />
+                        <Message v-if="$form.date?.invalid" severity="error" size="small">
+                            {{ $form.date.error?.message }}
+                        </Message>
+                    </div>
                 </div>
 
-                <!-- Target Account field -->
-                <div>
-                    <label for="targetAccountId" class="form-label">Target Account</label>
-                    <AccountSelector v-model="formValues.targetAccountId" name="targetAccountId" />
-                    <Message v-if="$form.targetAccountId?.invalid" severity="error" size="small">
-                        {{ $form.targetAccountId.error?.message }}
-                    </Message>
+                <!-- Separator -->
+                <Divider />
+
+                <!-- Bottom section with side-by-side fields -->
+                <div class="flex flex-row">
+                    <!-- Origin section (left side) -->
+                    <div class="flex flex-column gap-3 flex-1 p-2">
+                        <h3 class="m-0 text-lg font-medium">From</h3>
+                        
+                        <!-- Origin Account field -->
+                        <div>
+                            <label for="originAccountId" class="form-label">Origin Account</label>
+                            <AccountSelector v-model="formValues.originAccountId" name="originAccountId" />
+                            <Message v-if="$form.originAccountId?.invalid" severity="error" size="small">
+                                {{ $form.originAccountId.error?.message }}
+                            </Message>
+                        </div>
+
+                        <!-- Origin Amount Field -->
+                        <div>
+                            <label for="originAmount" class="form-label">Origin Amount</label>
+                            <InputNumber
+                                id="originAmount"
+                                name="originAmount"
+                                :minFractionDigits="2"
+                                :maxFractionDigits="2"
+                                class="w-full"
+                            />
+                            <Message v-if="$form.originAmount?.invalid" severity="error" size="small">
+                                {{ $form.originAmount.error?.message }}
+                            </Message>
+                        </div>
+                    </div>
+
+                    <!-- Arrow between sections -->
+                    <div class="flex align-items-center justify-content-center px-2">
+                        <i class="pi pi-arrow-right text-2xl"></i>
+                    </div>
+
+                    <!-- Target section (right side) -->
+                    <div class="flex flex-column gap-3 flex-1 p-2">
+                        <h3 class="m-0 text-lg font-medium">To</h3>
+                        
+                        <!-- Target Account field -->
+                        <div>
+                            <label for="targetAccountId" class="form-label">Target Account</label>
+                            <AccountSelector v-model="formValues.targetAccountId" name="targetAccountId" />
+                            <Message v-if="$form.targetAccountId?.invalid" severity="error" size="small">
+                                {{ $form.targetAccountId.error?.message }}
+                            </Message>
+                        </div>
+
+                        <!-- Target Amount Field -->
+                        <div>
+                            <label for="targetAmount" class="form-label">Target Amount</label>
+                            <InputNumber
+                                id="targetAmount"
+                                name="targetAmount"
+                                :minFractionDigits="2"
+                                :maxFractionDigits="2"
+                                class="w-full"
+                            />
+                            <Message v-if="$form.targetAmount?.invalid" severity="error" size="small">
+                                {{ $form.targetAmount.error?.message }}
+                            </Message>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Target Amount Field -->
-                <div>
-                    <label for="targetAmount" class="form-label">Target Amount</label>
-                    <InputNumber
-                        id="targetAmount"
-                        name="targetAmount"
-                        :minFractionDigits="2"
-                        :maxFractionDigits="2"
-                    />
-                    <Message v-if="$form.targetAmount?.invalid" severity="error" size="small">
-                        {{ $form.targetAmount.error?.message }}
-                    </Message>
-                </div>
-
-                <!-- Origin Account field -->
-                <div>
-                    <label for="originAccountId" class="form-label">Origin Account</label>
-                    <AccountSelector v-model="formValues.originAccountId" name="originAccountId" />
-                    <Message v-if="$form.originAccountId?.invalid" severity="error" size="small">
-                        {{ $form.originAccountId.error?.message }}
-                    </Message>
-                </div>
-
-                <!-- Origin Amount Field -->
-                <div>
-                    <label for="originAmount" class="form-label">Origin Amount</label>
-                    <InputNumber
-                        id="originAmount"
-                        name="originAmount"
-                        :minFractionDigits="2"
-                        :maxFractionDigits="2"
-                    />
-                    <Message v-if="$form.originAmount?.invalid" severity="error" size="small">
-                        {{ $form.originAmount.error?.message }}
-                    </Message>
-                </div>
-
-                <!-- Date Field -->
-                <div>
-                    <label for="date" class="form-label">Date</label>
-                    <DatePicker id="date" name="date" :showIcon="true" dateFormat="dd/mm/yy" />
-                    <Message v-if="$form.date?.invalid" severity="error" size="small">
-                        {{ $form.date.error?.message }}
-                    </Message>
-                </div>
-
-                <div class="flex justify-content-end gap-3">
+                <!-- Action buttons -->
+                <div class="flex justify-content-end gap-3 pt-3">
                     <Button
                         type="submit"
                         label="Save"
