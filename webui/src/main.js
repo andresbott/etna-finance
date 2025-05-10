@@ -32,6 +32,9 @@ app.use(PrimeVue, {
             darkModeSelector: 'system',
             cssLayer: false
         }
+    },
+    locale: {
+        firstDayOfWeek: 1,
     }
 })
 

@@ -248,7 +248,13 @@ const emit = defineEmits(['update:visible'])
                 <!-- Date Field -->
                 <div>
                     <label for="date" class="form-label">Date</label>
-                    <DatePicker id="date" name="date" :showIcon="true" dateFormat="dd/mm/yy" />
+                    <DatePicker 
+                        id="date" 
+                        name="date" 
+                        :showIcon="true" 
+                        dateFormat="dd/mm/yy" 
+                        :showButtonBar="true"
+                    />
                     <Message v-if="$form.date?.invalid" severity="error" size="small">
                         {{ $form.date.error?.message }}
                     </Message>
