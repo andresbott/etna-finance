@@ -26,11 +26,7 @@ const logOut = () => {
         style="background-color: #ece9fc; color: #2a1261; cursor: pointer"
     />
 
-    <Drawer
-        v-model:visible="visible"
-        style="width: 25rem"
-        position="right"
-    >
+    <Drawer v-model:visible="visible" style="width: 25rem" position="right">
         <template #header>
             <div class="drawer-header">
                 <Avatar

@@ -4,59 +4,102 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gorm.io/gorm"
+	"golang.org/x/text/currency"
 	"strings"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // Entry is a
 type Entry struct {
-	Id              uint
-	Name            string
-	Amount          float64
-	StockAmount     float64
-	Date            time.Time
-	Locked          bool      // does not accept changes anymore
-	Type            EntryType //income, transfer, spend, stock buy, stock sell ( like transfer with stock amounts added)
-	TargetAccountID uint
-	OriginAccountID uint
-	CategoryId      uint
+	Id          uint
+	Description string
+	Date        time.Time
+	Locked      bool      // does not accept changes anymore
+	Type        EntryType //income, transfer, spend, stock buy, stock sell ( like transfer with stock amounts added)
+
+	StockAmount float64 // used to track the amount of stocks in the account
+
+	// target is the account that gets the operation type, e.g. income or expense
+	TargetAmount          float64
+	TargetAccountID       uint
+	TargetAccountName     string
+	TargetAccountCurrency currency.Unit
+
+	// origin is only mandatory for transfer operations where we move from one account to another
+	OriginAmount          float64
+	OriginAccountID       uint
+	OriginAccountName     string
+	OriginAccountCurrency currency.Unit
+
+	// category is used to classify the operation
+	CategoryId uint
 }
 
 // dbAccount is the DB internal representation of a Bookmark
 type dbEntry struct {
-	Id              uint `gorm:"primarykey"`
-	Name            string
-	Amount          float64
-	Type            int8
-	OwnerId         string    `gorm:"index"`
-	Date            time.Time `gorm:"index"`
-	Locked          bool
-	TargetAccountId uint `gorm:"index"`
-	OriginAccountId uint `gorm:"index"`
-	CategoryId      uint `gorm:"index"`
+	Id          uint `gorm:"primarykey"`
+	Description string
+	Date        time.Time `gorm:"index"`
+	Locked      bool
+	Type        int8
 
+	OwnerId   string `gorm:"index"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt `gorm:"index"`
+
+	TargetAmount    float64
+	OriginAmount    float64
+	StockAmount     float64
+	TargetAccountId uint `gorm:"index"`
+	OriginAccountId uint `gorm:"index"`
+
+	CategoryId uint `gorm:"index"`
 }
 
-// getAccount is used internally to transform the db struct to public facing struct
+// dbToAccount is used internally to transform the db struct to public facing struct
 func getEntry(in dbEntry) Entry {
 	return Entry{
-		Id:              in.Id,
-		Name:            in.Name,
-		Amount:          in.Amount,
-		Date:            in.Date,
-		Locked:          in.Locked,
+		Id:          in.Id,
+		Description: in.Description,
+		Date:        in.Date,
+		Locked:      in.Locked,
+		Type:        EntryType(in.Type),
+
+		StockAmount: in.StockAmount,
+
+		TargetAmount:    in.TargetAmount,
 		TargetAccountID: in.TargetAccountId,
+
+		OriginAmount:    in.OriginAmount,
 		OriginAccountID: in.OriginAccountId,
-		CategoryId:      in.CategoryId,
-		Type:            EntryType(in.Type),
+
+		CategoryId: in.CategoryId,
 	}
 }
 
 type EntryType int8
+
+func (t EntryType) String() string {
+	switch t {
+	case IncomeEntry:
+		return IncomeEntryStr
+	case ExpenseEntry:
+		return ExpenseEntryStr
+	case TransferEntry:
+		return TransferEntryStr
+	case BuyStockEntry:
+		return BuyStockEntryStr
+	case SellStockEntry:
+		return SellStockEntryStr
+	case StockValueEntry:
+		return StockValueEntryStr
+	default:
+		return "unknown"
+	}
+}
 
 const (
 	UnsetEntry EntryType = iota
@@ -65,14 +108,16 @@ const (
 	TransferEntry
 	BuyStockEntry
 	SellStockEntry
+	StockValueEntry
 )
 
 const (
-	IncomeEntryStr    = "income"
-	ExpenseEntryStr   = "expense"
-	TransferEntryStr  = "transfer"
-	BuyStockEntryStr  = "buystock"
-	SellStockEntryStr = "sellstock"
+	IncomeEntryStr     = "income"
+	ExpenseEntryStr    = "expense"
+	TransferEntryStr   = "transfer"
+	BuyStockEntryStr   = "buystock"
+	SellStockEntryStr  = "sellstock"
+	StockValueEntryStr = "stockvalue"
 )
 
 func ParseEntryType(in string) (EntryType, error) {
@@ -85,39 +130,58 @@ func ParseEntryType(in string) (EntryType, error) {
 		return TransferEntry, nil
 	case BuyStockEntryStr:
 		return BuyStockEntry, nil
-	case SellStockEntryStr:
-		return SellStockEntry, nil
+	case StockValueEntryStr:
+		return StockValueEntry, nil
 	default:
 		return UnsetEntry, fmt.Errorf("invalid entry type: %s", in)
 	}
 }
 
-var EntryNotFoundErr = errors.New("entry not found")
+var ErrEntryNotFound = errors.New("entry not found")
 
 func (store *Store) CreateEntry(ctx context.Context, item Entry, tenant string) (uint, error) {
 
-	if item.Name == "" {
-		return 0, ValidationErr("name cannot be empty")
+	if item.Description == "" {
+		return 0, ValidationErr("description cannot be empty")
 	}
 	if item.Type == UnsetEntry {
 		return 0, ValidationErr("entry type cannot be empty")
 	}
-	if item.Amount == 0 {
-		return 0, ValidationErr("amount cannot be empty")
+	if item.TargetAmount == 0 {
+		return 0, ValidationErr("target amount cannot be empty")
 	}
+
+	if item.TargetAccountID == 0 {
+		return 0, ValidationErr("target account cannot be empty")
+	}
+
 	if item.Date.IsZero() {
 		return 0, ValidationErr("date cannot be zero")
 	}
 
+	if item.Type == TransferEntry {
+		if item.OriginAmount == 0 {
+			return 0, ValidationErr("origin amount cannot be empty")
+		}
+
+		if item.OriginAccountID == 0 {
+			return 0, ValidationErr("origin account cannot be empty")
+		}
+	}
+
 	payload := dbEntry{
-		OwnerId:         tenant, // ensure tenant is set by the signature
-		Name:            item.Name,
-		Type:            int8(item.Type),
-		Amount:          item.Amount,
-		Date:            item.Date,
-		Locked:          false, // entries are always created unlocked
+		Description: item.Description,
+		Date:        item.Date,
+		Type:        int8(item.Type),
+		OwnerId:     tenant, // ensure tenant is set by the signature
+		Locked:      false,  // entries are always created unlocked
+
+		TargetAmount:    item.TargetAmount,
 		TargetAccountId: item.TargetAccountID,
-		CategoryId:      item.CategoryId,
+		OriginAmount:    item.OriginAmount,
+		OriginAccountId: item.OriginAccountID,
+
+		CategoryId: item.CategoryId,
 	}
 
 	d := store.db.WithContext(ctx).Create(&payload)
@@ -132,7 +196,7 @@ func (store *Store) GetEntry(ctx context.Context, Id uint, tenant string) (Entry
 	d := store.db.WithContext(ctx).Where("id = ? AND owner_id = ?", Id, tenant).First(&payload)
 	if d.Error != nil {
 		if errors.Is(d.Error, gorm.ErrRecordNotFound) {
-			return Entry{}, EntryNotFoundErr
+			return Entry{}, ErrEntryNotFound
 		} else {
 			return Entry{}, d.Error
 		}
@@ -146,33 +210,41 @@ func (store *Store) DeleteEntry(ctx context.Context, Id uint, tenant string) err
 		return d.Error
 	}
 	if d.RowsAffected == 0 {
-		return EntryNotFoundErr
+		return ErrEntryNotFound
 	}
 	return nil
 }
 
 type EntryUpdatePayload struct {
-	Name            *string
-	Amount          *float64
+	Description *string
+	Date        *time.Time
+
 	StockAmount     *float64
-	Date            *time.Time
+	TargetAmount    *float64
 	TargetAccountID *uint
+	OriginAmount    *float64
 	OriginAccountID *uint
-	CategoryId      *uint
+
+	CategoryId *uint
 }
 
 func (store *Store) UpdateEntry(item EntryUpdatePayload, Id uint, tenant string) error {
 	payload := map[string]any{}
 	hasChanges := false
 
-	if item.Name != nil {
+	if item.Description != nil {
 		hasChanges = true
-		payload["name"] = *item.Name
+		payload["description"] = *item.Description
 	}
 
-	if item.Amount != nil {
+	if item.TargetAmount != nil {
 		hasChanges = true
-		payload["amount"] = *item.Amount
+		payload["target_amount"] = *item.TargetAmount
+	}
+
+	if item.OriginAmount != nil {
+		hasChanges = true
+		payload["origin_amount"] = *item.OriginAmount
 	}
 
 	if item.Date != nil {
@@ -186,7 +258,7 @@ func (store *Store) UpdateEntry(item EntryUpdatePayload, Id uint, tenant string)
 			return q.Error
 		}
 		if q.RowsAffected == 0 {
-			return errors.New("entry not found")
+			return ErrEntryNotFound
 		}
 	}
 	return nil
@@ -196,6 +268,12 @@ const MaxSearchResults = 90
 const DefaultSearchResults = 30
 
 func (store *Store) ListEntries(ctx context.Context, startDate, endDate time.Time, accountID *uint, limit, page int, tenant string) ([]Entry, error) {
+
+	accountsMap, err := store.ListAccountsMap(ctx, tenant)
+	if err != nil {
+		return nil, err
+	}
+
 	db := store.db.WithContext(ctx).Where("owner_id = ?", tenant)
 
 	// Filter by date range
@@ -203,7 +281,7 @@ func (store *Store) ListEntries(ctx context.Context, startDate, endDate time.Tim
 
 	// Filter by account ID if provided
 	if accountID != nil {
-		db = db.Where("account_id = ?", *accountID)
+		db = db.Where("target_account_id = ? OR origin_account_id = ?", *accountID, *accountID)
 	}
 
 	if limit == 0 {
@@ -218,10 +296,11 @@ func (store *Store) ListEntries(ctx context.Context, startDate, endDate time.Tim
 	}
 	offset := (page - 1) * limit
 
-	db = db.Order("created_at DESC").Limit(limit).Offset(offset)
+	db = db.Order("date DESC").Limit(limit).Offset(offset)
 
 	var results []dbEntry
-	if err := db.Find(&results).Error; err != nil {
+	err = db.Find(&results).Error
+	if err != nil {
 		return nil, err
 	}
 
@@ -231,7 +310,27 @@ func (store *Store) ListEntries(ctx context.Context, startDate, endDate time.Tim
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
-			entries = append(entries, getEntry(got))
+			newEntry := getEntry(got)
+
+			// inject account info into the results, I know this could also be done with sql
+			if newEntry.OriginAccountID != 0 {
+				if account, ok := accountsMap[newEntry.OriginAccountID]; ok {
+					newEntry.OriginAccountName = account.Name
+					newEntry.OriginAccountCurrency = account.Currency
+				} else {
+					return nil, fmt.Errorf("unable to find OriginAccountID  %d referenced by entry %d", newEntry.OriginAccountID, newEntry.Id)
+				}
+			}
+
+			if newEntry.TargetAccountID != 0 {
+				if account, ok := accountsMap[newEntry.TargetAccountID]; ok {
+					newEntry.TargetAccountName = account.Name
+					newEntry.TargetAccountCurrency = account.Currency
+				} else {
+					return nil, fmt.Errorf("unable to find TargetAccountID  %d referenced by entry %d", newEntry.TargetAccountID, newEntry.Id)
+				}
+			}
+			entries = append(entries, newEntry)
 		}
 	}
 	return entries, nil

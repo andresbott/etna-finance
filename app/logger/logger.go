@@ -27,10 +27,7 @@ func GetLogLevel(in string) slog.Level {
 
 func GetDefault(level slog.Level) (*slog.Logger, error) {
 
-	useTty := false
-	if isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd()) {
-		useTty = true
-	}
+	useTty := isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
 	//useTty = false
 
 	var defaultHandler slog.Handler
@@ -70,4 +67,14 @@ func GetDefault(level slog.Level) (*slog.Logger, error) {
 // SilentLogger returns a Zerologger that does not write any output
 func SilentLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+}
+
+type SlogWriter struct {
+	logger *slog.Logger
+}
+
+func (w SlogWriter) Write(p []byte) (n int, err error) {
+	msg := strings.TrimRight(string(p), "\n") // Remove trailing newline
+	w.logger.Debug(msg)
+	return len(p), nil
 }

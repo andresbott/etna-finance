@@ -1,6 +1,6 @@
 <script setup>
 import Tree from 'primevue/tree'
-import {ref, onMounted, computed,  watch} from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useTagStore } from '@/stores/tags.js'
 import Button from 'primevue/button'
 import TagTreeEdit from '@/views/tags/TagTreeEdit.vue'
@@ -17,26 +17,23 @@ const props = defineProps({
 const selectedKey = ref(null) // reference to check if the meta key is pressed
 const isEditMode = ref(false) // reference to check if the tree is in edit mode
 const expandedKeys = ref({ 0: true }) // reference to the keys that are expanded
-const filterValue = ref(""); // reference to the string in the filter field
+const filterValue = ref('') // reference to the string in the filter field
 
 const expandMatchedNodes = (node, parentKeys = []) => {
-  if (!node.children) return;
+    if (!node.children) return
 
-  for (const child of node.children) {
-    if (child.label.toLowerCase().includes(filterValue.value.toLowerCase())) {
-      parentKeys.forEach((key) => (expandedKeys.value[key] = true));
+    for (const child of node.children) {
+        if (child.label.toLowerCase().includes(filterValue.value.toLowerCase())) {
+            parentKeys.forEach((key) => (expandedKeys.value[key] = true))
+        }
+        expandMatchedNodes(child, [...parentKeys, node.key])
     }
-    expandMatchedNodes(child, [...parentKeys, node.key]);
-  }
-};
+}
 
 watch(filterValue, () => {
-  expandedKeys.value = {}; // Reset expanded nodes
-  tagsTree.value.forEach((node) => expandMatchedNodes(node));
-});
-
-
-
+    expandedKeys.value = {} // Reset expanded nodes
+    tagsTree.value.forEach((node) => expandMatchedNodes(node))
+})
 
 onMounted(() => {
     tagStore.Load()

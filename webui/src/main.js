@@ -1,15 +1,27 @@
-import { createApp } from 'vue'
+import { createApp, nextTick } from 'vue'
 import { VueQueryPlugin, QueryClient } from '@tanstack/vue-query'
 import App from './App.vue'
-const app = createApp(App)
-
 import CustomTheme from '@/theme.js'
+
 import 'primeflex/primeflex.css'
 import 'primeicons/primeicons.css'
-
 import '@/assets/style.scss'
 
 import PrimeVue from 'primevue/config'
+
+const app = createApp(App)
+
+// https://github.com/primefaces/primevue/issues/2397
+// allows to use <InputText v-model="value" v-focus /> to focus on an input item
+app.directive('focus', {
+    mounted(el) {
+        el.focus()
+
+        setTimeout(() => {
+            el.focus()
+        }, 300)
+    }
+})
 
 app.use(PrimeVue, {
     // Default theme configuration
@@ -20,6 +32,9 @@ app.use(PrimeVue, {
             darkModeSelector: 'system',
             cssLayer: false
         }
+    },
+    locale: {
+        firstDayOfWeek: 1,
     }
 })
 

@@ -8,7 +8,7 @@ import Message from 'primevue/message'
 import Select from 'primevue/select'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
-import { useAccounts } from '@/composable/useAccounts.js'
+import { useAccounts } from '@/composables/useAccounts.js'
 
 const { createAccount, updateAccount, isCreating, isUpdating } = useAccounts()
 
@@ -18,7 +18,8 @@ const props = defineProps({
     name: { type: String, default: '' },
     currency: { type: String, default: 'CHF' },
     type: { type: String, default: 'cash' },
-    visible: { type: Boolean, default: false }
+    visible: { type: Boolean, default: false },
+    providerId: { type: Number, required: true }
 })
 
 const emit = defineEmits(['update:visible'])
@@ -27,7 +28,6 @@ const currencies = ref(['CHF', 'USD', 'EUR'])
 const accountTypes = ref(['cash', 'bank', 'stocks'])
 
 const formValues = ref({
-    accountId: props.accountId,
     name: props.name,
     currency: props.currency,
     type: props.type
@@ -52,7 +52,8 @@ const onFormSubmit = async (e) => {
     if (e.valid) {
         const formData = {
             ...e.values,
-            accountId: props.accountId
+            accountId: props.accountId,
+            providerId: props.providerId
         }
 
         if (props.isEdit) {
@@ -61,7 +62,8 @@ const onFormSubmit = async (e) => {
                     id: formData.accountId,
                     name: formData.name,
                     currency: formData.currency,
-                    type: formData.type
+                    type: formData.type,
+                    providerId: formData.providerId
                 })
                 emit('update:visible', false)
             } catch (error) {
@@ -73,7 +75,8 @@ const onFormSubmit = async (e) => {
                 await createAccount({
                     name: formData.name,
                     currency: formData.currency,
-                    type: formData.type
+                    type: formData.type,
+                    providerId: formData.providerId
                 })
                 emit('update:visible', false)
             } catch (error) {
@@ -102,21 +105,29 @@ const onFormSubmit = async (e) => {
                 :validateOnBlur="true"
                 @submit="onFormSubmit"
             >
-                <div v-focustrap class="flex flex-column gap-4">
+                <div v-focustrap class="flex flex-column gap-3">
+                    <!-- Hidden Provider ID Field -->
+                  <div>
+                    <label for="name" class="form-label">Name</label>
                     <InputText name="name" placeholder="Account Name" />
                     <Message v-if="$form.name?.invalid" severity="error" size="small">{{
                         $form.name.error?.message
                     }}</Message>
-
+                  </div>
+                  <div>
+                    <label for="currency" class="form-label">Currency</label>
                     <Select :options="currencies" name="currency" placeholder="Select Currency" />
                     <Message v-if="$form.currency?.invalid" severity="error" size="small">{{
                         $form.currency.error?.message
                     }}</Message>
-
+                  </div>
+                  <div>
+                    <label for="accountTypes" class="form-label">Type</label>
                     <Select :options="accountTypes" name="type" placeholder="Select Account Type" />
                     <Message v-if="$form.type?.invalid" severity="error" size="small">{{
                         $form.type.error?.message
                     }}</Message>
+                  </div>
 
                     <div class="flex justify-content-end gap-3">
                         <Button
@@ -138,3 +149,9 @@ const onFormSubmit = async (e) => {
         </Dialog>
     </div>
 </template>
+<style>
+.form-label {
+  display: block;
+  font-weight: 500;
+}
+</style>

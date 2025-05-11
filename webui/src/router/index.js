@@ -15,7 +15,7 @@ const router = createRouter({
             meta: {
                 requiresAuth: true
             },
-            component: () => import('@/views/MainView.vue')
+            component: () => import('@/views/dashboard/DashboardView.vue')
         },
         {
             path: '/accounts',
@@ -31,7 +31,7 @@ const router = createRouter({
             meta: {
                 requiresAuth: true
             },
-            component: () => import('@/views/EntriesView.vue')
+            component: () => import('@/views/entries/EntriesView.vue')
         },
         {
             path: '/categories',
