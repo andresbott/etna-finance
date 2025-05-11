@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import {
     VerticalLayout,
     HorizontalLayout,
@@ -13,7 +13,7 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Button from 'primevue/button'
 import Menu from 'primevue/menu'
-import Listbox from 'primevue/listbox'
+import Tree from 'primevue/tree'
 import DatePicker from 'primevue/datepicker'
 
 import ExpenseDialog from './ExpenseDialog.vue'
@@ -32,10 +32,13 @@ const today = new Date()
 const startDate = ref(new Date(today.setDate(today.getDate() - 35)))
 const endDate = ref(new Date())
 
-const { entries, isLoading, deleteEntry, isDeleting, refetch } = useEntries(startDate, endDate)
-const { accounts } = useAccounts()
+// Account filtering state
+const selectedAccountIds = ref([])
+const selectedKeys = ref({}) // For Tree component selection
+const { entries, isLoading, deleteEntry, isDeleting, refetch } = useEntries(startDate, endDate, selectedAccountIds)
+const { accounts, isLoading: isAccountsLoading } = useAccounts()
 
-const leftSidebarCollapsed = ref(true)
+const leftSidebarCollapsed = ref(false)
 const menu = ref(null)
 
 const selectedEntry = ref(null)
@@ -54,6 +57,89 @@ const dialogs = {
 }
 
 const expenseDialog = ref(false)
+
+/* --- Account Tree Data --- */
+const accountsTree = computed(() => {
+    if (!accounts.value) return []
+
+    return accounts.value.map((provider) => ({
+        key: `provider-${provider.id}`,
+        label: provider.name,
+        selectable: true,
+        children: provider.accounts.map((account) => ({
+            key: account.id.toString(),
+            label: `${account.name} (${account.currency})`,
+            data: {
+                id: account.id,
+                provider: provider.name,
+                account: account
+            }
+        }))
+    }))
+})
+
+// Keep all provider nodes expanded by default
+const expandedKeys = ref({})
+
+// Initialize expanded keys when accounts are loaded
+watch(() => accounts.value, (newAccounts) => {
+    if (newAccounts) {
+        const keys = {};
+        newAccounts.forEach((provider) => {
+            keys[`provider-${provider.id}`] = true;
+        });
+        expandedKeys.value = keys;
+    }
+}, { immediate: true });
+
+// Handle account selection change - convert selectionKeys to accountIds
+watch(() => selectedKeys.value, (newSelection) => {
+    if (!newSelection) {
+        selectedAccountIds.value = [];
+        return;
+    }
+    
+    const ids = [];
+    const providerIds = [];
+    
+    // Process selected keys
+    Object.keys(newSelection).forEach(key => {
+        if (key.startsWith('provider-')) {
+            // Store provider ID for later processing
+            providerIds.push(key.replace('provider-', ''));
+        } else if (!isNaN(parseInt(key))) {
+            // Direct account selection
+            ids.push(parseInt(key));
+        }
+    });
+    
+    // Add all accounts from selected providers
+    if (providerIds.length > 0 && accounts.value) {
+        accounts.value.forEach(provider => {
+            if (providerIds.includes(provider.id.toString())) {
+                provider.accounts.forEach(account => {
+                    if (!ids.includes(account.id)) {
+                        ids.push(account.id);
+                    }
+                });
+            }
+        });
+    }
+    
+    selectedAccountIds.value = ids;
+    
+    // Trigger refetch when selection changes
+    if (ids.length > 0) {
+        refetch();
+    }
+}, { deep: true });
+
+// Clear selection handler
+const clearSelection = () => {
+    selectedKeys.value = {};
+    selectedAccountIds.value = [];
+    refetch();
+};
 
 /* --- Menu Actions --- */
 const openNewEntryDialog = (type) => {
@@ -130,6 +216,47 @@ const getRowClass = (data) => ({
         </template>
         <template #default>
             <ResponsiveHorizontal :leftSidebarCollapsed="leftSidebarCollapsed">
+                <template #left>
+                    <div class="left-sidebar-content">
+                        <div class="filter-section">
+                            <div class="filter-header">
+                                <h3>Filter by Accounts</h3>
+                                <Button 
+                                    icon="pi pi-times" 
+                                    text 
+                                    size="small" 
+                                    @click="clearSelection" 
+                                    v-if="Object.keys(selectedKeys).length > 0"
+                                    class="clear-button"
+                                />
+                            </div>
+                            
+                            <div class="tree-container">
+                                <Tree
+                                    :value="accountsTree"
+                                    v-model:selectionKeys="selectedKeys"
+                                    :expandedKeys="expandedKeys"
+                                    v-model:expandedKeys="expandedKeys"
+                                    selectionMode="multiple"
+                                    :loading="isAccountsLoading"
+                                    class="w-full mb-3 account-tree"
+                                >
+                                    <template #empty>
+                                        <div class="p-2" v-if="isAccountsLoading">Loading accounts...</div>
+                                        <div class="p-2" v-else>No accounts found</div>
+                                    </template>
+                                </Tree>
+                            </div>
+                            
+                            <div class="filter-actions">
+                                <span class="selected-count" v-if="selectedAccountIds.length > 0">
+                                    {{ selectedAccountIds.length }} account(s) selected
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
                 <template #default>
                     <div class="sidebar-controls">
                         <Button
@@ -318,6 +445,46 @@ const getRowClass = (data) => ({
     margin-bottom: 2rem;
 }
 
+.left-sidebar-content {
+    padding: 1rem;
+}
+
+.filter-section {
+    margin-bottom: 2rem;
+}
+
+.filter-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.filter-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--text-color-secondary);
+}
+
+.tree-container {
+    border: 1px solid var(--surface-border);
+    border-radius: 6px;
+    background-color: var(--surface-card);
+    overflow-y: auto;
+}
+
+.filter-actions {
+    margin-top: 0.5rem;
+}
+
+.selected-count {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-color-secondary);
+    margin-top: 0.5rem;
+    text-align: center;
+}
+
 .action-buttons {
     display: flex;
     gap: 0.5rem;
@@ -340,6 +507,18 @@ const getRowClass = (data) => ({
 
 :deep(.p-datatable .p-datatable-tbody > tr:hover) {
     background-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+:deep(.account-tree .p-tree-container) {
+    padding: 0.5rem;
+}
+
+:deep(.account-tree .p-treenode-content) {
+    padding: 0.3rem;
+}
+
+:deep(.account-tree .p-treenode-content:hover) {
+    background-color: var(--surface-hover);
 }
 
 .sidebar-controls {
@@ -377,79 +556,6 @@ const getRowClass = (data) => ({
     display: flex;
     justify-content: center;
     padding: 1rem;
-}
-
-.left-sidebar-content {
-    padding: 1rem;
-}
-
-.filter-section {
-    margin-bottom: 2rem;
-}
-
-.filter-section h3 {
-    margin-bottom: 0.5rem;
-    font-size: 1rem;
-    color: var(--text-color-secondary);
-}
-
-.categories-section {
-    margin-top: 2rem;
-}
-
-.categories-section h3 {
-    margin-bottom: 1rem;
-    font-size: 1rem;
-    color: var(--text-color-secondary);
-}
-
-.category-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-.category-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.25rem 0;
-}
-
-.category-item i {
-    font-size: 0.75rem;
-}
-
-:deep(.p-listbox) {
-    border: none;
-    background: transparent;
-}
-
-:deep(.p-listbox .p-listbox-list) {
-    padding: 0;
-}
-
-:deep(.p-listbox .p-listbox-item) {
-    padding: 0.5rem;
-    border-radius: 4px;
-}
-
-:deep(.p-listbox .p-listbox-item.p-highlight) {
-    background: var(--primary-color);
-    color: var(--primary-color-text);
-}
-
-.search-box {
-    margin-bottom: 0.5rem;
-}
-
-:deep(.p-inputtext) {
-    width: 100%;
-    padding: 0.5rem;
-}
-
-:deep(.p-input-icon-left > i:first-of-type) {
-    left: 0.5rem;
 }
 
 .amount.expense {

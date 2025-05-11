@@ -15,16 +15,23 @@ function formatDate(date) {
 }
 
 /**
- * Fetches entries from the API with date range filtering
+ * Fetches entries from the API with date range filtering and optional account filtering
  * @param {Date} startDate - Start date for filtering
  * @param {Date} endDate - End date for filtering
+ * @param {Array} accountIds - Optional array of account IDs to filter by
  * @returns {Promise<Entry[]>}
  */
-const fetchEntries = async (startDate, endDate) => {
+const fetchEntries = async (startDate, endDate, accountIds = []) => {
     const params = new URLSearchParams({
         startDate: formatDate(startDate),
         endDate: formatDate(endDate)
     })
+    
+    // Add account IDs to params if provided
+    if (accountIds && accountIds.length > 0) {
+        accountIds.forEach(id => params.append('accountIds', id));
+    }
+    
     const { data } = await axios.get(`${ENTRIES_ENDPOINT}?${params}`)
     return data.items || []
 }
@@ -58,21 +65,38 @@ const deleteEntry = async (id) => {
     await axios.delete(`${ENTRIES_ENDPOINT}/${id}`)
 }
 
-export function useEntries(startDateRef, endDateRef) {
+export function useEntries(startDateRef, endDateRef, accountIdsRef = null) {
     const queryClient = useQueryClient()
 
     const queryKey = computed(() => {
         const start = unref(startDateRef)
         const end = unref(endDateRef)
-        return start && end
-            ? ['entries', formatDate(start), formatDate(end)]
-            : ['entries', 'invalid'] // fallback key to avoid undefined
+        const accountIds = unref(accountIdsRef)
+        
+        const key = ['entries']
+        
+        if (start && end) {
+            key.push(formatDate(start), formatDate(end))
+        } else {
+            key.push('invalid') // fallback key to avoid undefined
+        }
+        
+        // Add account IDs to query key if provided
+        if (accountIds && accountIds.length > 0) {
+            key.push('accounts', ...accountIds)
+        }
+        
+        return key
     })
 
     const entriesQuery = useQuery({
         queryKey,
         enabled: computed(() => !!unref(startDateRef) && !!unref(endDateRef)),
-        queryFn: () => fetchEntries(unref(startDateRef), unref(endDateRef))
+        queryFn: () => fetchEntries(
+            unref(startDateRef), 
+            unref(endDateRef), 
+            unref(accountIdsRef)
+        )
     })
 
     // Mutation for creating an entry
