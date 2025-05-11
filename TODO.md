@@ -1,6 +1,9 @@
 # TODO
-* income/expense dialog put account on top and depending on the selected account change behaviour
-
+* backend to filter entries with account IDs
+* edit dialogs to work
+* categories
+  * crud on categories both backend and frondend
+  * modify dialogs to support slection of categorie4s
 
 # Brain dump
 
@@ -18,6 +21,8 @@
   * Stock Value (extra Table) > auto import in the future
     * add an extra entry that updates the value of a stock
       * this is a time progressing entry to also see the evolution
+* account listing: sort accounts by amount of movemnts, putting the one with most on the top
+  * alternative add sort
   
 
 * dashbaord
