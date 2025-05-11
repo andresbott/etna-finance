@@ -50,6 +50,7 @@ const entryToDelete = ref(null)
 
 /* --- Dialog Visibility State --- */
 const dialogs = {
+    incomeExpense: ref(false),
     expense: ref(false),
     income: ref(false),
     transfer: ref(false),
@@ -145,7 +146,14 @@ const clearSelection = () => {
 const openNewEntryDialog = (type) => {
     isEditMode.value = false
     selectedEntry.value = null
-    dialogs[type].value = true
+    
+    // Handle IncomeExpense dialog for income and expense types
+    if (type === 'income' || type === 'expense') {
+        selectedEntry.value = { type }
+        dialogs.incomeExpense.value = true
+    } else {
+        dialogs[type].value = true
+    }
 }
 
 const menuItems = ref([
@@ -168,9 +176,15 @@ const menuItems = ref([
 const openEditEntryDialog = (entry) => {
     isEditMode.value = true
     selectedEntry.value = entry
-    if (entry.type === 'expense' || entry.type === 'income' || entry.type === 'transfer') {
-        dialogs[entry.type].value = true
+    
+    if (entry.type === 'expense' || entry.type === 'income') {
+        // Use IncomeExpenseDialog for income and expense entries
+        dialogs.incomeExpense.value = true
+    } else if (entry.type === 'transfer') {
+        // Use TransferDialog for transfer entries
+        dialogs.transfer.value = true
     } else if (entry.type === 'buystock' || entry.type === 'sellstock') {
+        // Use StockDialog for stock entries
         dialogs.stock.value = true
     }
 }
@@ -427,6 +441,45 @@ const getRowClass = (data) => ({
             <Placeholder :width="'100%'" :height="30" :color="12">Footer</Placeholder>
         </template>
     </VerticalLayout>
+    
+    <!-- Dialog Components -->
+    <IncomeExpenseDialog 
+        v-model:visible="dialogs.incomeExpense.value"
+        :is-edit="isEditMode"
+        :entry-type="selectedEntry?.type"
+        :description="selectedEntry?.description"
+        :target-amount="selectedEntry?.targetAmount"
+        :target-account-id="selectedEntry?.targetAccountId"
+        :stock-amount="selectedEntry?.targetStockAmount"
+        :date="selectedEntry?.date ? new Date(selectedEntry.date) : new Date()"
+        :id="selectedEntry?.id"
+    />
+    
+    <TransferDialog 
+        v-model:visible="dialogs.transfer.value"
+        :is-edit="isEditMode"
+        :entry-id="selectedEntry?.id"
+        :description="selectedEntry?.description"
+        :target-amount="selectedEntry?.targetAmount"
+        :origin-amount="selectedEntry?.originAmount"
+        :target-stock-amount="selectedEntry?.targetStockAmount"
+        :origin-stock-amount="selectedEntry?.originStockAmount"
+        :date="selectedEntry?.date ? new Date(selectedEntry.date) : new Date()"
+        :target-account-id="selectedEntry?.targetAccountId"
+        :origin-account-id="selectedEntry?.originAccountId"
+    />
+    
+    <StockDialog 
+        v-model:visible="dialogs.stock.value"
+        :is-edit="isEditMode"
+        :entry-id="selectedEntry?.id"
+        :description="selectedEntry?.description"
+        :amount="selectedEntry?.targetAmount"
+        :stock-amount="selectedEntry?.targetStockAmount"
+        :date="selectedEntry?.date ? new Date(selectedEntry.date) : new Date()"
+        :type="selectedEntry?.type"
+        :target-account-id="selectedEntry?.targetAccountId"
+    />
     
     <!-- Delete Confirmation Dialog -->
     <DeleteDialog
