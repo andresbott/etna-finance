@@ -245,7 +245,7 @@ func TestUpdateEntry(t *testing.T) {
 			updateID:      3,
 			updateTenant:  tenant1,
 			updatePayload: EntryUpdatePayload{Description: ptr("Updated Entry Description"), TargetAmount: ptr(float64(300))},
-			want: Entry{Description: "Updated Entry Description", TargetAmount: 300, Type: ExpenseEntry, Date: getTime("2025-01-03 00:00:00"),
+			want: Entry{Description: "Updated Entry Description", TargetAmount: 300, Type: IncomeEntry, Date: getTime("2025-01-03 00:00:00"),
 				TargetAccountID: 2},
 		},
 		{
@@ -285,7 +285,7 @@ func TestUpdateEntry(t *testing.T) {
 				t.Run(tc.name, func(t *testing.T) {
 					ctx := context.Background()
 
-					err = store.UpdateEntry(tc.updatePayload, tc.updateID, tc.updateTenant)
+					err = store.UpdateEntry(ctx, tc.updatePayload, tc.updateID, tc.updateTenant)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)

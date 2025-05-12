@@ -25,8 +25,6 @@ const props = defineProps({
     description: { type: String, default: '' },
     targetAmount: { type: Number, default: 0 },
     originAmount: { type: Number, default: 0 },
-    targetStockAmount: { type: Number, default: 0 },
-    originStockAmount: { type: Number, default: 0 },
     date: { type: Date, default: () => new Date() },
     targetAccountId: { type: Number, default: null },
     originAccountId: { type: Number, default: null },
@@ -41,9 +39,7 @@ const getFormattedAccountId = (accountId) => {
 
 const formValues = ref({
     targetAccountId: getFormattedAccountId(props.targetAccountId),
-    originAccountId: getFormattedAccountId(props.originAccountId),
-    targetStockAmount: props.targetStockAmount,
-    originStockAmount: props.originStockAmount
+    originAccountId: getFormattedAccountId(props.originAccountId)
 })
 
 // Watch props to update form values when editing
@@ -151,15 +147,6 @@ watch(() => formValues.value.originAccountId, (newValue) => {
     updateSelectedOriginAccount(newValue);
 }, { immediate: true })
 
-// Check if accounts are stock accounts
-const isTargetStocksAccount = computed(() => {
-    return selectedTargetAccount.value?.type === 'stocks'
-})
-
-const isOriginStocksAccount = computed(() => {
-    return selectedOriginAccount.value?.type === 'stocks'
-})
-
 // Build the resolver for transfer entries
 const resolver = computed(() => {
     // Account validation - handles {id: true} format from AccountSelector
@@ -170,7 +157,7 @@ const resolver = computed(() => {
             { message: 'Account must be selected' }
         )
 
-    // Base schema for all transfers
+    // Schema for transfers between cash/bank accounts
     const baseSchema = {
         description: z.string().min(1, { message: 'Description is required' }),
         date: z.date(),
@@ -178,15 +165,6 @@ const resolver = computed(() => {
         targetAccountId: accountValidation,
         originAmount: z.number().min(0.01, { message: 'Origin amount must be greater than 0' }),
         originAccountId: accountValidation
-    }
-
-    // Add stock amount validation if needed
-    if (isTargetStocksAccount.value) {
-        baseSchema.targetStockAmount = z.number().min(0.01, { message: 'Target stock amount must be greater than 0' })
-    }
-    
-    if (isOriginStocksAccount.value) {
-        baseSchema.originStockAmount = z.number().min(0.01, { message: 'Origin stock amount must be greater than 0' })
     }
 
     return zodResolver(z.object(baseSchema))
@@ -297,7 +275,8 @@ const emit = defineEmits(['update:visible'])
                             <AccountSelector 
                                 v-model="formValues.originAccountId" 
                                 name="originAccountId"
-                                @update:modelValue="handleOriginAccountSelection" 
+                                @update:modelValue="handleOriginAccountSelection"
+                                :account-types="['cash', 'bank']"
                             />
                             <Message v-if="$form.originAccountId?.invalid" severity="error" size="small">
                                 {{ $form.originAccountId.error?.message }}
@@ -318,21 +297,6 @@ const emit = defineEmits(['update:visible'])
                                 {{ $form.originAmount.error?.message }}
                             </Message>
                         </div>
-                        
-                        <!-- Origin Stock Amount Field - only shown for stock accounts -->
-                        <div v-if="isOriginStocksAccount">
-                            <label for="originStockAmount" class="form-label">Origin Stock Amount</label>
-                            <InputNumber
-                                id="originStockAmount"
-                                name="originStockAmount"
-                                :minFractionDigits="2"
-                                :maxFractionDigits="2"
-                                class="w-full"
-                            />
-                            <Message v-if="$form.originStockAmount?.invalid" severity="error" size="small">
-                                {{ $form.originStockAmount.error?.message }}
-                            </Message>
-                        </div>
                     </div>
 
                     <!-- Arrow between sections -->
@@ -350,7 +314,8 @@ const emit = defineEmits(['update:visible'])
                             <AccountSelector 
                                 v-model="formValues.targetAccountId" 
                                 name="targetAccountId"
-                                @update:modelValue="handleTargetAccountSelection" 
+                                @update:modelValue="handleTargetAccountSelection"
+                                :account-types="['cash', 'bank']"
                             />
                             <Message v-if="$form.targetAccountId?.invalid" severity="error" size="small">
                                 {{ $form.targetAccountId.error?.message }}
@@ -369,21 +334,6 @@ const emit = defineEmits(['update:visible'])
                             />
                             <Message v-if="$form.targetAmount?.invalid" severity="error" size="small">
                                 {{ $form.targetAmount.error?.message }}
-                            </Message>
-                        </div>
-                        
-                        <!-- Target Stock Amount Field - only shown for stock accounts -->
-                        <div v-if="isTargetStocksAccount">
-                            <label for="targetStockAmount" class="form-label">Target Stock Amount</label>
-                            <InputNumber
-                                id="targetStockAmount"
-                                name="targetStockAmount"
-                                :minFractionDigits="2"
-                                :maxFractionDigits="2"
-                                class="w-full"
-                            />
-                            <Message v-if="$form.targetStockAmount?.invalid" severity="error" size="small">
-                                {{ $form.targetStockAmount.error?.message }}
                             </Message>
                         </div>
                     </div>

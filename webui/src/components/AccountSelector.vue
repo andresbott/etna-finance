@@ -34,6 +34,10 @@ const props = defineProps({
     disabled: {
         type: Boolean,
         default: false
+    },
+    accountTypes: {
+        type: Array,
+        default: () => []
     }
 })
 
@@ -52,17 +56,24 @@ const selectedTreeNode = ref(null)
 const accountsTree = computed(() => {
     if (!accounts.value) return []
 
-    return accounts.value.map((provider) => ({
-        key: `provider-${provider.id}`,
-        label: provider.name,
-        selectable: false,
-        children: provider.accounts.map((account) => ({
-            key: account.id,
-            label: `${account.name} (${account.currency})`,
-            provider: provider.name,
-            data: account
-        }))
-    }))
+    return accounts.value.map((provider) => {
+        // Filter accounts by type if accountTypes array is not empty
+        const filteredAccounts = props.accountTypes.length > 0
+            ? provider.accounts.filter(account => props.accountTypes.includes(account.type))
+            : provider.accounts
+
+        return {
+            key: `provider-${provider.id}`,
+            label: provider.name,
+            selectable: false,
+            children: filteredAccounts.map((account) => ({
+                key: account.id,
+                label: `${account.name} (${account.currency})`,
+                provider: provider.name,
+                data: account
+            }))
+        }
+    }).filter(provider => provider.children.length > 0) // Only include providers that have accounts after filtering
 })
 
 // Keep all provider nodes expanded by default
@@ -143,15 +154,32 @@ watch(
 
         // Find the account that matches the ID and set it as selected
         for (const provider of accounts.value) {
-            const account = provider.accounts.find((acc) => acc.id === accountId);
-            if (account) {
-                selectedTreeNode.value = {
-                    key: account.id,
-                    label: `${account.name} (${account.currency})`,
-                    provider: provider.name,
-                    data: account
-                };
-                return;
+            // Check if we should filter the accounts by type
+            if (props.accountTypes.length > 0) {
+                const account = provider.accounts.find((acc) => 
+                    acc.id === accountId && props.accountTypes.includes(acc.type)
+                );
+                if (account) {
+                    selectedTreeNode.value = {
+                        key: account.id,
+                        label: `${account.name} (${account.currency})`,
+                        provider: provider.name,
+                        data: account
+                    };
+                    return;
+                }
+            } else {
+                // No filtering, show all account types
+                const account = provider.accounts.find((acc) => acc.id === accountId);
+                if (account) {
+                    selectedTreeNode.value = {
+                        key: account.id,
+                        label: `${account.name} (${account.currency})`,
+                        provider: provider.name,
+                        data: account
+                    };
+                    return;
+                }
             }
         }
 
@@ -186,7 +214,12 @@ const handleSelectionChange = (val) => {
             // Find the corresponding node to update selectedTreeNode
             if (accounts.value) {
                 for (const provider of accounts.value) {
-                    const account = provider.accounts.find(acc => acc.id === accountId);
+                    // Apply account type filtering if needed
+                    const accountsToSearch = props.accountTypes.length > 0
+                        ? provider.accounts.filter(acc => props.accountTypes.includes(acc.type))
+                        : provider.accounts;
+                    
+                    const account = accountsToSearch.find(acc => acc.id === accountId);
                     if (account) {
                         selectedTreeNode.value = {
                             key: account.id,

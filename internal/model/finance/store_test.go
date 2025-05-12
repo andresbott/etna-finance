@@ -36,8 +36,8 @@ var sampleAccountProviders2 = []AccountProvider{
 }
 
 var sampleAccounts = []Account{
-	{ID: 1, Name: "acc1", Currency: currency.EUR, Type: 0, AccountProviderID: 1},
-	{ID: 2, Name: "acc2", Currency: currency.USD, Type: 0, AccountProviderID: 2},
+	{ID: 1, Name: "acc1", Currency: currency.EUR, Type: Cash, AccountProviderID: 1},
+	{ID: 2, Name: "acc2", Currency: currency.USD, Type: Cash, AccountProviderID: 2},
 	{ID: 3, Name: "acc3", Currency: currency.EUR, Type: 0, AccountProviderID: 1},
 	{ID: 4, Name: "acc4", Currency: currency.EUR, Type: 0, AccountProviderID: 1},
 	{ID: 5, Name: "acc5", Currency: currency.EUR, Type: 0, AccountProviderID: 1},
@@ -47,7 +47,7 @@ var sampleEntries = []Entry{
 	{Description: "e1", TargetAmount: 1, Type: ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-01 00:00:00")}, // 1
 	{Description: "e2", TargetAmount: 2, Type: ExpenseEntry, Date: getTime("2025-01-02 00:00:00"),
 		TargetAccountID: 1, TargetAccountName: "acc1"},
-	{Description: "e3", TargetAmount: 3, Type: ExpenseEntry, Date: getTime("2025-01-03 00:00:00"),
+	{Description: "e3", TargetAmount: 3, Type: IncomeEntry, Date: getTime("2025-01-03 00:00:00"),
 		TargetAccountID: 2, TargetAccountName: "acc2"},
 	{Description: "e4", TargetAmount: 4, Type: ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-04 00:00:00")},
 	{Description: "e5", TargetAmount: 5, Type: ExpenseEntry, Date: getTime("2025-01-05 00:00:00"),

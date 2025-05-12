@@ -452,7 +452,7 @@ const getRowClass = (data) => ({
         :target-account-id="selectedEntry?.targetAccountId"
         :stock-amount="selectedEntry?.targetStockAmount"
         :date="selectedEntry?.date ? new Date(selectedEntry.date) : new Date()"
-        :id="selectedEntry?.id"
+        :entry-id="selectedEntry?.id"
     />
     
     <TransferDialog 

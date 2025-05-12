@@ -269,13 +269,13 @@ func TestListAccountProvider(t *testing.T) {
 
 	tenant1Accounts := []accountProviderPayload{
 		{Id: 1, Name: "provider1", Description: "provider1", Accounts: []accountPayload{
-			{Id: 1, Name: "acc1", Currency: "EUR", Type: "unknown"},
-			{Id: 3, Name: "acc3", Currency: "EUR", Type: "unknown"},
-			{Id: 4, Name: "acc4", Currency: "EUR", Type: "unknown"},
-			{Id: 5, Name: "acc5", Currency: "EUR", Type: "unknown"},
+			{Id: 1, Name: "acc1", Currency: "EUR", Type: "cash"},
+			{Id: 3, Name: "acc3", Currency: "EUR", Type: "cash"},
+			{Id: 4, Name: "acc4", Currency: "EUR", Type: "cash"},
+			{Id: 5, Name: "acc5", Currency: "EUR", Type: "cash"},
 		}},
 		{Id: 2, Name: "provider2", Description: "provider2", Accounts: []accountPayload{
-			{Id: 2, Name: "acc2", Currency: "USD", Type: "unknown"},
+			{Id: 2, Name: "acc2", Currency: "USD", Type: "cash"},
 		}},
 		{Id: 3, Name: "provider3", Description: "provider3", Accounts: []accountPayload{}},
 	}
@@ -643,11 +643,11 @@ var sampleAccountProviders2 = []finance.AccountProvider{
 }
 
 var sampleAccounts = []finance.Account{
-	{ID: 1, Name: "acc1", Currency: currency.EUR, Type: 0, AccountProviderID: 1},
-	{ID: 2, Name: "acc2", Currency: currency.USD, Type: 0, AccountProviderID: 2},
-	{ID: 3, Name: "acc3", Currency: currency.EUR, Type: 0, AccountProviderID: 1},
-	{ID: 3, Name: "acc4", Currency: currency.EUR, Type: 0, AccountProviderID: 1},
-	{ID: 4, Name: "acc5", Currency: currency.EUR, Type: 0, AccountProviderID: 1},
+	{ID: 1, Name: "acc1", Currency: currency.EUR, Type: finance.Cash, AccountProviderID: 1},
+	{ID: 2, Name: "acc2", Currency: currency.USD, Type: finance.Cash, AccountProviderID: 2},
+	{ID: 3, Name: "acc3", Currency: currency.EUR, Type: finance.Cash, AccountProviderID: 1},
+	{ID: 3, Name: "acc4", Currency: currency.EUR, Type: finance.Cash, AccountProviderID: 1},
+	{ID: 4, Name: "acc5", Currency: currency.EUR, Type: finance.Cash, AccountProviderID: 1},
 }
 
 var sampleEntries = []finance.Entry{

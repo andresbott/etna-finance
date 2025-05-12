@@ -4,7 +4,7 @@ Personal finance App
 ![screen.jpg](zarf/screen.jpg)
 
 ## About 
-Is an opinionated personal finance app to keep track of expenses personal and investment.
+Is an opinionated personal finance app to keep track of personal expenses and investment.
 
 It builds on top of https://github.com/go-bumbu
 

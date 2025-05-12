@@ -142,7 +142,7 @@ func (h *Handler) UpdateEntry(Id uint, userId string) http.Handler {
 			CategoryId: payload.CategoryId,
 		}
 
-		err = h.Store.UpdateEntry(updatePayload, Id, userId)
+		err = h.Store.UpdateEntry(r.Context(), updatePayload, Id, userId)
 		if err != nil {
 			if errors.Is(err, finance.ErrEntryNotFound) {
 				http.Error(w, "entry not found", http.StatusNotFound)
