@@ -319,7 +319,7 @@ func (store *Store) UpdateEntry(ctx context.Context, item EntryUpdatePayload, Id
 const MaxSearchResults = 90
 const DefaultSearchResults = 30
 
-func (store *Store) ListEntries(ctx context.Context, startDate, endDate time.Time, accountID *uint, limit, page int, tenant string) ([]Entry, error) {
+func (store *Store) ListEntries(ctx context.Context, startDate, endDate time.Time, accountIds []int, limit, page int, tenant string) ([]Entry, error) {
 
 	accountsMap, err := store.ListAccountsMap(ctx, tenant)
 	if err != nil {
@@ -332,8 +332,8 @@ func (store *Store) ListEntries(ctx context.Context, startDate, endDate time.Tim
 	db = db.Where("date BETWEEN ? AND ?", startDate, endDate)
 
 	// Filter by account ID if provided
-	if accountID != nil {
-		db = db.Where("target_account_id = ? OR origin_account_id = ?", *accountID, *accountID)
+	if len(accountIds) > 0 {
+		db = db.Where("target_account_id IN ? OR origin_account_id IN ?", accountIds, accountIds)
 	}
 
 	if limit == 0 {

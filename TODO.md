@@ -1,6 +1,6 @@
 # TODO
-* backend to filter entries with account IDs
-* edit dialogs to work
+* entries in the backed and filtered by account ID depending on query parameters
+* entries pagination handled by the backend
 * categories
   * crud on categories both backend and frondend
   * modify dialogs to support slection of categorie4s

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/andresbott/etna/internal/model/finance"
@@ -221,16 +222,16 @@ func (h *Handler) ListEntries(userId string) http.Handler {
 		endDate = endDate.AddDate(0, 0, 1)
 		endDate = time.Date(endDate.Year(), endDate.Month(), endDate.Day(), 0, 0, 0, 0, endDate.Location())
 
-		// Parse account ID if provided
-		var accountID *uint
-		accountIDStr := r.URL.Query().Get("accountId")
-		if accountIDStr != "" {
-			var id uint
-			if _, err := fmt.Sscanf(accountIDStr, "%d", &id); err != nil {
-				http.Error(w, "invalid account_id format", http.StatusBadRequest)
+		// Parse account IDs if provided
+		accountIds := []int{}
+		ids := r.URL.Query()["accountIds"]
+		for _, idStr := range ids {
+			id, err := strconv.Atoi(idStr)
+			if err != nil {
+				http.Error(w, "invalid accountId format", http.StatusBadRequest)
 				return
 			}
-			accountID = &id
+			accountIds = append(accountIds, id)
 		}
 
 		// Parse pagination parameters
@@ -252,7 +253,7 @@ func (h *Handler) ListEntries(userId string) http.Handler {
 			}
 		}
 
-		entries, err := h.Store.ListEntries(r.Context(), startDate, endDate, accountID, limit, page, userId)
+		entries, err := h.Store.ListEntries(r.Context(), startDate, endDate, accountIds, limit, page, userId)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to list entries: %s", err.Error()), http.StatusInternalServerError)
 			return
@@ -282,34 +283,6 @@ func (h *Handler) ListEntries(userId string) http.Handler {
 				OriginAccountCurrency: entry.OriginAccountCurrency.String(),
 
 				CategoryId: entry.CategoryId,
-			}
-		}
-
-		// TODO delete
-		if len(response.Items) == 0 {
-			response.Items = []entryPayload{
-				{
-					Id:                    1,
-					Description:           "income 1",
-					TargetAmount:          1000.0,
-					Date:                  time.Now(),
-					Type:                  "income",
-					TargetAccountID:       1,
-					TargetAccountCurrency: "USD",
-					CategoryId:            1,
-				},
-				{
-					Id:                    2,
-					Description:           "expense 2",
-					TargetAmount:          25.5,
-					StockAmount:           0,
-					Date:                  time.Time{},
-					Type:                  "expense",
-					TargetAccountID:       0,
-					TargetAccountCurrency: "USD",
-					OriginAccountID:       0,
-					CategoryId:            0,
-				},
 			}
 		}
 

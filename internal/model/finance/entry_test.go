@@ -329,7 +329,7 @@ func TestSearchEntries(t *testing.T) {
 		name      string
 		startDate time.Time
 		endDate   time.Time
-		accountID *uint
+		accountID []int
 		limit     int
 		page      int
 		tenant    string
@@ -355,15 +355,23 @@ func TestSearchEntries(t *testing.T) {
 			name:      "search with account ID filter",
 			startDate: getTime("2025-01-01 00:00:01"),
 			endDate:   getTime("2025-01-07 00:00:00"),
-			accountID: ptr(uint(2)),
+			accountID: []int{2},
 			tenant:    tenant1,
 			want:      []Entry{sampleEntries[4], sampleEntries[2]},
+		},
+		{
+			name:      "search with multiple account IDs filter",
+			startDate: getTime("2023-01-01 00:00:01"),
+			endDate:   getTime("2026-01-07 00:00:00"),
+			accountID: []int{4, 5},
+			tenant:    tenant1,
+			want:      []Entry{sampleEntries[11], sampleEntries[10]},
 		},
 		{
 			name:      "search with limit",
 			startDate: getTime("2025-01-01 00:00:01"),
 			endDate:   getTime("2025-01-09 00:00:00"),
-			accountID: ptr(uint(2)),
+			accountID: []int{2},
 			tenant:    tenant1,
 			limit:     2,
 			want:      []Entry{sampleEntries[7], sampleEntries[4]},
@@ -372,7 +380,7 @@ func TestSearchEntries(t *testing.T) {
 			name:      "search with limit and page",
 			startDate: getTime("2025-01-01 00:00:01"),
 			endDate:   getTime("2025-01-09 00:00:00"),
-			accountID: ptr(uint(2)),
+			accountID: []int{2},
 			tenant:    tenant1,
 			limit:     2,
 			page:      2,
