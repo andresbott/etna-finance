@@ -17,7 +17,7 @@ type Entry struct {
 	Description string
 	Date        time.Time
 	Locked      bool      // does not accept changes anymore
-	Type        EntryType //income, transfer, spend, stock buy, stock sell ( like transfer with stock amounts added)
+	Type        EntryType //income, transfer, expense, stock buy, stock sell ( like transfer with stock amounts added)
 
 	StockAmount float64 // used to track the amount of stocks in the account
 

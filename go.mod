@@ -5,7 +5,7 @@ go 1.24.2
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/glebarez/sqlite v1.11.0
-	github.com/go-bumbu/closure-tree v0.4.1
+	github.com/go-bumbu/closure-tree v0.6.0
 	github.com/go-bumbu/config v0.2.0
 	github.com/go-bumbu/http v0.3.0
 	github.com/go-bumbu/testdbs v0.2.3
@@ -18,8 +18,8 @@ require (
 	github.com/prometheus/client_golang v1.20.5
 	github.com/samber/slog-formatter v1.2.0
 	github.com/spf13/cobra v1.8.1
-	golang.org/x/text v0.23.0
-	gorm.io/gorm v1.25.12
+	golang.org/x/text v0.25.0
+	gorm.io/gorm v1.26.1
 )
 
 require (
@@ -92,7 +92,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.24.0 // indirect
 	go.opentelemetry.io/otel/trace v1.24.0 // indirect
 	golang.org/x/crypto v0.31.0 // indirect
-	golang.org/x/sync v0.12.0 // indirect
+	golang.org/x/sync v0.14.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
