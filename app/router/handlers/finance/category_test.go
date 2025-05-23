@@ -3,6 +3,7 @@ package finance
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/google/go-cmp/cmp"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -86,8 +87,8 @@ func TestCreateCategory(t *testing.T) {
 			defer end()
 
 			recorder := httptest.NewRecorder()
-			req, _ := http.NewRequest("POST", "/api/category?type="+tc.categoryType, tc.payload)
-			handler := h.CreateCategory(tc.userId)
+			req, _ := http.NewRequest("POST", "/api/category", tc.payload)
+			handler := h.createCategory(tc.userId, tc.categoryType)
 			handler.ServeHTTP(recorder, req)
 
 			if tc.expectErr != "" {
@@ -206,9 +207,9 @@ func TestUpdateCategory(t *testing.T) {
 			// First create a category to update
 			var categoryId uint = 1 // We'll use a pre-existing category or create one
 
-			req, _ := http.NewRequest("PATCH", "/api/category/"+strconv.FormatUint(uint64(categoryId), 10)+"?type="+tc.categoryType, tc.payload)
+			req, _ := http.NewRequest("PATCH", "/api/category/"+strconv.FormatUint(uint64(categoryId), 10), tc.payload)
 			recorder := httptest.NewRecorder()
-			handler := h.UpdateCategory(categoryId, tc.userId)
+			handler := h.updateCategory(categoryId, tc.userId, tc.categoryType)
 			handler.ServeHTTP(recorder, req)
 
 			if tc.expectErr != "" {
@@ -305,9 +306,9 @@ func TestMoveCategory(t *testing.T) {
 			// Use a pre-existing category or create one
 			var categoryId uint = 1
 
-			req, _ := http.NewRequest("PATCH", "/api/category/"+strconv.FormatUint(uint64(categoryId), 10)+"/move?type="+tc.categoryType, tc.payload)
+			req, _ := http.NewRequest("PATCH", "/api/category/"+strconv.FormatUint(uint64(categoryId), 10)+"/move", tc.payload)
 			recorder := httptest.NewRecorder()
-			handler := h.MoveCategory(categoryId, tc.userId)
+			handler := h.moveCategory(categoryId, tc.userId, tc.categoryType)
 			handler.ServeHTTP(recorder, req)
 
 			if tc.expectErr != "" {
@@ -381,9 +382,9 @@ func TestDeleteRecurseCategory(t *testing.T) {
 
 			var categoryId uint = 1
 
-			req, _ := http.NewRequest("DELETE", "/api/category/"+strconv.FormatUint(uint64(categoryId), 10)+"?type="+tc.categoryType, nil)
+			req, _ := http.NewRequest("DELETE", "/api/category/"+strconv.FormatUint(uint64(categoryId), 10), nil)
 			recorder := httptest.NewRecorder()
-			handler := h.DeleteRecurseCategory(categoryId, tc.userId)
+			handler := h.deleteRecurseCategory(categoryId, tc.userId, tc.categoryType)
 			handler.ServeHTTP(recorder, req)
 
 			if tc.expectErr != "" {
@@ -401,6 +402,69 @@ func TestDeleteRecurseCategory(t *testing.T) {
 			} else {
 				if status := recorder.Code; status != tc.expectCode {
 					t.Errorf("handler returned wrong status code: got %v want %v", status, tc.expectCode)
+				}
+			}
+		})
+	}
+}
+
+func TestListCategory(t *testing.T) {
+	tcs := []struct {
+		name         string
+		userId       string
+		categoryType string
+		parentId     uint
+		expectErr    string
+		expectCode   int
+		expectBody   string
+	}{
+		{
+			name:         "successful income category delete",
+			userId:       tenant1,
+			categoryType: ExpenseCategoryType,
+			parentId:     0,
+			expectCode:   http.StatusOK,
+			expectBody:   "banana",
+		},
+		{
+			name:         "successful income category delete",
+			userId:       tenant1,
+			categoryType: "banana",
+			expectCode:   http.StatusBadRequest,
+			expectBody:   "banana",
+			expectErr:    "invalid category type: banana",
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			h, end := SampleCategoryHandler(t)
+			defer end()
+
+			req, _ := http.NewRequest("GET", "/api/category/", nil)
+			recorder := httptest.NewRecorder()
+			handler := h.listCategory(tc.parentId, tc.userId, tc.categoryType)
+			handler.ServeHTTP(recorder, req)
+
+			respBody, err := io.ReadAll(recorder.Body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			gotBody := strings.TrimSuffix(string(respBody), "\n")
+
+			if tc.expectErr != "" {
+				if status := recorder.Code; status != tc.expectCode {
+					t.Errorf("handler returned wrong status code: got %v want %v", status, tc.expectCode)
+				}
+				if diff := cmp.Diff(tc.expectErr, gotBody); diff != "" {
+					t.Errorf("unexpected error message (-want +got):\n%s", diff)
+				}
+			} else {
+				if status := recorder.Code; status != tc.expectCode {
+					t.Errorf("handler returned wrong status code: got %v want %v", status, tc.expectCode)
+				}
+				if diff := cmp.Diff(tc.expectBody, gotBody); diff != "" {
+					t.Errorf("unexpected response body (-want +got):\n%s", diff)
 				}
 			}
 		})

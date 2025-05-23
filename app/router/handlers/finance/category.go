@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/davecgh/go-spew/spew"
 	"net/http"
 
 	"github.com/andresbott/etna/internal/model/finance"
@@ -38,7 +39,15 @@ type categoryMovePayload struct {
 	TargetParentId uint `json:"targetParentId"`
 }
 
-func (h *CategoryHandler) CreateCategory(userId string) http.Handler {
+func (h *CategoryHandler) CreateIncome(userId string) http.Handler {
+	return h.createCategory(userId, IncomeCategoryType)
+}
+
+func (h *CategoryHandler) CreateExpense(userId string) http.Handler {
+	return h.createCategory(userId, ExpenseCategoryType)
+}
+
+func (h *CategoryHandler) createCategory(userId, categoryType string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if userId == "" {
 			http.Error(w, "unable to create category: user not provided", http.StatusBadRequest)
@@ -49,8 +58,6 @@ func (h *CategoryHandler) CreateCategory(userId string) http.Handler {
 			return
 		}
 
-		// Get category type from query parameter
-		categoryType := r.URL.Query().Get("type")
 		if categoryType != IncomeCategoryType && categoryType != ExpenseCategoryType {
 			http.Error(w, fmt.Sprintf("invalid category type: %s", categoryType), http.StatusBadRequest)
 			return
@@ -115,8 +122,15 @@ func (h *CategoryHandler) CreateCategory(userId string) http.Handler {
 	})
 }
 
-func (h *CategoryHandler) UpdateCategory(Id uint, userId string) http.Handler {
+func (h *CategoryHandler) UpdateIncome(Id uint, userId string) http.Handler {
+	return h.updateCategory(Id, userId, IncomeCategoryType)
+}
 
+func (h *CategoryHandler) UpdateExpense(Id uint, userId string) http.Handler {
+	return h.updateCategory(Id, userId, ExpenseCategoryType)
+}
+
+func (h *CategoryHandler) updateCategory(Id uint, userId, categoryType string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if userId == "" {
 			http.Error(w, "unable to update category: user not provided", http.StatusBadRequest)
@@ -127,8 +141,6 @@ func (h *CategoryHandler) UpdateCategory(Id uint, userId string) http.Handler {
 			return
 		}
 
-		// Get category type from query parameter
-		categoryType := r.URL.Query().Get("type")
 		if categoryType != IncomeCategoryType && categoryType != ExpenseCategoryType {
 			http.Error(w, fmt.Sprintf("invalid category type: %s", categoryType), http.StatusBadRequest)
 			return
@@ -169,7 +181,15 @@ func (h *CategoryHandler) UpdateCategory(Id uint, userId string) http.Handler {
 	})
 }
 
-func (h *CategoryHandler) MoveCategory(Id uint, userId string) http.Handler {
+func (h *CategoryHandler) MoveIncome(Id uint, userId string) http.Handler {
+	return h.moveCategory(Id, userId, IncomeCategoryType)
+}
+
+func (h *CategoryHandler) MoveExpense(Id uint, userId string) http.Handler {
+	return h.moveCategory(Id, userId, ExpenseCategoryType)
+}
+
+func (h *CategoryHandler) moveCategory(Id uint, userId, categoryType string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if userId == "" {
 			http.Error(w, "unable to move category: user not provided", http.StatusBadRequest)
@@ -180,8 +200,6 @@ func (h *CategoryHandler) MoveCategory(Id uint, userId string) http.Handler {
 			return
 		}
 
-		// Get category type from query parameter
-		categoryType := r.URL.Query().Get("type")
 		if categoryType != IncomeCategoryType && categoryType != ExpenseCategoryType {
 			http.Error(w, fmt.Sprintf("invalid category type: %s", categoryType), http.StatusBadRequest)
 			return
@@ -216,15 +234,21 @@ func (h *CategoryHandler) MoveCategory(Id uint, userId string) http.Handler {
 	})
 }
 
-func (h *CategoryHandler) DeleteRecurseCategory(Id uint, userId string) http.Handler {
+func (h *CategoryHandler) DeleteIncome(Id uint, userId string) http.Handler {
+	return h.deleteRecurseCategory(Id, userId, IncomeCategoryType)
+}
+
+func (h *CategoryHandler) DeleteExpense(Id uint, userId string) http.Handler {
+	return h.deleteRecurseCategory(Id, userId, ExpenseCategoryType)
+}
+
+func (h *CategoryHandler) deleteRecurseCategory(Id uint, userId, categoryType string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if userId == "" {
 			http.Error(w, "unable to delete category: user not provided", http.StatusBadRequest)
 			return
 		}
 
-		// Get category type from query parameter
-		categoryType := r.URL.Query().Get("type")
 		if categoryType != IncomeCategoryType && categoryType != ExpenseCategoryType {
 			http.Error(w, fmt.Sprintf("invalid category type: %s", categoryType), http.StatusBadRequest)
 			return
@@ -249,6 +273,58 @@ func (h *CategoryHandler) DeleteRecurseCategory(Id uint, userId string) http.Han
 				return
 			}
 		}
+		w.WriteHeader(http.StatusOK)
+	})
+}
+
+func (h *CategoryHandler) ListIncome(Id uint, userId string) http.Handler {
+	return h.listCategory(Id, userId, IncomeCategoryType)
+}
+
+func (h *CategoryHandler) ListExpense(Id uint, userId string) http.Handler {
+	return h.listCategory(Id, userId, ExpenseCategoryType)
+}
+
+func (h *CategoryHandler) listCategory(Id uint, userId, categoryType string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if userId == "" {
+			http.Error(w, "unable to delete category: user not provided", http.StatusBadRequest)
+			return
+		}
+
+		depth := 4
+		var err error
+		var bytePayload []byte
+
+		switch categoryType {
+		case IncomeCategoryType:
+			items := []finance.IncomeCategory{}
+			err = h.Store.DescendantsIncomeCategory(Id, depth, userId, &items)
+
+			bytePayload = []byte("ss")
+			spew.Dump(items)
+
+		case ExpenseCategoryType:
+			items := []finance.ExpenseCategory{}
+			err = h.Store.DescendantsExpenseCategory(Id, depth, userId, &items)
+
+			bytePayload = []byte("ss")
+			spew.Dump(items)
+		default:
+			http.Error(w, fmt.Sprintf("invalid category type: %s", categoryType), http.StatusBadRequest)
+			return
+		}
+
+		if err != nil {
+			if errors.Is(err, finance.ErrCategoryNotFound) {
+				http.Error(w, err.Error(), http.StatusNotFound)
+				return
+			} else {
+				http.Error(w, fmt.Sprintf("unable to delete category: %s", err.Error()), http.StatusInternalServerError)
+				return
+			}
+		}
+		_ = bytePayload
 		w.WriteHeader(http.StatusOK)
 	})
 }

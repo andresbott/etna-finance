@@ -47,6 +47,16 @@ func (store *Store) DeleteRecurseIncomeCategory(Id uint, tenant string) error {
 	return handleErr(err)
 }
 
+func (store *Store) TreeDescendantsIncomeCategory(parent uint, depth int, tenant string, items *[]*IncomeCategory) error {
+	err := store.incomeTree.TreeDescendants(parent, depth, tenant, items)
+	return handleErr(err)
+}
+
+func (store *Store) DescendantsIncomeCategory(parent uint, depth int, tenant string, items *[]IncomeCategory) error {
+	err := store.incomeTree.Descendants(parent, depth, tenant, items)
+	return handleErr(err)
+}
+
 // ExpenseCategory holds the needed information of a tag with a tree structure
 type ExpenseCategory struct {
 	closuretree.Node
@@ -70,5 +80,14 @@ func (store *Store) UpdateExpenseCategory(Id uint, payload ExpenseCategory, tena
 
 func (store *Store) DeleteRecurseExpenseCategory(Id uint, tenant string) error {
 	err := store.expenseTree.DeleteRecurse(Id, tenant)
+	return handleErr(err)
+}
+
+func (store *Store) TreeDescendantsExpenseCategory(parent uint, depth int, tenant string, items *[]*ExpenseCategory) error {
+	err := store.expenseTree.TreeDescendants(parent, depth, tenant, items)
+	return handleErr(err)
+}
+func (store *Store) DescendantsExpenseCategory(parent uint, depth int, tenant string, items *[]ExpenseCategory) error {
+	err := store.expenseTree.Descendants(parent, depth, tenant, items)
 	return handleErr(err)
 }
