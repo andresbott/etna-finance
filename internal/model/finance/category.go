@@ -1,6 +1,7 @@
 package finance
 
 import (
+	"context"
 	"errors"
 	closuretree "github.com/go-bumbu/closure-tree"
 )
@@ -28,32 +29,27 @@ func handleErr(err error) error {
 	return nil
 }
 
-func (store *Store) CreateIncomeCategory(cat *IncomeCategory, parent uint, tenant string) error {
-	err := store.incomeTree.Add(cat, parent, tenant)
+func (store *Store) CreateIncomeCategory(ctx context.Context, cat *IncomeCategory, parent uint, tenant string) error {
+	err := store.incomeTree.Add(ctx, cat, parent, tenant)
 	return handleErr(err)
 }
-func (store *Store) MoveIncomeCategory(Id, newParentID uint, tenant string) error {
-	err := store.incomeTree.Move(Id, newParentID, tenant)
-	return handleErr(err)
-}
-
-func (store *Store) UpdateIncomeCategory(Id uint, payload IncomeCategory, tenant string) error {
-	err := store.incomeTree.Update(Id, payload, tenant)
+func (store *Store) MoveIncomeCategory(ctx context.Context, Id, newParentID uint, tenant string) error {
+	err := store.incomeTree.Move(ctx, Id, newParentID, tenant)
 	return handleErr(err)
 }
 
-func (store *Store) DeleteRecurseIncomeCategory(Id uint, tenant string) error {
-	err := store.incomeTree.DeleteRecurse(Id, tenant)
+func (store *Store) UpdateIncomeCategory(ctx context.Context, Id uint, payload IncomeCategory, tenant string) error {
+	err := store.incomeTree.Update(ctx, Id, payload, tenant)
 	return handleErr(err)
 }
 
-func (store *Store) TreeDescendantsIncomeCategory(parent uint, depth int, tenant string, items *[]*IncomeCategory) error {
-	err := store.incomeTree.TreeDescendants(parent, depth, tenant, items)
+func (store *Store) DeleteRecurseIncomeCategory(ctx context.Context, Id uint, tenant string) error {
+	err := store.incomeTree.DeleteRecurse(ctx, Id, tenant)
 	return handleErr(err)
 }
 
-func (store *Store) DescendantsIncomeCategory(parent uint, depth int, tenant string, items *[]IncomeCategory) error {
-	err := store.incomeTree.Descendants(parent, depth, tenant, items)
+func (store *Store) DescendantsIncomeCategory(ctx context.Context, parent uint, depth int, tenant string, items *[]IncomeCategory) error {
+	err := store.incomeTree.Descendants(ctx, parent, depth, tenant, items)
 	return handleErr(err)
 }
 
@@ -64,30 +60,26 @@ type ExpenseCategory struct {
 	Children []*ExpenseCategory `gorm:"-"`
 }
 
-func (store *Store) CreateExpenseCategory(cat *ExpenseCategory, parent uint, tenant string) error {
-	err := store.expenseTree.Add(cat, parent, tenant)
+func (store *Store) CreateExpenseCategory(ctx context.Context, cat *ExpenseCategory, parent uint, tenant string) error {
+	err := store.expenseTree.Add(ctx, cat, parent, tenant)
 	return handleErr(err)
 }
-func (store *Store) MoveExpenseCategory(Id, newParentID uint, tenant string) error {
-	err := store.expenseTree.Move(Id, newParentID, tenant)
-	return handleErr(err)
-}
-
-func (store *Store) UpdateExpenseCategory(Id uint, payload ExpenseCategory, tenant string) error {
-	err := store.expenseTree.Update(Id, payload, tenant)
+func (store *Store) MoveExpenseCategory(ctx context.Context, Id, newParentID uint, tenant string) error {
+	err := store.expenseTree.Move(ctx, Id, newParentID, tenant)
 	return handleErr(err)
 }
 
-func (store *Store) DeleteRecurseExpenseCategory(Id uint, tenant string) error {
-	err := store.expenseTree.DeleteRecurse(Id, tenant)
+func (store *Store) UpdateExpenseCategory(ctx context.Context, Id uint, payload ExpenseCategory, tenant string) error {
+	err := store.expenseTree.Update(ctx, Id, payload, tenant)
 	return handleErr(err)
 }
 
-func (store *Store) TreeDescendantsExpenseCategory(parent uint, depth int, tenant string, items *[]*ExpenseCategory) error {
-	err := store.expenseTree.TreeDescendants(parent, depth, tenant, items)
+func (store *Store) DeleteRecurseExpenseCategory(ctx context.Context, Id uint, tenant string) error {
+	err := store.expenseTree.DeleteRecurse(ctx, Id, tenant)
 	return handleErr(err)
 }
-func (store *Store) DescendantsExpenseCategory(parent uint, depth int, tenant string, items *[]ExpenseCategory) error {
-	err := store.expenseTree.Descendants(parent, depth, tenant, items)
+
+func (store *Store) DescendantsExpenseCategory(ctx context.Context, parent uint, depth int, tenant string, items *[]ExpenseCategory) error {
+	err := store.expenseTree.Descendants(ctx, parent, depth, tenant, items)
 	return handleErr(err)
 }

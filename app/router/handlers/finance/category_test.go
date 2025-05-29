@@ -419,15 +419,31 @@ func TestListCategory(t *testing.T) {
 		expectBody   string
 	}{
 		{
-			name:         "successful income category delete",
+			name:         "list top level expenses categories",
 			userId:       tenant1,
 			categoryType: ExpenseCategoryType,
 			parentId:     0,
 			expectCode:   http.StatusOK,
-			expectBody:   "banana",
+			expectBody:   `{"items":[{"id":1,"name":"Food","description":""},{"id":2,"name":"Transportation","description":""},{"id":3,"parentId":1,"name":"Groceries","description":""}]}`,
 		},
 		{
-			name:         "successful income category delete",
+			name:         "list child level expenses categories",
+			userId:       tenant1,
+			categoryType: ExpenseCategoryType,
+			parentId:     1,
+			expectCode:   http.StatusOK,
+			expectBody:   `{"items":[{"id":3,"parentId":1,"name":"Groceries","description":""}]}`,
+		},
+		{
+			name:         "list top level income categories",
+			userId:       tenant1,
+			categoryType: IncomeCategoryType,
+			parentId:     0,
+			expectCode:   http.StatusOK,
+			expectBody:   `{"items":[{"id":1,"name":"Salary","description":""},{"id":2,"name":"Investments","description":""}]}`,
+		},
+		{
+			name:         "error on wrong category type",
 			userId:       tenant1,
 			categoryType: "banana",
 			expectCode:   http.StatusBadRequest,
@@ -507,36 +523,37 @@ func SampleCategoryHandler(t *testing.T) (*CategoryHandler, func()) {
 
 // Add helper functions to create test categories
 func createTestCategories(t *testing.T, store *finance.Store) {
+
 	// Create some income categories
 	incomeCategory1 := finance.IncomeCategory{Name: "Salary"}
-	err := store.CreateIncomeCategory(&incomeCategory1, 0, tenant1)
+	err := store.CreateIncomeCategory(t.Context(), &incomeCategory1, 0, tenant1)
 	if err != nil {
 		t.Fatalf("error creating income category: %v", err)
 	}
 
 	incomeCategory2 := finance.IncomeCategory{Name: "Investments"}
-	err = store.CreateIncomeCategory(&incomeCategory2, 0, tenant1)
+	err = store.CreateIncomeCategory(t.Context(), &incomeCategory2, 0, tenant1)
 	if err != nil {
 		t.Fatalf("error creating income category: %v", err)
 	}
 
 	// Create some expense categories
 	expenseCategory1 := finance.ExpenseCategory{Name: "Food"}
-	err = store.CreateExpenseCategory(&expenseCategory1, 0, tenant1)
+	err = store.CreateExpenseCategory(t.Context(), &expenseCategory1, 0, tenant1)
 	if err != nil {
 		t.Fatalf("error creating expense category: %v", err)
 	}
 
 	expenseCategory2 := finance.ExpenseCategory{Name: "Transportation"}
-	err = store.CreateExpenseCategory(&expenseCategory2, 0, tenant1)
+	err = store.CreateExpenseCategory(t.Context(), &expenseCategory2, 0, tenant1)
 	if err != nil {
 		t.Fatalf("error creating expense category: %v", err)
 	}
 
 	// Create a subcategory
 	expenseSubcategory := finance.ExpenseCategory{Name: "Groceries"}
-	var parentId uint = expenseCategory1.Id() // Call the Id() method to get the uint value
-	err = store.CreateExpenseCategory(&expenseSubcategory, parentId, tenant1)
+	var parentId = expenseCategory1.Id() // Call the Id() method to get the uint value
+	err = store.CreateExpenseCategory(t.Context(), &expenseSubcategory, parentId, tenant1)
 	if err != nil {
 		t.Fatalf("error creating expense subcategory: %v", err)
 	}

@@ -4,10 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/davecgh/go-spew/spew"
-	"net/http"
-
 	"github.com/andresbott/etna/internal/model/finance"
+	"net/http"
 )
 
 type CategoryHandler struct {
@@ -25,9 +23,9 @@ const (
 // Common category payloads
 type categoryPayload struct {
 	Id          uint   `json:"id"`
+	ParentId    uint   `json:"parentId,omitempty"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
-	ParentId    *uint  `json:"parentId,omitempty"`
 }
 
 type categoryUpdatePayload struct {
@@ -63,59 +61,54 @@ func (h *CategoryHandler) createCategory(userId, categoryType string) http.Handl
 			return
 		}
 
+		var (
+			respJson []byte
+			err      error
+		)
+
 		payload := categoryPayload{}
-		err := json.NewDecoder(r.Body).Decode(&payload)
+		err = json.NewDecoder(r.Body).Decode(&payload)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to decode json: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
 
-		var parentId uint
-		if payload.ParentId != nil {
-			parentId = *payload.ParentId
-		}
-
-		var respJson []byte
-		if categoryType == IncomeCategoryType {
+		switch categoryType {
+		case IncomeCategoryType:
 			category := &finance.IncomeCategory{
 				Name: payload.Name,
 			}
-
-			err = h.Store.CreateIncomeCategory(category, parentId, userId)
+			err = h.Store.CreateIncomeCategory(r.Context(), category, payload.ParentId, userId)
 			if err != nil {
-				if errors.As(err, &validationErr) {
-					http.Error(w, err.Error(), http.StatusBadRequest)
-					return
-				} else {
-					http.Error(w, fmt.Sprintf("unable to store income category in DB: %s", err.Error()), http.StatusInternalServerError)
-					return
-				}
+				break
 			}
-
 			respJson, err = json.Marshal(category)
-		} else {
+
+		case ExpenseCategoryType:
 			category := &finance.ExpenseCategory{
 				Name: payload.Name,
 			}
-
-			err = h.Store.CreateExpenseCategory(category, parentId, userId)
+			err = h.Store.CreateExpenseCategory(r.Context(), category, payload.ParentId, userId)
 			if err != nil {
-				if errors.As(err, &validationErr) {
-					http.Error(w, err.Error(), http.StatusBadRequest)
-					return
-				} else {
-					http.Error(w, fmt.Sprintf("unable to store expense category in DB: %s", err.Error()), http.StatusInternalServerError)
-					return
-				}
+				break
 			}
-
 			respJson, err = json.Marshal(category)
+
+		default:
+			http.Error(w, fmt.Sprintf("invalid category type: %s", categoryType), http.StatusBadRequest)
+			return
 		}
 
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			if errors.As(err, &validationErr) {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			} else {
+				http.Error(w, fmt.Sprintf("unable to store category in DB: %s", err.Error()), http.StatusInternalServerError)
+				return
+			}
 		}
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(respJson)
@@ -157,12 +150,12 @@ func (h *CategoryHandler) updateCategory(Id uint, userId, categoryType string) h
 			category := finance.IncomeCategory{
 				Name: payload.Name,
 			}
-			err = h.Store.UpdateIncomeCategory(Id, category, userId)
+			err = h.Store.UpdateIncomeCategory(r.Context(), Id, category, userId)
 		} else {
 			category := finance.ExpenseCategory{
 				Name: payload.Name,
 			}
-			err = h.Store.UpdateExpenseCategory(Id, category, userId)
+			err = h.Store.UpdateExpenseCategory(r.Context(), Id, category, userId)
 		}
 
 		if err != nil {
@@ -213,9 +206,9 @@ func (h *CategoryHandler) moveCategory(Id uint, userId, categoryType string) htt
 		}
 
 		if categoryType == IncomeCategoryType {
-			err = h.Store.MoveIncomeCategory(Id, payload.TargetParentId, userId)
+			err = h.Store.MoveIncomeCategory(r.Context(), Id, payload.TargetParentId, userId)
 		} else {
-			err = h.Store.MoveExpenseCategory(Id, payload.TargetParentId, userId)
+			err = h.Store.MoveExpenseCategory(r.Context(), Id, payload.TargetParentId, userId)
 		}
 
 		if err != nil {
@@ -256,9 +249,9 @@ func (h *CategoryHandler) deleteRecurseCategory(Id uint, userId, categoryType st
 
 		var err error
 		if categoryType == IncomeCategoryType {
-			err = h.Store.DeleteRecurseIncomeCategory(Id, userId)
+			err = h.Store.DeleteRecurseIncomeCategory(r.Context(), Id, userId)
 		} else {
-			err = h.Store.DeleteRecurseExpenseCategory(Id, userId)
+			err = h.Store.DeleteRecurseExpenseCategory(r.Context(), Id, userId)
 		}
 
 		if err != nil {
@@ -292,24 +285,50 @@ func (h *CategoryHandler) listCategory(Id uint, userId, categoryType string) htt
 			return
 		}
 
-		depth := 4
-		var err error
-		var bytePayload []byte
+		depth := 4 // TODO expose as parameter
+
+		type payload struct {
+			Items []categoryPayload `json:"items"`
+		}
+
+		var (
+			outItems []categoryPayload
+			err      error
+		)
 
 		switch categoryType {
 		case IncomeCategoryType:
-			items := []finance.IncomeCategory{}
-			err = h.Store.DescendantsIncomeCategory(Id, depth, userId, &items)
-
-			bytePayload = []byte("ss")
-			spew.Dump(items)
+			var items []finance.IncomeCategory
+			err = h.Store.DescendantsIncomeCategory(r.Context(), Id, depth, userId, &items)
+			if err != nil {
+				break
+			}
+			outItems = make([]categoryPayload, len(items))
+			for i, item := range items {
+				outItems[i] = categoryPayload{
+					Id:          item.Id(),
+					Name:        item.Name,
+					Description: "",
+					ParentId:    item.Parent(),
+				}
+			}
 
 		case ExpenseCategoryType:
-			items := []finance.ExpenseCategory{}
-			err = h.Store.DescendantsExpenseCategory(Id, depth, userId, &items)
+			var items []finance.ExpenseCategory
+			err = h.Store.DescendantsExpenseCategory(r.Context(), Id, depth, userId, &items)
+			if err != nil {
+				break
+			}
+			outItems = make([]categoryPayload, len(items))
+			for i, item := range items {
+				outItems[i] = categoryPayload{
+					Id:          item.Id(),
+					Name:        item.Name,
+					Description: "",
+					ParentId:    item.Parent(),
+				}
+			}
 
-			bytePayload = []byte("ss")
-			spew.Dump(items)
 		default:
 			http.Error(w, fmt.Sprintf("invalid category type: %s", categoryType), http.StatusBadRequest)
 			return
@@ -318,13 +337,16 @@ func (h *CategoryHandler) listCategory(Id uint, userId, categoryType string) htt
 		if err != nil {
 			if errors.Is(err, finance.ErrCategoryNotFound) {
 				http.Error(w, err.Error(), http.StatusNotFound)
-				return
 			} else {
 				http.Error(w, fmt.Sprintf("unable to delete category: %s", err.Error()), http.StatusInternalServerError)
-				return
 			}
+			return
 		}
-		_ = bytePayload
-		w.WriteHeader(http.StatusOK)
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(payload{Items: outItems}); err != nil {
+			http.Error(w, fmt.Sprintf("Error encoding JSON: %s", err.Error()), http.StatusInternalServerError)
+		}
+
 	})
 }
