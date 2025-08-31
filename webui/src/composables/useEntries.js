@@ -26,12 +26,12 @@ const fetchEntries = async (startDate, endDate, accountIds = []) => {
         startDate: formatDate(startDate),
         endDate: formatDate(endDate)
     })
-    
+
     // Add account IDs to params if provided
     if (accountIds && accountIds.length > 0) {
-        accountIds.forEach(id => params.append('accountIds', id));
+        accountIds.forEach((id) => params.append('accountIds', id))
     }
-    
+
     const { data } = await axios.get(`${ENTRIES_ENDPOINT}?${params}`)
     return data.items || []
 }
@@ -72,31 +72,27 @@ export function useEntries(startDateRef, endDateRef, accountIdsRef = null) {
         const start = unref(startDateRef)
         const end = unref(endDateRef)
         const accountIds = unref(accountIdsRef)
-        
+
         const key = ['entries']
-        
+
         if (start && end) {
             key.push(formatDate(start), formatDate(end))
         } else {
             key.push('invalid') // fallback key to avoid undefined
         }
-        
+
         // Add account IDs to query key if provided
         if (accountIds && accountIds.length > 0) {
             key.push('accounts', ...accountIds)
         }
-        
+
         return key
     })
 
     const entriesQuery = useQuery({
         queryKey,
         enabled: computed(() => !!unref(startDateRef) && !!unref(endDateRef)),
-        queryFn: () => fetchEntries(
-            unref(startDateRef), 
-            unref(endDateRef), 
-            unref(accountIdsRef)
-        )
+        queryFn: () => fetchEntries(unref(startDateRef), unref(endDateRef), unref(accountIdsRef))
     })
 
     // Mutation for creating an entry

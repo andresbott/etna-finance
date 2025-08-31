@@ -20,7 +20,7 @@ import ExpenseDialog from './ExpenseDialog.vue'
 import IncomeDialog from './IncomeDialog.vue'
 import TransferDialog from './dialogs/TransferDialog.vue'
 import StockDialog from './StockDialog.vue'
-import DeleteDialog from '@/components/deleteDialog.vue'
+import DeleteDialog from '@/components/common/confirmDialog.vue'
 
 import { useEntries } from '@/composables/useEntries.js'
 import { useAccounts } from '@/composables/useAccounts.js'
@@ -35,7 +35,11 @@ const endDate = ref(new Date())
 // Account filtering state
 const selectedAccountIds = ref([])
 const selectedKeys = ref({}) // For Tree component selection
-const { entries, isLoading, deleteEntry, isDeleting, refetch } = useEntries(startDate, endDate, selectedAccountIds)
+const { entries, isLoading, deleteEntry, isDeleting, refetch } = useEntries(
+    startDate,
+    endDate,
+    selectedAccountIds
+)
 const { accounts, isLoading: isAccountsLoading } = useAccounts()
 
 const leftSidebarCollapsed = ref(false)
@@ -83,70 +87,78 @@ const accountsTree = computed(() => {
 const expandedKeys = ref({})
 
 // Initialize expanded keys when accounts are loaded
-watch(() => accounts.value, (newAccounts) => {
-    if (newAccounts) {
-        const keys = {};
-        newAccounts.forEach((provider) => {
-            keys[`provider-${provider.id}`] = true;
-        });
-        expandedKeys.value = keys;
-    }
-}, { immediate: true });
+watch(
+    () => accounts.value,
+    (newAccounts) => {
+        if (newAccounts) {
+            const keys = {}
+            newAccounts.forEach((provider) => {
+                keys[`provider-${provider.id}`] = true
+            })
+            expandedKeys.value = keys
+        }
+    },
+    { immediate: true }
+)
 
 // Handle account selection change - convert selectionKeys to accountIds
-watch(() => selectedKeys.value, (newSelection) => {
-    if (!newSelection) {
-        selectedAccountIds.value = [];
-        return;
-    }
-    
-    const ids = [];
-    const providerIds = [];
-    
-    // Process selected keys
-    Object.keys(newSelection).forEach(key => {
-        if (key.startsWith('provider-')) {
-            // Store provider ID for later processing
-            providerIds.push(key.replace('provider-', ''));
-        } else if (!isNaN(parseInt(key))) {
-            // Direct account selection
-            ids.push(parseInt(key));
+watch(
+    () => selectedKeys.value,
+    (newSelection) => {
+        if (!newSelection) {
+            selectedAccountIds.value = []
+            return
         }
-    });
-    
-    // Add all accounts from selected providers
-    if (providerIds.length > 0 && accounts.value) {
-        accounts.value.forEach(provider => {
-            if (providerIds.includes(provider.id.toString())) {
-                provider.accounts.forEach(account => {
-                    if (!ids.includes(account.id)) {
-                        ids.push(account.id);
-                    }
-                });
+
+        const ids = []
+        const providerIds = []
+
+        // Process selected keys
+        Object.keys(newSelection).forEach((key) => {
+            if (key.startsWith('provider-')) {
+                // Store provider ID for later processing
+                providerIds.push(key.replace('provider-', ''))
+            } else if (!isNaN(parseInt(key))) {
+                // Direct account selection
+                ids.push(parseInt(key))
             }
-        });
-    }
-    
-    selectedAccountIds.value = ids;
-    
-    // Trigger refetch when selection changes
-    if (ids.length > 0) {
-        refetch();
-    }
-}, { deep: true });
+        })
+
+        // Add all accounts from selected providers
+        if (providerIds.length > 0 && accounts.value) {
+            accounts.value.forEach((provider) => {
+                if (providerIds.includes(provider.id.toString())) {
+                    provider.accounts.forEach((account) => {
+                        if (!ids.includes(account.id)) {
+                            ids.push(account.id)
+                        }
+                    })
+                }
+            })
+        }
+
+        selectedAccountIds.value = ids
+
+        // Trigger refetch when selection changes
+        if (ids.length > 0) {
+            refetch()
+        }
+    },
+    { deep: true }
+)
 
 // Clear selection handler
 const clearSelection = () => {
-    selectedKeys.value = {};
-    selectedAccountIds.value = [];
-    refetch();
-};
+    selectedKeys.value = {}
+    selectedAccountIds.value = []
+    refetch()
+}
 
 /* --- Menu Actions --- */
 const openNewEntryDialog = (type) => {
     isEditMode.value = false
     selectedEntry.value = null
-    
+
     // Handle IncomeExpense dialog for income and expense types
     if (type === 'income' || type === 'expense') {
         selectedEntry.value = { type }
@@ -176,7 +188,7 @@ const menuItems = ref([
 const openEditEntryDialog = (entry) => {
     isEditMode.value = true
     selectedEntry.value = entry
-    
+
     if (entry.type === 'expense' || entry.type === 'income') {
         // Use IncomeExpenseDialog for income and expense entries
         dialogs.incomeExpense.value = true
@@ -235,16 +247,16 @@ const getRowClass = (data) => ({
                         <div class="filter-section">
                             <div class="filter-header">
                                 <h3>Filter by Accounts</h3>
-                                <Button 
-                                    icon="pi pi-times" 
-                                    text 
-                                    size="small" 
-                                    @click="clearSelection" 
+                                <Button
+                                    icon="pi pi-times"
+                                    text
+                                    size="small"
+                                    @click="clearSelection"
                                     v-if="Object.keys(selectedKeys).length > 0"
                                     class="clear-button"
                                 />
                             </div>
-                            
+
                             <div class="tree-container">
                                 <Tree
                                     :value="accountsTree"
@@ -256,12 +268,14 @@ const getRowClass = (data) => ({
                                     class="w-full mb-3 account-tree"
                                 >
                                     <template #empty>
-                                        <div class="p-2" v-if="isAccountsLoading">Loading accounts...</div>
+                                        <div class="p-2" v-if="isAccountsLoading">
+                                            Loading accounts...
+                                        </div>
                                         <div class="p-2" v-else>No accounts found</div>
                                     </template>
                                 </Tree>
                             </div>
-                            
+
                             <div class="filter-actions">
                                 <span class="selected-count" v-if="selectedAccountIds.length > 0">
                                     {{ selectedAccountIds.length }} account(s) selected
@@ -317,7 +331,7 @@ const getRowClass = (data) => ({
                             paginator
                             style="width: 100%"
                             :rows="50"
-                            :rowsPerPageOptions="[5, 10, 20, 50]"
+                            :rowsPerPageOptions="[50, 100, 200]"
                             :rowClass="getRowClass"
                         >
                             <Column header="" style="width: 40px">
@@ -334,7 +348,8 @@ const getRowClass = (data) => ({
                             <Column header="Account">
                                 <template #body="{ data }">
                                     <span v-if="data.type === 'transfer'">
-                                        {{ data.originAccountName }}<i
+                                        {{ data.originAccountName
+                                        }}<i
                                             class="pi pi-arrow-right"
                                             style="font-size: 0.9rem; margin: 0 8px"
                                         />{{ data.targetAccountName }}
@@ -441,9 +456,9 @@ const getRowClass = (data) => ({
             <Placeholder :width="'100%'" :height="30" :color="12">Footer</Placeholder>
         </template>
     </VerticalLayout>
-    
+
     <!-- Dialog Components -->
-    <IncomeExpenseDialog 
+    <IncomeExpenseDialog
         v-model:visible="dialogs.incomeExpense.value"
         :is-edit="isEditMode"
         :entry-type="selectedEntry?.type"
@@ -454,8 +469,8 @@ const getRowClass = (data) => ({
         :date="selectedEntry?.date ? new Date(selectedEntry.date) : new Date()"
         :entry-id="selectedEntry?.id"
     />
-    
-    <TransferDialog 
+
+    <TransferDialog
         v-model:visible="dialogs.transfer.value"
         :is-edit="isEditMode"
         :entry-id="selectedEntry?.id"
@@ -468,8 +483,8 @@ const getRowClass = (data) => ({
         :target-account-id="selectedEntry?.targetAccountId"
         :origin-account-id="selectedEntry?.originAccountId"
     />
-    
-    <StockDialog 
+
+    <StockDialog
         v-model:visible="dialogs.stock.value"
         :is-edit="isEditMode"
         :entry-id="selectedEntry?.id"
@@ -480,7 +495,7 @@ const getRowClass = (data) => ({
         :type="selectedEntry?.type"
         :target-account-id="selectedEntry?.targetAccountId"
     />
-    
+
     <!-- Delete Confirmation Dialog -->
     <DeleteDialog
         v-model:visible="deleteDialogVisible"

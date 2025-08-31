@@ -31,8 +31,8 @@ const props = defineProps({
 
 // Convert numeric targetAccountId to {id: true} format for form validation
 const getFormattedAccountId = (accountId) => {
-    if (accountId === null || accountId === undefined) return null;
-    return { [accountId]: true };
+    if (accountId === null || accountId === undefined) return null
+    return { [accountId]: true }
 }
 
 const formValues = ref({
@@ -50,20 +50,20 @@ watch(props, (newProps) => {
 
 // Helper function to extract numeric ID from {id: true} object
 const extractAccountId = (formValue) => {
-    if (!formValue) return null;
-    
+    if (!formValue) return null
+
     // Handle numeric ID (for backwards compatibility)
-    if (typeof formValue === 'number') return formValue;
-    
+    if (typeof formValue === 'number') return formValue
+
     // Handle {id: true} format
     if (typeof formValue === 'object') {
-        const keys = Object.keys(formValue);
+        const keys = Object.keys(formValue)
         if (keys.length > 0) {
-            return parseInt(keys[0], 10);
+            return parseInt(keys[0], 10)
         }
     }
-    
-    return null;
+
+    return null
 }
 
 // Track if selected account is of type stocks
@@ -71,7 +71,7 @@ const selectedAccount = ref(null)
 
 // Direct handler for account selection changes
 const handleAccountSelection = (accountObject) => {
-    updateSelectedAccount(accountObject);
+    updateSelectedAccount(accountObject)
 }
 
 // Function to update selected account
@@ -82,31 +82,35 @@ const updateSelectedAccount = (accountObject) => {
     }
 
     // Find the account in the accounts structure
-    const accountId = extractAccountId(accountObject);
-    
+    const accountId = extractAccountId(accountObject)
+
     if (isNaN(accountId) || accountId === null) {
         selectedAccount.value = null
         return
     }
-    
+
     // Search through all providers and their accounts
     let found = null
     if (accounts.value) {
         for (const provider of accounts.value) {
-            found = provider.accounts.find(acc => acc.id === accountId)
+            found = provider.accounts.find((acc) => acc.id === accountId)
             if (found) {
                 break
             }
         }
     }
-    
+
     selectedAccount.value = found
 }
 
 // Also keep the watch for reactive updates, with immediate flag
-watch(() => formValues.value.targetAccountId, (newValue) => {
-    updateSelectedAccount(newValue);
-}, { immediate: true })
+watch(
+    () => formValues.value.targetAccountId,
+    (newValue) => {
+        updateSelectedAccount(newValue)
+    },
+    { immediate: true }
+)
 
 // Check if selected account is of type "stocks"
 const isStocksAccount = computed(() => {
@@ -118,10 +122,7 @@ const resolver = computed(() => {
     // Account validation - handles {id: true} format from AccountSelector
     const accountValidation = z
         .union([z.null(), z.record(z.boolean())])
-        .refine(
-            (obj) => obj !== null,
-            { message: 'Account must be selected' }
-        )
+        .refine((obj) => obj !== null, { message: 'Account must be selected' })
 
     // Base schema for income and expense entry types
     const baseSchema = {
@@ -133,7 +134,9 @@ const resolver = computed(() => {
 
     // Add stockAmount to schema if selected account is of type stocks
     if (isStocksAccount.value) {
-        baseSchema.stockAmount = z.number().min(0.01, { message: 'Stock amount must be greater than 0' })
+        baseSchema.stockAmount = z
+            .number()
+            .min(0.01, { message: 'Stock amount must be greater than 0' })
     }
 
     return zodResolver(z.object(baseSchema))
@@ -207,10 +210,10 @@ const emit = defineEmits(['update:visible'])
                 <!-- Account field -->
                 <div>
                     <label for="targetAccountId" class="form-label">Account</label>
-                    <AccountSelector 
-                        v-model="formValues.targetAccountId" 
+                    <AccountSelector
+                        v-model="formValues.targetAccountId"
                         name="targetAccountId"
-                        @update:modelValue="handleAccountSelection" 
+                        @update:modelValue="handleAccountSelection"
                         :accountTypes="['cash']"
                     />
                     <Message v-if="$form.targetAccountId?.invalid" severity="error" size="small">
@@ -249,11 +252,11 @@ const emit = defineEmits(['update:visible'])
                 <!-- Date Field -->
                 <div>
                     <label for="date" class="form-label">Date</label>
-                    <DatePicker 
-                        id="date" 
-                        name="date" 
-                        :showIcon="true" 
-                        dateFormat="dd/mm/yy" 
+                    <DatePicker
+                        id="date"
+                        name="date"
+                        :showIcon="true"
+                        dateFormat="dd/mm/yy"
                         :showButtonBar="true"
                     />
                     <Message v-if="$form.date?.invalid" severity="error" size="small">

@@ -1,7 +1,9 @@
 package config
 
 import (
+	"fmt"
 	"github.com/go-bumbu/config"
+	"github.com/gorilla/securecookie"
 	"strconv"
 )
 
@@ -31,10 +33,12 @@ func (c serverCfg) Addr() string {
 }
 
 type authConfig struct {
-	SessionPath string
-	HashKey     string
-	BlockKey    string
-	UserStore   userStore
+	SessionPath   string
+	HashKeyBytes  []byte
+	BlockKeyBytes []byte
+	HashKey       string
+	BlockKey      string
+	UserStore     userStore
 }
 
 type userStore struct {
@@ -106,5 +110,25 @@ func Get(file string) (AppCfg, error) {
 		}},
 	)
 	cfg.Msgs = configMsg
-	return cfg, err
+	if err != nil {
+		return cfg, err
+	}
+
+	// handle auth cookie hash
+	if cfg.Auth.HashKey == "" || cfg.Auth.BlockKey == "" {
+		cfg.Auth.HashKeyBytes = securecookie.GenerateRandomKey(64)
+		cfg.Auth.BlockKeyBytes = securecookie.GenerateRandomKey(32)
+	}
+
+	if len(cfg.Auth.HashKey) != 64 {
+		return cfg, fmt.Errorf("hashkey must be 64 chars long")
+	}
+	if len(cfg.Auth.BlockKey) != 32 {
+		return cfg, fmt.Errorf("blockKey must be 32 chars long")
+	}
+
+	cfg.Auth.HashKeyBytes = []byte(cfg.Auth.HashKey)
+	cfg.Auth.BlockKeyBytes = []byte(cfg.Auth.BlockKey)
+
+	return cfg, nil
 }

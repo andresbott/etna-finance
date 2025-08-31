@@ -1,5 +1,5 @@
-<script setup>
-import { ref, onMounted } from 'vue'
+<script setup lang="ts">
+import { ref, computed } from 'vue'
 import { VerticalLayout, HorizontalLayout, Placeholder } from '@go-bumbu/vue-components/layout'
 import '@go-bumbu/vue-components/layout.css'
 import TopBar from '@/views/topbar.vue'
@@ -10,67 +10,175 @@ import InputText from 'primevue/inputtext'
 import Dialog from 'primevue/dialog'
 import TabView from 'primevue/tabview'
 import TabPanel from 'primevue/tabpanel'
+import TreeTable from 'primevue/treetable'
+import ConfirmDialog from '@/components/common/confirmDialog.vue'
+import { useCategories } from '@/composables/useCategories'
+import { buildTreeForTable } from '@/utils/convertToTree'
+import { UpdateIncomeCategoryDTO } from '@/types/category'
+
+const {
+    incomeCategories,
+    createIncomeCategory,
+    updateIncomeMutation,
+    deleteIncomeMutation,
+    expenseCategories,
+    createExpenseMutation,
+    updateExpenseMutation,
+    deleteExpenseMutation,
+} = useCategories()
+
+// compute the tree data
+const IncomeTreeData = computed(() => {
+    if (!incomeCategories.data) return []
+    return buildTreeForTable(incomeCategories.data.value)
+})
+
+const ExpenseTreeData = computed(() => {
+    if (!expenseCategories.data) return []
+    return buildTreeForTable(expenseCategories.data.value)
+})
 
 const categories = ref([])
 const loading = ref(false)
-const expenseDialogVisible = ref(false)
-const incomeDialogVisible = ref(false)
-const newExpenseCategory = ref({ name: '', description: '' })
-const newIncomeCategory = ref({ name: '', description: '' })
 
-const fetchCategories = async () => {
-    loading.value = true
-    try {
-        // TODO: Replace with actual API call
-        categories.value = [
-            { id: 1, name: 'Food', description: 'Food and dining expenses', type: 'expense' },
-            { id: 2, name: 'Transportation', description: 'Transportation costs', type: 'expense' },
-            { id: 3, name: 'Entertainment', description: 'Entertainment expenses', type: 'expense' }
-        ]
-    } catch (error) {
-        console.error('Failed to fetch categories:', error)
-    } finally {
-        loading.value = false
+
+/* --- Create and Edit Category--- */
+const categoryDialogVisible = ref(false)
+const categoryData = ref({ name: '', description: '', parentId: null })
+const resetCategoryData = () => {
+    categoryData.value = {  name: '', description: '', parentId: null };
+};
+
+// handle click Add/edit button click
+const handleAddEditIncome = (item, action, type) => {
+    if (action === 'add') {
+        if (item != null) {
+            categoryData.value.parentId = item.id
+        }
+        categoryData.value.action = 'add'
+    } else if (action === 'edit') {
+        categoryData.value.id = item.id
+        categoryData.value.name = item.name
+        categoryData.value.description = item.description
+        categoryData.value.action = 'edit'
+    }
+    categoryData.value.type = type
+    console.log('categoryData', categoryData.value)
+    categoryDialogVisible.value = true
+}
+
+// submit handler
+const saveCategory = () => {
+    if (!categoryData.value.name) return
+
+    console.log(categoryData.value)
+    // CREATE
+    if (categoryData.value.action === 'add') {
+        const dto: CreateIncomeCategoryDTO = {
+            name: categoryData.value.name,
+            description: categoryData.value.description || undefined,
+            parentId: categoryData.value.parentId || undefined
+        }
+
+        if (categoryData.value.type === 'income') {
+            createIncomeCategory.mutate(dto, {
+                onSuccess: () => {
+                    categoryDialogVisible.value = false
+
+                },
+                onError: (err) => console.error('Failed to add income category', err),
+                onSettled: () => {
+                    resetCategoryData();
+                },
+            })
+        }else if (categoryData.value.type === 'expense') {
+            createExpenseMutation.mutate(dto, {
+                onSuccess: () => {
+                    categoryDialogVisible.value = false
+                    categoryData.value = ref({ name: '', description: '', parentId: null })
+                },
+                onError: (err) => console.error('Failed to add income category', err),
+                onSettled: () => {
+                    resetCategoryData();
+                },
+            })
+        }
+    }
+
+    // UPDATE
+    if (categoryData.value.action === 'edit') {
+        const dto: UpdateIncomeCategoryDTO = {
+            name: categoryData.value.name,
+            description: categoryData.value.description || undefined
+        }
+
+        if (categoryData.value.type === 'income') {
+            updateIncomeMutation.mutate(
+                { id: categoryData.value.id, payload: dto },
+                {
+                    onSuccess: () => {
+                        categoryDialogVisible.value = false
+                    },
+                    onError: (err) => console.error('Failed to add income category', err),
+                    onSettled: () => {
+                        resetCategoryData();
+                    },
+                }
+            )
+        }else if (categoryData.value.type === 'expense') {
+            updateExpenseMutation.mutate(
+                { id: categoryData.value.id, payload: dto },
+                {
+                    onSuccess: () => {
+                        categoryDialogVisible.value = false
+                    },
+                    onError: (err) => console.error('Failed to add income category', err),
+                    onSettled: () => {
+                        resetCategoryData();
+                    },
+                }
+            )
+        }
     }
 }
 
-const saveExpenseCategory = async () => {
-    try {
-        // TODO: Replace with actual API call
-        const newId = Math.max(...categories.value.map((c) => c.id)) + 1
-        categories.value.push({
-            id: newId,
-            name: newExpenseCategory.value.name,
-            description: newExpenseCategory.value.description,
-            type: 'expense'
+/* --- Delete Category --- */
+const confirmDeleteDialog = ref(false)
+const selectedItem = ref(null)
+// handle click on delete icon
+const confirmDelete = (item, type) => {
+    selectedItem.value = item
+    selectedItem.value.type = type
+    confirmDeleteDialog.value = true
+}
+// handle click ok on confirm delete
+const deleteCategory = () => {
+    if (selectedItem.value === null) return
+    if (selectedItem.value.type === 'income') {
+
+        deleteIncomeMutation.mutate(selectedItem.value.id, {
+            onSuccess: () => {
+                confirmDeleteDialog.value = false
+                selectedItem.value = null
+            },
+            onError: (err) => {
+                console.error('Failed to delete category:', err)
+            }
         })
-        expenseDialogVisible.value = false
-        newExpenseCategory.value = { name: '', description: '' }
-    } catch (error) {
-        console.error('Failed to add expense category:', error)
-    }
-}
-
-const saveIncomeCategory = async () => {
-    try {
-        // TODO: Replace with actual API call
-        const newId = Math.max(...categories.value.map((c) => c.id)) + 1
-        categories.value.push({
-            id: newId,
-            name: newIncomeCategory.value.name,
-            description: newIncomeCategory.value.description,
-            type: 'income'
+    }else if (selectedItem.value.type === 'expense') {
+        deleteExpenseMutation.mutate(selectedItem.value.id, {
+            onSuccess: () => {
+                confirmDeleteDialog.value = false
+                selectedItem.value = null
+            },
+            onError: (err) => {
+                console.error('Failed to delete category:', err)
+            }
         })
-        incomeDialogVisible.value = false
-        newIncomeCategory.value = { name: '', description: '' }
-    } catch (error) {
-        console.error('Failed to add income category:', error)
     }
-}
 
-onMounted(() => {
-    fetchCategories()
-})
+
+}
 </script>
 
 <template>
@@ -88,31 +196,53 @@ onMounted(() => {
                     <Placeholder :width="'960px'" :height="'auto'">
                         <div class="categories-view">
                             <h1>Categories</h1>
-
                             <TabView>
                                 <TabPanel header="Expense Categories">
-                                    <div class="tab-header">
-                                        <Button
-                                            label="Add Expense Category"
-                                            icon="pi pi-plus"
-                                            @click="expenseDialogVisible = true"
-                                        />
-                                    </div>
-                                    <DataTable
-                                        :value="categories.filter((c) => c.type === 'expense')"
-                                        :loading="loading"
-                                        stripedRows
-                                        class="p-datatable-sm"
-                                    >
-                                        <Column field="name" header="Name" sortable />
-                                        <Column field="description" header="Description" sortable />
-                                        <Column header="Actions" style="width: 100px">
-                                            <template #body="{ data }">
+                                    <TreeTable :value="ExpenseTreeData">
+                                        <Column field="name" header="Name" expander></Column>
+                                        <Column field="description" header="Description"></Column>
+                                        <Column>
+                                            <template #header>
+                                                <div
+                                                    style="
+                                                        display: flex;
+                                                        align-items: center;
+                                                        justify-content: space-between;
+                                                    "
+                                                >
+                                                    <Button
+                                                        label="Add new parent category"
+                                                        icon="pi pi-plus"
+                                                        @click="handleAddEditIncome(null, 'add', 'expense')"
+                                                    />
+                                                </div>
+                                            </template>
+                                            <template #body="slotProps">
                                                 <div class="actions">
+                                                    <Button
+                                                        icon="pi pi-plus"
+                                                        text
+                                                        rounded
+                                                        @click="
+                                                            handleAddEditIncome(
+                                                                slotProps.node.data,
+                                                                'add',
+                                                                'expense'
+                                                            )
+                                                        "
+                                                        class="action-button"
+                                                    />
                                                     <Button
                                                         icon="pi pi-pencil"
                                                         text
                                                         rounded
+                                                        @click="
+                                                            handleAddEditIncome(
+                                                                slotProps.node.data,
+                                                                'edit',
+                                                                'expense'
+                                                            )
+                                                        "
                                                         class="action-button"
                                                     />
                                                     <Button
@@ -120,36 +250,60 @@ onMounted(() => {
                                                         text
                                                         rounded
                                                         severity="danger"
+                                                        @click="confirmDelete(slotProps.node.data,'expense')"
                                                         class="action-button"
                                                     />
                                                 </div>
                                             </template>
                                         </Column>
-                                    </DataTable>
+                                    </TreeTable>
                                 </TabPanel>
                                 <TabPanel header="Income Categories">
-                                    <div class="tab-header">
-                                        <Button
-                                            label="Add Income Category"
-                                            icon="pi pi-plus"
-                                            @click="incomeDialogVisible = true"
-                                        />
-                                    </div>
-                                    <DataTable
-                                        :value="categories.filter((c) => c.type === 'income')"
-                                        :loading="loading"
-                                        stripedRows
-                                        class="p-datatable-sm"
-                                    >
-                                        <Column field="name" header="Name" sortable />
-                                        <Column field="description" header="Description" sortable />
-                                        <Column header="Actions" style="width: 100px">
-                                            <template #body="{ data }">
+                                    <TreeTable :value="IncomeTreeData">
+                                        <Column field="name" header="Name" expander></Column>
+                                        <Column field="description" header="Description"></Column>
+                                        <Column>
+                                            <template #header>
+                                                <div
+                                                    style="
+                                                        display: flex;
+                                                        align-items: center;
+                                                        justify-content: space-between;
+                                                    "
+                                                >
+                                                    <Button
+                                                        label="Add new parent category"
+                                                        icon="pi pi-plus"
+                                                        @click="handleAddEditIncome(null, 'add','income')"
+                                                    />
+                                                </div>
+                                            </template>
+                                            <template #body="slotProps">
                                                 <div class="actions">
+                                                    <Button
+                                                        icon="pi pi-plus"
+                                                        text
+                                                        rounded
+                                                        @click="
+                                                            handleAddEditIncome(
+                                                                slotProps.node.data,
+                                                                'add',
+                                                                'income'
+                                                            )
+                                                        "
+                                                        class="action-button"
+                                                    />
                                                     <Button
                                                         icon="pi pi-pencil"
                                                         text
                                                         rounded
+                                                        @click="
+                                                            handleAddEditIncome(
+                                                                slotProps.node.data,
+                                                                'edit',
+                                                                'income'
+                                                            )
+                                                        "
                                                         class="action-button"
                                                     />
                                                     <Button
@@ -157,90 +311,62 @@ onMounted(() => {
                                                         text
                                                         rounded
                                                         severity="danger"
+                                                        @click="confirmDelete(slotProps.node.data,'income')"
                                                         class="action-button"
                                                     />
                                                 </div>
                                             </template>
                                         </Column>
-                                    </DataTable>
+                                    </TreeTable>
                                 </TabPanel>
                             </TabView>
 
-                            <!-- Expense Category Dialog -->
+                            <!-- Category Dialog -->
                             <Dialog
-                                v-model:visible="expenseDialogVisible"
+                                v-model:visible="categoryDialogVisible"
                                 modal
-                                header="Add New Expense Category"
-                                :style="{ width: '450px' }"
-                            >
-                                <div class="p-fluid">
-                                    <div class="field">
-                                        <label for="expense-name">Name</label>
-                                        <InputText
-                                            id="expense-name"
-                                            v-model="newExpenseCategory.name"
-                                        />
-                                    </div>
-                                    <div class="field">
-                                        <label for="expense-description">Description</label>
-                                        <InputText
-                                            id="expense-description"
-                                            v-model="newExpenseCategory.description"
-                                        />
-                                    </div>
-                                </div>
-                                <template #footer>
-                                    <Button
-                                        label="Cancel"
-                                        icon="pi pi-times"
-                                        text
-                                        @click="expenseDialogVisible = false"
-                                    />
-                                    <Button
-                                        label="Save"
-                                        icon="pi pi-check"
-                                        @click="saveExpenseCategory"
-                                    />
-                                </template>
-                            </Dialog>
-
-                            <!-- Income Category Dialog -->
-                            <Dialog
-                                v-model:visible="incomeDialogVisible"
-                                modal
-                                header="Add New Income Category"
-                                :style="{ width: '450px' }"
+                                :closable="true"
+                                :draggable="false"
+                                @hide="resetCategoryData"
+                                header="Income Category"
                             >
                                 <div class="p-fluid">
                                     <div class="field">
                                         <label for="income-name">Name</label>
-                                        <InputText
-                                            id="income-name"
-                                            v-model="newIncomeCategory.name"
-                                        />
+                                        <InputText id="income-name" v-model="categoryData.name" />
                                     </div>
                                     <div class="field">
                                         <label for="income-description">Description</label>
                                         <InputText
                                             id="income-description"
-                                            v-model="newIncomeCategory.description"
+                                            v-model="categoryData.description"
                                         />
                                     </div>
                                 </div>
                                 <template #footer>
                                     <Button
+                                        label="Save"
+                                        icon="pi pi-check"
+                                        @click="saveCategory"
+                                    />
+                                    <Button
                                         label="Cancel"
                                         icon="pi pi-times"
                                         text
-                                        @click="incomeDialogVisible = false"
-                                    />
-                                    <Button
-                                        label="Save"
-                                        icon="pi pi-check"
-                                        @click="saveIncomeCategory"
+                                        @click="categoryDialogVisible = false"
                                     />
                                 </template>
                             </Dialog>
+
+                            <!-- Confirm Dialog -->
+                            <ConfirmDialog
+                                v-if="selectedItem"
+                                v-model:visible="confirmDeleteDialog"
+                                :name="selectedItem.name"
+                                title="Delete Category"
+                                message="Are you sure you want to delete this category?"
+                                :onConfirm="deleteCategory"
+                            />
                         </div>
                     </Placeholder>
                 </template>

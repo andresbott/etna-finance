@@ -29,6 +29,9 @@ func (h *MainAppHandler) attachApiV0(r *mux.Router) error {
 
 const finProviderPath = "/fin/provider"
 const finAccountPath = "/fin/account"
+const finEntries = "/fin/entries"
+const finCategoryIncome = "/fin/category/income"
+const finCategoryExpense = "/fin/category/expense"
 
 // this api surface is quite inconsistent, I know....
 // I haven't put too much thought into it for now and I will change it in the future
@@ -140,12 +143,123 @@ func (h *MainAppHandler) financeApi(r *mux.Router) error {
 
 		finHndlr.DeleteAccount(itemId, userData.UserId).ServeHTTP(w, r)
 	})
+	// ==========================================================================
+	// Entry Category
+	// ==========================================================================
+
+	catHandler := finHandler.CategoryHandler{Store: fineStore}
+
+	// list income categories
+	r.Path(finCategoryIncome).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userData, err := sessionauth.CtxGetUserData(r)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		catHandler.ListIncome(0, userData.UserId).ServeHTTP(w, r)
+	})
+
+	// create income categories
+	r.Path(finCategoryIncome).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userData, err := sessionauth.CtxGetUserData(r)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		catHandler.CreateIncome(userData.UserId).ServeHTTP(w, r)
+	})
+
+	// Update income categories
+	r.Path(fmt.Sprintf("%s/{ID}", finCategoryIncome)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userData, err := sessionauth.CtxGetUserData(r)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		catHandler.UpdateIncome(itemId, userData.UserId).ServeHTTP(w, r)
+	})
+	// TODO Move exposed as API yet
+
+	// delete income category
+	r.Path(fmt.Sprintf("%s/{ID}", finCategoryIncome)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userData, err := sessionauth.CtxGetUserData(r)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		catHandler.DeleteIncome(itemId, userData.UserId).ServeHTTP(w, r)
+	})
+
+	// list expense categories
+	r.Path(finCategoryExpense).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userData, err := sessionauth.CtxGetUserData(r)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		catHandler.ListExpense(0, userData.UserId).ServeHTTP(w, r)
+	})
+
+	// create expense categories
+	r.Path(finCategoryExpense).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userData, err := sessionauth.CtxGetUserData(r)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		catHandler.CreateExpense(userData.UserId).ServeHTTP(w, r)
+	})
+
+	// Update expense categories
+	r.Path(fmt.Sprintf("%s/{ID}", finCategoryExpense)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userData, err := sessionauth.CtxGetUserData(r)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		catHandler.UpdateExpense(itemId, userData.UserId).ServeHTTP(w, r)
+	})
+	// TODO Move exposed as API yet
+
+	// delete expense category
+	r.Path(fmt.Sprintf("%s/{ID}", finCategoryExpense)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userData, err := sessionauth.CtxGetUserData(r)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		catHandler.DeleteExpense(itemId, userData.UserId).ServeHTTP(w, r)
+	})
 
 	// ==========================================================================
 	// Entries
 	// ==========================================================================
 
-	r.Path("/fin/entries").Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Path(finEntries).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userData, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
@@ -154,7 +268,7 @@ func (h *MainAppHandler) financeApi(r *mux.Router) error {
 		finHndlr.ListEntries(userData.UserId).ServeHTTP(w, r)
 	})
 
-	r.Path("/fin/entries").Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Path(finEntries).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userData, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
@@ -163,7 +277,7 @@ func (h *MainAppHandler) financeApi(r *mux.Router) error {
 		finHndlr.CreateEntry(userData.UserId).ServeHTTP(w, r)
 	})
 
-	r.Path("/fin/entries/{ID}").Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Path(fmt.Sprintf("%s/{ID}", finEntries)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userData, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
@@ -179,7 +293,7 @@ func (h *MainAppHandler) financeApi(r *mux.Router) error {
 		finHndlr.UpdateEntry(itemId, userData.UserId).ServeHTTP(w, r)
 	})
 
-	r.Path("/fin/entries/{ID}").Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Path(fmt.Sprintf("%s/{ID}", finEntries)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userData, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
@@ -195,7 +309,7 @@ func (h *MainAppHandler) financeApi(r *mux.Router) error {
 		finHndlr.DeleteEntry(itemId, userData.UserId).ServeHTTP(w, r)
 	})
 
-	r.Path("/fin/entries/lock").Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Path(fmt.Sprintf("%s/lock", finEntries)).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userData, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)

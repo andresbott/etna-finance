@@ -56,24 +56,29 @@ const selectedTreeNode = ref(null)
 const accountsTree = computed(() => {
     if (!accounts.value) return []
 
-    return accounts.value.map((provider) => {
-        // Filter accounts by type if accountTypes array is not empty
-        const filteredAccounts = props.accountTypes.length > 0
-            ? provider.accounts.filter(account => props.accountTypes.includes(account.type))
-            : provider.accounts
+    return accounts.value
+        .map((provider) => {
+            // Filter accounts by type if accountTypes array is not empty
+            const filteredAccounts =
+                props.accountTypes.length > 0
+                    ? provider.accounts.filter((account) =>
+                          props.accountTypes.includes(account.type)
+                      )
+                    : provider.accounts
 
-        return {
-            key: `provider-${provider.id}`,
-            label: provider.name,
-            selectable: false,
-            children: filteredAccounts.map((account) => ({
-                key: account.id,
-                label: `${account.name} (${account.currency})`,
-                provider: provider.name,
-                data: account
-            }))
-        }
-    }).filter(provider => provider.children.length > 0) // Only include providers that have accounts after filtering
+            return {
+                key: `provider-${provider.id}`,
+                label: provider.name,
+                selectable: false,
+                children: filteredAccounts.map((account) => ({
+                    key: account.id,
+                    label: `${account.name} (${account.currency})`,
+                    provider: provider.name,
+                    data: account
+                }))
+            }
+        })
+        .filter((provider) => provider.children.length > 0) // Only include providers that have accounts after filtering
 })
 
 // Keep all provider nodes expanded by default
@@ -97,39 +102,39 @@ const formatSelectedLabel = (val) => {
     if (!val || (Array.isArray(val) && val.length === 0)) {
         return props.placeholder
     }
-    
+
     const node = unwrapNode(val)
     if (!node) return props.placeholder
-    
+
     // Handle both direct selection and object with provider/label
     if (node.provider && node.label) {
         return `${node.provider}/${node.label}`
     }
-    
+
     return props.placeholder
 }
 
 // Function to convert between the numeric ID and the {id: true} format
 const convertToFormFormat = (accountId) => {
-    if (accountId === null || accountId === undefined) return null;
-    return { [accountId]: true };
+    if (accountId === null || accountId === undefined) return null
+    return { [accountId]: true }
 }
 
 const extractIdFromFormFormat = (formValue) => {
-    if (!formValue) return null;
-    
+    if (!formValue) return null
+
     // Handle numeric ID
-    if (typeof formValue === 'number') return formValue;
-    
+    if (typeof formValue === 'number') return formValue
+
     // Handle {id: true} format
     if (typeof formValue === 'object') {
-        const keys = Object.keys(formValue);
+        const keys = Object.keys(formValue)
         if (keys.length > 0) {
-            return parseInt(keys[0], 10);
+            return parseInt(keys[0], 10)
         }
     }
-    
-    return null;
+
+    return null
 }
 
 // -----------------------------------------------------------------------------
@@ -140,51 +145,51 @@ watch(
     () => props.modelValue,
     (newValue) => {
         if (!accounts.value || newValue == null) {
-            selectedTreeNode.value = null;
-            return;
+            selectedTreeNode.value = null
+            return
         }
 
         // Extract the account ID from the model value (could be number or {id: true})
-        const accountId = extractIdFromFormFormat(newValue);
-        
+        const accountId = extractIdFromFormFormat(newValue)
+
         if (accountId === null) {
-            selectedTreeNode.value = null;
-            return;
+            selectedTreeNode.value = null
+            return
         }
 
         // Find the account that matches the ID and set it as selected
         for (const provider of accounts.value) {
             // Check if we should filter the accounts by type
             if (props.accountTypes.length > 0) {
-                const account = provider.accounts.find((acc) => 
-                    acc.id === accountId && props.accountTypes.includes(acc.type)
-                );
+                const account = provider.accounts.find(
+                    (acc) => acc.id === accountId && props.accountTypes.includes(acc.type)
+                )
                 if (account) {
                     selectedTreeNode.value = {
                         key: account.id,
                         label: `${account.name} (${account.currency})`,
                         provider: provider.name,
                         data: account
-                    };
-                    return;
+                    }
+                    return
                 }
             } else {
                 // No filtering, show all account types
-                const account = provider.accounts.find((acc) => acc.id === accountId);
+                const account = provider.accounts.find((acc) => acc.id === accountId)
                 if (account) {
                     selectedTreeNode.value = {
                         key: account.id,
                         label: `${account.name} (${account.currency})`,
                         provider: provider.name,
                         data: account
-                    };
-                    return;
+                    }
+                    return
                 }
             }
         }
 
         // Reset if account not found
-        selectedTreeNode.value = null;
+        selectedTreeNode.value = null
     },
     { immediate: true }
 )
@@ -193,52 +198,55 @@ watch(
 const handleSelectionChange = (val) => {
     // Check if clearing the selection
     if (!val) {
-        selectedTreeNode.value = null;
-        emit('update:modelValue', null);
-        return;
+        selectedTreeNode.value = null
+        emit('update:modelValue', null)
+        return
     }
-    
+
     // Handle both direct node selection and object selection
-    let accountId = null;
-    
+    let accountId = null
+
     if (val.key) {
         // Standard node selection containing a key property
-        selectedTreeNode.value = val;
-        accountId = val.key;
+        selectedTreeNode.value = val
+        accountId = val.key
     } else if (typeof val === 'object') {
         // We're getting a direct {id: true} object from TreeSelect
-        const keys = Object.keys(val);
+        const keys = Object.keys(val)
         if (keys.length > 0) {
-            accountId = parseInt(keys[0], 10);
-            
+            accountId = parseInt(keys[0], 10)
+
             // Find the corresponding node to update selectedTreeNode
             if (accounts.value) {
                 for (const provider of accounts.value) {
                     // Apply account type filtering if needed
-                    const accountsToSearch = props.accountTypes.length > 0
-                        ? provider.accounts.filter(acc => props.accountTypes.includes(acc.type))
-                        : provider.accounts;
-                    
-                    const account = accountsToSearch.find(acc => acc.id === accountId);
+                    const accountsToSearch =
+                        props.accountTypes.length > 0
+                            ? provider.accounts.filter((acc) =>
+                                  props.accountTypes.includes(acc.type)
+                              )
+                            : provider.accounts
+
+                    const account = accountsToSearch.find((acc) => acc.id === accountId)
                     if (account) {
                         selectedTreeNode.value = {
                             key: account.id,
                             label: `${account.name} (${account.currency})`,
                             provider: provider.name,
                             data: account
-                        };
-                        break;
+                        }
+                        break
                     }
                 }
             }
         }
     }
-    
+
     // Convert to {id: true} format for form validation
-    const formValue = convertToFormFormat(accountId);
-    
+    const formValue = convertToFormFormat(accountId)
+
     // Emit to parent
-    emit('update:modelValue', formValue);
+    emit('update:modelValue', formValue)
 }
 </script>
 

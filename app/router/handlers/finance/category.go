@@ -73,10 +73,16 @@ func (h *CategoryHandler) createCategory(userId, categoryType string) http.Handl
 			return
 		}
 
+		if payload.Name == "" {
+			http.Error(w, fmt.Sprintf("wrong payload: Name is empty"), http.StatusBadRequest)
+			return
+		}
+
 		switch categoryType {
 		case IncomeCategoryType:
 			category := &finance.IncomeCategory{
-				Name: payload.Name,
+				Name:        payload.Name,
+				Description: payload.Description,
 			}
 			err = h.Store.CreateIncomeCategory(r.Context(), category, payload.ParentId, userId)
 			if err != nil {
@@ -86,7 +92,8 @@ func (h *CategoryHandler) createCategory(userId, categoryType string) http.Handl
 
 		case ExpenseCategoryType:
 			category := &finance.ExpenseCategory{
-				Name: payload.Name,
+				Name:        payload.Name,
+				Description: payload.Description,
 			}
 			err = h.Store.CreateExpenseCategory(r.Context(), category, payload.ParentId, userId)
 			if err != nil {
@@ -148,12 +155,14 @@ func (h *CategoryHandler) updateCategory(Id uint, userId, categoryType string) h
 
 		if categoryType == IncomeCategoryType {
 			category := finance.IncomeCategory{
-				Name: payload.Name,
+				Name:        payload.Name,
+				Description: payload.Description,
 			}
 			err = h.Store.UpdateIncomeCategory(r.Context(), Id, category, userId)
 		} else {
 			category := finance.ExpenseCategory{
-				Name: payload.Name,
+				Name:        payload.Name,
+				Description: payload.Description,
 			}
 			err = h.Store.UpdateExpenseCategory(r.Context(), Id, category, userId)
 		}
@@ -278,6 +287,7 @@ func (h *CategoryHandler) ListExpense(Id uint, userId string) http.Handler {
 	return h.listCategory(Id, userId, ExpenseCategoryType)
 }
 
+// listCategory lists all categories of type categoryType belonging to user userId and parent id
 func (h *CategoryHandler) listCategory(Id uint, userId, categoryType string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if userId == "" {
@@ -308,7 +318,7 @@ func (h *CategoryHandler) listCategory(Id uint, userId, categoryType string) htt
 				outItems[i] = categoryPayload{
 					Id:          item.Id(),
 					Name:        item.Name,
-					Description: "",
+					Description: item.Description,
 					ParentId:    item.Parent(),
 				}
 			}
@@ -324,7 +334,7 @@ func (h *CategoryHandler) listCategory(Id uint, userId, categoryType string) htt
 				outItems[i] = categoryPayload{
 					Id:          item.Id(),
 					Name:        item.Name,
-					Description: "",
+					Description: item.Description,
 					ParentId:    item.Parent(),
 				}
 			}
@@ -341,6 +351,21 @@ func (h *CategoryHandler) listCategory(Id uint, userId, categoryType string) htt
 				http.Error(w, fmt.Sprintf("unable to delete category: %s", err.Error()), http.StatusInternalServerError)
 			}
 			return
+		}
+
+		if len(outItems) == 0 {
+			outItems = append(outItems, categoryPayload{
+				Id:          1,
+				ParentId:    0,
+				Name:        "First Parent",
+				Description: "This is  a sample parent",
+			})
+			outItems = append(outItems, categoryPayload{
+				Id:          2,
+				ParentId:    1,
+				Name:        "First Child",
+				Description: "This is  a sample child",
+			})
 		}
 
 		w.Header().Set("Content-Type", "application/json")

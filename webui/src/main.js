@@ -34,7 +34,7 @@ app.use(PrimeVue, {
         }
     },
     locale: {
-        firstDayOfWeek: 1,
+        firstDayOfWeek: 1
     }
 })
 

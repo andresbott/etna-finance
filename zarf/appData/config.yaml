@@ -1,0 +1,28 @@
+Server:
+  Port: 8085
+  BindIp: "localhost"
+
+Observability:
+  Port: 9090
+  BindIp: "localhost"
+
+Auth:
+  SessionPath:  "zarf/appData/session"
+  HashKey:      "He4wazahwo6oer0iuNg6chah1Phoh4Eimo7ku0boom8ia8joichieVei8aeNga2o"
+  BlockKey:     "ma6eiTeChie6moh3mei5nohth2uqu7ah"
+  UserStore:
+#    Type: file
+#    Path: "zarf/appData/users.yaml"
+    Type: static
+    Users:
+      - Name: "demo"
+        Pw: "demo"
+        Enabled: true
+      - Name: "admin"
+        Pw: "admin"
+        Enabled: true
+
+
+Env:
+  Loglevel: "info"
+  Production: false
