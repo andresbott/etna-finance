@@ -3,7 +3,6 @@ import { ref, computed } from 'vue'
 import { VerticalLayout, HorizontalLayout, Placeholder } from '@go-bumbu/vue-components/layout'
 import '@go-bumbu/vue-components/layout.css'
 import TopBar from '@/views/topbar.vue'
-import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
@@ -14,7 +13,8 @@ import TreeTable from 'primevue/treetable'
 import ConfirmDialog from '@/components/common/confirmDialog.vue'
 import { useCategories } from '@/composables/useCategories'
 import { buildTreeForTable } from '@/utils/convertToTree'
-import { UpdateIncomeCategoryDTO } from '@/types/category'
+import { CreateIncomeCategoryDTO, UpdateIncomeCategoryDTO } from '@/types/category'
+import { n } from 'vitest/dist/chunks/reporters.D7Jzd9GS'
 
 const {
     incomeCategories,
@@ -38,25 +38,35 @@ const ExpenseTreeData = computed(() => {
     return buildTreeForTable(expenseCategories.data.value)
 })
 
-const categories = ref([])
-const loading = ref(false)
 
+interface Category {
+    id: number | null
+    parentId?: number | null
+    name: string
+    description: string
+    type?: string
+    action?: string
+}
 
 /* --- Create and Edit Category--- */
 const categoryDialogVisible = ref(false)
-const categoryData = ref({ name: '', description: '', parentId: null })
+const categoryData = ref <Category>({ id:null,name: '', description: '', parentId: null })
 const resetCategoryData = () => {
-    categoryData.value = {  name: '', description: '', parentId: null };
+    categoryData.value = { id:null, name: '', description: '', parentId: null };
 };
 
 // handle click Add/edit button click
-const handleAddEditIncome = (item, action, type) => {
+const handleAddEditIncome = (item: Category |null, action: string, type: string) => {
     if (action === 'add') {
         if (item != null) {
             categoryData.value.parentId = item.id
         }
         categoryData.value.action = 'add'
     } else if (action === 'edit') {
+        if (item == null) {
+            console.error("Something went wrong, item cannot be null for edit actions")
+            return
+        }
         categoryData.value.id = item.id
         categoryData.value.name = item.name
         categoryData.value.description = item.description
@@ -84,7 +94,6 @@ const saveCategory = () => {
             createIncomeCategory.mutate(dto, {
                 onSuccess: () => {
                     categoryDialogVisible.value = false
-
                 },
                 onError: (err) => console.error('Failed to add income category', err),
                 onSettled: () => {
@@ -95,7 +104,6 @@ const saveCategory = () => {
             createExpenseMutation.mutate(dto, {
                 onSuccess: () => {
                     categoryDialogVisible.value = false
-                    categoryData.value = ref({ name: '', description: '', parentId: null })
                 },
                 onError: (err) => console.error('Failed to add income category', err),
                 onSettled: () => {
@@ -107,6 +115,10 @@ const saveCategory = () => {
 
     // UPDATE
     if (categoryData.value.action === 'edit') {
+        if (!categoryData.value.id) {
+            console.error("Something went wrong and id is null")
+            return
+        }
         const dto: UpdateIncomeCategoryDTO = {
             name: categoryData.value.name,
             description: categoryData.value.description || undefined
@@ -143,10 +155,17 @@ const saveCategory = () => {
 }
 
 /* --- Delete Category --- */
+
+interface SelectDeleteCategory {
+    id: number
+    name: string
+    type: string
+}
+
 const confirmDeleteDialog = ref(false)
-const selectedItem = ref(null)
+const selectedItem = ref<SelectDeleteCategory | null>(null)
 // handle click on delete icon
-const confirmDelete = (item, type) => {
+const confirmDelete = (item: SelectDeleteCategory, type: string) => {
     selectedItem.value = item
     selectedItem.value.type = type
     confirmDeleteDialog.value = true
@@ -176,8 +195,6 @@ const deleteCategory = () => {
             }
         })
     }
-
-
 }
 </script>
 
@@ -197,7 +214,7 @@ const deleteCategory = () => {
                         <div class="categories-view">
                             <h1>Categories</h1>
                             <TabView>
-                                <TabPanel header="Expense Categories">
+                                <TabPanel header="Expense Categories" :value="1">
                                     <TreeTable :value="ExpenseTreeData">
                                         <Column field="name" header="Name" expander></Column>
                                         <Column field="description" header="Description"></Column>
@@ -258,7 +275,7 @@ const deleteCategory = () => {
                                         </Column>
                                     </TreeTable>
                                 </TabPanel>
-                                <TabPanel header="Income Categories">
+                                <TabPanel header="Income Categories" :value="2">
                                     <TreeTable :value="IncomeTreeData">
                                         <Column field="name" header="Name" expander></Column>
                                         <Column field="description" header="Description"></Column>

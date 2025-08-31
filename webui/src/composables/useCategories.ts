@@ -1,15 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
 import {
-    getIncomeCategories,
-    createIncomeCategory,
+    GetIncomeCategories,
+    CreateIncomeCategory,
     deleteIncomeCategory,
-    updateIncomeCategory,
-    getExpenseCategories,
-    createExpenseCategory,
-    updateExpenseCategory,
-    deleteExpenseCategory,
-} from '@/lib/api/category'
-import type { CreateIncomeCategoryDTO, UpdateIncomeCategoryDTO } from '@/types/category'
+    UpdateIncomeCategory,
+    GetExpenseCategories,
+    CreateExpenseCategory,
+    UpdateExpenseCategory,
+    DeleteExpenseCategory,
+} from '@/lib/api/Category'
+import type { CreateIncomeCategoryDTO, UpdateIncomeCategoryDTO,CreateExpenseCategoryDTO,UpdateExpenseCategoryDTO } from '@/types/category'
 
 export function useCategories() {
     const queryClient = useQueryClient()
@@ -18,12 +18,12 @@ export function useCategories() {
 
     const incomeCategoriesQuery = useQuery({
         queryKey: ['incomeCategories'],
-        queryFn: getIncomeCategories
+        queryFn: GetIncomeCategories
     })
 
     // CREATE category
     const createIncomeMutation = useMutation({
-        mutationFn: (payload: CreateIncomeCategoryDTO) => createIncomeCategory(payload),
+        mutationFn: (payload: CreateIncomeCategoryDTO) => CreateIncomeCategory(payload),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['incomeCategories'] })
         }
@@ -34,10 +34,9 @@ export function useCategories() {
         id: number // or string, depending on your backend
         payload: UpdateIncomeCategoryDTO
     }
-
     const updateIncomeMutation = useMutation({
         mutationFn: ({ id, payload }: UpdateIncomeCategoryArgs) =>
-            updateIncomeCategory({ id: id, payload: payload }),
+            UpdateIncomeCategory({ id: id, payload: payload }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['incomeCategories'] })
         }
@@ -45,7 +44,7 @@ export function useCategories() {
 
     // DELETE category
     const deleteIncomeMutation = useMutation({
-        mutationFn: (id: string) => deleteIncomeCategory(id),
+        mutationFn: (id: number) => deleteIncomeCategory(id),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['incomeCategories'] })
         }
@@ -55,12 +54,12 @@ export function useCategories() {
 
     const expenseCategoryQuery = useQuery({
         queryKey: ['expenseCategory'],
-        queryFn: getExpenseCategories
+        queryFn: GetExpenseCategories
     })
 
     // CREATE category
     const createExpenseMutation = useMutation({
-        mutationFn: (payload: CreateExpenseCategoryDTO) => createExpenseCategory(payload),
+        mutationFn: (payload: CreateExpenseCategoryDTO) => CreateExpenseCategory(payload),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['expenseCategory'] })
         }
@@ -74,7 +73,7 @@ export function useCategories() {
 
     const updateExpenseMutation = useMutation({
         mutationFn: ({ id, payload }: UpdateExpenseCategoryArgs) =>
-            updateExpenseCategory({ id: id, payload: payload }),
+            UpdateExpenseCategory({ id: id, payload: payload }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['expenseCategory'] })
         }
@@ -82,7 +81,7 @@ export function useCategories() {
 
     // DELETE category
     const deleteExpenseMutation = useMutation({
-        mutationFn: (id: string) => deleteExpenseCategory(id),
+        mutationFn: (id: number) => DeleteExpenseCategory(id),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['expenseCategory'] })
         }

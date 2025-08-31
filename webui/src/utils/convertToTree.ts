@@ -28,7 +28,7 @@ export function buildTree(items: any[]) {
 
 // buildTreeForTable takes a flat list of items and returns a tree compatible with PrimeVue TreeTable
 // items must have 'id' and optional 'parentId'
-export function buildTreeForTable(items: any[]) {
+export function buildTreeForTable(items: any[]| undefined) {
     if (!items || items.length === 0) return []
 
     const map = new Map<number, any>()
