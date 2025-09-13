@@ -7,9 +7,14 @@ import {
     GetExpenseCategories,
     CreateExpenseCategory,
     UpdateExpenseCategory,
-    DeleteExpenseCategory,
+    DeleteExpenseCategory
 } from '@/lib/api/Category'
-import type { CreateIncomeCategoryDTO, UpdateIncomeCategoryDTO,CreateExpenseCategoryDTO,UpdateExpenseCategoryDTO } from '@/types/category'
+import type {
+    CreateIncomeCategoryDTO,
+    UpdateIncomeCategoryDTO,
+    CreateExpenseCategoryDTO,
+    UpdateExpenseCategoryDTO
+} from '@/types/category'
 
 export function useCategories() {
     const queryClient = useQueryClient()

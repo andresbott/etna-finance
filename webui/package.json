@@ -13,6 +13,7 @@
     "format": "prettier --write src/"
   },
   "dependencies": {
+    "@go-bumbu/vue-layouts": "^0.0.6",
     "@primevue/forms": "^4.2.4",
     "@primevue/themes": "^4.2.4",
     "@tanstack/vue-query": "^5.71.5",

@@ -27,7 +27,7 @@ interface UpdateIncomeCategoryArgs {
 export const UpdateIncomeCategory = async ({
     id,
     payload
-}:UpdateIncomeCategoryArgs): Promise<Category> => {
+}: UpdateIncomeCategoryArgs): Promise<Category> => {
     const { data } = await apiClient.put(`/fin/category/income/${id}`, payload)
     return data
 }
@@ -58,7 +58,7 @@ interface UpdateExpenseCategoryArgs {
 export const UpdateExpenseCategory = async ({
     id,
     payload
-}:UpdateExpenseCategoryArgs): Promise<ExpenseCategory> => {
+}: UpdateExpenseCategoryArgs): Promise<ExpenseCategory> => {
     const { data } = await apiClient.put(`/fin/category/expense/${id}`, payload)
     return data
 }
