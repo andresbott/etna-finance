@@ -245,7 +245,7 @@ func TestUpdateEntry(t *testing.T) {
 			updateID:      3,
 			updateTenant:  tenant1,
 			updatePayload: EntryUpdatePayload{Description: ptr("Updated Entry Description"), TargetAmount: ptr(float64(300))},
-			want: Entry{Description: "Updated Entry Description", TargetAmount: 300, Type: ExpenseEntry, Date: getTime("2025-01-03 00:00:00"),
+			want: Entry{Description: "Updated Entry Description", TargetAmount: 300, Type: IncomeEntry, Date: getTime("2025-01-03 00:00:00"),
 				TargetAccountID: 2},
 		},
 		{
@@ -285,7 +285,7 @@ func TestUpdateEntry(t *testing.T) {
 				t.Run(tc.name, func(t *testing.T) {
 					ctx := context.Background()
 
-					err = store.UpdateEntry(tc.updatePayload, tc.updateID, tc.updateTenant)
+					err = store.UpdateEntry(ctx, tc.updatePayload, tc.updateID, tc.updateTenant)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -329,7 +329,7 @@ func TestSearchEntries(t *testing.T) {
 		name      string
 		startDate time.Time
 		endDate   time.Time
-		accountID *uint
+		accountID []int
 		limit     int
 		page      int
 		tenant    string
@@ -355,15 +355,23 @@ func TestSearchEntries(t *testing.T) {
 			name:      "search with account ID filter",
 			startDate: getTime("2025-01-01 00:00:01"),
 			endDate:   getTime("2025-01-07 00:00:00"),
-			accountID: ptr(uint(2)),
+			accountID: []int{2},
 			tenant:    tenant1,
 			want:      []Entry{sampleEntries[4], sampleEntries[2]},
+		},
+		{
+			name:      "search with multiple account IDs filter",
+			startDate: getTime("2023-01-01 00:00:01"),
+			endDate:   getTime("2026-01-07 00:00:00"),
+			accountID: []int{4, 5},
+			tenant:    tenant1,
+			want:      []Entry{sampleEntries[11], sampleEntries[10]},
 		},
 		{
 			name:      "search with limit",
 			startDate: getTime("2025-01-01 00:00:01"),
 			endDate:   getTime("2025-01-09 00:00:00"),
-			accountID: ptr(uint(2)),
+			accountID: []int{2},
 			tenant:    tenant1,
 			limit:     2,
 			want:      []Entry{sampleEntries[7], sampleEntries[4]},
@@ -372,7 +380,7 @@ func TestSearchEntries(t *testing.T) {
 			name:      "search with limit and page",
 			startDate: getTime("2025-01-01 00:00:01"),
 			endDate:   getTime("2025-01-09 00:00:00"),
-			accountID: ptr(uint(2)),
+			accountID: []int{2},
 			tenant:    tenant1,
 			limit:     2,
 			page:      2,

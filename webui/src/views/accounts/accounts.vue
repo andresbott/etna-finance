@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { VerticalLayout, HorizontalLayout, Placeholder } from '@go-bumbu/vue-components/layout'
-import '@go-bumbu/vue-components/layout.css'
+import { VerticalLayout, HorizontalLayout, Placeholder } from '@go-bumbu/vue-layouts'
+import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
 
 import TopBar from '@/views/topbar.vue'
 import Column from 'primevue/column'
@@ -9,7 +9,7 @@ import Button from 'primevue/button'
 import TreeTable from 'primevue/treetable'
 
 import AccountDialog from '@/views/accounts/AccountDialog.vue'
-import DeleteDialog from '@/components/deleteDialog.vue'
+import DeleteDialog from '@/components/common/confirmDialog.vue'
 import AccountProviderDialog from './AccountProviderDialog.vue'
 
 import { useAccounts } from '@/composables/useAccounts.js'
@@ -124,96 +124,87 @@ const handleDeleteProvider = async () => {
         </template>
 
         <template #default>
-            <HorizontalLayout
-                :fullHeight="true"
-                :centerContent="true"
-                :verticalCenterContent="false"
-            >
-                <Placeholder :width="'960px'" :height="'auto'">
-                    <div class="accounts-view">
-                        <div class="header">
-                            <h1>Accounts</h1>
-                            <Button
-                                label="Add Account Provider"
-                                icon="pi pi-plus"
-                                @click="openNewProviderDialog"
-                            />
-                        </div>
+            <div class="main-app-content">
+                <div class="accounts-view">
+                    <div class="header">
+                        <h1>Accounts</h1>
+                        <Button
+                            label="Add Account Provider"
+                            icon="pi pi-plus"
+                            @click="openNewProviderDialog"
+                        />
+                    </div>
 
-                        <!-- 👇 Add this block -->
-                        <div v-if="!accounts || accounts.length === 0" class="info-message">
-                            No account providers available. Please add one to get started.
-                        </div>
+                    <div v-if="!accounts || accounts.length === 0" class="info-message">
+                        No account providers available. Please add one to get started.
+                    </div>
 
-                        <TreeTable
-                            v-else
-                            :value="treeTableData"
-                            :loading="isLoading"
-                            :expandedKeys="expandedKeys"
-                            class="p-treetable-sm"
-                        >
-                            <Column field="name" expander />
+                    <TreeTable
+                        v-else
+                        :value="treeTableData"
+                        :loading="isLoading"
+                        :expandedKeys="expandedKeys"
+                        class="p-treetable-sm"
+                    >
+                        <Column field="name" header="Name" expander />
 
-                            <Column field="description">
-                                <template #body="{ node }">
-                                    <div v-if="node.children">
-                                        <span>{{ node.data.description }}</span>
-                                    </div>
-                                    <div v-else>
-                                        <i>{{ node.data.type }}</i>
-                                    </div>
-                                </template>
-                            </Column>
+                        <Column field="description" header="Description"  >
+                            <template #body="{ node }">
+                                <div v-if="node.children">
+                                    <span>{{ node.data.description }}</span>
+                                </div>
+                                <div v-else>
+                                    <i>{{ node.data.type }}</i>
+                                </div>
+                            </template>
+                        </Column>
 
-                            <Column field="currency" />
+                        <Column field="currency" header="Currency" />
 
-                            <Column>
-                                <template #body="{ node }">
-                                    <div
-                                        class="actions"
-                                        :style="!node.children ? 'margin-left: 38px' : ''"
-                                    >
-                                        <Button
-                                            icon="pi pi-plus"
-                                            v-if="node.children"
-                                            text
-                                            rounded
-                                            class="action-button"
-                                            @click="addAccountToProvider(node)"
-                                        />
-                                        <Button
-                                            icon="pi pi-pencil"
-                                            text
-                                            rounded
-                                            class="action-button"
-                                            @click="
+                        <Column >
+
+                            <template #body="{ node }">
+                                <div class="actions" :class="{ 'childless': !node.children }">
+                                    <Button
+                                        icon="pi pi-plus"
+                                        v-if="node.children"
+                                        text
+                                        rounded
+                                        class="action-button"
+                                        @click="addAccountToProvider(node)"
+                                    />
+                                    <Button
+                                        icon="pi pi-pencil"
+                                        text
+                                        rounded
+                                        class="action-button"
+                                        @click="
                                                 node.children
                                                     ? editProvider(node.data)
                                                     : editAccount(node.data)
                                             "
-                                        />
-                                        <Button
-                                            icon="pi pi-trash"
-                                            text
-                                            rounded
-                                            severity="danger"
-                                            class="action-button"
-                                            :disabled="node.children && node.children.length > 0"
-                                            @click="
+                                    />
+                                    <Button
+                                        icon="pi pi-trash"
+                                        text
+                                        rounded
+                                        severity="danger"
+                                        class="action-button"
+                                        :disabled="node.children && node.children.length > 0"
+                                        @click="
                                                 node.children
                                                     ? showDeleteProviderDialog(node.data)
                                                     : showDeleteAccountDialog(node.data)
                                             "
-                                            tooltip="Delete"
-                                            tooltipOptions="{ position: 'top' }"
-                                        />
-                                    </div>
-                                </template>
-                            </Column>
-                        </TreeTable>
-                    </div>
-                </Placeholder>
-            </HorizontalLayout>
+                                        tooltip="Delete"
+                                        tooltipOptions="{ position: 'top' }"
+                                    />
+                                </div>
+                            </template>
+                        </Column>
+                    </TreeTable>
+                </div>
+            </div>
         </template>
 
         <template #footer>
@@ -259,6 +250,9 @@ const handleDeleteProvider = async () => {
 </template>
 
 <style scoped>
+
+
+
 .accounts-view {
     padding: 2rem;
 }
@@ -274,6 +268,20 @@ const handleDeleteProvider = async () => {
     display: flex;
     justify-content: flex-start;
 }
+
+.actions{
+    display: flex;
+    justify-content: flex-end;
+    gap: 4px;
+    width: 100%;
+}
+
+.actions.childless {
+    margin-left: 38px;         /* keeps the indentation */
+    width: calc(100% - 38px);  /* ensures full width minus the margin */
+}
+
+
 
 .action-button {
     padding: 0.25rem;

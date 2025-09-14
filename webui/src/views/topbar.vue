@@ -1,6 +1,5 @@
 <script setup>
-import { HorizontalLayout as HL } from '@go-bumbu/vue-components/layout'
-import '@go-bumbu/vue-components/layout.css'
+import { HorizontalLayout as HL } from '@go-bumbu/vue-layouts'
 
 import UserProfile from '@/lib/user/UserProfile.vue'
 import { useUserStore } from '@/lib/user/userstore.js'

@@ -18,15 +18,12 @@ import Divider from 'primevue/divider'
 const { createEntry, updateEntry, isCreating, isUpdating } = useEntries()
 const { accounts } = useAccounts()
 
-
 const props = defineProps({
     isEdit: { type: Boolean, default: false },
     entryId: { type: Number, default: null },
     description: { type: String, default: '' },
     targetAmount: { type: Number, default: 0 },
     originAmount: { type: Number, default: 0 },
-    targetStockAmount: { type: Number, default: 0 },
-    originStockAmount: { type: Number, default: 0 },
     date: { type: Date, default: () => new Date() },
     targetAccountId: { type: Number, default: null },
     originAccountId: { type: Number, default: null },
@@ -35,15 +32,13 @@ const props = defineProps({
 
 // Convert numeric accountId to {id: true} format for form validation
 const getFormattedAccountId = (accountId) => {
-    if (accountId === null || accountId === undefined) return null;
-    return { [accountId]: true };
+    if (accountId === null || accountId === undefined) return null
+    return { [accountId]: true }
 }
 
 const formValues = ref({
     targetAccountId: getFormattedAccountId(props.targetAccountId),
-    originAccountId: getFormattedAccountId(props.originAccountId),
-    targetStockAmount: props.targetStockAmount,
-    originStockAmount: props.originStockAmount
+    originAccountId: getFormattedAccountId(props.originAccountId)
 })
 
 // Watch props to update form values when editing
@@ -57,20 +52,20 @@ watch(props, (newProps) => {
 
 // Helper function to extract numeric ID from {id: true} object
 const extractAccountId = (formValue) => {
-    if (!formValue) return null;
-    
+    if (!formValue) return null
+
     // Handle numeric ID (for backwards compatibility)
-    if (typeof formValue === 'number') return formValue;
-    
+    if (typeof formValue === 'number') return formValue
+
     // Handle {id: true} format
     if (typeof formValue === 'object') {
-        const keys = Object.keys(formValue);
+        const keys = Object.keys(formValue)
         if (keys.length > 0) {
-            return parseInt(keys[0], 10);
+            return parseInt(keys[0], 10)
         }
     }
-    
-    return null;
+
+    return null
 }
 
 // Track selected accounts
@@ -84,24 +79,24 @@ const updateSelectedTargetAccount = (accountObject) => {
         return
     }
 
-    const accountId = extractAccountId(accountObject);
-    
+    const accountId = extractAccountId(accountObject)
+
     if (isNaN(accountId) || accountId === null) {
         selectedTargetAccount.value = null
         return
     }
-    
+
     // Search through all providers and their accounts
     let found = null
     if (accounts.value) {
         for (const provider of accounts.value) {
-            found = provider.accounts.find(acc => acc.id === accountId)
+            found = provider.accounts.find((acc) => acc.id === accountId)
             if (found) {
                 break
             }
         }
     }
-    
+
     selectedTargetAccount.value = found
 }
 
@@ -112,65 +107,61 @@ const updateSelectedOriginAccount = (accountObject) => {
         return
     }
 
-    const accountId = extractAccountId(accountObject);
-    
+    const accountId = extractAccountId(accountObject)
+
     if (isNaN(accountId) || accountId === null) {
         selectedOriginAccount.value = null
         return
     }
-    
+
     // Search through all providers and their accounts
     let found = null
     if (accounts.value) {
         for (const provider of accounts.value) {
-            found = provider.accounts.find(acc => acc.id === accountId)
+            found = provider.accounts.find((acc) => acc.id === accountId)
             if (found) {
                 break
             }
         }
     }
-    
+
     selectedOriginAccount.value = found
 }
 
 // Handle account selection changes
 const handleTargetAccountSelection = (accountObject) => {
-    updateSelectedTargetAccount(accountObject);
+    updateSelectedTargetAccount(accountObject)
 }
 
 const handleOriginAccountSelection = (accountObject) => {
-    updateSelectedOriginAccount(accountObject);
+    updateSelectedOriginAccount(accountObject)
 }
 
 // Watch for account changes from v-model
-watch(() => formValues.value.targetAccountId, (newValue) => {
-    updateSelectedTargetAccount(newValue);
-}, { immediate: true })
+watch(
+    () => formValues.value.targetAccountId,
+    (newValue) => {
+        updateSelectedTargetAccount(newValue)
+    },
+    { immediate: true }
+)
 
-watch(() => formValues.value.originAccountId, (newValue) => {
-    updateSelectedOriginAccount(newValue);
-}, { immediate: true })
-
-// Check if accounts are stock accounts
-const isTargetStocksAccount = computed(() => {
-    return selectedTargetAccount.value?.type === 'stocks'
-})
-
-const isOriginStocksAccount = computed(() => {
-    return selectedOriginAccount.value?.type === 'stocks'
-})
+watch(
+    () => formValues.value.originAccountId,
+    (newValue) => {
+        updateSelectedOriginAccount(newValue)
+    },
+    { immediate: true }
+)
 
 // Build the resolver for transfer entries
 const resolver = computed(() => {
     // Account validation - handles {id: true} format from AccountSelector
     const accountValidation = z
         .union([z.null(), z.record(z.boolean())])
-        .refine(
-            (obj) => obj !== null,
-            { message: 'Account must be selected' }
-        )
+        .refine((obj) => obj !== null, { message: 'Account must be selected' })
 
-    // Base schema for all transfers
+    // Schema for transfers between cash/bank accounts
     const baseSchema = {
         description: z.string().min(1, { message: 'Description is required' }),
         date: z.date(),
@@ -178,15 +169,6 @@ const resolver = computed(() => {
         targetAccountId: accountValidation,
         originAmount: z.number().min(0.01, { message: 'Origin amount must be greater than 0' }),
         originAccountId: accountValidation
-    }
-
-    // Add stock amount validation if needed
-    if (isTargetStocksAccount.value) {
-        baseSchema.targetStockAmount = z.number().min(0.01, { message: 'Target stock amount must be greater than 0' })
-    }
-    
-    if (isOriginStocksAccount.value) {
-        baseSchema.originStockAmount = z.number().min(0.01, { message: 'Origin stock amount must be greater than 0' })
     }
 
     return zodResolver(z.object(baseSchema))
@@ -268,11 +250,11 @@ const emit = defineEmits(['update:visible'])
                     <!-- Date Field -->
                     <div>
                         <label for="date" class="form-label">Date</label>
-                        <DatePicker 
-                            id="date" 
-                            name="date" 
-                            :showIcon="true" 
-                            dateFormat="dd/mm/yy" 
+                        <DatePicker
+                            id="date"
+                            name="date"
+                            :showIcon="true"
+                            dateFormat="dd/mm/yy"
                             class="w-full"
                             :showButtonBar="true"
                         />
@@ -290,16 +272,21 @@ const emit = defineEmits(['update:visible'])
                     <!-- Origin section (left side) -->
                     <div class="flex flex-column gap-3 flex-1 p-2">
                         <h3 class="m-0 text-lg font-medium">From</h3>
-                        
+
                         <!-- Origin Account field -->
                         <div>
                             <label for="originAccountId" class="form-label">Origin Account</label>
-                            <AccountSelector 
-                                v-model="formValues.originAccountId" 
+                            <AccountSelector
+                                v-model="formValues.originAccountId"
                                 name="originAccountId"
-                                @update:modelValue="handleOriginAccountSelection" 
+                                @update:modelValue="handleOriginAccountSelection"
+                                :account-types="['cash', 'bank']"
                             />
-                            <Message v-if="$form.originAccountId?.invalid" severity="error" size="small">
+                            <Message
+                                v-if="$form.originAccountId?.invalid"
+                                severity="error"
+                                size="small"
+                            >
                                 {{ $form.originAccountId.error?.message }}
                             </Message>
                         </div>
@@ -314,23 +301,12 @@ const emit = defineEmits(['update:visible'])
                                 :maxFractionDigits="2"
                                 class="w-full"
                             />
-                            <Message v-if="$form.originAmount?.invalid" severity="error" size="small">
+                            <Message
+                                v-if="$form.originAmount?.invalid"
+                                severity="error"
+                                size="small"
+                            >
                                 {{ $form.originAmount.error?.message }}
-                            </Message>
-                        </div>
-                        
-                        <!-- Origin Stock Amount Field - only shown for stock accounts -->
-                        <div v-if="isOriginStocksAccount">
-                            <label for="originStockAmount" class="form-label">Origin Stock Amount</label>
-                            <InputNumber
-                                id="originStockAmount"
-                                name="originStockAmount"
-                                :minFractionDigits="2"
-                                :maxFractionDigits="2"
-                                class="w-full"
-                            />
-                            <Message v-if="$form.originStockAmount?.invalid" severity="error" size="small">
-                                {{ $form.originStockAmount.error?.message }}
                             </Message>
                         </div>
                     </div>
@@ -343,16 +319,21 @@ const emit = defineEmits(['update:visible'])
                     <!-- Target section (right side) -->
                     <div class="flex flex-column gap-3 flex-1 p-2">
                         <h3 class="m-0 text-lg font-medium">To</h3>
-                        
+
                         <!-- Target Account field -->
                         <div>
                             <label for="targetAccountId" class="form-label">Target Account</label>
-                            <AccountSelector 
-                                v-model="formValues.targetAccountId" 
+                            <AccountSelector
+                                v-model="formValues.targetAccountId"
                                 name="targetAccountId"
-                                @update:modelValue="handleTargetAccountSelection" 
+                                @update:modelValue="handleTargetAccountSelection"
+                                :account-types="['cash', 'bank']"
                             />
-                            <Message v-if="$form.targetAccountId?.invalid" severity="error" size="small">
+                            <Message
+                                v-if="$form.targetAccountId?.invalid"
+                                severity="error"
+                                size="small"
+                            >
                                 {{ $form.targetAccountId.error?.message }}
                             </Message>
                         </div>
@@ -367,23 +348,12 @@ const emit = defineEmits(['update:visible'])
                                 :maxFractionDigits="2"
                                 class="w-full"
                             />
-                            <Message v-if="$form.targetAmount?.invalid" severity="error" size="small">
+                            <Message
+                                v-if="$form.targetAmount?.invalid"
+                                severity="error"
+                                size="small"
+                            >
                                 {{ $form.targetAmount.error?.message }}
-                            </Message>
-                        </div>
-                        
-                        <!-- Target Stock Amount Field - only shown for stock accounts -->
-                        <div v-if="isTargetStocksAccount">
-                            <label for="targetStockAmount" class="form-label">Target Stock Amount</label>
-                            <InputNumber
-                                id="targetStockAmount"
-                                name="targetStockAmount"
-                                :minFractionDigits="2"
-                                :maxFractionDigits="2"
-                                class="w-full"
-                            />
-                            <Message v-if="$form.targetStockAmount?.invalid" severity="error" size="small">
-                                {{ $form.targetStockAmount.error?.message }}
                             </Message>
                         </div>
                     </div>

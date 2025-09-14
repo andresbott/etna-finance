@@ -91,20 +91,20 @@ const onFormSubmit = async (e) => {
             @submit="onFormSubmit"
         >
             <div v-focustrap class="flex flex-column gap-3">
-              <div>
-                <label for="name" class="form-label">Description</label>
-                <InputText name="name" placeholder="Provider Name" />
-                <Message v-if="$form.name?.invalid" severity="error" size="small">{{
-                    $form.name.error?.message
-                }}</Message>
-              </div>
-              <div>
-                <label for="description" class="form-label">Description</label>
-                <InputText name="description" placeholder="Description" />
-                <Message v-if="$form.description?.invalid" severity="error" size="small">{{
-                    $form.description.error?.message
-                }}</Message>
-              </div>
+                <div>
+                    <label for="name" class="form-label">Description</label>
+                    <InputText name="name" placeholder="Provider Name" />
+                    <Message v-if="$form.name?.invalid" severity="error" size="small">{{
+                        $form.name.error?.message
+                    }}</Message>
+                </div>
+                <div>
+                    <label for="description" class="form-label">Description</label>
+                    <InputText name="description" placeholder="Description" />
+                    <Message v-if="$form.description?.invalid" severity="error" size="small">{{
+                        $form.description.error?.message
+                    }}</Message>
+                </div>
                 <div class="flex justify-content-end gap-2">
                     <Button
                         type="submit"
@@ -125,8 +125,7 @@ const onFormSubmit = async (e) => {
 
 <style>
 .form-label {
-  display: block;
-  font-weight: 500;
+    display: block;
+    font-weight: 500;
 }
 </style>
-

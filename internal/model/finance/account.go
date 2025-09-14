@@ -209,23 +209,19 @@ type AccountType int
 const (
 	Unknown AccountType = iota
 	Cash    AccountType = iota
-	Bank
-	Stocks
+	Investment
 )
 const (
-	CashAccount   = "cash"
-	BankAccount   = "bank"
-	StocksAccount = "stocks"
+	CashAccount       = "cash"
+	InvestmentAccount = "investment"
 )
 
 func (t AccountType) String() string {
 	switch t {
 	case Cash:
 		return CashAccount
-	case Bank:
-		return BankAccount
-	case Stocks:
-		return StocksAccount
+	case Investment:
+		return InvestmentAccount
 	default:
 		return "unknown"
 	}
@@ -235,10 +231,8 @@ func ParseAccountType(in string) (AccountType, error) {
 	switch strings.ToLower(in) {
 	case CashAccount:
 		return Cash, nil
-	case BankAccount:
-		return Bank, nil
-	case StocksAccount:
-		return Stocks, nil
+	case InvestmentAccount:
+		return Investment, nil
 	default:
 		return Unknown, fmt.Errorf("invalid account type: %s", in)
 	}

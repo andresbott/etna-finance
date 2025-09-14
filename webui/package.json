@@ -9,12 +9,15 @@
     "preview": "vite preview",
     "test:unit": "vitest",
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs --fix --ignore-path .gitignore",
+    "type-check": "npx vue-tsc --noEmit",
     "format": "prettier --write src/"
   },
   "dependencies": {
+    "@go-bumbu/vue-layouts": "^0.0.6",
     "@primevue/forms": "^4.2.4",
     "@primevue/themes": "^4.2.4",
     "@tanstack/vue-query": "^5.71.5",
+    "@tanstack/vue-query-devtools": "^5.85.6",
     "axios": "^1.7.8",
     "chart.js": "^4.4.8",
     "pinia": "^2.2.8",
@@ -28,6 +31,7 @@
   },
   "devDependencies": {
     "@rushstack/eslint-patch": "^1.10.4",
+    "@types/node": "^24.3.0",
     "@vitejs/plugin-vue": "^5.2.1",
     "@vue/eslint-config-prettier": "^10.1.0",
     "@vue/test-utils": "^2.4.6",
@@ -36,7 +40,9 @@
     "jsdom": "^25.0.1",
     "prettier": "^3.4.1",
     "sass": "^1.82.0",
+    "typescript": "^5.9.2",
     "vite": "^6.0.2",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "vue-tsc": "^3.0.6"
   }
 }

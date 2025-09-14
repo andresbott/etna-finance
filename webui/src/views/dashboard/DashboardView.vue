@@ -4,8 +4,8 @@ import {
     HorizontalLayout,
     Placeholder,
     ResponsiveHorizontal
-} from '@go-bumbu/vue-components/layout'
-import '@go-bumbu/vue-components/layout.css'
+} from '@go-bumbu/vue-layouts'
+import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
 import TopBar from '@/views/topbar.vue'
 import { useUserStore } from '@/lib/user/userstore.js'
 import { onMounted, ref, computed } from 'vue'

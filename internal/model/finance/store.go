@@ -7,8 +7,9 @@ import (
 )
 
 type Store struct {
-	db   *gorm.DB
-	tree *closuretree.Tree
+	db                  *gorm.DB
+	incomeCategoryTree  *closuretree.Tree
+	expenseCategoryTree *closuretree.Tree
 
 	AccountColNames         map[string]string // hold a map of struct field names to db column names
 	AccountProviderColNames map[string]string // hold a map of struct field names to db column names
@@ -58,11 +59,17 @@ func New(db *gorm.DB) (*Store, error) {
 		return nil, err
 	}
 
-	tree, err := closuretree.New(db, Category{}) // init the closure tree, this includes gorm automigrate
+	incomeTree, err := closuretree.New(db, IncomeCategory{}) // init the closure tree, this includes gorm automigrate
 	if err != nil {
 		return nil, err
 	}
-	b.tree = tree
+	b.incomeCategoryTree = incomeTree
+
+	expenseTree, err := closuretree.New(db, ExpenseCategory{}) // init the closure tree, this includes gorm automigrate
+	if err != nil {
+		return nil, err
+	}
+	b.expenseCategoryTree = expenseTree
 
 	return &b, nil
 }

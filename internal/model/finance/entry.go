@@ -17,7 +17,7 @@ type Entry struct {
 	Description string
 	Date        time.Time
 	Locked      bool      // does not accept changes anymore
-	Type        EntryType //income, transfer, spend, stock buy, stock sell ( like transfer with stock amounts added)
+	Type        EntryType //income, transfer, expense, stock buy, stock sell ( like transfer with stock amounts added)
 
 	StockAmount float64 // used to track the amount of stocks in the account
 
@@ -94,8 +94,6 @@ func (t EntryType) String() string {
 		return BuyStockEntryStr
 	case SellStockEntry:
 		return SellStockEntryStr
-	case StockValueEntry:
-		return StockValueEntryStr
 	default:
 		return "unknown"
 	}
@@ -108,16 +106,14 @@ const (
 	TransferEntry
 	BuyStockEntry
 	SellStockEntry
-	StockValueEntry
 )
 
 const (
-	IncomeEntryStr     = "income"
-	ExpenseEntryStr    = "expense"
-	TransferEntryStr   = "transfer"
-	BuyStockEntryStr   = "buystock"
-	SellStockEntryStr  = "sellstock"
-	StockValueEntryStr = "stockvalue"
+	IncomeEntryStr    = "income"
+	ExpenseEntryStr   = "expense"
+	TransferEntryStr  = "transfer"
+	BuyStockEntryStr  = "buystock"
+	SellStockEntryStr = "sellstock"
 )
 
 func ParseEntryType(in string) (EntryType, error) {
@@ -130,8 +126,6 @@ func ParseEntryType(in string) (EntryType, error) {
 		return TransferEntry, nil
 	case BuyStockEntryStr:
 		return BuyStockEntry, nil
-	case StockValueEntryStr:
-		return StockValueEntry, nil
 	default:
 		return UnsetEntry, fmt.Errorf("invalid entry type: %s", in)
 	}
@@ -141,32 +135,8 @@ var ErrEntryNotFound = errors.New("entry not found")
 
 func (store *Store) CreateEntry(ctx context.Context, item Entry, tenant string) (uint, error) {
 
-	if item.Description == "" {
-		return 0, ValidationErr("description cannot be empty")
-	}
-	if item.Type == UnsetEntry {
-		return 0, ValidationErr("entry type cannot be empty")
-	}
-	if item.TargetAmount == 0 {
-		return 0, ValidationErr("target amount cannot be empty")
-	}
-
-	if item.TargetAccountID == 0 {
-		return 0, ValidationErr("target account cannot be empty")
-	}
-
-	if item.Date.IsZero() {
-		return 0, ValidationErr("date cannot be zero")
-	}
-
-	if item.Type == TransferEntry {
-		if item.OriginAmount == 0 {
-			return 0, ValidationErr("origin amount cannot be empty")
-		}
-
-		if item.OriginAccountID == 0 {
-			return 0, ValidationErr("origin account cannot be empty")
-		}
+	if err := validateEntry(ctx, store, item, tenant); err != nil {
+		return 0, err
 	}
 
 	payload := dbEntry{
@@ -189,6 +159,56 @@ func (store *Store) CreateEntry(ctx context.Context, item Entry, tenant string) 
 		return 0, d.Error
 	}
 	return payload.Id, nil
+}
+
+// validates an entry before it is created
+//
+//nolint:nestif //many validation ifs but simple to read
+func validateEntry(ctx context.Context, store *Store, item Entry, tenant string) error {
+	if item.Description == "" {
+		return ValidationErr("description cannot be empty")
+	}
+	if item.Type == UnsetEntry {
+		return ValidationErr("entry type cannot be empty")
+	}
+	if item.TargetAmount == 0 {
+		return ValidationErr("target amount cannot be empty")
+	}
+
+	if item.TargetAccountID == 0 {
+		return ValidationErr("target account cannot be empty")
+	}
+
+	if item.Date.IsZero() {
+		return ValidationErr("date cannot be zero")
+	}
+
+	if item.Type == TransferEntry {
+		if item.OriginAmount == 0 {
+			return ValidationErr("origin amount cannot be empty")
+		}
+
+		if item.OriginAccountID == 0 {
+			return ValidationErr("origin account cannot be empty")
+		}
+
+		targetAccount, err := store.GetAccount(ctx, item.TargetAccountID, tenant)
+		if err != nil {
+			return err
+		}
+		if targetAccount.Type != Cash {
+			return fmt.Errorf("target account must be of type cash")
+		}
+
+		originAccount, err := store.GetAccount(ctx, item.OriginAccountID, tenant)
+		if err != nil {
+			return err
+		}
+		if originAccount.Type != Cash {
+			return fmt.Errorf("origin account must be of type cash")
+		}
+	}
+	return nil
 }
 
 func (store *Store) GetEntry(ctx context.Context, Id uint, tenant string) (Entry, error) {
@@ -228,32 +248,64 @@ type EntryUpdatePayload struct {
 	CategoryId *uint
 }
 
-func (store *Store) UpdateEntry(item EntryUpdatePayload, Id uint, tenant string) error {
+func (store *Store) UpdateEntry(ctx context.Context, item EntryUpdatePayload, Id uint, tenant string) error {
 	payload := map[string]any{}
 	hasChanges := false
 
-	if item.Description != nil {
+	entry, err := store.GetEntry(ctx, Id, tenant)
+	if err != nil {
+		return ErrEntryNotFound
+	}
+
+	if item.Description != nil && *item.Description != entry.Description {
 		hasChanges = true
 		payload["description"] = *item.Description
 	}
 
-	if item.TargetAmount != nil {
+	if item.TargetAmount != nil && *item.TargetAmount != entry.TargetAmount {
 		hasChanges = true
 		payload["target_amount"] = *item.TargetAmount
 	}
 
-	if item.OriginAmount != nil {
-		hasChanges = true
-		payload["origin_amount"] = *item.OriginAmount
-	}
-
-	if item.Date != nil {
+	if item.Date != nil && *item.Date != entry.Date {
 		hasChanges = true
 		payload["date"] = *item.Date
 	}
 
+	targetAccount, err := store.GetAccount(ctx, entry.TargetAccountID, tenant)
+	if err != nil {
+		return err
+	}
+
+	switch entry.Type {
+	case IncomeEntry, ExpenseEntry:
+
+		if targetAccount.Type != Cash {
+			return fmt.Errorf("target account must be of type cash")
+		}
+	case TransferEntry:
+		if targetAccount.Type != Cash {
+			return fmt.Errorf("target account must be of type cash")
+		}
+		originAccount, err := store.GetAccount(ctx, Id, tenant)
+		if err != nil {
+			return err
+		}
+		if originAccount.Type != Cash {
+			return fmt.Errorf("origin account must be of type cash")
+		}
+
+		if item.OriginAmount != nil && *item.OriginAmount != entry.OriginAmount {
+			hasChanges = true
+			payload["origin_amount"] = *item.OriginAmount
+		}
+	default:
+		return fmt.Errorf("unexpected entry type: %s", entry.Type)
+
+	}
+
 	if hasChanges {
-		q := store.db.Where("id = ? AND owner_id = ?", Id, tenant).Model(&dbEntry{}).Updates(payload)
+		q := store.db.WithContext(ctx).Where("id = ? AND owner_id = ?", Id, tenant).Model(&dbEntry{}).Updates(payload)
 		if q.Error != nil {
 			return q.Error
 		}
@@ -267,7 +319,7 @@ func (store *Store) UpdateEntry(item EntryUpdatePayload, Id uint, tenant string)
 const MaxSearchResults = 90
 const DefaultSearchResults = 30
 
-func (store *Store) ListEntries(ctx context.Context, startDate, endDate time.Time, accountID *uint, limit, page int, tenant string) ([]Entry, error) {
+func (store *Store) ListEntries(ctx context.Context, startDate, endDate time.Time, accountIds []int, limit, page int, tenant string) ([]Entry, error) {
 
 	accountsMap, err := store.ListAccountsMap(ctx, tenant)
 	if err != nil {
@@ -280,8 +332,8 @@ func (store *Store) ListEntries(ctx context.Context, startDate, endDate time.Tim
 	db = db.Where("date BETWEEN ? AND ?", startDate, endDate)
 
 	// Filter by account ID if provided
-	if accountID != nil {
-		db = db.Where("target_account_id = ? OR origin_account_id = ?", *accountID, *accountID)
+	if len(accountIds) > 0 {
+		db = db.Where("target_account_id IN ? OR origin_account_id IN ?", accountIds, accountIds)
 	}
 
 	if limit == 0 {

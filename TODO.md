@@ -1,6 +1,6 @@
 # TODO
-* backend to filter entries with account IDs
-* edit dialogs to work
+* entries in the backed and filtered by account ID depending on query parameters
+* entries pagination handled by the backend
 * categories
   * crud on categories both backend and frondend
   * modify dialogs to support slection of categorie4s
@@ -18,11 +18,26 @@
     * 2 separate dialogs
     * Dialog similar to transfer, but contains the amount of stocks
       * here tha backend calculates the stock value based on money and amount
+      * when you sell a stock 2 operations need to happen: 
+        * 1 a transfer back in the amount of stoicks slold at buy price
+        * 2 a win/loss income/expense for the difference between buy and sell
+    
   * Stock Value (extra Table) > auto import in the future
     * add an extra entry that updates the value of a stock
       * this is a time progressing entry to also see the evolution
 * account listing: sort accounts by amount of movemnts, putting the one with most on the top
   * alternative add sort
+* stock details
+  * Tikker 
+  * Peso % en portfolio
+  * Nº acciones,
+  * valor de compra 
+  * total invertido en $$$ 
+  * Cotización => valor actual
+  * Diferencia => dif compra / actual por accion
+  * Diferencia total => dif compra / actual por todo invertido  en $$
+  * Diferencia en % => dif compra / actual por todo invertido  en %
+  * stop => stop value to sell
   
 
 * dashbaord

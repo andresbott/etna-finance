@@ -11,7 +11,7 @@ import { ref } from 'vue'
 import { useUserStore } from '@/lib/user/userstore.js'
 import { Form } from '@primevue/forms'
 import router from '@/router/index.js'
-import LoadingScreen from '@/lib/loadingScreen.vue'
+import LoadingScreen from '@/components/common/loadingScreen.vue'
 const user = useUserStore()
 import { FormField } from '@primevue/forms'
 

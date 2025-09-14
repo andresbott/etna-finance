@@ -12,7 +12,6 @@ import (
 	"github.com/go-bumbu/userauth"
 	"github.com/go-bumbu/userauth/handlers/sessionauth"
 	"github.com/go-bumbu/userauth/userstore/staticusers"
-	"github.com/gorilla/securecookie"
 	"github.com/spf13/cobra"
 	"gorm.io/gorm"
 
@@ -79,7 +78,8 @@ func runServer(configFile string) error {
 		return err
 	}
 
-	store, _ := sessionauth.NewFsStore("", securecookie.GenerateRandomKey(64), securecookie.GenerateRandomKey(32))
+	//store, _ := sessionauth.NewFsStore("", securecookie.GenerateRandomKey(64), securecookie.GenerateRandomKey(32))
+	store, _ := sessionauth.NewFsStore(cfg.Auth.SessionPath, cfg.Auth.HashKeyBytes, cfg.Auth.BlockKeyBytes)
 	// create an instance of session auth
 	sessionAuth, _ := sessionauth.New(sessionauth.Cfg{
 		Store:         store,

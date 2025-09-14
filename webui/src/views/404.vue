@@ -1,6 +1,7 @@
 <script setup>
-import { VerticalLayout, HorizontalLayout, Placeholder } from '@go-bumbu/vue-components/layout'
-import '@go-bumbu/vue-components/layout.css'
+import { VerticalLayout, HorizontalLayout, Placeholder } from '@go-bumbu/vue-layouts'
+import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
+
 import TopBar from '@/views/topbar.vue'
 import Card from 'primevue/card'
 import Button from 'primevue/button'

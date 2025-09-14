@@ -277,6 +277,25 @@ func TestFinanceHandler_ListEntries(t *testing.T) {
 			expecErr:   "invalid endDate format",
 			expectCode: http.StatusBadRequest,
 		},
+		{
+			name:       "successful request with single accountId",
+			userId:     "user123",
+			query:      "?accountIds=1",
+			expectCode: http.StatusOK,
+		},
+		{
+			name:       "successful request with multiple accountIds",
+			userId:     "user123",
+			query:      "?accountIds=1&accountIds=2&accountIds=3",
+			expectCode: http.StatusOK,
+		},
+		{
+			name:       "request with invalid accountId",
+			userId:     "user123",
+			query:      "?accountIds=abc",
+			expecErr:   "invalid accountId format",
+			expectCode: http.StatusBadRequest,
+		},
 	}
 
 	for _, tc := range tcs {
