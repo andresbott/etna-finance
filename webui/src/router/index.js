@@ -42,14 +42,6 @@ const router = createRouter({
             component: () => import('@/views/categories/CategoriesView.vue')
         },
         {
-            path: '/playground',
-            name: 'playground',
-            meta: {
-                requiresAuth: true
-            },
-            component: () => import('@/views/playgroundView.vue')
-        },
-        {
             path: '/login',
             name: 'login',
             meta: {

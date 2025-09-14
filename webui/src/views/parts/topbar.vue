@@ -1,6 +1,6 @@
 <script setup>
-import { HorizontalLayout } from '@go-bumbu/vue-components/layout'
-import '@go-bumbu/vue-components/layout.css'
+import { HorizontalLayout } from '@go-bumbu/vue-layouts'
+import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
 import UserProfile from '@/lib/user/UserProfile.vue'
 import { useUserStore } from '@/lib/user/userstore.js'
 import Button from 'primevue/button'

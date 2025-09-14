@@ -1,14 +1,6 @@
 <script setup>
-import { HorizontalLayout } from '@go-bumbu/vue-components/layout'
-import '@go-bumbu/vue-components/layout.css'
-import UserProfile from '@/lib/user/UserProfile.vue'
-import { useUserStore } from '@/lib/user/userstore.js'
-import Button from 'primevue/button'
-import Search from '@/views/bookmarks/search.vue'
-import AppTitle from '@/views/parts/AppTitle.vue'
-import AppSelector from '@/views/parts/AppSelector.vue'
-
-const user = useUserStore()
+import { HorizontalLayout } from '@go-bumbu/vue-layouts'
+import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
 </script>
 
 <template>

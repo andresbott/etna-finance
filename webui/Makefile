@@ -12,6 +12,9 @@ fmt: ## format code
 lint: ## run eslint
 	@npm run lint
 
+type-check: ## check correct types
+	@npm run type-check
+
 run: ## run the local dev
 	@npm run dev
 
