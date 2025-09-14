@@ -353,21 +353,6 @@ func (h *CategoryHandler) listCategory(Id uint, userId, categoryType string) htt
 			return
 		}
 
-		if len(outItems) == 0 {
-			outItems = append(outItems, categoryPayload{
-				Id:          1,
-				ParentId:    0,
-				Name:        "First Parent",
-				Description: "This is  a sample parent",
-			})
-			outItems = append(outItems, categoryPayload{
-				Id:          2,
-				ParentId:    1,
-				Name:        "First Child",
-				Description: "This is  a sample child",
-			})
-		}
-
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(payload{Items: outItems}); err != nil {
 			http.Error(w, fmt.Sprintf("Error encoding JSON: %s", err.Error()), http.StatusInternalServerError)

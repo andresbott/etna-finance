@@ -1,12 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
-import { unref, computed, Ref } from 'vue'
+import { unref, computed, Ref, ref } from 'vue'
 import { GetEntries, CreateEntry, UpdateEntry, DeleteEntry } from '@/lib/api/Entry'
 import type { Entry, CreateEntryDTO, UpdateEntryDTO } from '@/types/entry'
 
 export function useEntries(
     startDateRef: Ref<Date | null>,
     endDateRef: Ref<Date | null>,
-    accountIdsRef: Ref<string[] | null> = null
+    accountIdsRef: Ref<string[] | null> = ref(null)
 ) {
     const queryClient = useQueryClient()
 
@@ -38,11 +38,11 @@ export function useEntries(
             const start = unref(startDateRef)
             const end = unref(endDateRef)
             const accountIds = unref(accountIdsRef) || []
-            
+
             if (!start || !end) {
                 return Promise.resolve([])
             }
-            
+
             return GetEntries(start, end, accountIds)
         }
     })
@@ -85,8 +85,8 @@ export function useEntries(
         deleteEntry: deleteEntryMutation.mutateAsync,
 
         // Mutation states
-        isCreating: createEntryMutation.isLoading,
-        isUpdating: updateEntryMutation.isLoading,
-        isDeleting: deleteEntryMutation.isLoading
+        isCreating: createEntryMutation.isPending,
+        isUpdating: updateEntryMutation.isPending,
+        isDeleting: deleteEntryMutation.isPending
     }
 }
