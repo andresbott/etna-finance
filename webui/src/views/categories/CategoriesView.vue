@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { VerticalLayout, HorizontalLayout, Placeholder } from '@go-bumbu/vue-layouts'
+import { VerticalLayout, Placeholder } from '@go-bumbu/vue-layouts'
 import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
 import TopBar from '@/views/topbar.vue'
 import Column from 'primevue/column'
 import Button from 'primevue/button'
-import InputText from 'primevue/inputtext'
-import Dialog from 'primevue/dialog'
 import TabView from 'primevue/tabview'
 import TabPanel from 'primevue/tabpanel'
 import TreeTable from 'primevue/treetable'
@@ -15,6 +13,7 @@ import { useCategories } from '@/composables/useCategories'
 import { buildTreeForTable } from '@/utils/convertToTree'
 import { CreateIncomeCategoryDTO, UpdateIncomeCategoryDTO } from '@/types/category'
 import { n } from 'vitest/dist/chunks/reporters.D7Jzd9GS'
+import CategoryDialog from './dialogs/CategoryDialog.vue'
 
 const {
     incomeCategories,
@@ -66,6 +65,7 @@ const handleAddEditIncome = (item: Category | null, action: string, type: string
             console.error('Something went wrong, item cannot be null for edit actions')
             return
         }
+        categoryData.value.parentId = item.parentId ? item.parentId : null
         categoryData.value.id = item.id
         categoryData.value.name = item.name
         categoryData.value.description = item.description
@@ -80,7 +80,6 @@ const handleAddEditIncome = (item: Category | null, action: string, type: string
 const saveCategory = () => {
     if (!categoryData.value.name) return
 
-    console.log(categoryData.value)
     // CREATE
     if (categoryData.value.action === 'add') {
         const dto: CreateIncomeCategoryDTO = {
@@ -118,6 +117,8 @@ const saveCategory = () => {
             console.error('Something went wrong and id is null')
             return
         }
+
+        // TODO: Add updated categoryData->parentId to payload request
         const dto: UpdateIncomeCategoryDTO = {
             name: categoryData.value.name,
             description: categoryData.value.description || undefined
@@ -215,13 +216,7 @@ const deleteCategory = () => {
                                         <Button
                                             label="Add new parent category"
                                             icon="pi pi-plus"
-                                            @click="
-                                                            handleAddEditIncome(
-                                                                null,
-                                                                'add',
-                                                                'expense'
-                                                            )
-                                                        "
+                                            @click="handleAddEditIncome(null, 'add', 'expense')"
                                         />
                                     </div>
                                 </template>
@@ -232,12 +227,12 @@ const deleteCategory = () => {
                                             text
                                             rounded
                                             @click="
-                                                            handleAddEditIncome(
-                                                                slotProps.node.data,
-                                                                'add',
-                                                                'expense'
-                                                            )
-                                                        "
+                                                handleAddEditIncome(
+                                                    slotProps.node.data,
+                                                    'add',
+                                                    'expense'
+                                                )
+                                            "
                                             class="action-button"
                                         />
                                         <Button
@@ -245,12 +240,12 @@ const deleteCategory = () => {
                                             text
                                             rounded
                                             @click="
-                                                            handleAddEditIncome(
-                                                                slotProps.node.data,
-                                                                'edit',
-                                                                'expense'
-                                                            )
-                                                        "
+                                                handleAddEditIncome(
+                                                    slotProps.node.data,
+                                                    'edit',
+                                                    'expense'
+                                                )
+                                            "
                                             class="action-button"
                                         />
                                         <Button
@@ -258,12 +253,7 @@ const deleteCategory = () => {
                                             text
                                             rounded
                                             severity="danger"
-                                            @click="
-                                                            confirmDelete(
-                                                                slotProps.node.data,
-                                                                'expense'
-                                                            )
-                                                        "
+                                            @click="confirmDelete(slotProps.node.data, 'expense')"
                                             class="action-button"
                                         />
                                     </div>
@@ -281,29 +271,23 @@ const deleteCategory = () => {
                                         <Button
                                             label="Add new parent category"
                                             icon="pi pi-plus"
-                                            @click="
-                                                            handleAddEditIncome(
-                                                                null,
-                                                                'add',
-                                                                'income'
-                                                            )
-                                                        "
+                                            @click="handleAddEditIncome(null, 'add', 'income')"
                                         />
                                     </div>
                                 </template>
                                 <template #body="slotProps">
-                                    <div class="actions" >
+                                    <div class="actions">
                                         <Button
                                             icon="pi pi-plus"
                                             text
                                             rounded
                                             @click="
-                                                            handleAddEditIncome(
-                                                                slotProps.node.data,
-                                                                'add',
-                                                                'income'
-                                                            )
-                                                        "
+                                                handleAddEditIncome(
+                                                    slotProps.node.data,
+                                                    'add',
+                                                    'income'
+                                                )
+                                            "
                                             class="action-button"
                                         />
                                         <Button
@@ -311,12 +295,12 @@ const deleteCategory = () => {
                                             text
                                             rounded
                                             @click="
-                                                            handleAddEditIncome(
-                                                                slotProps.node.data,
-                                                                'edit',
-                                                                'income'
-                                                            )
-                                                        "
+                                                handleAddEditIncome(
+                                                    slotProps.node.data,
+                                                    'edit',
+                                                    'income'
+                                                )
+                                            "
                                             class="action-button"
                                         />
                                         <Button
@@ -324,12 +308,7 @@ const deleteCategory = () => {
                                             text
                                             rounded
                                             severity="danger"
-                                            @click="
-                                                            confirmDelete(
-                                                                slotProps.node.data,
-                                                                'income'
-                                                            )
-                                                        "
+                                            @click="confirmDelete(slotProps.node.data, 'income')"
                                             class="action-button"
                                         />
                                     </div>
@@ -339,44 +318,23 @@ const deleteCategory = () => {
                     </TabPanel>
                 </TabView>
             </div>
-
         </template>
         <template #footer>
             <Placeholder :width="'100%'" :height="30" :color="12">Footer</Placeholder>
         </template>
     </VerticalLayout>
 
-    <Dialog
+    <CategoryDialog
         v-model:visible="categoryDialogVisible"
-        modal
-        :closable="true"
-        :draggable="false"
-        @hide="resetCategoryData"
-        header="Income Category"
-    >
-        <div class="p-fluid">
-            <div class="field">
-                <label for="income-name">Name</label>
-                <InputText id="income-name" v-model="categoryData.name" />
-            </div>
-            <div class="field">
-                <label for="income-description">Description</label>
-                <InputText
-                    id="income-description"
-                    v-model="categoryData.description"
-                />
-            </div>
-        </div>
-        <template #footer>
-            <Button label="Save" icon="pi pi-check" @click="saveCategory" />
-            <Button
-                label="Cancel"
-                icon="pi pi-times"
-                text
-                @click="categoryDialogVisible = false"
-            />
-        </template>
-    </Dialog>
+        :categoryData="categoryData"
+        :expenseTreeData="ExpenseTreeData"
+        :incomeTreeData="IncomeTreeData"
+        @update:categoryData="categoryData = $event"
+        @update:categoryParentId="categoryData.parentId = $event"
+        @save="saveCategory"
+        @reset="resetCategoryData"
+    />
+
     <ConfirmDialog
         v-if="selectedItem"
         v-model:visible="confirmDeleteDialog"
@@ -385,18 +343,16 @@ const deleteCategory = () => {
         message="Are you sure you want to delete this category?"
         :onConfirm="deleteCategory"
     />
-
 </template>
 
 <style scoped>
-
-.actions{
+.actions {
     display: flex;
     justify-content: flex-end;
     gap: 4px;
     width: 100%;
 }
-.actions-header{
+.actions-header {
     display: flex;
     justify-content: flex-end;
     gap: 4px;
@@ -405,14 +361,5 @@ const deleteCategory = () => {
 
 .action-button {
     padding: 0.25rem;
-}
-
-.field {
-    margin-bottom: 1rem;
-}
-
-.field label {
-    display: block;
-    margin-bottom: 0.5rem;
 }
 </style>
