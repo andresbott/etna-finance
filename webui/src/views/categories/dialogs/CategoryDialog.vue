@@ -76,7 +76,16 @@ const convertTree = (nodes, parentKey = '0', parentPath = '') => {
     })
 }
 
-const categoryTreeData = computed(() => convertTree(rawTreeData.value))
+const categoryTreeData = computed(() => {
+    return [
+        {
+            key: 'root',
+            label: 'Root Category',
+            checked: true
+        },
+        ...convertTree(rawTreeData.value)
+    ]
+})
 
 const selectionKeys = ref({})
 
@@ -87,7 +96,7 @@ watch(
         if (newParentId) {
             selectionKeys.value = { [String(newParentId)]: { checked: true } }
         } else {
-            selectionKeys.value = {}
+            selectionKeys.value = { root: { checked: true } }
         }
     },
     { immediate: true }
@@ -96,22 +105,27 @@ watch(
 // Handle TreeSelect updates
 const onSelectionChange = (val) => {
     const selectedKey = val ? Object.keys(val)[0] : null
-    localCategory.value.parentId = selectedKey ? parseInt(selectedKey, 10) : null
+
+    if (selectedKey === 'root') {
+        localCategory.value.parentId = null
+        selectionKeys.value = { root: { checked: true } }
+    } else {
+        localCategory.value.parentId = selectedKey ? parseInt(selectedKey, 10) : null
+        selectionKeys.value = val
+    }
+
     emit('update:categoryParentId', localCategory.value.parentId)
 }
 
 // Get selected category display text with path
 const selectedCategoryDisplay = computed(() => {
-    if (!localCategory.value.parentId || !categoryTreeData.value.length) {
-        return ''
+    if (selectionKeys.value['root'] || !localCategory.value.parentId) {
+        return 'Root Category'
     }
 
-    // Find the selected node recursively
     const findNodeById = (nodes, id) => {
         for (const node of nodes) {
-            if (node.key === String(id)) {
-                return node
-            }
+            if (node.key === String(id)) return node
             if (node.children) {
                 const found = findNodeById(node.children, id)
                 if (found) return found
@@ -121,7 +135,7 @@ const selectedCategoryDisplay = computed(() => {
     }
 
     const selectedNode = findNodeById(categoryTreeData.value, localCategory.value.parentId)
-    return selectedNode ? `${selectedNode.data.path}` : ''
+    return selectedNode ? selectedNode.data.path : ''
 })
 
 // Get dialog headeer title
@@ -164,11 +178,7 @@ const cancel = () => {
 
 // Show parent selector condition
 const showParentSelector = computed(() => {
-    return (
-        localCategory.value &&
-        localCategory.value.parentId != undefined &&
-        localCategory.value.action !== 'add'
-    )
+    return localCategory.value && localCategory.value.action !== 'add'
 })
 </script>
 
