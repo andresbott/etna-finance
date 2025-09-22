@@ -1,6 +1,7 @@
 package finance
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,6 +32,7 @@ type categoryPayload struct {
 type categoryUpdatePayload struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
+	ParentId    *uint  `json:"parentId,omitempty"`
 }
 
 type categoryMovePayload struct {
@@ -74,7 +76,7 @@ func (h *CategoryHandler) createCategory(userId, categoryType string) http.Handl
 		}
 
 		if payload.Name == "" {
-			http.Error(w, fmt.Sprintf("wrong payload: Name is empty"), http.StatusBadRequest)
+			http.Error(w, "wrong payload: Name is empty", http.StatusBadRequest)
 			return
 		}
 
@@ -153,20 +155,7 @@ func (h *CategoryHandler) updateCategory(Id uint, userId, categoryType string) h
 			return
 		}
 
-		if categoryType == IncomeCategoryType {
-			category := finance.IncomeCategory{
-				Name:        payload.Name,
-				Description: payload.Description,
-			}
-			err = h.Store.UpdateIncomeCategory(r.Context(), Id, category, userId)
-		} else {
-			category := finance.ExpenseCategory{
-				Name:        payload.Name,
-				Description: payload.Description,
-			}
-			err = h.Store.UpdateExpenseCategory(r.Context(), Id, category, userId)
-		}
-
+		err = updateCategory(r.Context(), Id, userId, categoryType, payload, h.Store)
 		if err != nil {
 			if errors.As(err, &validationErr) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -181,6 +170,46 @@ func (h *CategoryHandler) updateCategory(Id uint, userId, categoryType string) h
 		}
 		w.WriteHeader(http.StatusOK)
 	})
+}
+
+// updateCategory is an internal function taking care of running the update operations and returning an error if anything goes wrong
+func updateCategory(ctx context.Context, Id uint, userId, categoryType string, payload categoryUpdatePayload, store *finance.Store) error {
+	var err error
+
+	switch categoryType {
+	case IncomeCategoryType:
+		category := finance.IncomeCategory{
+			Name:        payload.Name,
+			Description: payload.Description,
+		}
+		err = store.UpdateIncomeCategory(ctx, Id, category, userId)
+		if err != nil {
+			return err
+		}
+
+		if payload.ParentId != nil {
+			err = store.MoveIncomeCategory(ctx, Id, *payload.ParentId, userId)
+			if err != nil {
+				return err
+			}
+		}
+	case ExpenseCategoryType:
+		category := finance.ExpenseCategory{
+			Name:        payload.Name,
+			Description: payload.Description,
+		}
+		err = store.UpdateExpenseCategory(ctx, Id, category, userId)
+		if err != nil {
+			return err
+		}
+		if payload.ParentId != nil {
+			err = store.MoveExpenseCategory(ctx, Id, *payload.ParentId, userId)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return err
 }
 
 func (h *CategoryHandler) MoveIncome(Id uint, userId string) http.Handler {

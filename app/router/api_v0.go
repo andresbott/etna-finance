@@ -36,7 +36,7 @@ const finCategoryExpense = "/fin/category/expense"
 // this api surface is quite inconsistent, I know....
 // I haven't put too much thought into it for now and I will change it in the future
 //
-//nolint:gocognit // the function is quite big and verbose but easy to follow
+//nolint:gocognit,gocyclo // the function is quite big and verbose but easy to follow
 func (h *MainAppHandler) financeApi(r *mux.Router) error {
 
 	fineStore, err := finance.New(h.db)

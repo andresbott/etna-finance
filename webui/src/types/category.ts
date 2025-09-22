@@ -13,6 +13,7 @@ export interface CreateIncomeCategoryDTO {
 export interface UpdateIncomeCategoryDTO {
     name?: string
     description?: string
+    parentId?: number | null
 }
 
 export interface ExpenseCategory {
@@ -30,4 +31,5 @@ export interface CreateExpenseCategoryDTO {
 export interface UpdateExpenseCategoryDTO {
     name?: string
     description?: string
+    parentId?: number | null
 }
