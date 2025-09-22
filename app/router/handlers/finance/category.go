@@ -76,7 +76,7 @@ func (h *CategoryHandler) createCategory(userId, categoryType string) http.Handl
 		}
 
 		if payload.Name == "" {
-			http.Error(w, fmt.Sprintf("wrong payload: Name is empty"), http.StatusBadRequest)
+			http.Error(w, "wrong payload: Name is empty", http.StatusBadRequest)
 			return
 		}
 
@@ -175,7 +175,9 @@ func (h *CategoryHandler) updateCategory(Id uint, userId, categoryType string) h
 // updateCategory is an internal function taking care of running the update operations and returning an error if anything goes wrong
 func updateCategory(ctx context.Context, Id uint, userId, categoryType string, payload categoryUpdatePayload, store *finance.Store) error {
 	var err error
-	if categoryType == IncomeCategoryType {
+
+	switch categoryType {
+	case IncomeCategoryType:
 		category := finance.IncomeCategory{
 			Name:        payload.Name,
 			Description: payload.Description,
@@ -191,8 +193,7 @@ func updateCategory(ctx context.Context, Id uint, userId, categoryType string, p
 				return err
 			}
 		}
-
-	} else {
+	case ExpenseCategoryType:
 		category := finance.ExpenseCategory{
 			Name:        payload.Name,
 			Description: payload.Description,
