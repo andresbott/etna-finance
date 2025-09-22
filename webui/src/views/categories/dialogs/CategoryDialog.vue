@@ -79,11 +79,12 @@ const convertTree = (nodes, parentKey = '0', parentPath = '') => {
 const categoryTreeData = computed(() => {
     return [
         {
-            key: 'root',
-            label: 'Root Category',
-            checked: true
+            key: 0,
+            label: 'Root',
+            checked: true,
+            children: [...convertTree(rawTreeData.value)],
         },
-        ...convertTree(rawTreeData.value)
+
     ]
 })
 
@@ -113,14 +114,13 @@ const onSelectionChange = (val) => {
         localCategory.value.parentId = selectedKey ? parseInt(selectedKey, 10) : null
         selectionKeys.value = val
     }
-
     emit('update:categoryParentId', localCategory.value.parentId)
 }
 
 // Get selected category display text with path
 const selectedCategoryDisplay = computed(() => {
-    if (selectionKeys.value['root'] || !localCategory.value.parentId) {
-        return 'Root Category'
+    if (selectionKeys.value[0] || !localCategory.value.parentId) {
+        return 'Root'
     }
 
     const findNodeById = (nodes, id) => {
@@ -138,13 +138,13 @@ const selectedCategoryDisplay = computed(() => {
     return selectedNode ? selectedNode.data.path : ''
 })
 
-// Get dialog headeer title
+// Get dialog header title
 const titleMap = {
     income: 'Income Category',
     expense: 'Expense Category'
 }
 const dialogHeaderTitle = computed(() => {
-    const action = props.categoryData.action == 'edit' ? 'Edit' : 'Add New'
+    const action = props.categoryData.action === 'edit' ? 'Edit' : 'Add New'
     const type = titleMap[props.categoryData.type]
     return `${action} ${type}`
 })

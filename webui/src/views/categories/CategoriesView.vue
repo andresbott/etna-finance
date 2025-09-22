@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeMount, watch } from 'vue'
 import { VerticalLayout, Placeholder } from '@go-bumbu/vue-layouts'
 import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
 import TopBar from '@/views/topbar.vue'
@@ -12,8 +12,9 @@ import ConfirmDialog from '@/components/common/confirmDialog.vue'
 import { useCategories } from '@/composables/useCategories'
 import { buildTreeForTable } from '@/utils/convertToTree'
 import { CreateIncomeCategoryDTO, UpdateIncomeCategoryDTO } from '@/types/category'
-import { n } from 'vitest/dist/chunks/reporters.D7Jzd9GS'
 import CategoryDialog from './dialogs/CategoryDialog.vue'
+import type { TreeTableExpandedKeys } from "primevue/treetable"
+import type { TreeNode } from "primevue/treenode"
 
 const {
     incomeCategories,
@@ -32,10 +33,40 @@ const IncomeTreeData = computed(() => {
     return buildTreeForTable(incomeCategories.data.value)
 })
 
+const expandedIncomeKeys = ref<TreeTableExpandedKeys>({})
+
+watch(IncomeTreeData, (newNodes) => {
+    if (newNodes && newNodes.length > 0) {
+        expandedIncomeKeys.value = expandAll(newNodes)
+    }
+}, { immediate: true })
+
+
+
 const ExpenseTreeData = computed(() => {
     if (!expenseCategories.data) return []
     return buildTreeForTable(expenseCategories.data.value)
 })
+
+const expandedExpenseKeys = ref<TreeTableExpandedKeys>({})
+
+watch(ExpenseTreeData, (newNodes) => {
+    if (newNodes && newNodes.length > 0) {
+        expandedExpenseKeys.value = expandAll(newNodes)
+    }
+}, { immediate: true })
+
+
+function expandAll(nodes: TreeNode[]): TreeTableExpandedKeys {
+    const expanded: TreeTableExpandedKeys = {}
+    for (const node of nodes) {
+        if (node.children && node.children.length) {
+            expanded[node.key as string] = true
+            Object.assign(expanded, expandAll(node.children))
+        }
+    }
+    return expanded
+}
 
 interface Category {
     id: number | null
@@ -121,7 +152,8 @@ const saveCategory = () => {
         // TODO: Add updated categoryData->parentId to payload request
         const dto: UpdateIncomeCategoryDTO = {
             name: categoryData.value.name,
-            description: categoryData.value.description || undefined
+            description: categoryData.value.description || undefined,
+            parentId: categoryData.value.parentId,
         }
 
         if (categoryData.value.type === 'income') {
@@ -207,7 +239,7 @@ const deleteCategory = () => {
                 <h1>Categories</h1>
                 <TabView>
                     <TabPanel header="Expense Categories" :value="1">
-                        <TreeTable :value="ExpenseTreeData">
+                        <TreeTable :value="ExpenseTreeData" :expandedKeys="expandedExpenseKeys" >
                             <Column field="name" header="Name" expander></Column>
                             <Column field="description" header="Description"></Column>
                             <Column>
@@ -262,7 +294,7 @@ const deleteCategory = () => {
                         </TreeTable>
                     </TabPanel>
                     <TabPanel header="Income Categories" :value="2">
-                        <TreeTable :value="IncomeTreeData">
+                        <TreeTable :value="IncomeTreeData" :expandedKeys="expandedIncomeKeys">
                             <Column field="name" header="Name" expander></Column>
                             <Column field="description" header="Description"></Column>
                             <Column>
