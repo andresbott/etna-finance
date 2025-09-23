@@ -12,7 +12,6 @@ import ConfirmDialog from '@/components/common/confirmDialog.vue'
 import { useCategories } from '@/composables/useCategories'
 import { buildTreeForTable } from '@/utils/convertToTree'
 import { CreateIncomeCategoryDTO, UpdateIncomeCategoryDTO } from '@/types/category'
-import { n } from 'vitest/dist/chunks/reporters.D7Jzd9GS'
 import CategoryDialog from './dialogs/CategoryDialog.vue'
 
 const {
