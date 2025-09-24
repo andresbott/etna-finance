@@ -13,6 +13,7 @@ import Message from 'primevue/message'
 import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
 import DatePicker from 'primevue/datepicker'
+import CategorySelect from '@/components/common/categorySelect.vue'
 
 const { createEntry, updateEntry, isCreating, isUpdating } = useEntries()
 const { accounts } = useAccounts()
@@ -28,6 +29,8 @@ const props = defineProps({
     targetAccountId: { type: Number, default: null },
     visible: { type: Boolean, default: false }
 })
+
+const categoryId = ref()
 
 // Convert numeric targetAccountId to {id: true} format for form validation
 const getFormattedAccountId = (accountId) => {
@@ -160,6 +163,7 @@ const handleSubmit = async (e) => {
         formData.targetAccountId = targetKeys.length > 0 ? parseInt(targetKeys[0], 10) : null
     }
 
+    // TODO: Add `categoryId` to request
     const entryData = {
         ...formData,
         type: props.entryType
@@ -263,6 +267,8 @@ const emit = defineEmits(['update:visible'])
                         {{ $form.date.error?.message }}
                     </Message>
                 </div>
+
+                <CategorySelect v-model="categoryId" :type="entryType" />
 
                 <div class="flex justify-content-end gap-3">
                     <Button
