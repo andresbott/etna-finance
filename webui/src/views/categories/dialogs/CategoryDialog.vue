@@ -12,13 +12,7 @@ const props = defineProps({
     incomeTreeData: { type: Array, default: () => [] }
 })
 
-const emit = defineEmits([
-    'update:visible',
-    'save',
-    'reset',
-    'update:categoryParentId',
-    'update:categoryData'
-])
+const emit = defineEmits(['update:visible', 'save', 'reset', 'update:categoryData'])
 
 const localCategory = ref({
     id: null,
@@ -64,7 +58,7 @@ const dialogHeaderTitle = computed(() => {
 ---------------------------- */
 const save = () => {
     emit('update:categoryData', localCategory.value)
-    emit('save', localCategory.value)
+    emit('save')
     emit('update:visible', false)
 }
 
@@ -77,6 +71,7 @@ const reset = () => {
         type: 'expense',
         action: null
     }
+
     emit('reset')
 }
 
@@ -86,9 +81,9 @@ const cancel = () => {
 }
 
 // Show parent selector only when editing
-const showParentSelector = computed(() => {
-    return localCategory.value && localCategory.value.action !== 'add'
-})
+// const showParentSelector = computed(() => {
+//     return localCategory.value && localCategory.value.action !== 'add'
+// })
 </script>
 
 <template>
@@ -118,14 +113,7 @@ const showParentSelector = computed(() => {
             </div>
 
             <!-- Parent selector -->
-            <CategorySelect
-                v-if="showParentSelector"
-                v-model="localCategory.parentId"
-                :type="localCategory.type"
-                :expenseTreeData="expenseTreeData"
-                :incomeTreeData="incomeTreeData"
-                @update:modelValue="(val) => emit('update:categoryParentId', val)"
-            />
+            <CategorySelect v-model="localCategory.parentId" :type="localCategory.type" />
         </div>
 
         <template #footer>

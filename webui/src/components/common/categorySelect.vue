@@ -1,14 +1,14 @@
 <script setup>
 import { ref, watch, computed } from 'vue'
 import TreeSelect from 'primevue/treeselect'
+import { useCategoryTree } from '@/composables/useCategoryTree'
 
 const props = defineProps({
     modelValue: { type: Number, default: null }, // parentId
-    type: { type: String, default: 'expense' }, // expense | income
-    expenseTreeData: { type: Array, default: () => [] },
-    incomeTreeData: { type: Array, default: () => [] }
+    type: { type: String, default: 'expense' } // expense | income
 })
 
+const { IncomeTreeData, ExpenseTreeData } = useCategoryTree()
 const emit = defineEmits(['update:modelValue'])
 
 /* ---------------------------
@@ -16,7 +16,7 @@ const emit = defineEmits(['update:modelValue'])
 ---------------------------- */
 // Pick correct tree
 const rawTreeData = computed(() => {
-    return props.type === 'expense' ? props.expenseTreeData : props.incomeTreeData
+    return props.type === 'expense' ? ExpenseTreeData.value : IncomeTreeData.value
 })
 
 // Convert raw nodes → TreeSelect format

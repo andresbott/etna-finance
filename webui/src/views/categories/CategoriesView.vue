@@ -10,31 +10,21 @@ import TabPanel from 'primevue/tabpanel'
 import TreeTable from 'primevue/treetable'
 import ConfirmDialog from '@/components/common/confirmDialog.vue'
 import { useCategories } from '@/composables/useCategories'
-import { buildTreeForTable } from '@/utils/convertToTree'
 import { CreateIncomeCategoryDTO, UpdateIncomeCategoryDTO } from '@/types/category'
 import CategoryDialog from './dialogs/CategoryDialog.vue'
+import { useCategoryTree } from '@/composables/useCategoryTree'
 
 const {
-    incomeCategories,
     createIncomeCategory,
     updateIncomeMutation,
     deleteIncomeMutation,
-    expenseCategories,
     createExpenseMutation,
     updateExpenseMutation,
     deleteExpenseMutation
 } = useCategories()
 
 // compute the tree data
-const IncomeTreeData = computed(() => {
-    if (!incomeCategories.data) return []
-    return buildTreeForTable(incomeCategories.data.value)
-})
-
-const ExpenseTreeData = computed(() => {
-    if (!expenseCategories.data) return []
-    return buildTreeForTable(expenseCategories.data.value)
-})
+const { IncomeTreeData, ExpenseTreeData } = useCategoryTree()
 
 interface Category {
     id: number | null
@@ -71,7 +61,6 @@ const handleAddEditIncome = (item: Category | null, action: string, type: string
         categoryData.value.action = 'edit'
     }
     categoryData.value.type = type
-    console.log('categoryData', categoryData.value)
     categoryDialogVisible.value = true
 }
 
@@ -326,10 +315,7 @@ const deleteCategory = () => {
     <CategoryDialog
         v-model:visible="categoryDialogVisible"
         :categoryData="categoryData"
-        :expenseTreeData="ExpenseTreeData"
-        :incomeTreeData="IncomeTreeData"
         @update:categoryData="categoryData = $event"
-        @update:categoryParentId="categoryData.parentId = $event"
         @save="saveCategory"
         @reset="resetCategoryData"
     />
