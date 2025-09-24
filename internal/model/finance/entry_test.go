@@ -326,15 +326,16 @@ func getTime(timeStr string) time.Time {
 func TestSearchEntries(t *testing.T) {
 
 	tcs := []struct {
-		name      string
-		startDate time.Time
-		endDate   time.Time
-		accountID []int
-		limit     int
-		page      int
-		tenant    string
-		wantErr   string
-		want      []Entry
+		name       string
+		startDate  time.Time
+		endDate    time.Time
+		accountID  []int
+		categoryID []int
+		limit      int
+		page       int
+		tenant     string
+		wantErr    string
+		want       []Entry
 	}{
 		{
 			name:      "search with valid date range",
@@ -366,6 +367,33 @@ func TestSearchEntries(t *testing.T) {
 			accountID: []int{4, 5},
 			tenant:    tenant1,
 			want:      []Entry{sampleEntries[11], sampleEntries[10]},
+		},
+		{
+			name:       "search with single category ID filter",
+			startDate:  getTime("2025-01-01 00:00:01"),
+			endDate:    getTime("2025-02-01 00:00:00"),
+			categoryID: []int{1},
+			tenant:     tenant1,
+			want:       []Entry{sampleEntries[11]},
+		},
+		{
+			name:       "search with multiple category ID filter",
+			startDate:  getTime("2025-01-01 00:00:01"),
+			endDate:    getTime("2025-02-01 00:00:00"),
+			categoryID: []int{4, 3},
+
+			tenant: tenant1,
+			want:   []Entry{sampleEntries[13], sampleEntries[9]},
+		},
+
+		{
+			name:       "search with multiple category ID filters and account ID filter",
+			startDate:  getTime("2025-01-01 00:00:01"),
+			endDate:    getTime("2025-02-01 00:00:00"),
+			categoryID: []int{1, 2, 3},
+			accountID:  []int{2},
+			tenant:     tenant1,
+			want:       []Entry{sampleEntries[9]},
 		},
 		{
 			name:      "search with limit",
@@ -411,12 +439,15 @@ func TestSearchEntries(t *testing.T) {
 					// Call the ListEntries method
 					got, err := store.ListEntries(
 						context.Background(),
-						tc.startDate,
-						tc.endDate,
-						tc.accountID,
-						tc.limit,
-						tc.page,
-						tc.tenant,
+						ListOpts{
+							StartDate:   tc.startDate,
+							EndDate:     tc.endDate,
+							AccountIds:  tc.accountID,
+							CategoryIds: tc.categoryID,
+							Limit:       tc.limit,
+							Page:        tc.page,
+							Tenant:      tc.tenant,
+						},
 					)
 
 					if tc.wantErr != "" {

@@ -24,14 +24,14 @@ type Entry struct {
 	// target is the account that gets the operation type, e.g. income or expense
 	TargetAmount          float64
 	TargetAccountID       uint
-	TargetAccountName     string
-	TargetAccountCurrency currency.Unit
+	TargetAccountName     string        // used only for printing out, TODO the client should not depend on this
+	TargetAccountCurrency currency.Unit // used only for printing out, TODO the client should not depend on this
 
 	// origin is only mandatory for transfer operations where we move from one account to another
 	OriginAmount          float64
 	OriginAccountID       uint
-	OriginAccountName     string
-	OriginAccountCurrency currency.Unit
+	OriginAccountName     string        // used only for printing out, TODO the client should not depend on this
+	OriginAccountCurrency currency.Unit // used only for printing out, TODO the client should not depend on this
 
 	// category is used to classify the operation
 	CategoryId uint
@@ -301,7 +301,6 @@ func (store *Store) UpdateEntry(ctx context.Context, item EntryUpdatePayload, Id
 		}
 	default:
 		return fmt.Errorf("unexpected entry type: %s", entry.Type)
-
 	}
 
 	if hasChanges {
@@ -319,36 +318,51 @@ func (store *Store) UpdateEntry(ctx context.Context, item EntryUpdatePayload, Id
 const MaxSearchResults = 90
 const DefaultSearchResults = 30
 
-func (store *Store) ListEntries(ctx context.Context, startDate, endDate time.Time, accountIds []int, limit, page int, tenant string) ([]Entry, error) {
+type ListOpts struct {
+	StartDate   time.Time
+	EndDate     time.Time
+	AccountIds  []int
+	CategoryIds []int
+	Limit       int
+	Page        int
+	Tenant      string
+}
 
-	accountsMap, err := store.ListAccountsMap(ctx, tenant)
+func (store *Store) ListEntries(ctx context.Context, opts ListOpts) ([]Entry, error) {
+
+	accountsMap, err := store.ListAccountsMap(ctx, opts.Tenant)
 	if err != nil {
 		return nil, err
 	}
 
-	db := store.db.WithContext(ctx).Where("owner_id = ?", tenant)
+	db := store.db.WithContext(ctx).Where("owner_id = ?", opts.Tenant)
 
 	// Filter by date range
-	db = db.Where("date BETWEEN ? AND ?", startDate, endDate)
+	db = db.Where("date BETWEEN ? AND ?", opts.StartDate, opts.EndDate)
 
 	// Filter by account ID if provided
-	if len(accountIds) > 0 {
-		db = db.Where("target_account_id IN ? OR origin_account_id IN ?", accountIds, accountIds)
+	if len(opts.AccountIds) > 0 {
+		db = db.Where("target_account_id IN ? OR origin_account_id IN ?", opts.AccountIds, opts.AccountIds)
 	}
 
-	if limit == 0 {
-		limit = DefaultSearchResults
-	}
-	if limit > MaxSearchResults {
-		limit = MaxSearchResults
+	// Filter by category ID if provided
+	if len(opts.CategoryIds) > 0 {
+		db = db.Where("category_id IN ?", opts.CategoryIds)
 	}
 
-	if page < 1 {
-		page = 1
+	if opts.Limit == 0 {
+		opts.Limit = DefaultSearchResults
 	}
-	offset := (page - 1) * limit
+	if opts.Limit > MaxSearchResults {
+		opts.Limit = MaxSearchResults
+	}
 
-	db = db.Order("date DESC").Limit(limit).Offset(offset)
+	if opts.Page < 1 {
+		opts.Page = 1
+	}
+	offset := (opts.Page - 1) * opts.Limit
+
+	db = db.Order("date DESC").Limit(opts.Limit).Offset(offset)
 
 	var results []dbEntry
 	err = db.Find(&results).Error
@@ -367,6 +381,7 @@ func (store *Store) ListEntries(ctx context.Context, startDate, endDate time.Tim
 			// inject account info into the results, I know this could also be done with sql
 			if newEntry.OriginAccountID != 0 {
 				if account, ok := accountsMap[newEntry.OriginAccountID]; ok {
+					// the better approach would be to not do this at all but delegate the currency and name to the client
 					newEntry.OriginAccountName = account.Name
 					newEntry.OriginAccountCurrency = account.Currency
 				} else {

@@ -189,38 +189,11 @@ func (h *Handler) ListEntries(userId string) http.Handler {
 			return
 		}
 
-		// Parse query parameters
-
-		// Set default date range to last 30 days if not provided
-		now := time.Now()
-		endDate := now
-		startDate := now.AddDate(0, 0, -30) // 30 days ago
-
-		// Parse dates if provided
-		startDateStr := r.URL.Query().Get("startDate")
-		if startDateStr != "" {
-			var err error
-			startDate, err = time.Parse(time.DateOnly, startDateStr)
-			if err != nil {
-				http.Error(w, "invalid startDate format", http.StatusBadRequest)
-				return
-			}
+		startDate, endDate, err := getDateRange(r.URL.Query().Get("startDate"), r.URL.Query().Get("endDate"))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
 		}
-		// set the start time to midnight
-		startDate = time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, startDate.Location())
-
-		endDateStr := r.URL.Query().Get("endDate")
-		if endDateStr != "" {
-			var err error
-			endDate, err = time.Parse(time.DateOnly, endDateStr)
-			if err != nil {
-				http.Error(w, "invalid endDate format", http.StatusBadRequest)
-				return
-			}
-		}
-		// set the endDate time to midnight of the next day
-		endDate = endDate.AddDate(0, 0, 1)
-		endDate = time.Date(endDate.Year(), endDate.Month(), endDate.Day(), 0, 0, 0, 0, endDate.Location())
 
 		// Parse account IDs if provided
 		accountIds := []int{}
@@ -253,7 +226,8 @@ func (h *Handler) ListEntries(userId string) http.Handler {
 			}
 		}
 
-		entries, err := h.Store.ListEntries(r.Context(), startDate, endDate, accountIds, limit, page, userId)
+		entries, err := h.Store.ListEntries(r.Context(), finance.ListOpts{StartDate: startDate, EndDate: endDate,
+			AccountIds: accountIds, Limit: limit, Page: page, Tenant: userId})
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to list entries: %s", err.Error()), http.StatusInternalServerError)
 			return

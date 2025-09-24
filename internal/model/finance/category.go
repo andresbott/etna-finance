@@ -6,14 +6,6 @@ import (
 	closuretree "github.com/go-bumbu/closure-tree"
 )
 
-// IncomeCategory holds the needed information of a tag with a tree structure
-type IncomeCategory struct {
-	closuretree.Node
-	Name        string
-	Description string
-	Children    []*IncomeCategory `gorm:"-"`
-}
-
 // Define error variables to match with model errors
 var (
 	ErrCategoryNotFound            = errors.New("category not found")
@@ -28,6 +20,14 @@ func handleErr(err error) error {
 		return err
 	}
 	return nil
+}
+
+// IncomeCategory holds the needed information of a tag with a tree structure
+type IncomeCategory struct {
+	closuretree.Node
+	Name        string
+	Description string
+	Children    []*IncomeCategory `gorm:"-"`
 }
 
 func (store *Store) CreateIncomeCategory(ctx context.Context, cat *IncomeCategory, parent uint, tenant string) error {
