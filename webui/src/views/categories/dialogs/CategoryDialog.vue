@@ -20,7 +20,6 @@ const emit = defineEmits([
     'update:categoryData'
 ])
 
-// Local category (avoid mutating props directly)
 const localCategory = ref({
     id: null,
     name: '',
