@@ -7,6 +7,12 @@
 
 # Brain dump
 
+* backup/restore
+  * use a background scheduled anacron job to generate backups
+  * backup is a json dump of the tables + dump version
+  * to import we keep importers in place for every version, like migration
+  * the startup process should check for DB changes and do a backup/import if there is a change
+
 * movements
   * income uses:  target account, amount, currency and category
     * can be to a stock account -> in that case also capture amount of stocks

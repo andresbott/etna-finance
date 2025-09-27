@@ -82,7 +82,7 @@ func (h *CategoryHandler) createCategory(userId, categoryType string) http.Handl
 
 		switch categoryType {
 		case IncomeCategoryType:
-			category := &finance.IncomeCategory{
+			category := &finance.incomeCategory{
 				Name:        payload.Name,
 				Description: payload.Description,
 			}
@@ -93,7 +93,7 @@ func (h *CategoryHandler) createCategory(userId, categoryType string) http.Handl
 			respJson, err = json.Marshal(category)
 
 		case ExpenseCategoryType:
-			category := &finance.ExpenseCategory{
+			category := &finance.expenseCategory{
 				Name:        payload.Name,
 				Description: payload.Description,
 			}
@@ -178,7 +178,7 @@ func updateCategory(ctx context.Context, Id uint, userId, categoryType string, p
 
 	switch categoryType {
 	case IncomeCategoryType:
-		category := finance.IncomeCategory{
+		category := finance.incomeCategory{
 			Name:        payload.Name,
 			Description: payload.Description,
 		}
@@ -194,7 +194,7 @@ func updateCategory(ctx context.Context, Id uint, userId, categoryType string, p
 			}
 		}
 	case ExpenseCategoryType:
-		category := finance.ExpenseCategory{
+		category := finance.expenseCategory{
 			Name:        payload.Name,
 			Description: payload.Description,
 		}
@@ -337,7 +337,7 @@ func (h *CategoryHandler) listCategory(Id uint, userId, categoryType string) htt
 
 		switch categoryType {
 		case IncomeCategoryType:
-			var items []finance.IncomeCategory
+			var items []finance.incomeCategory
 			err = h.Store.DescendantsIncomeCategory(r.Context(), Id, depth, userId, &items)
 			if err != nil {
 				break
@@ -353,7 +353,7 @@ func (h *CategoryHandler) listCategory(Id uint, userId, categoryType string) htt
 			}
 
 		case ExpenseCategoryType:
-			var items []finance.ExpenseCategory
+			var items []finance.expenseCategory
 			err = h.Store.DescendantsExpenseCategory(r.Context(), Id, depth, userId, &items)
 			if err != nil {
 				break

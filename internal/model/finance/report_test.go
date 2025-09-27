@@ -2,11 +2,10 @@ package finance
 
 import (
 	"context"
-	"fmt"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/go-bumbu/testdbs"
 	"github.com/google/go-cmp/cmp"
-	"golang.org/x/text/currency"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"sort"
 	"testing"
 	"time"
 )
@@ -17,13 +16,27 @@ func TestGetReport(t *testing.T) {
 		startDate time.Time
 		endDate   time.Time
 		tenant    string
+		want      Report
 		wantErr   string
 	}{
 		{
-			name:      "create valid entry",
-			startDate: getTime("2020-01-01 00:00:01"),
-			endDate:   getTime("2020-01-30 00:00:01"),
+			name:      "simple report over all time",
+			startDate: getTime("2024-01-01 00:00:01"),
+			endDate:   getTime("2025-01-30 00:00:01"),
 			tenant:    tenant1,
+			want: Report{
+				Income: []ReportItem{
+					{Id: 4, ParentId: 0, Name: "in_top2", Value: 0},
+					{Id: 1, ParentId: 0, Name: "in_top1", Value: 553.5},
+					{Id: 3, ParentId: 2, Name: "in_sub2", Value: 3},
+					{Id: 2, ParentId: 1, Name: "in_sub1", Value: 553.5},
+				},
+				Expenses: []ReportItem{
+					{Id: 1, ParentId: 0, Name: "ex_top1", Value: 99.6},
+					{Id: 3, ParentId: 2, Name: "ex_sub2", Value: 0},
+					{Id: 2, ParentId: 1, Name: "ex_sub1", Value: -100.4},
+				},
+			},
 		},
 	}
 
@@ -35,21 +48,14 @@ func TestGetReport(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = populateSampleData(store)
-			if err != nil {
-				t.Fatal(err)
-			}
+
+			sampleData(t, store)
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
 					ctx := context.Background()
-
 					got, err := store.GetReport(ctx, tc.startDate, tc.endDate, tc.tenant)
-					if err != nil {
-						t.Fatalf("expected results, but got error: %v", err)
-					}
-
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -62,12 +68,17 @@ func TestGetReport(t *testing.T) {
 							t.Fatalf("unexpected error: %v", err)
 						}
 
-						spew.Dump(got)
-						_ = cmp.Diff(got, tc.startDate)
+						// sort by name
+						sort.Slice(got.Income, func(i, j int) bool {
+							return got.Income[i].Name >= got.Income[j].Name
+						})
+						sort.Slice(got.Expenses, func(i, j int) bool {
+							return got.Expenses[i].Name >= got.Expenses[j].Name
+						})
 
-						//if diff := cmp.Diff(got, tc.input, ignoreEntryFields); diff != "" {
-						//	t.Errorf("unexpected result (-want +got):\n%s", diff)
-						//}
+						if diff := cmp.Diff(got, tc.want); diff != "" {
+							t.Errorf("unexpected result (-want +got):\n%s", diff)
+						}
 					}
 				})
 			}
@@ -75,64 +86,80 @@ func TestGetReport(t *testing.T) {
 	}
 }
 
-func populateSampleData(store *Store) error {
-	ctx := context.Background()
+var ignoreCategoryIdFields = cmpopts.IgnoreFields(Category{},
+	"Id", "ParentId")
 
-	// Insert categories
-	incomeCats := []struct {
-		IncomeCategory
-		parent uint
+func TestGetDescendants(t *testing.T) {
+	tcs := []struct {
+		name    string
+		catType CategoryType
+		tenant  string
+		wantErr string
+		want    []categoryIds
 	}{
-		{IncomeCategory: IncomeCategory{Name: "in_top1"}, parent: 0}, // id 1
-		{IncomeCategory: IncomeCategory{Name: "in_sub1"}, parent: 1}, // id 2
-		{IncomeCategory: IncomeCategory{Name: "in_sub2"}, parent: 2}, // id 3
-		{IncomeCategory: IncomeCategory{Name: "in_top2"}, parent: 0}, // id 4
-	}
-
-	for _, category := range incomeCats {
-		err := store.CreateIncomeCategory(ctx, &category.IncomeCategory, category.parent, tenant1)
-		if err != nil {
-			return fmt.Errorf("failed to create expense category: %w", err)
-		}
-	}
-	// insert account
-	_, err := store.CreateAccountProvider(ctx, AccountProvider{Name: "Provider1"}, tenant1)
-	if err != nil {
-		return fmt.Errorf("failed to create Account: %w", err)
-	}
-
-	_, err = store.CreateAccount(ctx, Account{Name: "account1", AccountProviderID: 1, Currency: currency.USD, Type: Cash}, tenant1)
-	if err != nil {
-		return fmt.Errorf("failed to create Account: %w", err)
-	}
-
-	// insert Entries
-	entries := []Entry{
 		{
-			Description:     "in_sub2_2020",
-			Date:            getTime("2020-01-01 00:00:01"),
-			Type:            IncomeEntry,
-			TargetAmount:    10,
-			TargetAccountID: 1,
-			CategoryId:      2,
+			name:    "create valid entry",
+			catType: IncomeCategory,
+			tenant:  tenant1,
+			want: []categoryIds{
+				{Category: Category{CategoryData: CategoryData{Name: "in_sub1", Type: 0}}, childrenIds: []int{2, 3}},
+				{Category: Category{CategoryData: CategoryData{Name: "in_sub2", Type: 0}}, childrenIds: []int{3}},
+				{Category: Category{CategoryData: CategoryData{Name: "in_top1", Type: 0}}, childrenIds: []int{1, 2, 3}},
+				{Category: Category{CategoryData: CategoryData{Name: "in_top2", Type: 0}}, childrenIds: []int{4}},
+			},
 		},
 		{
-			Description:     "in_sub1_2020",
-			Date:            getTime("2020-01-02 00:00:01"),
-			Type:            IncomeEntry,
-			TargetAmount:    100,
-			TargetAccountID: 1,
-			CategoryId:      1,
+			name:    "create valid entry",
+			catType: ExpenseCategory,
+			tenant:  tenant1,
+			want: []categoryIds{
+				{Category: Category{CategoryData: CategoryData{Name: "ex_sub1", Type: 1}}, childrenIds: []int{2, 3}},
+				{Category: Category{CategoryData: CategoryData{Name: "ex_sub2", Type: 1}}, childrenIds: []int{3}},
+				{Category: Category{CategoryData: CategoryData{Name: "ex_top1", Type: 1}}, childrenIds: []int{1, 2, 3}},
+			},
 		},
 	}
 
-	// Insert entries
-	for _, entry := range entries {
-		_, err := store.CreateEntry(ctx, entry, tenant1)
-		if err != nil {
-			return fmt.Errorf("failed to create entry: %w", err)
-		}
-	}
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
 
-	return nil
+			dbCon := db.ConnDbName("storeGetDescendants")
+			store, err := New(dbCon)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			sampleData(t, store)
+
+			for _, tc := range tcs {
+				t.Run(tc.name, func(t *testing.T) {
+
+					ctx := context.Background()
+
+					got, err := store.getCategoryIds(ctx, tc.catType, tc.tenant)
+					if tc.wantErr != "" {
+						if err == nil {
+							t.Fatalf("expected error: %s, but got none", tc.wantErr)
+						}
+						if err.Error() != tc.wantErr {
+							t.Errorf("expected error: %s, but got %v", tc.wantErr, err.Error())
+						}
+					} else {
+						if err != nil {
+							t.Fatalf("unexpected error: %v", err)
+						}
+
+						// Sort by Name
+						sort.Slice(got, func(i, j int) bool {
+							return got[i].Category.CategoryData.Name < got[j].Category.CategoryData.Name
+						})
+
+						if diff := cmp.Diff(got, tc.want, ignoreCategoryIdFields, cmp.AllowUnexported(categoryIds{})); diff != "" {
+							t.Errorf("unexpected result (-want +got):\n%s", diff)
+						}
+					}
+				})
+			}
+		})
+	}
 }

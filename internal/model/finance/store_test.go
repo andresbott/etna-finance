@@ -46,7 +46,7 @@ var sampleAccounts = []Account{
 var sampleEntries = []Entry{
 	{Description: "e0", TargetAmount: 1, Type: ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-01 00:00:00")}, // 1
 	{Description: "e1", TargetAmount: 2, Type: ExpenseEntry, Date: getTime("2025-01-02 00:00:00"), TargetAccountID: 1, TargetAccountName: "acc1"},
-	{Description: "e2", TargetAmount: 3, Type: IncomeEntry, Date: getTime("2025-01-03 00:00:00"), TargetAccountID: 2, TargetAccountName: "acc2"},
+	{Description: "e2", TargetAmount: 3, Type: IncomeEntry, Date: getTime("2025-01-03 00:00:00"), TargetAccountID: 2, TargetAccountName: "acc2", CategoryId: 3},
 	{Description: "e3", TargetAmount: -4.1, Type: ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-04 00:00:00")},
 	{Description: "e4", TargetAmount: 5, Type: ExpenseEntry, Date: getTime("2025-01-05 00:00:00"), TargetAccountID: 2, TargetAccountName: "acc2"},
 	{Description: "e5", TargetAmount: 6, Type: ExpenseEntry, Date: getTime("2025-01-06 00:00:00"), TargetAccountID: 1, TargetAccountName: "acc1"},
@@ -60,6 +60,7 @@ var sampleEntries = []Entry{
 	{Description: "e13", TargetAmount: 1000, Type: ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-14 00:00:00"), TargetAccountName: "acc1", CategoryId: 4},
 	{Description: "e14", TargetAmount: 2000, Type: ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-15 00:00:00")},
 	{Description: "e15", TargetAmount: 3000, Type: ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-16 00:00:00")},
+	{Description: "e16", TargetAmount: 550.5, Type: IncomeEntry, Date: getTime("2025-01-17 00:00:00"), TargetAccountID: 1, TargetAccountName: "acc1", CategoryId: 2},
 }
 
 var sampleAccounts2 = []Account{
@@ -74,14 +75,19 @@ var sampleEntries2 = []Entry{
 	{Description: "t2e17", TargetAmount: 10, Type: ExpenseEntry, TargetAccountID: 6, Date: getTime("2025-02-17 00:00:00")},
 }
 
-var sampleIncomeCategories = []struct {
-	IncomeCategory
+var sampleCategories = []struct {
+	CategoryData
 	parent uint
 }{
-	{IncomeCategory: IncomeCategory{Name: "in_top1"}, parent: 0}, // id 1
-	{IncomeCategory: IncomeCategory{Name: "in_sub1"}, parent: 1}, // id 2
-	{IncomeCategory: IncomeCategory{Name: "in_sub2"}, parent: 2}, // id 3
-	{IncomeCategory: IncomeCategory{Name: "in_top2"}, parent: 0}, // id 4
+	// income
+	{CategoryData: CategoryData{Name: "in_top1", Type: IncomeCategory}, parent: 0}, // id 1
+	{CategoryData: CategoryData{Name: "in_sub1", Type: IncomeCategory}, parent: 1}, // id 2
+	{CategoryData: CategoryData{Name: "in_sub2", Type: IncomeCategory}, parent: 2}, // id 3
+	{CategoryData: CategoryData{Name: "in_top2", Type: IncomeCategory}, parent: 0}, // id 4
+	// expenses
+	{CategoryData: CategoryData{Name: "ex_top1", Type: ExpenseCategory}, parent: 0}, // id 1
+	{CategoryData: CategoryData{Name: "ex_sub1", Type: ExpenseCategory}, parent: 1}, // id 2
+	{CategoryData: CategoryData{Name: "ex_sub2", Type: ExpenseCategory}, parent: 2}, // id 3
 }
 
 const (
@@ -155,8 +161,8 @@ func sampleData(t *testing.T, store *Store) {
 	// =========================================
 	// create categories
 	// =========================================
-	for _, category := range sampleIncomeCategories {
-		err := store.CreateIncomeCategory(ctx, &category.IncomeCategory, category.parent, tenant1)
+	for _, category := range sampleCategories {
+		_, err := store.CreateCategory(ctx, category.CategoryData, category.parent, tenant1)
 		if err != nil {
 			t.Fatalf("error creating income category: %v", err)
 		}

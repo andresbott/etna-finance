@@ -59,13 +59,13 @@ func New(db *gorm.DB) (*Store, error) {
 		return nil, err
 	}
 
-	incomeTree, err := closuretree.New(db, IncomeCategory{}) // init the closure tree, this includes gorm automigrate
+	incomeTree, err := closuretree.New(db, incomeCategory{}) // init the closure tree, this includes gorm automigrate
 	if err != nil {
 		return nil, err
 	}
 	b.incomeCategoryTree = incomeTree
 
-	expenseTree, err := closuretree.New(db, ExpenseCategory{}) // init the closure tree, this includes gorm automigrate
+	expenseTree, err := closuretree.New(db, expenseCategory{}) // init the closure tree, this includes gorm automigrate
 	if err != nil {
 		return nil, err
 	}

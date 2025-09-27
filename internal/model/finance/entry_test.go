@@ -237,7 +237,7 @@ func TestUpdateEntry(t *testing.T) {
 			updateID:      2,
 			updateTenant:  tenant1,
 			updatePayload: EntryUpdatePayload{TargetAmount: ptr(float64(200))},
-			want: Entry{Description: "e2", TargetAmount: 200, Type: ExpenseEntry, Date: getTime("2025-01-02 00:00:00"),
+			want: Entry{Description: "e1", TargetAmount: 200, Type: ExpenseEntry, Date: getTime("2025-01-02 00:00:00"),
 				TargetAccountID: 1},
 		},
 		{
@@ -246,14 +246,14 @@ func TestUpdateEntry(t *testing.T) {
 			updateTenant:  tenant1,
 			updatePayload: EntryUpdatePayload{Description: ptr("Updated Entry Description"), TargetAmount: ptr(float64(300))},
 			want: Entry{Description: "Updated Entry Description", TargetAmount: 300, Type: IncomeEntry, Date: getTime("2025-01-03 00:00:00"),
-				TargetAccountID: 2},
+				TargetAccountID: 2, CategoryId: 3},
 		},
 		{
 			name:          "update entry date",
 			updateID:      4,
 			updateTenant:  tenant1,
 			updatePayload: EntryUpdatePayload{Date: &date2},
-			want:          Entry{Description: "e4", TargetAmount: 4, TargetAccountID: 1, Type: ExpenseEntry, Date: date2},
+			want:          Entry{Description: "e3", TargetAmount: -4.1, TargetAccountID: 1, Type: ExpenseEntry, Date: date2},
 		},
 		{
 			name:          "error when updating non-existent entry",
@@ -382,7 +382,7 @@ func TestListEntries(t *testing.T) {
 			endDate:    getTime("2025-02-01 00:00:00"),
 			categoryID: []int{4, 3},
 			tenant:     tenant1,
-			want:       []Entry{sampleEntries[13], sampleEntries[9]},
+			want:       []Entry{sampleEntries[13], sampleEntries[9], sampleEntries[2]},
 		},
 
 		{
@@ -392,7 +392,7 @@ func TestListEntries(t *testing.T) {
 			categoryID: []int{1, 2, 3},
 			accountID:  []int{2},
 			tenant:     tenant1,
-			want:       []Entry{sampleEntries[9]},
+			want:       []Entry{sampleEntries[9], sampleEntries[2]},
 		},
 		{
 			name:      "search with limit",

@@ -2,7 +2,6 @@ package finance
 
 import (
 	"context"
-	closuretree "github.com/go-bumbu/closure-tree"
 	"github.com/go-bumbu/testdbs"
 	"github.com/google/go-cmp/cmp"
 	"testing"
@@ -10,188 +9,98 @@ import (
 
 // since almost all the logic is delegated to the closure-tree library
 // this test is just a simple smoke test
-func TestStore_IncomeCategory(t *testing.T) {
+func TestStore_CategorySmoke(t *testing.T) {
 	for _, db := range testdbs.DBs() {
+		// test on all DBs
 		t.Run(db.DbType(), func(t *testing.T) {
 
-			dbCon := db.ConnDbName("TestIncomeCategory")
-			store, err := New(dbCon)
-			if err != nil {
-				t.Fatal(err)
+			categoryTypes := map[string]CategoryType{
+				"income":  IncomeCategory,
+				"expense": ExpenseCategory,
 			}
 
-			ctx := context.Background()
-			incomeCat := IncomeCategory{
-				Node: closuretree.Node{},
-				Name: "test",
-			}
-			err = store.CreateIncomeCategory(ctx, &incomeCat, 0, tenant1)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+			// test all category Types
+			for catStr, categoryType := range categoryTypes {
+				t.Run(catStr, func(t *testing.T) {
+					dbCon := db.ConnDbName("TestIncomeCategory")
+					store, err := New(dbCon)
+					if err != nil {
+						t.Fatal(err)
+					}
 
-			err = store.UpdateIncomeCategory(ctx, 1, IncomeCategory{Name: "changed"}, tenant1)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+					ctx := context.Background()
+					category := CategoryData{
+						Name: "test",
+						Type: categoryType,
+					}
+					catId, err := store.CreateCategory(ctx, category, 0, tenant1)
+					if err != nil {
+						t.Fatalf("unexpected error: %v", err)
+					}
 
-			err = store.CreateIncomeCategory(ctx, &incomeCat, 0, tenant1)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+					// verify that the id is mounted back
+					if catId == 0 {
+						t.Fatalf("income category id should not be zero")
+					}
 
-			err = store.CreateIncomeCategory(ctx, &IncomeCategory{}, 1, tenant2)
-			if err == nil {
-				t.Fatal("expecting error but none got")
-			}
+					err = store.UpdateCategory(ctx, 1, CategoryData{Name: "changed", Type: categoryType}, tenant1)
+					if err != nil {
+						t.Fatalf("unexpected error: %v", err)
+					}
 
-			// ===================================
-			//  move items
-			// ===================================
-			err = store.MoveIncomeCategory(ctx, 1, 2, tenant1)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+					_, err = store.CreateCategory(ctx, category, 0, tenant1)
+					if err != nil {
+						t.Fatalf("unexpected error: %v", err)
+					}
 
-			var got []IncomeCategory
-			err = store.DescendantsIncomeCategory(ctx, 0, -1, tenant1, &got)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+					_, err = store.CreateCategory(ctx, CategoryData{Type: categoryType}, 1, tenant2)
+					if err == nil {
+						t.Fatal("expecting error but none got")
+					}
 
-			want := []IncomeCategory{
-				{
-					Node: closuretree.Node{NodeId: 2, ParentId: 0, Tenant: tenant1},
-					Name: "test",
-				},
-				{
-					Node: closuretree.Node{NodeId: 1, ParentId: 2, Tenant: tenant1},
-					Name: "changed",
-				},
-			}
+					// ===================================
+					//  move items
+					// ===================================
+					err = store.MoveCategory(ctx, 1, 2, categoryType, tenant1)
+					if err != nil {
+						t.Fatalf("unexpected error: %v", err)
+					}
 
-			if diff := cmp.Diff(got, want); diff != "" {
-				t.Errorf("unexpected result (-want +got):\n%s", diff)
-			}
+					got, err := store.ListDescendantCategories(ctx, 0, -1, categoryType, tenant1)
+					if err != nil {
+						t.Fatalf("unexpected error: %v", err)
+					}
 
-			// ===================================
-			//  delete
-			// ===================================
-			err = store.DeleteRecurseIncomeCategory(ctx, 1, tenant1)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+					want := []Category{
+						{Id: 2, ParentId: 0, CategoryData: CategoryData{Name: "test", Type: categoryType}},
+						{Id: 1, ParentId: 2, CategoryData: CategoryData{Name: "changed", Type: categoryType}},
+					}
 
-			got = []IncomeCategory{}
-			err = store.DescendantsIncomeCategory(ctx, 0, -1, tenant1, &got)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+					if diff := cmp.Diff(got, want); diff != "" {
+						t.Errorf("unexpected result (-want +got):\n%s", diff)
+					}
 
-			want = []IncomeCategory{
-				{
-					Node: closuretree.Node{NodeId: 2, ParentId: 0, Tenant: tenant1},
-					Name: "test",
-				},
-			}
+					// ===================================
+					//  delete
+					// ===================================
+					err = store.DeleteCategoryRecursive(ctx, 1, categoryType, tenant1)
+					if err != nil {
+						t.Fatalf("unexpected error: %v", err)
+					}
 
-			if diff := cmp.Diff(got, want); diff != "" {
-				t.Errorf("unexpected result (-want +got):\n%s", diff)
-			}
+					got, err = store.ListDescendantCategories(ctx, 0, -1, categoryType, tenant1)
+					if err != nil {
+						t.Fatalf("unexpected error: %v", err)
+					}
 
-		})
-	}
-}
+					want = []Category{
+						{Id: 2, ParentId: 0, CategoryData: CategoryData{Name: "test", Type: categoryType}},
+					}
 
-// since almost all the logic is delegated to the closure-tree library
-// this test is just a simple smoke test
-func TestStore_ExpenseCategory(t *testing.T) {
-	for _, db := range testdbs.DBs() {
-		t.Run(db.DbType(), func(t *testing.T) {
-
-			dbCon := db.ConnDbName("TestExpenseCategory")
-			store, err := New(dbCon)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			ctx := context.Background()
-			ExpenseCat := ExpenseCategory{
-				Node: closuretree.Node{},
-				Name: "test",
-			}
-			err = store.CreateExpenseCategory(ctx, &ExpenseCat, 0, tenant1)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-
-			err = store.UpdateExpenseCategory(ctx, 1, ExpenseCategory{Name: "changed"}, tenant1)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-
-			err = store.CreateExpenseCategory(ctx, &ExpenseCat, 0, tenant1)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-
-			err = store.CreateExpenseCategory(ctx, &ExpenseCategory{}, 1, tenant2)
-			if err == nil {
-				t.Fatal("expecting error but none got")
-			}
-
-			// ===================================
-			//  move items
-			// ===================================
-			err = store.MoveExpenseCategory(ctx, 1, 2, tenant1)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-
-			var got []ExpenseCategory
-			err = store.DescendantsExpenseCategory(ctx, 0, -1, tenant1, &got)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-
-			want := []ExpenseCategory{
-				{
-					Node: closuretree.Node{NodeId: 2, ParentId: 0, Tenant: tenant1},
-					Name: "test",
-				},
-				{
-					Node: closuretree.Node{NodeId: 1, ParentId: 2, Tenant: tenant1},
-					Name: "changed",
-				},
-			}
-
-			if diff := cmp.Diff(got, want); diff != "" {
-				t.Errorf("unexpected result (-want +got):\n%s", diff)
-			}
-
-			// ===================================
-			//  delete
-			// ===================================
-			err = store.DeleteRecurseExpenseCategory(ctx, 1, tenant1)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-
-			got = []ExpenseCategory{}
-			err = store.DescendantsExpenseCategory(ctx, 0, -1, tenant1, &got)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-
-			want = []ExpenseCategory{
-				{
-					Node: closuretree.Node{NodeId: 2, ParentId: 0, Tenant: tenant1},
-					Name: "test",
-				},
-			}
-
-			if diff := cmp.Diff(got, want); diff != "" {
-				t.Errorf("unexpected result (-want +got):\n%s", diff)
+					if diff := cmp.Diff(got, want); diff != "" {
+						t.Errorf("unexpected result (-want +got):\n%s", diff)
+					}
+				})
 			}
 
 		})
