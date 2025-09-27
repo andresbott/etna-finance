@@ -2,6 +2,7 @@ package finance
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"golang.org/x/text/currency"
@@ -401,6 +402,46 @@ func (store *Store) ListEntries(ctx context.Context, opts ListOpts) ([]Entry, er
 		}
 	}
 	return entries, nil
+}
+
+type SumOpts struct {
+	StartDate   time.Time
+	EndDate     time.Time
+	AccountIds  []int
+	CategoryIds []int
+	EntryType   EntryType
+	Tenant      string
+}
+
+func (store *Store) SumEntries(ctx context.Context, opts SumOpts) (float64, error) {
+
+	db := store.db.WithContext(ctx).Where("owner_id = ?", opts.Tenant)
+
+	// Filter by date range
+	db = db.Where("date BETWEEN ? AND ?", opts.StartDate, opts.EndDate)
+
+	// Fiter by type
+	db = db.Where("type = ? ", opts.EntryType)
+
+	// Filter by account ID if provided
+	if len(opts.AccountIds) > 0 {
+		db = db.Where("target_account_id IN ? OR origin_account_id IN ?", opts.AccountIds, opts.AccountIds)
+	}
+
+	// Filter by category ID if provided
+	if len(opts.CategoryIds) > 0 {
+		db = db.Where("category_id IN ?", opts.CategoryIds)
+	}
+
+	var total sql.NullFloat64
+	db.Model(&dbEntry{}).Select("SUM(target_amount)").Scan(&total)
+
+	if total.Valid {
+		return total.Float64, nil
+	} else {
+		return 0, ErrEntryNotFound
+	}
+
 }
 
 func (store *Store) LockEntries(ctx context.Context, date time.Time) error {

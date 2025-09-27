@@ -44,20 +44,20 @@ var sampleAccounts = []Account{
 }
 
 var sampleEntries = []Entry{
-	{Description: "e1", TargetAmount: 1, Type: ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-01 00:00:00")}, // 1
-	{Description: "e2", TargetAmount: 2, Type: ExpenseEntry, Date: getTime("2025-01-02 00:00:00"), TargetAccountID: 1, TargetAccountName: "acc1"},
-	{Description: "e3", TargetAmount: 3, Type: IncomeEntry, Date: getTime("2025-01-03 00:00:00"), TargetAccountID: 2, TargetAccountName: "acc2"},
-	{Description: "e4", TargetAmount: 4, Type: ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-04 00:00:00")},
-	{Description: "e5", TargetAmount: 5, Type: ExpenseEntry, Date: getTime("2025-01-05 00:00:00"), TargetAccountID: 2, TargetAccountName: "acc2"},
-	{Description: "e6", TargetAmount: 6, Type: ExpenseEntry, Date: getTime("2025-01-06 00:00:00"), TargetAccountID: 1, TargetAccountName: "acc1"},
-	{Description: "e7", TargetAmount: 7, Type: ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-07 00:00:00")},
-	{Description: "e8", TargetAmount: 8, Type: ExpenseEntry, Date: getTime("2025-01-08 00:00:00"), TargetAccountID: 2, TargetAccountName: "acc2"},
-	{Description: "e9", TargetAmount: 9, Type: ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-09 00:00:00")},
-	{Description: "e10", TargetAmount: 10, OriginAmount: 4.5, Type: TransferEntry, Date: getTime("2025-01-10 00:00:00"), TargetAccountID: 2, TargetAccountName: "acc2", OriginAccountID: 1, OriginAccountName: "acc1", CategoryId: 3},
-	{Description: "e11", TargetAmount: 100, Type: ExpenseEntry, TargetAccountID: 4, TargetAccountName: "acc4", Date: getTime("2025-01-11 00:00:00"), CategoryId: 2},
-	{Description: "e12", TargetAmount: 200, Type: ExpenseEntry, TargetAccountID: 4, TargetAccountName: "acc4", OriginAccountID: 5, OriginAccountName: "acc5", Date: getTime("2025-01-12 00:00:00"), CategoryId: 1},
-	{Description: "e13", TargetAmount: 300, Type: ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-13 00:00:00")},
-	{Description: "e14", TargetAmount: 1000, Type: ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-14 00:00:00"), TargetAccountName: "acc1", CategoryId: 4},
+	{Description: "e0", TargetAmount: 1, Type: ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-01 00:00:00")}, // 1
+	{Description: "e1", TargetAmount: 2, Type: ExpenseEntry, Date: getTime("2025-01-02 00:00:00"), TargetAccountID: 1, TargetAccountName: "acc1"},
+	{Description: "e2", TargetAmount: 3, Type: IncomeEntry, Date: getTime("2025-01-03 00:00:00"), TargetAccountID: 2, TargetAccountName: "acc2"},
+	{Description: "e3", TargetAmount: -4.1, Type: ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-04 00:00:00")},
+	{Description: "e4", TargetAmount: 5, Type: ExpenseEntry, Date: getTime("2025-01-05 00:00:00"), TargetAccountID: 2, TargetAccountName: "acc2"},
+	{Description: "e5", TargetAmount: 6, Type: ExpenseEntry, Date: getTime("2025-01-06 00:00:00"), TargetAccountID: 1, TargetAccountName: "acc1"},
+	{Description: "e6", TargetAmount: 7, Type: ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-07 00:00:00")},
+	{Description: "e7", TargetAmount: -8.3, Type: ExpenseEntry, Date: getTime("2025-01-08 00:00:00"), TargetAccountID: 2, TargetAccountName: "acc2"},
+	{Description: "e8", TargetAmount: 9, Type: ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-09 00:00:00")},
+	{Description: "e9", TargetAmount: 10, OriginAmount: 4.5, Type: TransferEntry, Date: getTime("2025-01-10 00:00:00"), TargetAccountID: 2, TargetAccountName: "acc2", OriginAccountID: 1, OriginAccountName: "acc1", CategoryId: 3},
+	{Description: "e10", TargetAmount: -100.4, Type: ExpenseEntry, TargetAccountID: 4, TargetAccountName: "acc4", Date: getTime("2025-01-11 00:00:00"), CategoryId: 2},
+	{Description: "e11", TargetAmount: 200, Type: ExpenseEntry, TargetAccountID: 4, TargetAccountName: "acc4", OriginAccountID: 5, OriginAccountName: "acc5", Date: getTime("2025-01-12 00:00:00"), CategoryId: 1},
+	{Description: "e12", TargetAmount: 300, Type: ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-13 00:00:00")},
+	{Description: "e13", TargetAmount: 1000, Type: ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-14 00:00:00"), TargetAccountName: "acc1", CategoryId: 4},
 	{Description: "e14", TargetAmount: 2000, Type: ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-15 00:00:00")},
 	{Description: "e15", TargetAmount: 3000, Type: ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-16 00:00:00")},
 }

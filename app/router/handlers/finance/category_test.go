@@ -154,7 +154,7 @@ func TestUpdateCategory(t *testing.T) {
 			name:         "successful expense category update",
 			userId:       tenant1,
 			categoryType: ExpenseCategoryType,
-			payload:      bytes.NewBuffer([]byte(`{"name":"Updated Expense"}`)),
+			payload:      bytes.NewBuffer([]byte(`{"name":"Updated Expenses"}`)),
 			expectCode:   http.StatusOK,
 		},
 		{

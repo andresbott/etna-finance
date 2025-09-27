@@ -47,7 +47,7 @@ func TestGetReport(t *testing.T) {
 
 					got, err := store.GetReport(ctx, tc.startDate, tc.endDate, tc.tenant)
 					if err != nil {
-						t.Fatalf("expected entry to be found, but got error: %v", err)
+						t.Fatalf("expected results, but got error: %v", err)
 					}
 
 					if tc.wantErr != "" {

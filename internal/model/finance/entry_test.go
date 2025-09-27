@@ -323,7 +323,7 @@ func getTime(timeStr string) time.Time {
 	return parsedTime
 }
 
-func TestSearchEntries(t *testing.T) {
+func TestListEntries(t *testing.T) {
 
 	tcs := []struct {
 		name       string
@@ -381,9 +381,8 @@ func TestSearchEntries(t *testing.T) {
 			startDate:  getTime("2025-01-01 00:00:01"),
 			endDate:    getTime("2025-02-01 00:00:00"),
 			categoryID: []int{4, 3},
-
-			tenant: tenant1,
-			want:   []Entry{sampleEntries[13], sampleEntries[9]},
+			tenant:     tenant1,
+			want:       []Entry{sampleEntries[13], sampleEntries[9]},
 		},
 
 		{
@@ -467,6 +466,149 @@ func TestSearchEntries(t *testing.T) {
 						}
 					}
 
+				})
+			}
+		})
+	}
+}
+
+func TestSumEntries(t *testing.T) {
+	tcs := []struct {
+		name       string
+		startDate  time.Time
+		endDate    time.Time
+		accountID  []int
+		categoryID []int
+		entityType EntryType
+		tenant     string
+		wantErr    string
+		want       []Entry
+	}{
+		{
+			name:       "sum with valid date range",
+			startDate:  getTime("2025-01-01 00:00:01"),
+			endDate:    getTime("2025-01-05 00:00:00"),
+			tenant:     tenant1,
+			entityType: ExpenseEntry,
+			want:       []Entry{sampleEntries[1], sampleEntries[3], sampleEntries[4]},
+		},
+		{
+			name:       "ensure transfers are not accounted",
+			startDate:  getTime("2025-01-08 00:00:01"),
+			endDate:    getTime("2025-01-11 00:00:00"),
+			entityType: ExpenseEntry,
+			tenant:     tenant1,
+			want:       []Entry{sampleEntries[8], sampleEntries[10]},
+		},
+		{
+			name:       "sum with account ID filter",
+			startDate:  getTime("2025-01-01 00:00:01"),
+			endDate:    getTime("2025-01-08 00:00:00"),
+			accountID:  []int{2},
+			entityType: ExpenseEntry,
+			tenant:     tenant1,
+			want:       []Entry{sampleEntries[7], sampleEntries[4]},
+		},
+		{
+			name:       "sum with multiple account IDs filter",
+			startDate:  getTime("2023-01-01 00:00:01"),
+			endDate:    getTime("2026-01-07 00:00:00"),
+			accountID:  []int{4, 5},
+			entityType: ExpenseEntry,
+			tenant:     tenant1,
+			want:       []Entry{sampleEntries[11], sampleEntries[10]},
+		},
+		{
+			name:       "sum with single category ID filter",
+			startDate:  getTime("2025-01-01 00:00:01"),
+			endDate:    getTime("2025-02-01 00:00:00"),
+			categoryID: []int{1},
+			entityType: ExpenseEntry,
+			tenant:     tenant1,
+			want:       []Entry{sampleEntries[11]},
+		},
+		{
+			name:       "sum with multiple category ID filter",
+			startDate:  getTime("2025-01-01 00:00:01"),
+			endDate:    getTime("2025-02-01 00:00:00"),
+			categoryID: []int{4, 1},
+			entityType: ExpenseEntry,
+			tenant:     tenant1,
+			want:       []Entry{sampleEntries[13], sampleEntries[11]},
+		},
+		{
+			name:       "sum with multiple category ID filters and account ID filter",
+			startDate:  getTime("2025-01-01 00:00:01"),
+			endDate:    getTime("2025-02-01 00:00:00"),
+			categoryID: []int{1, 3, 4},
+			accountID:  []int{4, 1},
+			entityType: ExpenseEntry,
+			tenant:     tenant1,
+			want:       []Entry{sampleEntries[11], sampleEntries[13]},
+		},
+		{
+			name:       "sum for another tenant",
+			startDate:  getTime("2025-01-14 00:00:01"),
+			endDate:    getTime("2025-01-20 00:00:00"),
+			entityType: ExpenseEntry,
+			tenant:     tenant2,
+			want:       []Entry{sampleEntries2[3], sampleEntries2[2]},
+		},
+		{
+			name:       "expect No entries error",
+			startDate:  getTime("2024-01-14 00:00:01"),
+			endDate:    getTime("2024-01-20 00:00:00"),
+			entityType: ExpenseEntry,
+			tenant:     tenant1,
+			wantErr:    ErrEntryNotFound.Error(),
+		},
+	}
+
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			dbCon := db.ConnDbName("TestSumEntries")
+			store, err := New(dbCon)
+			if err != nil {
+				t.Fatal(err)
+			}
+			sampleData(t, store) // note: test operates on one set of data
+
+			for _, tc := range tcs {
+				t.Run(tc.name, func(t *testing.T) {
+					// Call the SumEntries method
+					got, err := store.SumEntries(
+						context.Background(),
+						SumOpts{
+							StartDate:   tc.startDate,
+							EndDate:     tc.endDate,
+							AccountIds:  tc.accountID,
+							CategoryIds: tc.categoryID,
+							EntryType:   tc.entityType,
+							Tenant:      tc.tenant,
+						},
+					)
+
+					if tc.wantErr != "" {
+						if err == nil {
+							t.Fatalf("expected error: %s, but got none", tc.wantErr)
+						}
+						if err.Error() != tc.wantErr {
+							t.Errorf("expected error: %s, but got %v", tc.wantErr, err.Error())
+						}
+					} else {
+						if err != nil {
+							t.Fatalf("unexpected error: %v", err)
+						}
+
+						var want float64
+						for _, item := range tc.want {
+							want = want + item.TargetAmount
+						}
+
+						if got != want {
+							t.Errorf("expected sum to be %f, but got %f", want, got)
+						}
+					}
 				})
 			}
 		})

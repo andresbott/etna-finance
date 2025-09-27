@@ -2,53 +2,78 @@ package finance
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	closuretree "github.com/go-bumbu/closure-tree"
 	"time"
 )
 
-type ReportEntry struct {
-	Id       uint
-	ParentId uint
+type Report struct {
+	Income   []ReportItem
+	Expenses []ReportItem
 }
 
-func (store *Store) GetReport(ctx context.Context, startDate, endDate time.Time, tenant string) ([]ReportEntry, error) {
-	//entries, err := store.ListEntries(ctx, ListOpts{
-	//	StartDate:   startDate,
-	//	EndDate:     endDate,
-	//	AccountIds:  nil,
-	//	CategoryIds: nil,
-	//	Limit:       0,
-	//	Page:        0,
-	//	Tenant:      tenant,
-	//})
-	//if err != nil {
-	//	return nil, fmt.Errorf("unable to generate report %s", err.Error())
-	//}
-	//_ = entries
-	////spew.Dump(entries)
+type ReportItem struct {
+	NodeId      uint
+	ParentId    uint
+	Name        string
+	Description string
+	Value       float64
+}
 
+// GetReport generates a tree report of all incomes and expenses by grouped categories during the selected time frame
+func (store *Store) GetReport(ctx context.Context, startDate, endDate time.Time, tenant string) (*Report, error) {
+	report := Report{}
+	incomeReport, err := store.getReport(ctx, startDate, endDate, tenant, IncomeEntry)
+	if err != nil {
+		return nil, err
+	}
+	report.Income = incomeReport
+
+	expenseReport, err := store.getReport(ctx, startDate, endDate, tenant, ExpenseEntry)
+	if err != nil {
+		return nil, err
+	}
+	report.Expenses = expenseReport
+
+	return &report, nil
+}
+
+func (store *Store) getReport(ctx context.Context, startDate, endDate time.Time, tenant string, entryType EntryType) ([]ReportItem, error) {
 	reportExpenseList, err := store.getIncomeDescendants(ctx, tenant)
 	if err != nil {
 		return nil, err
 	}
 
+	incomeReport := make([]ReportItem, len(reportExpenseList))
+	i := 0
 	for _, item := range reportExpenseList {
-		fmt.Println(item.Name)
-		fmt.Printf("%d => %v \n", item.Node.NodeId, item.childrenIds)
+		var sum float64
+		var err error
+
+		sum, err = store.SumEntries(ctx,
+			SumOpts{StartDate: startDate, EndDate: endDate, CategoryIds: item.childrenIds, EntryType: entryType, Tenant: tenant})
+		if err != nil {
+			if !errors.Is(err, ErrEntryNotFound) {
+				return nil, err
+			}
+		}
+
+		incomeReport[i] = ReportItem{
+			NodeId:      item.NodeId,
+			ParentId:    item.ParentId,
+			Name:        item.Name,
+			Description: item.Description,
+			Value:       sum,
+		}
 	}
-
-	// for each category find the entries that belongs to that category + all children
-
-	// Select entry from entries where catgory in [list] AND rest of conditions
-
-	return nil, nil
+	return incomeReport, nil
 }
 
 // incomeDescendants is a wrapper around Income category that holds it's own id and all descendant ids
 type incomeDescendants struct {
 	IncomeCategory
-	childrenIds []uint
+	childrenIds []int
 }
 
 func (store *Store) getIncomeDescendants(ctx context.Context, tenant string) ([]incomeDescendants, error) {
@@ -65,9 +90,9 @@ func (store *Store) getIncomeDescendants(ctx context.Context, tenant string) ([]
 	var i int
 	for _, node := range lookup {
 		descendants := collectIncomeDescendants(node)
-		ids := []uint{}
+		ids := []int{}
 		for _, d := range descendants {
-			ids = append(ids, d.Node.NodeId)
+			ids = append(ids, int(d.Node.NodeId))
 		}
 		reportIncomeList[i] = incomeDescendants{
 			IncomeCategory: IncomeCategory{
@@ -115,7 +140,7 @@ func collectIncomeDescendants(node *IncomeCategory) []*IncomeCategory {
 	return result
 }
 
-// expenseDescendants is a wrapper around Expense category that holds it's own id and all descendant ids
+// expenseDescendants is a wrapper around Expenses category that holds it's own id and all descendant ids
 type expenseDescendants struct {
 	ExpenseCategory
 	childrenIds []uint
