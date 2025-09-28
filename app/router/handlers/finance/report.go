@@ -55,7 +55,7 @@ func (h *Handler) GetReport(userId string) http.Handler {
 		}
 
 		for i, expense := range report.Expenses {
-			response.Incomes[i] = reportEntry{
+			response.Expenses[i] = reportEntry{
 				Id:          expense.Id,
 				ParentId:    expense.ParentId,
 				Name:        expense.Name,

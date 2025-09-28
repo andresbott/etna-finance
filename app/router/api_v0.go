@@ -32,6 +32,7 @@ const finAccountPath = "/fin/account"
 const finEntries = "/fin/entries"
 const finCategoryIncome = "/fin/category/income"
 const finCategoryExpense = "/fin/category/expense"
+const finReport = "/fin/report"
 
 // this api surface is quite inconsistent, I know....
 // I haven't put too much thought into it for now and I will change it in the future
@@ -316,6 +317,19 @@ func (h *MainAppHandler) financeApi(r *mux.Router) error {
 			return
 		}
 		finHndlr.LockEntries(userData.UserId).ServeHTTP(w, r)
+	})
+
+	// ==========================================================================
+	// Report
+	// ==========================================================================
+
+	r.Path(finReport).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userData, err := sessionauth.CtxGetUserData(r)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		finHndlr.GetReport(userData.UserId).ServeHTTP(w, r)
 	})
 
 	return nil
