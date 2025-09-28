@@ -2,18 +2,16 @@
 import { ref, watch, computed } from 'vue'
 import TreeSelect from 'primevue/treeselect'
 import { useCategoryTree } from '@/composables/useCategoryTree'
+import { findNodeById } from '@/utils/categoryUtils'
 
 const props = defineProps({
-    modelValue: { type: Number, default: null }, // parentId
+    modelValue: { type: Number, default: 0 }, // parentId
     type: { type: String, default: 'expense' } // expense | income
 })
 
 const { IncomeTreeData, ExpenseTreeData } = useCategoryTree()
 const emit = defineEmits(['update:modelValue'])
 
-/* ---------------------------
-   Helpers
----------------------------- */
 // Pick correct tree
 const rawTreeData = computed(() => {
     return props.type === 'expense' ? ExpenseTreeData.value : IncomeTreeData.value
@@ -42,10 +40,7 @@ const convertTree = (nodes, parentKey = '0', parentPath = '') => {
 }
 
 const categoryTreeData = computed(() => {
-    return [
-        { key: 'root', label: 'Root Category', checked: true },
-        ...convertTree(rawTreeData.value)
-    ]
+    return [{ key: '0', label: 'Root Category', checked: true }, ...convertTree(rawTreeData.value)]
 })
 
 // SelectionKeys
@@ -58,7 +53,7 @@ watch(
         if (newVal) {
             selectionKeys.value = { [String(newVal)]: { checked: true } }
         } else {
-            selectionKeys.value = { root: { checked: true } }
+            selectionKeys.value = { 0: { checked: true } }
         }
     },
     { immediate: true }
@@ -68,30 +63,19 @@ watch(
 const onSelectionChange = (val) => {
     const selectedKey = val ? Object.keys(val)[0] : null
 
-    if (selectedKey === 'root') {
-        emit('update:modelValue', null)
-        selectionKeys.value = { root: { checked: true } }
+    if (selectedKey === 0) {
+        emit('update:modelValue', 0)
+        selectionKeys.value = { 0: { checked: true } }
     } else {
-        emit('update:modelValue', selectedKey ? parseInt(selectedKey, 10) : null)
+        emit('update:modelValue', selectedKey ? parseInt(selectedKey, 10) : 0)
         selectionKeys.value = val
     }
 }
 
-// Find path text
-const findNodeById = (nodes, id) => {
-    for (const node of nodes) {
-        if (node.key === String(id)) return node
-        if (node.children) {
-            const found = findNodeById(node.children, id)
-            if (found) return found
-        }
-    }
-    return null
-}
-
 const selectedCategoryDisplay = computed(() => {
-    if (selectionKeys.value['root'] || !props.modelValue) return 'Root Category'
+    if (props.modelValue === 0 || !props.modelValue) return 'Root Category'
     const selectedNode = findNodeById(categoryTreeData.value, props.modelValue)
+
     return selectedNode ? selectedNode.data.path : ''
 })
 </script>

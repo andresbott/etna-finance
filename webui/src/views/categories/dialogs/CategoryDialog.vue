@@ -18,7 +18,7 @@ const localCategory = ref({
     id: null,
     name: '',
     description: '',
-    parentId: null,
+    parentId: 0,
     type: 'expense',
     action: null,
     ...props.categoryData
@@ -32,7 +32,7 @@ watch(
                 id: null,
                 name: '',
                 description: '',
-                parentId: null,
+                parentId: 0,
                 type: 'expense',
                 action: null,
                 ...newVal
@@ -67,7 +67,7 @@ const reset = () => {
         id: null,
         name: '',
         description: '',
-        parentId: null,
+        parentId: 0,
         type: 'expense',
         action: null
     }
@@ -81,9 +81,9 @@ const cancel = () => {
 }
 
 // Show parent selector only when editing
-// const showParentSelector = computed(() => {
-//     return localCategory.value && localCategory.value.action !== 'add'
-// })
+const showParentSelector = computed(() => {
+    return localCategory.value && localCategory.value.action !== 'add'
+})
 </script>
 
 <template>
@@ -113,7 +113,11 @@ const cancel = () => {
             </div>
 
             <!-- Parent selector -->
-            <CategorySelect v-model="localCategory.parentId" :type="localCategory.type" />
+            <CategorySelect
+                v-if="showParentSelector"
+                v-model="localCategory.parentId"
+                :type="localCategory.type"
+            />
         </div>
 
         <template #footer>

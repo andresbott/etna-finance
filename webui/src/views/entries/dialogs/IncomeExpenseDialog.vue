@@ -27,10 +27,11 @@ const props = defineProps({
     stockAmount: { type: Number, default: 0 },
     date: { type: Date, default: () => new Date() },
     targetAccountId: { type: Number, default: null },
-    visible: { type: Boolean, default: false }
+    visible: { type: Boolean, default: false },
+    categoryId: { type: Number, default: 0 }
 })
 
-const categoryId = ref()
+const categoryId = ref(props.categoryId)
 
 // Convert numeric targetAccountId to {id: true} format for form validation
 const getFormattedAccountId = (accountId) => {
@@ -163,10 +164,10 @@ const handleSubmit = async (e) => {
         formData.targetAccountId = targetKeys.length > 0 ? parseInt(targetKeys[0], 10) : null
     }
 
-    // TODO: Add `categoryId` to request
     const entryData = {
         ...formData,
         type: props.entryType
+        // categoryId: categoryId.value
     }
 
     try {

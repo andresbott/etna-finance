@@ -74,9 +74,9 @@ interface Category {
 
 /* --- Create and Edit Category--- */
 const categoryDialogVisible = ref(false)
-const categoryData = ref<Category>({ id: null, name: '', description: '', parentId: null })
+const categoryData = ref<Category>({ id: null, name: '', description: '', parentId: 0 })
 const resetCategoryData = () => {
-    categoryData.value = { id: null, name: '', description: '', parentId: null }
+    categoryData.value = { id: null, name: '', description: '', parentId: 0 }
 }
 
 // handle click Add/edit button click
@@ -91,7 +91,7 @@ const handleAddEditIncome = (item: Category | null, action: string, type: string
             console.error('Something went wrong, item cannot be null for edit actions')
             return
         }
-        categoryData.value.parentId = item.parentId ? item.parentId : null
+        categoryData.value.parentId = item.parentId ? item.parentId : 0
         categoryData.value.id = item.id
         categoryData.value.name = item.name
         categoryData.value.description = item.description
