@@ -109,23 +109,21 @@ func TestCreateCategory(t *testing.T) {
 				}
 
 				if tc.categoryType == IncomeCategoryType {
-					cat := finance.incomeCategory{}
+					cat := categoryPayload{}
 					err := json.NewDecoder(recorder.Body).Decode(&cat)
 					if err != nil {
 						t.Fatal(err)
 					}
-					// ID is a getter method, not a field
-					if cat.Id() == 0 {
+					if cat.Id == 0 {
 						t.Error("returned category ID is empty")
 					}
 				} else {
-					cat := finance.expenseCategory{}
+					cat := categoryPayload{}
 					err := json.NewDecoder(recorder.Body).Decode(&cat)
 					if err != nil {
 						t.Fatal(err)
 					}
-					// ID is a getter method, not a field
-					if cat.Id() == 0 {
+					if cat.Id == 0 {
 						t.Error("returned category ID is empty")
 					}
 				}
@@ -525,35 +523,34 @@ func SampleCategoryHandler(t *testing.T) (*CategoryHandler, func()) {
 func createTestCategories(t *testing.T, store *finance.Store) {
 
 	// Create some income categories
-	incomeCategory1 := finance.incomeCategory{Name: "Salary"}
-	err := store.CreateIncomeCategory(t.Context(), &incomeCategory1, 0, tenant1)
+	incomeCategory1 := finance.CategoryData{Name: "Salary", Type: finance.IncomeCategory}
+	_, err := store.CreateCategory(t.Context(), incomeCategory1, 0, tenant1)
 	if err != nil {
 		t.Fatalf("error creating income category: %v", err)
 	}
 
-	incomeCategory2 := finance.incomeCategory{Name: "Investments"}
-	err = store.CreateIncomeCategory(t.Context(), &incomeCategory2, 0, tenant1)
+	incomeCategory2 := finance.CategoryData{Name: "Investments", Type: finance.IncomeCategory}
+	_, err = store.CreateCategory(t.Context(), incomeCategory2, 0, tenant1)
 	if err != nil {
 		t.Fatalf("error creating income category: %v", err)
 	}
 
 	// Create some expense categories
-	expenseCategory1 := finance.expenseCategory{Name: "Food"}
-	err = store.CreateExpenseCategory(t.Context(), &expenseCategory1, 0, tenant1)
+	expenseCategory1 := finance.CategoryData{Name: "Food", Type: finance.ExpenseCategory}
+	expense1Id, err := store.CreateCategory(t.Context(), expenseCategory1, 0, tenant1)
 	if err != nil {
 		t.Fatalf("error creating expense category: %v", err)
 	}
 
-	expenseCategory2 := finance.expenseCategory{Name: "Transportation"}
-	err = store.CreateExpenseCategory(t.Context(), &expenseCategory2, 0, tenant1)
+	expenseCategory2 := finance.CategoryData{Name: "Transportation", Type: finance.ExpenseCategory}
+	_, err = store.CreateCategory(t.Context(), expenseCategory2, 0, tenant1)
 	if err != nil {
 		t.Fatalf("error creating expense category: %v", err)
 	}
 
 	// Create a subcategory
-	expenseSubcategory := finance.expenseCategory{Name: "Groceries"}
-	var parentId = expenseCategory1.Id() // Call the Id() method to get the uint value
-	err = store.CreateExpenseCategory(t.Context(), &expenseSubcategory, parentId, tenant1)
+	expenseSubcategory := finance.CategoryData{Name: "Groceries", Type: finance.ExpenseCategory}
+	_, err = store.CreateCategory(t.Context(), expenseSubcategory, expense1Id, tenant1)
 	if err != nil {
 		t.Fatalf("error creating expense subcategory: %v", err)
 	}

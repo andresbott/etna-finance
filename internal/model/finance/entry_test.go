@@ -478,7 +478,7 @@ func TestSumEntries(t *testing.T) {
 		startDate  time.Time
 		endDate    time.Time
 		accountID  []int
-		categoryID []int
+		categoryID []uint
 		entityType EntryType
 		tenant     string
 		wantErr    string
@@ -522,7 +522,7 @@ func TestSumEntries(t *testing.T) {
 			name:       "sum with single category ID filter",
 			startDate:  getTime("2025-01-01 00:00:01"),
 			endDate:    getTime("2025-02-01 00:00:00"),
-			categoryID: []int{1},
+			categoryID: []uint{1},
 			entityType: ExpenseEntry,
 			tenant:     tenant1,
 			want:       []Entry{sampleEntries[11]},
@@ -531,7 +531,7 @@ func TestSumEntries(t *testing.T) {
 			name:       "sum with multiple category ID filter",
 			startDate:  getTime("2025-01-01 00:00:01"),
 			endDate:    getTime("2025-02-01 00:00:00"),
-			categoryID: []int{4, 1},
+			categoryID: []uint{4, 1},
 			entityType: ExpenseEntry,
 			tenant:     tenant1,
 			want:       []Entry{sampleEntries[13], sampleEntries[11]},
@@ -540,7 +540,7 @@ func TestSumEntries(t *testing.T) {
 			name:       "sum with multiple category ID filters and account ID filter",
 			startDate:  getTime("2025-01-01 00:00:01"),
 			endDate:    getTime("2025-02-01 00:00:00"),
-			categoryID: []int{1, 3, 4},
+			categoryID: []uint{1, 3, 4},
 			accountID:  []int{4, 1},
 			entityType: ExpenseEntry,
 			tenant:     tenant1,

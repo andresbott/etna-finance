@@ -5,9 +5,20 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 )
+
+type reportResponse struct {
+	Incomes  []reportEntry `json:"income"`
+	Expenses []reportEntry `json:"expenses"`
+}
+type reportEntry struct {
+	Id          uint    `json:"id"`
+	ParentId    uint    `json:"ParentId"`
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+	Value       float64 `json:"amount"`
+}
 
 func (h *Handler) GetReport(userId string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -22,36 +33,34 @@ func (h *Handler) GetReport(userId string) http.Handler {
 			return
 		}
 
-		entries, err := h.Store.GetReport(r.Context(), startDate, endDate, userId)
+		report, err := h.Store.GetReport(r.Context(), startDate, endDate, userId)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to list entries: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
 
-		response := listEntriesResponse{
-			Items: make([]entryPayload, len(entries)),
+		response := reportResponse{
+			Incomes:  make([]reportEntry, len(report.Income)),
+			Expenses: make([]reportEntry, len(report.Expenses)),
 		}
 
-		for i, entry := range entries {
-			response.Items[i] = entryPayload{
-				Id:          entry.Id,
-				Description: entry.Description,
-				Date:        entry.Date,
-				Type:        entry.Type.String(),
+		for i, income := range report.Income {
+			response.Incomes[i] = reportEntry{
+				Id:          income.Id,
+				ParentId:    income.ParentId,
+				Name:        income.Name,
+				Description: income.Description,
+				Value:       income.Value,
+			}
+		}
 
-				StockAmount: entry.StockAmount,
-
-				TargetAmount:          entry.TargetAmount,
-				TargetAccountID:       entry.TargetAccountID,
-				TargetAccountName:     entry.TargetAccountName,
-				TargetAccountCurrency: entry.TargetAccountCurrency.String(),
-
-				OriginAmount:          entry.OriginAmount,
-				OriginAccountID:       entry.OriginAccountID,
-				OriginAccountName:     entry.OriginAccountName,
-				OriginAccountCurrency: entry.OriginAccountCurrency.String(),
-
-				CategoryId: entry.CategoryId,
+		for i, expense := range report.Expenses {
+			response.Incomes[i] = reportEntry{
+				Id:          expense.Id,
+				ParentId:    expense.ParentId,
+				Name:        expense.Name,
+				Description: expense.Description,
+				Value:       expense.Value,
 			}
 		}
 

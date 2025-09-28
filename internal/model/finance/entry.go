@@ -408,7 +408,7 @@ type SumOpts struct {
 	StartDate   time.Time
 	EndDate     time.Time
 	AccountIds  []int
-	CategoryIds []int
+	CategoryIds []uint
 	EntryType   EntryType
 	Tenant      string
 }

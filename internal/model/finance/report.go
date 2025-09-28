@@ -45,11 +45,13 @@ func (store *Store) getReport(ctx context.Context, startDate, endDate time.Time,
 	}
 
 	var entrytype EntryType
-	if catType == IncomeCategory {
+
+	switch catType {
+	case IncomeCategory:
 		entrytype = IncomeEntry
-	} else if catType == ExpenseCategory {
+	case ExpenseCategory:
 		entrytype = ExpenseEntry
-	} else {
+	default:
 		return nil, ErrWrongCategoryType
 	}
 
@@ -80,7 +82,7 @@ func (store *Store) getReport(ctx context.Context, startDate, endDate time.Time,
 
 type categoryIds struct {
 	Category
-	childrenIds []int
+	childrenIds []uint
 }
 
 // getCategoryIds queries all categories of a type and tenant and returns a flat list of categories + the associated
@@ -106,9 +108,9 @@ func (store *Store) getCategoryIds(ctx context.Context, catType CategoryType, te
 	var i int
 	for _, node := range lookup {
 		descendants := collectDescendants(node)
-		ids := []int{}
+		ids := []uint{}
 		for _, d := range descendants {
-			ids = append(ids, int(d.Id))
+			ids = append(ids, d.Id)
 		}
 		reportIncomeList[i] = categoryIds{
 			Category: Category{

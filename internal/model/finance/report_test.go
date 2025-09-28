@@ -102,10 +102,10 @@ func TestGetDescendants(t *testing.T) {
 			catType: IncomeCategory,
 			tenant:  tenant1,
 			want: []categoryIds{
-				{Category: Category{CategoryData: CategoryData{Name: "in_sub1", Type: 0}}, childrenIds: []int{2, 3}},
-				{Category: Category{CategoryData: CategoryData{Name: "in_sub2", Type: 0}}, childrenIds: []int{3}},
-				{Category: Category{CategoryData: CategoryData{Name: "in_top1", Type: 0}}, childrenIds: []int{1, 2, 3}},
-				{Category: Category{CategoryData: CategoryData{Name: "in_top2", Type: 0}}, childrenIds: []int{4}},
+				{Category: Category{CategoryData: CategoryData{Name: "in_sub1", Type: 0}}, childrenIds: []uint{2, 3}},
+				{Category: Category{CategoryData: CategoryData{Name: "in_sub2", Type: 0}}, childrenIds: []uint{3}},
+				{Category: Category{CategoryData: CategoryData{Name: "in_top1", Type: 0}}, childrenIds: []uint{1, 2, 3}},
+				{Category: Category{CategoryData: CategoryData{Name: "in_top2", Type: 0}}, childrenIds: []uint{4}},
 			},
 		},
 		{
@@ -113,9 +113,9 @@ func TestGetDescendants(t *testing.T) {
 			catType: ExpenseCategory,
 			tenant:  tenant1,
 			want: []categoryIds{
-				{Category: Category{CategoryData: CategoryData{Name: "ex_sub1", Type: 1}}, childrenIds: []int{2, 3}},
-				{Category: Category{CategoryData: CategoryData{Name: "ex_sub2", Type: 1}}, childrenIds: []int{3}},
-				{Category: Category{CategoryData: CategoryData{Name: "ex_top1", Type: 1}}, childrenIds: []int{1, 2, 3}},
+				{Category: Category{CategoryData: CategoryData{Name: "ex_sub1", Type: 1}}, childrenIds: []uint{2, 3}},
+				{Category: Category{CategoryData: CategoryData{Name: "ex_sub2", Type: 1}}, childrenIds: []uint{3}},
+				{Category: Category{CategoryData: CategoryData{Name: "ex_top1", Type: 1}}, childrenIds: []uint{1, 2, 3}},
 			},
 		},
 	}
@@ -151,7 +151,7 @@ func TestGetDescendants(t *testing.T) {
 
 						// Sort by Name
 						sort.Slice(got, func(i, j int) bool {
-							return got[i].Category.CategoryData.Name < got[j].Category.CategoryData.Name
+							return got[i].Name < got[j].Name
 						})
 
 						if diff := cmp.Diff(got, tc.want, ignoreCategoryIdFields, cmp.AllowUnexported(categoryIds{})); diff != "" {
