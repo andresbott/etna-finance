@@ -63,13 +63,8 @@ func (h *CategoryHandler) createCategory(userId, categoryType string) http.Handl
 			return
 		}
 
-		var (
-			respJson []byte
-			err      error
-		)
-
 		payload := categoryPayload{}
-		err = json.NewDecoder(r.Body).Decode(&payload)
+		err := json.NewDecoder(r.Body).Decode(&payload)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to decode json: %s", err.Error()), http.StatusBadRequest)
 			return
@@ -80,42 +75,40 @@ func (h *CategoryHandler) createCategory(userId, categoryType string) http.Handl
 			return
 		}
 
+		var catId uint
+		data := finance.CategoryData{
+			Name:        payload.Name,
+			Description: payload.Description,
+		}
 		switch categoryType {
 		case IncomeCategoryType:
-			category := &finance.IncomeCategory{
-				Name:        payload.Name,
-				Description: payload.Description,
-			}
-			err = h.Store.CreateIncomeCategory(r.Context(), category, payload.ParentId, userId)
-			if err != nil {
-				break
-			}
-			respJson, err = json.Marshal(category)
-
+			data.Type = finance.IncomeCategory
 		case ExpenseCategoryType:
-			category := &finance.ExpenseCategory{
-				Name:        payload.Name,
-				Description: payload.Description,
-			}
-			err = h.Store.CreateExpenseCategory(r.Context(), category, payload.ParentId, userId)
-			if err != nil {
-				break
-			}
-			respJson, err = json.Marshal(category)
-
-		default:
-			http.Error(w, fmt.Sprintf("invalid category type: %s", categoryType), http.StatusBadRequest)
-			return
+			data.Type = finance.ExpenseCategory
 		}
 
+		catId, err = h.Store.CreateCategory(r.Context(), data, payload.ParentId, userId)
 		if err != nil {
 			if errors.As(err, &validationErr) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			} else {
-				http.Error(w, fmt.Sprintf("unable to store category in DB: %s", err.Error()), http.StatusInternalServerError)
+				http.Error(w, fmt.Sprintf("unable to store data in DB: %s", err.Error()), http.StatusInternalServerError)
 				return
 			}
+		}
+		category := categoryPayload{
+			Id:          catId,
+			ParentId:    payload.ParentId,
+			Name:        data.Name,
+			Description: data.Description,
+		}
+		var respJson []byte
+		respJson, err = json.Marshal(category)
+		
+		if err != nil {
+			http.Error(w, fmt.Sprintf("response marshal error: %s", err.Error()), http.StatusInternalServerError)
+			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -176,40 +169,30 @@ func (h *CategoryHandler) updateCategory(Id uint, userId, categoryType string) h
 func updateCategory(ctx context.Context, Id uint, userId, categoryType string, payload categoryUpdatePayload, store *finance.Store) error {
 	var err error
 
+	data := finance.CategoryData{
+		Name:        payload.Name,
+		Description: payload.Description,
+	}
+
 	switch categoryType {
 	case IncomeCategoryType:
-		category := finance.IncomeCategory{
-			Name:        payload.Name,
-			Description: payload.Description,
-		}
-		err = store.UpdateIncomeCategory(ctx, Id, category, userId)
-		if err != nil {
-			return err
-		}
-
-		if payload.ParentId != nil {
-			err = store.MoveIncomeCategory(ctx, Id, *payload.ParentId, userId)
-			if err != nil {
-				return err
-			}
-		}
+		data.Type = finance.IncomeCategory
 	case ExpenseCategoryType:
-		category := finance.ExpenseCategory{
-			Name:        payload.Name,
-			Description: payload.Description,
-		}
-		err = store.UpdateExpenseCategory(ctx, Id, category, userId)
+		data.Type = finance.ExpenseCategory
+	}
+
+	err = store.UpdateCategory(ctx, Id, data, userId)
+	if err != nil {
+		return err
+	}
+
+	if payload.ParentId != nil {
+		err = store.MoveCategory(ctx, Id, *payload.ParentId, data.Type, userId)
 		if err != nil {
 			return err
-		}
-		if payload.ParentId != nil {
-			err = store.MoveExpenseCategory(ctx, Id, *payload.ParentId, userId)
-			if err != nil {
-				return err
-			}
 		}
 	}
-	return err
+	return nil
 }
 
 func (h *CategoryHandler) MoveIncome(Id uint, userId string) http.Handler {
@@ -244,9 +227,9 @@ func (h *CategoryHandler) moveCategory(Id uint, userId, categoryType string) htt
 		}
 
 		if categoryType == IncomeCategoryType {
-			err = h.Store.MoveIncomeCategory(r.Context(), Id, payload.TargetParentId, userId)
+			err = h.Store.MoveCategory(r.Context(), Id, payload.TargetParentId, finance.IncomeCategory, userId)
 		} else {
-			err = h.Store.MoveExpenseCategory(r.Context(), Id, payload.TargetParentId, userId)
+			err = h.Store.MoveCategory(r.Context(), Id, payload.TargetParentId, finance.ExpenseCategory, userId)
 		}
 
 		if err != nil {
@@ -287,9 +270,9 @@ func (h *CategoryHandler) deleteRecurseCategory(Id uint, userId, categoryType st
 
 		var err error
 		if categoryType == IncomeCategoryType {
-			err = h.Store.DeleteRecurseIncomeCategory(r.Context(), Id, userId)
+			err = h.Store.DeleteCategoryRecursive(r.Context(), Id, finance.IncomeCategory, userId)
 		} else {
-			err = h.Store.DeleteRecurseExpenseCategory(r.Context(), Id, userId)
+			err = h.Store.DeleteCategoryRecursive(r.Context(), Id, finance.ExpenseCategory, userId)
 		}
 
 		if err != nil {
@@ -337,34 +320,34 @@ func (h *CategoryHandler) listCategory(Id uint, userId, categoryType string) htt
 
 		switch categoryType {
 		case IncomeCategoryType:
-			var items []finance.IncomeCategory
-			err = h.Store.DescendantsIncomeCategory(r.Context(), Id, depth, userId, &items)
+
+			items, err := h.Store.ListDescendantCategories(r.Context(), Id, depth, finance.IncomeCategory, userId)
 			if err != nil {
 				break
 			}
 			outItems = make([]categoryPayload, len(items))
 			for i, item := range items {
 				outItems[i] = categoryPayload{
-					Id:          item.Id(),
+					Id:          item.Id,
 					Name:        item.Name,
 					Description: item.Description,
-					ParentId:    item.Parent(),
+					ParentId:    item.ParentId,
 				}
 			}
 
 		case ExpenseCategoryType:
-			var items []finance.ExpenseCategory
-			err = h.Store.DescendantsExpenseCategory(r.Context(), Id, depth, userId, &items)
+
+			items, err := h.Store.ListDescendantCategories(r.Context(), Id, depth, finance.ExpenseCategory, userId)
 			if err != nil {
 				break
 			}
 			outItems = make([]categoryPayload, len(items))
 			for i, item := range items {
 				outItems[i] = categoryPayload{
-					Id:          item.Id(),
+					Id:          item.Id,
 					Name:        item.Name,
 					Description: item.Description,
-					ParentId:    item.Parent(),
+					ParentId:    item.ParentId,
 				}
 			}
 
