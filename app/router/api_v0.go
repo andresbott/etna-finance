@@ -320,7 +320,7 @@ func (h *MainAppHandler) financeApi(r *mux.Router) error {
 	})
 
 	// ==========================================================================
-	// Report
+	// CategoryReport
 	// ==========================================================================
 
 	r.Path(finReport).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

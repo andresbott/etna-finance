@@ -355,3 +355,5 @@ func (h *Handler) DeleteAccount(Id uint, userId string) http.Handler {
 		w.WriteHeader(http.StatusOK)
 	})
 }
+
+// account status with query parameter account ids, end date ( start date is always begining of time)

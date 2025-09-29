@@ -61,6 +61,7 @@ var sampleEntries = []Entry{
 	{Description: "e14", TargetAmount: 2000, Type: ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-15 00:00:00")},
 	{Description: "e15", TargetAmount: 3000, Type: ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-16 00:00:00")},
 	{Description: "e16", TargetAmount: 550.5, Type: IncomeEntry, Date: getTime("2025-01-17 00:00:00"), TargetAccountID: 1, TargetAccountName: "acc1", CategoryId: 2},
+	{Description: "e17", TargetAmount: 2.5, Type: IncomeEntry, Date: getTime("2025-01-18 00:00:00"), TargetAccountID: 1, TargetAccountName: "acc1"},
 }
 
 var sampleAccounts2 = []Account{

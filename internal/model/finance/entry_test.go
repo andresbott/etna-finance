@@ -477,9 +477,9 @@ func TestSumEntries(t *testing.T) {
 		name       string
 		startDate  time.Time
 		endDate    time.Time
-		accountID  []int
+		accountID  []uint
 		categoryID []uint
-		entityType EntryType
+		entityType []EntryType
 		tenant     string
 		wantErr    string
 		want       []Entry
@@ -489,14 +489,14 @@ func TestSumEntries(t *testing.T) {
 			startDate:  getTime("2025-01-01 00:00:01"),
 			endDate:    getTime("2025-01-05 00:00:00"),
 			tenant:     tenant1,
-			entityType: ExpenseEntry,
+			entityType: []EntryType{ExpenseEntry},
 			want:       []Entry{sampleEntries[1], sampleEntries[3], sampleEntries[4]},
 		},
 		{
 			name:       "ensure transfers are not accounted",
 			startDate:  getTime("2025-01-08 00:00:01"),
 			endDate:    getTime("2025-01-11 00:00:00"),
-			entityType: ExpenseEntry,
+			entityType: []EntryType{ExpenseEntry},
 			tenant:     tenant1,
 			want:       []Entry{sampleEntries[8], sampleEntries[10]},
 		},
@@ -504,8 +504,8 @@ func TestSumEntries(t *testing.T) {
 			name:       "sum with account ID filter",
 			startDate:  getTime("2025-01-01 00:00:01"),
 			endDate:    getTime("2025-01-08 00:00:00"),
-			accountID:  []int{2},
-			entityType: ExpenseEntry,
+			accountID:  []uint{2},
+			entityType: []EntryType{ExpenseEntry},
 			tenant:     tenant1,
 			want:       []Entry{sampleEntries[7], sampleEntries[4]},
 		},
@@ -513,8 +513,8 @@ func TestSumEntries(t *testing.T) {
 			name:       "sum with multiple account IDs filter",
 			startDate:  getTime("2023-01-01 00:00:01"),
 			endDate:    getTime("2026-01-07 00:00:00"),
-			accountID:  []int{4, 5},
-			entityType: ExpenseEntry,
+			accountID:  []uint{4, 5},
+			entityType: []EntryType{ExpenseEntry},
 			tenant:     tenant1,
 			want:       []Entry{sampleEntries[11], sampleEntries[10]},
 		},
@@ -523,7 +523,7 @@ func TestSumEntries(t *testing.T) {
 			startDate:  getTime("2025-01-01 00:00:01"),
 			endDate:    getTime("2025-02-01 00:00:00"),
 			categoryID: []uint{1},
-			entityType: ExpenseEntry,
+			entityType: []EntryType{ExpenseEntry},
 			tenant:     tenant1,
 			want:       []Entry{sampleEntries[11]},
 		},
@@ -532,7 +532,7 @@ func TestSumEntries(t *testing.T) {
 			startDate:  getTime("2025-01-01 00:00:01"),
 			endDate:    getTime("2025-02-01 00:00:00"),
 			categoryID: []uint{4, 1},
-			entityType: ExpenseEntry,
+			entityType: []EntryType{ExpenseEntry},
 			tenant:     tenant1,
 			want:       []Entry{sampleEntries[13], sampleEntries[11]},
 		},
@@ -541,8 +541,8 @@ func TestSumEntries(t *testing.T) {
 			startDate:  getTime("2025-01-01 00:00:01"),
 			endDate:    getTime("2025-02-01 00:00:00"),
 			categoryID: []uint{1, 3, 4},
-			accountID:  []int{4, 1},
-			entityType: ExpenseEntry,
+			accountID:  []uint{4, 1},
+			entityType: []EntryType{ExpenseEntry},
 			tenant:     tenant1,
 			want:       []Entry{sampleEntries[11], sampleEntries[13]},
 		},
@@ -550,7 +550,7 @@ func TestSumEntries(t *testing.T) {
 			name:       "sum for another tenant",
 			startDate:  getTime("2025-01-14 00:00:01"),
 			endDate:    getTime("2025-01-20 00:00:00"),
-			entityType: ExpenseEntry,
+			entityType: []EntryType{ExpenseEntry},
 			tenant:     tenant2,
 			want:       []Entry{sampleEntries2[3], sampleEntries2[2]},
 		},
@@ -558,7 +558,7 @@ func TestSumEntries(t *testing.T) {
 			name:       "expect No entries error",
 			startDate:  getTime("2024-01-14 00:00:01"),
 			endDate:    getTime("2024-01-20 00:00:00"),
-			entityType: ExpenseEntry,
+			entityType: []EntryType{ExpenseEntry},
 			tenant:     tenant1,
 			wantErr:    ErrEntryNotFound.Error(),
 		},
@@ -575,10 +575,10 @@ func TestSumEntries(t *testing.T) {
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
-					// Call the SumEntries method
-					got, err := store.SumEntries(
+					// Call the sumEntryByCategories method
+					got, err := store.sumEntryByCategories(
 						context.Background(),
-						SumOpts{
+						sumByCategoryOpts{
 							StartDate:   tc.startDate,
 							EndDate:     tc.endDate,
 							AccountIds:  tc.accountID,
@@ -600,14 +600,22 @@ func TestSumEntries(t *testing.T) {
 							t.Fatalf("unexpected error: %v", err)
 						}
 
-						var want float64
+						var want sumResult
 						for _, item := range tc.want {
-							want = want + item.TargetAmount
+							want.Sum = want.Sum + item.TargetAmount
+							want.Count++
 						}
 
-						if got != want {
-							t.Errorf("expected sum to be %f, but got %f", want, got)
+						// check values
+						if got.Sum != want.Sum {
+							t.Errorf("expected sum to be %f, but got %f", want.Sum, got.Sum)
 						}
+
+						// check count
+						if got.Count != want.Count {
+							t.Errorf("expected count to be %d, but got %d", want.Count, got.Count)
+						}
+
 					}
 				})
 			}

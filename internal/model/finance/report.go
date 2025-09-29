@@ -4,24 +4,66 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/davecgh/go-spew/spew"
 	"time"
 )
 
-type Report struct {
-	Income   []ReportItem
-	Expenses []ReportItem
+type AccountReport struct {
+	Account
+	Value float64
 }
 
-// GetReport generates a tree report of all incomes and expenses by grouped categories during the selected time frame
-func (store *Store) GetReport(ctx context.Context, startDate, endDate time.Time, tenant string) (Report, error) {
-	report := Report{}
-	incomeReport, err := store.getReport(ctx, startDate, endDate, IncomeCategory, tenant)
+func (store *Store) GetAccountReport(ctx context.Context, accountIds []uint, date time.Time, tenant string) ([]AccountReport, error) {
+
+	if len(accountIds) == 0 {
+		accounts, err := store.ListAccounts(ctx, tenant)
+		if err != nil {
+			return nil, fmt.Errorf("error getting accountIds: %w", err)
+		}
+		for _, accoutn := range accounts {
+			accountIds = append(accountIds, accoutn.ID)
+		}
+	}
+
+	sum, err := store.sumEntryByCategories(ctx,
+		sumByCategoryOpts{EndDate: date, AccountIds: accountIds, Tenant: tenant})
+	if err != nil {
+		if !errors.Is(err, ErrEntryNotFound) {
+			return nil, err
+		}
+	}
+
+	spew.Dump(sum)
+
+	//reportItems := make([]CategoryReportItem, len(categories)+1)
+
+	return nil, nil
+
+}
+
+type CategoryReport struct {
+	Income   []CategoryReportItem
+	Expenses []CategoryReportItem
+}
+type CategoryReportItem struct {
+	Id          uint
+	ParentId    uint
+	Name        string
+	Description string
+	Value       float64
+	Count       int64
+}
+
+// GetCategoryReport generates a tree report of all incomes and expenses by grouped categories during the selected time frame
+func (store *Store) GetCategoryReport(ctx context.Context, startDate, endDate time.Time, tenant string) (CategoryReport, error) {
+	report := CategoryReport{}
+	incomeReport, err := store.getCategoryReport(ctx, startDate, endDate, IncomeCategory, tenant)
 	if err != nil {
 		return report, err
 	}
 	report.Income = incomeReport
 
-	expenseReport, err := store.getReport(ctx, startDate, endDate, ExpenseCategory, tenant)
+	expenseReport, err := store.getCategoryReport(ctx, startDate, endDate, ExpenseCategory, tenant)
 	if err != nil {
 		return report, err
 	}
@@ -29,16 +71,8 @@ func (store *Store) GetReport(ctx context.Context, startDate, endDate time.Time,
 	return report, nil
 }
 
-type ReportItem struct {
-	Id          uint
-	ParentId    uint
-	Name        string
-	Description string
-	Value       float64
-}
-
-// getReport generates a flat list of report entries, where every entry is one category + the associated report value
-func (store *Store) getReport(ctx context.Context, startDate, endDate time.Time, catType CategoryType, tenant string) ([]ReportItem, error) {
+// getCategoryReport generates a flat list of report entries, where every entry is one category + the associated report value
+func (store *Store) getCategoryReport(ctx context.Context, startDate, endDate time.Time, catType CategoryType, tenant string) ([]CategoryReportItem, error) {
 	categories, err := store.getCategoryIds(ctx, catType, tenant)
 	if err != nil {
 		return nil, err
@@ -55,28 +89,47 @@ func (store *Store) getReport(ctx context.Context, startDate, endDate time.Time,
 		return nil, ErrWrongCategoryType
 	}
 
-	reportItems := make([]ReportItem, len(categories))
+	reportItems := make([]CategoryReportItem, len(categories)+1)
 	i := 0
 	for _, item := range categories {
-		var sum float64
+		var sum sumResult
 		var err error
 
-		sum, err = store.SumEntries(ctx,
-			SumOpts{StartDate: startDate, EndDate: endDate, CategoryIds: item.childrenIds, EntryType: entrytype, Tenant: tenant})
+		sum, err = store.sumEntryByCategories(ctx,
+			sumByCategoryOpts{StartDate: startDate, EndDate: endDate, CategoryIds: item.childrenIds, EntryType: []EntryType{entrytype}, Tenant: tenant})
 		if err != nil {
 			if !errors.Is(err, ErrEntryNotFound) {
 				return nil, err
 			}
 		}
-		reportItems[i] = ReportItem{
+		reportItems[i] = CategoryReportItem{
 			Id:          item.Id,
 			ParentId:    item.ParentId,
 			Name:        item.Name,
 			Description: item.Description,
-			Value:       sum,
+			Value:       sum.Sum,
+			Count:       sum.Count,
 		}
 		i++
 	}
+
+	// find entries with not category (assigned to category 0)
+	sum, err := store.sumEntryByCategories(ctx,
+		sumByCategoryOpts{StartDate: startDate, EndDate: endDate, CategoryIds: []uint{0}, EntryType: []EntryType{entrytype}, Tenant: tenant})
+	if err != nil {
+		if !errors.Is(err, ErrEntryNotFound) {
+			return nil, err
+		}
+	}
+	reportItems[i] = CategoryReportItem{
+		Id:          0,
+		ParentId:    0,
+		Name:        "unclassified",
+		Description: "entries without any category",
+		Value:       sum.Sum,
+		Count:       sum.Count,
+	}
+
 	return reportItems, nil
 }
 

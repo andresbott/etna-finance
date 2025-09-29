@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"golang.org/x/text/currency"
 	"gorm.io/gorm"
-	"strings"
 	"time"
 )
 
@@ -37,7 +36,7 @@ type dbAccountProvider struct {
 
 func (store *Store) CreateAccountProvider(ctx context.Context, item AccountProvider, tenant string) (uint, error) {
 	if item.Name == "" {
-		return 0, ValidationErr("name cannot be empty")
+		return 0, ErrValidation("name cannot be empty")
 	}
 
 	payload := dbAccountProvider{
@@ -70,35 +69,38 @@ func (store *Store) GetAccountProvider(ctx context.Context, Id uint, tenant stri
 type AccountProviderUpdatePayload struct {
 	Name        *string
 	Description *string
-	//Accounts    []Accountw
 }
 
 func (store *Store) UpdateAccountProvider(item AccountProviderUpdatePayload, Id uint, tenant string) error {
-
-	payload := map[string]any{}
-	hasChanges := false
+	updateStruct := dbAccountProvider{}
+	var selectedFields []string
 
 	if item.Name != nil {
-		hasChanges = true
-		payload[store.AccountProviderColNames["Name"]] = *item.Name
+		updateStruct.Name = *item.Name
+		selectedFields = append(selectedFields, "Name")
 	}
 	if item.Description != nil {
-		hasChanges = true
-		payload[store.AccountProviderColNames["Description"]] = *item.Description
+		updateStruct.Description = *item.Description
+		selectedFields = append(selectedFields, "Description")
 	}
-	// TODO add account IDs
-
-	if !hasChanges {
+	if len(selectedFields) == 0 {
 		return ErrNoChanges
 	}
 
-	q := store.db.Where("id = ? AND owner_id = ?", Id, tenant).Model(&dbAccountProvider{}).Updates(payload)
+	// Perform the update
+	q := store.db.Model(&dbAccountProvider{}).
+		Where("id = ? AND owner_id = ?", Id, tenant).
+		Select(selectedFields).
+		Updates(updateStruct)
+
 	if q.Error != nil {
 		return q.Error
 	}
+
 	if q.RowsAffected == 0 {
 		return ErrAccountProviderNotFound
 	}
+
 	return nil
 
 }
@@ -172,11 +174,24 @@ func dbToAccountProvider(in dbAccountProvider) AccountProvider {
 	}
 }
 
+var ErrAccountProviderNotFound = errors.New("account provider not found")
+var ErrAccountConstraintViolation = errors.New("account constraint violation")
+var ErrNoChanges = errors.New("no changes were performed")
+
 // =======================================================================================
 // Account
 // =======================================================================================
 
-// Account is the public representation of an account
+var ErrAccountNotFound = errors.New("account not found")
+
+type AccountType int
+
+const (
+	Unknown AccountType = iota
+	Cash    AccountType = iota
+	Investment
+)
+
 type Account struct {
 	ID                uint
 	AccountProviderID uint
@@ -200,45 +215,6 @@ type dbAccount struct {
 	DeletedAt gorm.DeletedAt `gorm:"index"`
 }
 
-type AccountType int
-
-const (
-	Unknown AccountType = iota
-	Cash    AccountType = iota
-	Investment
-)
-const (
-	CashAccount       = "cash"
-	InvestmentAccount = "investment"
-)
-
-func (t AccountType) String() string {
-	switch t {
-	case Cash:
-		return CashAccount
-	case Investment:
-		return InvestmentAccount
-	default:
-		return "unknown"
-	}
-}
-
-func ParseAccountType(in string) (AccountType, error) {
-	switch strings.ToLower(in) {
-	case CashAccount:
-		return Cash, nil
-	case InvestmentAccount:
-		return Investment, nil
-	default:
-		return Unknown, fmt.Errorf("invalid account type: %s", in)
-	}
-}
-
-var ErrAccountNotFound = errors.New("account not found")
-var ErrAccountProviderNotFound = errors.New("account provider not found")
-var ErrAccountConstraintViolation = errors.New("account constraint violation")
-var ErrNoChanges = errors.New("no changes were performed")
-
 // dbToAccount is used internally to transform the db struct to public facing struct
 func dbToAccount(in dbAccount) Account {
 	return Account{
@@ -251,22 +227,19 @@ func dbToAccount(in dbAccount) Account {
 }
 
 func (store *Store) CreateAccount(ctx context.Context, item Account, tenant string) (uint, error) {
-
-	// TODO: limit the amount of accounts a user can create (?)
-
 	if item.Name == "" {
-		return 0, ValidationErr("name cannot be empty")
+		return 0, ErrValidation("name cannot be empty")
 	}
 	if item.Currency == (currency.Unit{}) {
-		return 0, ValidationErr("currency cannot be empty")
+		return 0, ErrValidation("currency cannot be empty")
 	}
 	if item.AccountProviderID == 0 {
-		return 0, ValidationErr("account provider ID cannot be empty")
+		return 0, ErrValidation("account provider ID cannot be empty")
 	}
 	// validate that the account provider tenant is also account tenant
 	_, err := store.GetAccountProvider(ctx, item.AccountProviderID, tenant)
 	if err != nil && errors.Is(err, ErrAccountProviderNotFound) {
-		return 0, ValidationErr("account provider ID not found")
+		return 0, ErrValidation("account provider ID not found")
 	}
 
 	payload := dbAccount{
@@ -300,43 +273,49 @@ func (store *Store) GetAccount(ctx context.Context, Id uint, tenant string) (Acc
 type AccountUpdatePayload struct {
 	Name       *string
 	Currency   *currency.Unit
-	ProviderID *int
+	ProviderID *uint
 	Type       AccountType
 }
 
 func (store *Store) UpdateAccount(item AccountUpdatePayload, Id uint, tenant string) error {
-	payload := map[string]any{}
-	hasChanges := false
+	// Build a dbAccount struct with only the fields to update
+	updateStruct := dbAccount{}
+	var selectedFields []string
 
 	if item.Name != nil {
-		hasChanges = true
-		payload[store.AccountColNames["Name"]] = *item.Name
+		updateStruct.Name = *item.Name
+		selectedFields = append(selectedFields, "Name")
 	}
 
 	if item.Type != Unknown {
-		hasChanges = true
-		payload[store.AccountColNames["Type"]] = item.Type
+		updateStruct.Type = item.Type
+		selectedFields = append(selectedFields, "Type")
 	}
 
 	if item.Currency != nil {
-		hasChanges = true
-		payload[store.AccountColNames["Currency"]] = item.Currency.String()
+		updateStruct.Currency = item.Currency.String()
+		selectedFields = append(selectedFields, "Currency")
 	}
 
 	if item.ProviderID != nil {
-		hasChanges = true
-		// TODO ensure provider restriction (?)
-		payload[store.AccountColNames["ProviderID"]] = item.ProviderID
+		updateStruct.ProviderID = *item.ProviderID
+		selectedFields = append(selectedFields, "ProviderID")
 	}
 
-	if !hasChanges {
+	if len(selectedFields) == 0 {
 		return ErrNoChanges
 	}
 
-	q := store.db.Where("id = ? AND owner_id = ?", Id, tenant).Model(&dbAccount{}).Updates(payload)
+	// Perform the update
+	q := store.db.Model(&dbAccount{}).
+		Where("id = ? AND owner_id = ?", Id, tenant).
+		Select(selectedFields).
+		Updates(updateStruct)
+
 	if q.Error != nil {
 		return q.Error
 	}
+
 	if q.RowsAffected == 0 {
 		return ErrAccountNotFound
 	}
@@ -367,7 +346,7 @@ func (store *Store) ListAccounts(ctx context.Context, tenant string) ([]Account,
 		return []Account{}, err
 	}
 
-	accounts := []Account{}
+	var accounts []Account
 	for _, got := range results {
 		select {
 		case <-ctx.Done():

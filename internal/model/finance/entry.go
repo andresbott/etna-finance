@@ -249,6 +249,7 @@ type EntryUpdatePayload struct {
 	CategoryId *uint
 }
 
+// TODO: there is nothing preventing an income category to be tagged with an expense entry
 func (store *Store) UpdateEntry(ctx context.Context, item EntryUpdatePayload, Id uint, tenant string) error {
 	payload := map[string]any{}
 	hasChanges := false
@@ -404,47 +405,109 @@ func (store *Store) ListEntries(ctx context.Context, opts ListOpts) ([]Entry, er
 	return entries, nil
 }
 
-type SumOpts struct {
+type sumResult struct {
+	Sum   float64
+	Count int64
+}
+
+type sumByCategoryOpts struct {
 	StartDate   time.Time
 	EndDate     time.Time
-	AccountIds  []int
 	CategoryIds []uint
 	EntryType   EntryType
 	Tenant      string
 }
 
-func (store *Store) SumEntries(ctx context.Context, opts SumOpts) (float64, error) {
-
+// sumEntryByCategories is an internal function to sum the values of entries filtering by Categories
+// only income and expenses permitted in the sum by categories; transfers and other operations are not added to a category
+func (store *Store) sumEntryByCategories(ctx context.Context, opts sumByCategoryOpts) (sumResult, error) {
 	db := store.db.WithContext(ctx).Where("owner_id = ?", opts.Tenant)
-
 	// Filter by date range
 	db = db.Where("date BETWEEN ? AND ?", opts.StartDate, opts.EndDate)
 
 	// Fiter by type
-	db = db.Where("type = ? ", opts.EntryType)
-
-	// Filter by account ID if provided
-	if len(opts.AccountIds) > 0 {
-		db = db.Where("target_account_id IN ? OR origin_account_id IN ?", opts.AccountIds, opts.AccountIds)
+	if opts.EntryType != IncomeEntry && opts.EntryType != ExpenseEntry {
+		return sumResult{Sum: 0, Count: 0}, fmt.Errorf("entry type not supported, must be income or expense: %s", opts.EntryType)
 	}
+	db = db.Where("type IN ? ", opts.EntryType)
 
 	// Filter by category ID if provided
 	if len(opts.CategoryIds) > 0 {
 		db = db.Where("category_id IN ?", opts.CategoryIds)
 	}
 
-	var total sql.NullFloat64
-	db.Model(&dbEntry{}).Select("SUM(target_amount)").Scan(&total)
-
-	if total.Valid {
-		return total.Float64, nil
-	} else {
-		return 0, ErrEntryNotFound
+	type scan struct {
+		Sum   sql.NullFloat64
+		Count int64
 	}
 
+	var result scan
+	err := db.Model(&dbEntry{}).
+		Select("SUM(target_amount) as sum, COUNT(*) as count").
+		Scan(&result).Error
+	if err != nil {
+		return sumResult{}, fmt.Errorf("unable to sum entries %w", err)
+	}
+
+	if !result.Sum.Valid {
+		return sumResult{}, ErrEntryNotFound
+	}
+	if result.Count == 0 || !result.Sum.Valid {
+		return sumResult{}, ErrEntryNotFound
+	}
+
+	return sumResult{
+		Sum:   result.Sum.Float64,
+		Count: result.Count,
+	}, nil
 }
 
-func (store *Store) LockEntries(ctx context.Context, date time.Time) error {
-	// locks all entries older than certain date
-	return nil
+type accountBalanceOpts struct {
+	date time.Time
+
+	Tenant string
+}
+
+// getAccountStatus sums all values from an account to calculate the current balance
+func (store *Store) getAccountBalance(ctx context.Context, opts accountBalanceOpts) (sumResult, error) {
+	db := store.db.WithContext(ctx).Where("owner_id = ?", opts.Tenant)
+	db = db.Where("date BEFORE ?", opts.date)
+
+	//
+	// Fiter by type
+	if opts.EntryType != IncomeEntry && opts.EntryType != ExpenseEntry {
+		return sumResult{Sum: 0, Count: 0}, fmt.Errorf("entry type not supported, must be income or expense: %s", opts.EntryType)
+	}
+
+	db = db.Where("type IN ?", []EntryType{IncomeEntry, ExpenseEntry})
+
+	// Filter by category ID if provided
+	if len(opts.CategoryIds) > 0 {
+		db = db.Where("category_id IN ?", opts.CategoryIds)
+	}
+
+	type scan struct {
+		Sum   sql.NullFloat64
+		Count int64
+	}
+
+	var result scan
+	err := db.Model(&dbEntry{}).
+		Select("SUM(target_amount) as sum, COUNT(*) as count").
+		Scan(&result).Error
+	if err != nil {
+		return sumResult{}, fmt.Errorf("unable to sum entries %w", err)
+	}
+
+	if !result.Sum.Valid {
+		return sumResult{}, ErrEntryNotFound
+	}
+	if result.Count == 0 || !result.Sum.Valid {
+		return sumResult{}, ErrEntryNotFound
+	}
+
+	return sumResult{
+		Sum:   result.Sum.Float64,
+		Count: result.Count,
+	}, nil
 }
