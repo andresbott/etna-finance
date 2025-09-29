@@ -2,12 +2,14 @@ package finance
 
 import (
 	"fmt"
+	closuretree "github.com/go-bumbu/closure-tree"
 	"gorm.io/gorm"
 	"time"
 )
 
 type Store struct {
-	db *gorm.DB
+	db           *gorm.DB
+	categoryTree *closuretree.Tree
 
 	AccountColNames         map[string]string // hold a map of struct field names to db column names
 	AccountProviderColNames map[string]string // hold a map of struct field names to db column names
@@ -32,6 +34,12 @@ func New(db *gorm.DB) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	categoryTree, err := closuretree.New(db, dbCategory{}) // init the closure tree, this includes gorm automigrate
+	if err != nil {
+		return nil, err
+	}
+	b.categoryTree = categoryTree
 
 	return &b, nil
 }
