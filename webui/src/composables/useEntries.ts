@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
 import { unref, computed, Ref, ref } from 'vue'
 import { GetEntries, CreateEntry, UpdateEntry, DeleteEntry } from '@/lib/api/Entry'
-import type { Entry, CreateEntryDTO, UpdateEntryDTO } from '@/types/entry'
+import type {  CreateEntryDTO, UpdateEntryDTO } from '@/types/entry'
 
 export function useEntries(
     startDateRef: Ref<Date | null>,

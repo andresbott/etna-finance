@@ -2,10 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import {
     VerticalLayout,
-    HorizontalLayout,
-    HorizontalLayout2,
     Placeholder,
-    ResponsiveHorizontal,
     SidebarContent
 } from '@go-bumbu/vue-layouts'
 import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
@@ -20,7 +17,7 @@ import TransferDialog from './dialogs/TransferDialog.vue'
 import StockDialog from './StockDialog.vue'
 import DeleteDialog from '@/components/common/confirmDialog.vue'
 
-import { useEntries } from '@/composables/useEntries.js'
+import { useEntries } from '@/composables/useEntries.ts'
 import { useAccounts } from '@/composables/useAccounts.js'
 import IncomeExpenseDialog from '@/views/entries/dialogs/IncomeExpenseDialog.vue'
 import AddEntryMenu from '@/views/entries/AddEntryMenu.vue'
@@ -43,7 +40,6 @@ const { accounts, isLoading: isAccountsLoading } = useAccounts()
 const { getCategoryName } = useCategoryUtils()
 
 const leftSidebarCollapsed = ref(true)
-const menu = ref(null)
 
 const selectedEntry = ref(null)
 const isEditMode = ref(false)
@@ -437,7 +433,7 @@ const getRowClass = (data) => ({
                                 <!-- Category column -->
                                 <Column field="category" header="Category">
                                     <template #body="{ data }">
-                                        {{ data?.categoryId || getCategoryName(3, data.type) }}
+                                        {{ data?.categoryId || getCategoryName(data?.categoryId, data.type) }}
                                     </template>
                                 </Column>
 
@@ -486,7 +482,7 @@ const getRowClass = (data) => ({
         :stock-amount="selectedEntry?.targetStockAmount"
         :date="selectedEntry?.date ? new Date(selectedEntry.date) : new Date()"
         :entry-id="selectedEntry?.id"
-        :category-id="3"
+        :category-id="selectedEntry?.category?.id"
     />
 
     <TransferDialog

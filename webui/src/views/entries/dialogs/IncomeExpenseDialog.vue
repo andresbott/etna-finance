@@ -166,8 +166,8 @@ const handleSubmit = async (e) => {
 
     const entryData = {
         ...formData,
-        type: props.entryType
-        // categoryId: categoryId.value
+        type: props.entryType,
+        categoryId: categoryId.value
     }
 
     try {
