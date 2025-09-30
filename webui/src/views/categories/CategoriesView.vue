@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeMount, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { VerticalLayout, Placeholder } from '@go-bumbu/vue-layouts'
 import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
 import TopBar from '@/views/topbar.vue'
@@ -10,52 +10,47 @@ import TabPanel from 'primevue/tabpanel'
 import TreeTable from 'primevue/treetable'
 import ConfirmDialog from '@/components/common/confirmDialog.vue'
 import { useCategories } from '@/composables/useCategories'
-import { buildTreeForTable } from '@/utils/convertToTree'
 import { CreateIncomeCategoryDTO, UpdateIncomeCategoryDTO } from '@/types/category'
 import CategoryDialog from './dialogs/CategoryDialog.vue'
-import type { TreeTableExpandedKeys } from "primevue/treetable"
-import type { TreeNode } from "primevue/treenode"
+import { useCategoryTree } from '@/composables/useCategoryTree'
+import type { TreeTableExpandedKeys } from 'primevue/treetable'
+import type { TreeNode } from 'primevue/treenode'
 
 const {
-    incomeCategories,
     createIncomeCategory,
     updateIncomeMutation,
     deleteIncomeMutation,
-    expenseCategories,
     createExpenseMutation,
     updateExpenseMutation,
     deleteExpenseMutation
 } = useCategories()
 
 // compute the tree data
-const IncomeTreeData = computed(() => {
-    if (!incomeCategories.data) return []
-    return buildTreeForTable(incomeCategories.data.value)
-})
+const { IncomeTreeData, ExpenseTreeData } = useCategoryTree()
 
 const expandedIncomeKeys = ref<TreeTableExpandedKeys>({})
 
-watch(IncomeTreeData, (newNodes) => {
-    if (newNodes && newNodes.length > 0) {
-        expandedIncomeKeys.value = expandAll(newNodes)
-    }
-}, { immediate: true })
-
-
-
-const ExpenseTreeData = computed(() => {
-    if (!expenseCategories.data) return []
-    return buildTreeForTable(expenseCategories.data.value)
-})
+watch(
+    IncomeTreeData,
+    (newNodes) => {
+        if (newNodes && newNodes.length > 0) {
+            expandedIncomeKeys.value = expandAll(newNodes)
+        }
+    },
+    { immediate: true }
+)
 
 const expandedExpenseKeys = ref<TreeTableExpandedKeys>({})
 
-watch(ExpenseTreeData, (newNodes) => {
-    if (newNodes && newNodes.length > 0) {
-        expandedExpenseKeys.value = expandAll(newNodes)
-    }
-}, { immediate: true })
-
+watch(
+    ExpenseTreeData,
+    (newNodes) => {
+        if (newNodes && newNodes.length > 0) {
+            expandedExpenseKeys.value = expandAll(newNodes)
+        }
+    },
+    { immediate: true }
+)
 
 function expandAll(nodes: TreeNode[]): TreeTableExpandedKeys {
     const expanded: TreeTableExpandedKeys = {}
@@ -79,9 +74,9 @@ interface Category {
 
 /* --- Create and Edit Category--- */
 const categoryDialogVisible = ref(false)
-const categoryData = ref<Category>({ id: null, name: '', description: '', parentId: null })
+const categoryData = ref<Category>({ id: null, name: '', description: '', parentId: 0 })
 const resetCategoryData = () => {
-    categoryData.value = { id: null, name: '', description: '', parentId: null }
+    categoryData.value = { id: null, name: '', description: '', parentId: 0 }
 }
 
 // handle click Add/edit button click
@@ -96,14 +91,13 @@ const handleAddEditIncome = (item: Category | null, action: string, type: string
             console.error('Something went wrong, item cannot be null for edit actions')
             return
         }
-        categoryData.value.parentId = item.parentId ? item.parentId : null
+        categoryData.value.parentId = item.parentId ? item.parentId : 0
         categoryData.value.id = item.id
         categoryData.value.name = item.name
         categoryData.value.description = item.description
         categoryData.value.action = 'edit'
     }
     categoryData.value.type = type
-    console.log('categoryData', categoryData.value)
     categoryDialogVisible.value = true
 }
 
@@ -153,7 +147,7 @@ const saveCategory = () => {
         const dto: UpdateIncomeCategoryDTO = {
             name: categoryData.value.name,
             description: categoryData.value.description || undefined,
-            parentId: categoryData.value.parentId,
+            parentId: categoryData.value.parentId
         }
 
         if (categoryData.value.type === 'income') {
@@ -239,7 +233,7 @@ const deleteCategory = () => {
                 <h1>Categories</h1>
                 <TabView>
                     <TabPanel header="Expense Categories" :value="1">
-                        <TreeTable :value="ExpenseTreeData" :expandedKeys="expandedExpenseKeys" >
+                        <TreeTable :value="ExpenseTreeData" :expandedKeys="expandedExpenseKeys">
                             <Column field="name" header="Name" expander></Column>
                             <Column field="description" header="Description"></Column>
                             <Column>
@@ -359,10 +353,7 @@ const deleteCategory = () => {
     <CategoryDialog
         v-model:visible="categoryDialogVisible"
         :categoryData="categoryData"
-        :expenseTreeData="ExpenseTreeData"
-        :incomeTreeData="IncomeTreeData"
         @update:categoryData="categoryData = $event"
-        @update:categoryParentId="categoryData.parentId = $event"
         @save="saveCategory"
         @reset="resetCategoryData"
     />

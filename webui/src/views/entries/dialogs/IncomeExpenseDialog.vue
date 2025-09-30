@@ -13,6 +13,7 @@ import Message from 'primevue/message'
 import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
 import DatePicker from 'primevue/datepicker'
+import CategorySelect from '@/components/common/categorySelect.vue'
 
 const { createEntry, updateEntry, isCreating, isUpdating } = useEntries()
 const { accounts } = useAccounts()
@@ -26,8 +27,11 @@ const props = defineProps({
     stockAmount: { type: Number, default: 0 },
     date: { type: Date, default: () => new Date() },
     targetAccountId: { type: Number, default: null },
-    visible: { type: Boolean, default: false }
+    visible: { type: Boolean, default: false },
+    categoryId: { type: Number, default: 0 }
 })
+
+const categoryId = ref(props.categoryId)
 
 // Convert numeric targetAccountId to {id: true} format for form validation
 const getFormattedAccountId = (accountId) => {
@@ -162,7 +166,8 @@ const handleSubmit = async (e) => {
 
     const entryData = {
         ...formData,
-        type: props.entryType
+        type: props.entryType,
+        categoryId: categoryId.value
     }
 
     try {
@@ -263,6 +268,8 @@ const emit = defineEmits(['update:visible'])
                         {{ $form.date.error?.message }}
                     </Message>
                 </div>
+
+                <CategorySelect v-model="categoryId" :type="entryType" />
 
                 <div class="flex justify-content-end gap-3">
                     <Button
