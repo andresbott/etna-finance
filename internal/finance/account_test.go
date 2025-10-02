@@ -296,9 +296,9 @@ func TestListAccountsProvider(t *testing.T) {
 					want: []AccountProvider{
 						{Name: "provider1", Description: "provider1", Accounts: []Account{
 							{ID: 1, Name: "acc1", Currency: currency.EUR, Type: Cash, AccountProviderID: 1},
-							{ID: 3, Name: "acc3", Currency: currency.EUR, Type: 0, AccountProviderID: 1},
-							{ID: 3, Name: "acc4", Currency: currency.EUR, Type: 0, AccountProviderID: 1},
-							{ID: 4, Name: "acc5", Currency: currency.EUR, Type: 0, AccountProviderID: 1},
+							{ID: 3, Name: "acc3", Currency: currency.EUR, Type: Cash, AccountProviderID: 1},
+							{ID: 4, Name: "acc4", Currency: currency.EUR, Type: Unknown, AccountProviderID: 1},
+							{ID: 5, Name: "acc5", Currency: currency.EUR, Type: Investment, AccountProviderID: 1},
 						}},
 						{Name: "provider2", Description: "provider2", Accounts: []Account{
 							{ID: 2, Name: "acc2", Currency: currency.USD, Type: Cash, AccountProviderID: 2},
@@ -625,7 +625,7 @@ func TestUpdateAccount(t *testing.T) {
 				t.Run(tc.name, func(t *testing.T) {
 					ctx := context.Background()
 
-					err = store.UpdateAccount(tc.updatePayload, tc.updateID, tc.updateTenant)
+					err = store.UpdateAccount(t.Context(), tc.updatePayload, tc.updateID, tc.updateTenant)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -726,9 +726,9 @@ var sampleAccountProviders = []AccountProvider{
 var sampleAccounts = []Account{
 	{ID: 1, Name: "acc1", Currency: currency.EUR, Type: Cash, AccountProviderID: 1},
 	{ID: 2, Name: "acc2", Currency: currency.USD, Type: Cash, AccountProviderID: 2},
-	{ID: 3, Name: "acc3", Currency: currency.EUR, Type: Unknown, AccountProviderID: 1},
+	{ID: 3, Name: "acc3", Currency: currency.EUR, Type: Cash, AccountProviderID: 1},
 	{ID: 4, Name: "acc4", Currency: currency.EUR, Type: Unknown, AccountProviderID: 1},
-	{ID: 5, Name: "acc5", Currency: currency.EUR, Type: Unknown, AccountProviderID: 1},
+	{ID: 5, Name: "acc5", Currency: currency.EUR, Type: Investment, AccountProviderID: 1},
 }
 
 var sampleAccounts2 = []Account{

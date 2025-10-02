@@ -1,9 +1,11 @@
 package finance
 
 import (
+	"fmt"
 	"github.com/go-bumbu/testdbs"
 	"os"
 	"testing"
+	"time"
 )
 
 // TestMain modifies how test are run,
@@ -25,4 +27,13 @@ const (
 // returns a pointer to a specific type
 func ptr[T any](v T) *T {
 	return &v
+}
+func getTime(timeStr string) time.Time {
+	// Parse the string based on the provided layout
+	parsedTime, err := time.Parse("2006-01-02", timeStr)
+	if err != nil {
+		panic(fmt.Errorf("unable to parse time: %v", err))
+
+	}
+	return parsedTime
 }
