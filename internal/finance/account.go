@@ -277,7 +277,7 @@ type AccountUpdatePayload struct {
 	Type       AccountType
 }
 
-func (store *Store) UpdateAccount(item AccountUpdatePayload, Id uint, tenant string) error {
+func (store *Store) UpdateAccount(ctx context.Context, item AccountUpdatePayload, Id uint, tenant string) error {
 	// Build a dbAccount struct with only the fields to update
 	updateStruct := dbAccount{}
 	var selectedFields []string
@@ -308,6 +308,7 @@ func (store *Store) UpdateAccount(item AccountUpdatePayload, Id uint, tenant str
 
 	// Perform the update
 	q := store.db.Model(&dbAccount{}).
+		WithContext(ctx).
 		Where("id = ? AND owner_id = ?", Id, tenant).
 		Select(selectedFields).
 		Updates(updateStruct)

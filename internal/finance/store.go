@@ -4,7 +4,6 @@ import (
 	"fmt"
 	closuretree "github.com/go-bumbu/closure-tree"
 	"gorm.io/gorm"
-	"time"
 )
 
 type Store struct {
@@ -44,34 +43,12 @@ func New(db *gorm.DB) (*Store, error) {
 	return &b, nil
 }
 
-type dbTransaction struct {
-	Id          uint      `gorm:"primaryKey"`
-	Date        time.Time `gorm:"not null"`
-	Description string    `gorm:"size:255"`
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	DeletedAt   gorm.DeletedAt `gorm:"index"`
-	Entries     []dbEntry      `gorm:"foreignKey:TransactionID"` // One-to-many relationship
-}
-
-type dbEntry struct {
-	Id            uint `gorm:"primarykey"`
-	TransactionID uint `gorm:"not null;index"` // Foreign key
-	AccountID     uint `gorm:"not null;index"` // Foreign key
-
-	Amount   float64 `gorm:"not null"` // Amount in account currency
-	Quantity float64 // -- for stock shares (nullable for cash-only entries)
-
-	entryTyp EntryType //income, expense, transferIn transferOut, stockbuy, stock sell
-
-	OwnerId   string `gorm:"index"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	DeletedAt gorm.DeletedAt `gorm:"index"`
-}
-
 // Entry represents a debit/credit to a specific account
 type Entry struct {
+}
+
+func NewValidationErr(in string) ErrValidation {
+	return ErrValidation(in)
 }
 
 type ErrValidation string
