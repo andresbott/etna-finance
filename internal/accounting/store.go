@@ -1,4 +1,4 @@
-package finance
+package accounting
 
 import (
 	"fmt"
@@ -41,10 +41,6 @@ func New(db *gorm.DB) (*Store, error) {
 	b.categoryTree = categoryTree
 
 	return &b, nil
-}
-
-// Entry represents a debit/credit to a specific account
-type Entry struct {
 }
 
 func NewValidationErr(in string) ErrValidation {

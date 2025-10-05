@@ -1,4 +1,4 @@
-package finance
+package accounting
 
 import (
 	"github.com/go-bumbu/testdbs"
@@ -136,7 +136,7 @@ func TestStore_GetTransaction(t *testing.T) {
 				wantErr     string
 			}{
 				{
-					name:        "get existing transaction",
+					name:        "get existing baseTx",
 					checkTenant: tenant1,
 					checkId:     2,
 					want:        sampleTransactions[2],
@@ -200,12 +200,12 @@ func TestStore_DeleteTransaction(t *testing.T) {
 					name:         "error when deleting non-existent entry",
 					deleteTenant: tenant1,
 					deleteID:     9999,
-					wantErr:      "transaction not found",
+					wantErr:      "baseTx not found",
 				},
 				{
 					name:         "error when deleting entry  for other tenant",
 					deleteTenant: tenant2,
-					wantErr:      "transaction not found",
+					wantErr:      "baseTx not found",
 				},
 			}
 
@@ -235,7 +235,7 @@ func TestStore_DeleteTransaction(t *testing.T) {
 
 						_, err := store.GetTransaction(t.Context(), tc.deleteID, tc.deleteTenant)
 						if err == nil {
-							t.Fatalf("expected item to not exist, but got we got a transaction")
+							t.Fatalf("expected item to not exist, but got we got a baseTx")
 						}
 
 						var entries []dbEntry
@@ -337,7 +337,7 @@ func TestStore_UpdateIncome(t *testing.T) {
 			name:         "non-cash account error",
 			updateTenant: tenant1,
 			updateInput:  IncomeUpdate{AccountID: ptr(uint(5))},
-			wantErr:      "Incompatible account type for Income transaction",
+			wantErr:      "Incompatible account type for Income baseTx",
 		},
 
 		// 🚨 No-op
@@ -353,14 +353,14 @@ func TestStore_UpdateIncome(t *testing.T) {
 			name:         "wrong tenant",
 			updateTenant: tenant2,
 			updateInput:  IncomeUpdate{Description: ptr("changed")},
-			wantErr:      "error updating transaction: transaction not found",
+			wantErr:      "error updating baseTx: baseTx not found",
 		},
 		{
-			name:         "non-existing transaction",
+			name:         "non-existing baseTx",
 			updateTenant: tenant1,
 			updateInput:  IncomeUpdate{Description: ptr("changed")},
 			txId:         9999,
-			wantErr:      "error updating transaction: transaction not found",
+			wantErr:      "error updating baseTx: baseTx not found",
 		},
 	}
 
@@ -381,7 +381,7 @@ func TestStore_UpdateIncome(t *testing.T) {
 					in := Income{Description: "description", Amount: 10, AccountID: 1, Date: getDate("2025-01-02")}
 					id, err := store.CreateTransaction(t.Context(), in, tenant1)
 					if err != nil {
-						t.Fatalf("failed to create transaction: %v", err)
+						t.Fatalf("failed to create baseTx: %v", err)
 					}
 
 					if tc.txId != 0 { // only overwrite if the test case sets the value
@@ -499,7 +499,7 @@ func TestStore_UpdateExpense(t *testing.T) {
 			name:         "non-cash account error",
 			updateTenant: tenant1,
 			updateInput:  ExpenseUpdate{AccountID: ptr(uint(5))},
-			wantErr:      "Incompatible account type for Expense transaction",
+			wantErr:      "Incompatible account type for Expense baseTx",
 		},
 
 		// 🚨 No-op
@@ -515,14 +515,14 @@ func TestStore_UpdateExpense(t *testing.T) {
 			name:         "wrong tenant",
 			updateTenant: tenant2,
 			updateInput:  ExpenseUpdate{Description: ptr("changed")},
-			wantErr:      "error updating transaction: transaction not found",
+			wantErr:      "error updating baseTx: baseTx not found",
 		},
 		{
-			name:         "non-existing transaction",
+			name:         "non-existing baseTx",
 			updateTenant: tenant1,
 			updateInput:  ExpenseUpdate{Description: ptr("changed")},
 			txId:         9999,
-			wantErr:      "error updating transaction: transaction not found",
+			wantErr:      "error updating baseTx: baseTx not found",
 		},
 	}
 
@@ -543,7 +543,7 @@ func TestStore_UpdateExpense(t *testing.T) {
 					in := Expense{Description: "description", Amount: 10, AccountID: 1, Date: getDate("2025-01-02")}
 					id, err := store.CreateTransaction(t.Context(), in, tenant1)
 					if err != nil {
-						t.Fatalf("failed to create transaction: %v", err)
+						t.Fatalf("failed to create baseTx: %v", err)
 					}
 
 					if tc.txId != 0 { // only overwrite if the test case sets the value
@@ -707,13 +707,13 @@ func TestStore_UpdateTransfer(t *testing.T) {
 			name:         "non-cash target account error",
 			updateTenant: tenant1,
 			updateInput:  TransferUpdate{TargetAccountID: ptr(uint(5))},
-			wantErr:      "Incompatible account type for Income transaction",
+			wantErr:      "Incompatible account type for Income baseTx",
 		},
 		{
 			name:         "non-cash origin account error",
 			updateTenant: tenant1,
 			updateInput:  TransferUpdate{OriginAccountID: ptr(uint(5))},
-			wantErr:      "Incompatible account type for Income transaction",
+			wantErr:      "Incompatible account type for Income baseTx",
 		},
 
 		// 🚨 No-op
@@ -729,14 +729,14 @@ func TestStore_UpdateTransfer(t *testing.T) {
 			name:         "wrong tenant",
 			updateTenant: tenant2,
 			updateInput:  TransferUpdate{Description: ptr("changed")},
-			wantErr:      "error updating transaction: transaction not found",
+			wantErr:      "error updating baseTx: baseTx not found",
 		},
 		{
-			name:         "non-existing transaction",
+			name:         "non-existing baseTx",
 			updateTenant: tenant1,
 			updateInput:  TransferUpdate{Description: ptr("changed")},
 			txId:         9999,
-			wantErr:      "error updating transaction: transaction not found",
+			wantErr:      "error updating baseTx: baseTx not found",
 		},
 	}
 
@@ -763,7 +763,7 @@ func TestStore_UpdateTransfer(t *testing.T) {
 					}
 					id, err := store.CreateTransaction(t.Context(), in, tenant1)
 					if err != nil {
-						t.Fatalf("failed to create transaction: %v", err)
+						t.Fatalf("failed to create baseTx: %v", err)
 					}
 
 					if tc.txId != 0 { // only overwrite if the test case sets the value
@@ -787,7 +787,7 @@ func TestStore_UpdateTransfer(t *testing.T) {
 
 						got, err := store.GetTransaction(t.Context(), id, tc.updateTenant)
 						if err != nil {
-							t.Fatalf("expected transaction but got error: %v", err)
+							t.Fatalf("expected baseTx but got error: %v", err)
 						}
 
 						if diff := cmp.Diff(got, tc.want, ignoreUnexportedTxFields...); diff != "" {

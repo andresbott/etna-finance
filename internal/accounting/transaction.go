@@ -1,4 +1,4 @@
-package finance
+package accounting
 
 import (
 	"context"
@@ -31,42 +31,16 @@ type dbTransaction struct {
 	Entries     []dbEntry      `gorm:"foreignKey:TransactionID"` // One-to-many relationship
 }
 
-type entryType int
-
-const (
-	unknownEntryType entryType = iota
-	incomeEntry
-	expenseEntry
-	transferInEntry
-	transferOutEntry
-)
-
-type dbEntry struct {
-	Id            uint `gorm:"primarykey"`
-	TransactionID uint `gorm:"not null;index"` // Foreign key
-	AccountID     uint `gorm:"not null;index"` // Foreign key
-
-	Amount   float64 `gorm:"not null"` // Amount in account currency
-	Quantity float64 // -- for stock shares (nullable for cash-only entries)
-
-	EntryType entryType //income, expense, transferIn transferOut, stockbuy, stock sell
-
-	OwnerId   string `gorm:"index"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	DeletedAt gorm.DeletedAt `gorm:"index"`
-}
-
 type Transaction interface {
 	isTransaction() // ensure only this package can implement the Transaction interface
 }
 
-type transaction struct{}
+type baseTx struct{}
 
-func (t transaction) isTransaction() {}
+func (t baseTx) isTransaction() {}
 
 type EmptyTransaction struct {
-	transaction
+	baseTx
 }
 
 type Income struct {
@@ -76,7 +50,7 @@ type Income struct {
 	AccountID   uint
 	Date        time.Time
 
-	transaction
+	baseTx
 }
 
 type Expense struct {
@@ -86,7 +60,7 @@ type Expense struct {
 	AccountID   uint
 	Date        time.Time
 
-	transaction
+	baseTx
 }
 
 type Transfer struct {
@@ -98,10 +72,10 @@ type Transfer struct {
 	TargetAccountID uint
 	Date            time.Time
 
-	transaction
+	baseTx
 }
 
-// CreateTransaction Allows to create a new transaction in the DB for a specific tenant
+// CreateTransaction Allows to create a new baseTx in the DB for a specific tenant
 // note that there are only a limited type of transactions that can be created
 func (store *Store) CreateTransaction(ctx context.Context, input Transaction, tenant string) (uint, error) {
 
@@ -112,10 +86,10 @@ func (store *Store) CreateTransaction(ctx context.Context, input Transaction, te
 		item := input.(Income)
 		acc, err := store.GetAccount(ctx, item.AccountID, tenant)
 		if err != nil {
-			return 0, fmt.Errorf("error creating transaction: %w", err)
+			return 0, fmt.Errorf("error creating baseTx: %w", err)
 		}
 		if acc.Type != Cash {
-			return 0, NewValidationErr("Incompatible account type for Income transaction")
+			return 0, NewValidationErr("Incompatible account type for Income baseTx")
 		}
 
 		tx = dbTransaction{
@@ -179,11 +153,11 @@ func (store *Store) CreateTransaction(ctx context.Context, input Transaction, te
 	return tx.Id, nil
 }
 
-var ErrTransactionNotFound = errors.New("transaction not found")
-var ErrTransactionTypeNotFound = errors.New("transaction type not found")
-var ErrEntryNotFound = errors.New("transaction entry not found")
+var ErrTransactionNotFound = errors.New("baseTx not found")
+var ErrTransactionTypeNotFound = errors.New("baseTx type not found")
+var ErrEntryNotFound = errors.New("baseTx entry not found")
 
-// GetTransaction Returns a transaction after reading it from the DB
+// GetTransaction Returns a baseTx after reading it from the DB
 // Note that type assertion needs to be used to transform the Transaction into a specific type
 func (store *Store) GetTransaction(ctx context.Context, Id uint, tenant string) (Transaction, error) {
 	var payload dbTransaction
@@ -199,7 +173,7 @@ func (store *Store) GetTransaction(ctx context.Context, Id uint, tenant string) 
 
 }
 
-// publicTransactions takes a db representation of the transaction and returns a specific type
+// publicTransactions takes a db representation of the baseTx and returns a specific type
 func publicTransactions(in dbTransaction) (Transaction, error) {
 	switch in.Type {
 	case IncomeTransaction:
@@ -268,15 +242,15 @@ func (store *Store) DeleteTransaction(ctx context.Context, Id uint, tenant strin
 }
 
 type TransactionUpdate interface {
-	isTransactionUpdate() // ensure only this package can implement the Transaction interface
+	isTxUpdate() // ensure only this package can implement the Transaction interface
 }
 
-type transactionUpdate struct{}
+type txUpdate struct{}
 
-func (t transactionUpdate) isTransactionUpdate() {}
+func (t txUpdate) isTxUpdate() {}
 
 type EmptyTransactionUpdate struct {
-	transactionUpdate
+	txUpdate
 }
 
 type IncomeUpdate struct {
@@ -285,7 +259,7 @@ type IncomeUpdate struct {
 	AccountID   *uint
 	Date        *time.Time
 
-	transactionUpdate
+	txUpdate
 }
 
 type ExpenseUpdate struct {
@@ -294,7 +268,7 @@ type ExpenseUpdate struct {
 	AccountID   *uint
 	Date        *time.Time
 
-	transactionUpdate
+	txUpdate
 }
 
 type TransferUpdate struct {
@@ -305,7 +279,7 @@ type TransferUpdate struct {
 	TargetAccountID *uint
 	Date            *time.Time
 
-	transactionUpdate
+	txUpdate
 }
 
 // TODO: there is nothing preventing an income category to be tagged with an expense entry
@@ -321,7 +295,7 @@ func (store *Store) UpdateTransaction(ctx context.Context, input TransactionUpda
 	case TransferUpdate:
 		return nil
 	default:
-		return errors.New("invalid transaction type")
+		return errors.New("invalid baseTx type")
 	}
 
 }
@@ -364,10 +338,10 @@ func (store *Store) UpdateIncome(ctx context.Context, input IncomeUpdate, Id uin
 		}
 		acc, err := store.GetAccount(ctx, *input.AccountID, tenant)
 		if err != nil {
-			return fmt.Errorf("error creating transaction: %w", err)
+			return fmt.Errorf("error creating baseTx: %w", err)
 		}
 		if acc.Type != Cash {
-			return NewValidationErr("Incompatible account type for Income transaction")
+			return NewValidationErr("Incompatible account type for Income baseTx")
 		}
 
 		updateEntity.AccountID = *input.AccountID
@@ -381,7 +355,7 @@ func (store *Store) UpdateIncome(ctx context.Context, input IncomeUpdate, Id uin
 	// Perform the update
 
 	err := store.db.Transaction(func(tx *gorm.DB) error {
-		// update the main transaction
+		// update the main baseTx
 		if len(selectedFields) > 0 {
 			q := store.db.Model(&dbTransaction{}).
 				Where("id = ? AND owner_id = ? AND type = ?", Id, tenant, IncomeTransaction).
@@ -420,7 +394,7 @@ func (store *Store) UpdateIncome(ctx context.Context, input IncomeUpdate, Id uin
 	})
 
 	if err != nil {
-		return fmt.Errorf("error updating transaction: %w", err)
+		return fmt.Errorf("error updating baseTx: %w", err)
 	}
 
 	return nil
@@ -464,10 +438,10 @@ func (store *Store) UpdateExpense(ctx context.Context, input ExpenseUpdate, Id u
 		}
 		acc, err := store.GetAccount(ctx, *input.AccountID, tenant)
 		if err != nil {
-			return fmt.Errorf("error creating transaction: %w", err)
+			return fmt.Errorf("error creating baseTx: %w", err)
 		}
 		if acc.Type != Cash {
-			return NewValidationErr("Incompatible account type for Expense transaction")
+			return NewValidationErr("Incompatible account type for Expense baseTx")
 		}
 
 		updateEntity.AccountID = *input.AccountID
@@ -481,7 +455,7 @@ func (store *Store) UpdateExpense(ctx context.Context, input ExpenseUpdate, Id u
 	// Perform the update
 
 	err := store.db.Transaction(func(tx *gorm.DB) error {
-		// update the main transaction
+		// update the main baseTx
 		if len(selectedFields) > 0 {
 			q := store.db.Model(&dbTransaction{}).
 				Where("id = ? AND owner_id = ? AND type =  ?", Id, tenant, ExpenseTransaction).
@@ -520,7 +494,7 @@ func (store *Store) UpdateExpense(ctx context.Context, input ExpenseUpdate, Id u
 	})
 
 	if err != nil {
-		return fmt.Errorf("error updating transaction: %w", err)
+		return fmt.Errorf("error updating baseTx: %w", err)
 	}
 
 	return nil
@@ -564,10 +538,10 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 		}
 		acc, err := store.GetAccount(ctx, *input.TargetAccountID, tenant)
 		if err != nil {
-			return fmt.Errorf("error creating transaction: %w", err)
+			return fmt.Errorf("error creating baseTx: %w", err)
 		}
 		if acc.Type != Cash {
-			return NewValidationErr("Incompatible account type for Income transaction")
+			return NewValidationErr("Incompatible account type for Income baseTx")
 		}
 		targetEntry.AccountID = *input.TargetAccountID
 		targetFields = append(targetFields, "AccountID")
@@ -591,10 +565,10 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 		}
 		acc, err := store.GetAccount(ctx, *input.OriginAccountID, tenant)
 		if err != nil {
-			return fmt.Errorf("error creating transaction: %w", err)
+			return fmt.Errorf("error creating baseTx: %w", err)
 		}
 		if acc.Type != Cash {
-			return NewValidationErr("Incompatible account type for Income transaction")
+			return NewValidationErr("Incompatible account type for Income baseTx")
 		}
 		originEntry.AccountID = *input.OriginAccountID
 		originFields = append(originFields, "AccountID")
@@ -607,7 +581,7 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 	// Perform the update
 
 	err := store.db.Transaction(func(tx *gorm.DB) error {
-		// update the main transaction
+		// update the main baseTx
 		if len(selectedFields) > 0 {
 			q := store.db.Model(&dbTransaction{}).
 				Where("id = ? AND owner_id = ? AND type = ?", Id, tenant, TransferTransaction).
@@ -652,7 +626,7 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 	})
 
 	if err != nil {
-		return fmt.Errorf("error updating transaction: %w", err)
+		return fmt.Errorf("error updating baseTx: %w", err)
 	}
 
 	return nil
