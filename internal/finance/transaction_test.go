@@ -88,7 +88,7 @@ func TestStore_CreateTransaction(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			transactionSampleData(t, store)
+			transactionSampleData(t, store, sampleTransactions)
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
@@ -154,7 +154,7 @@ func TestStore_GetTransaction(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			transactionSampleData(t, store)
+			transactionSampleData(t, store, sampleTransactions)
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
@@ -215,7 +215,7 @@ func TestStore_DeleteTransaction(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			transactionSampleData(t, store)
+			transactionSampleData(t, store, sampleTransactions)
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
@@ -271,18 +271,18 @@ func TestStore_UpdateIncome(t *testing.T) {
 				Description: "changed",
 				Amount:      10,
 				AccountID:   1,
-				Date:        getTime("2025-01-02"),
+				Date:        getDate("2025-01-02"),
 			},
 		},
 		{
 			name:         "update date",
 			updateTenant: tenant1,
-			updateInput:  IncomeUpdate{Date: ptr(getTime("2025-01-03"))},
+			updateInput:  IncomeUpdate{Date: ptr(getDate("2025-01-03"))},
 			want: Income{
 				Description: "description",
 				Amount:      10,
 				AccountID:   1,
-				Date:        getTime("2025-01-03"),
+				Date:        getDate("2025-01-03"),
 			},
 		},
 		{
@@ -293,7 +293,7 @@ func TestStore_UpdateIncome(t *testing.T) {
 				Description: "description",
 				Amount:      5.5,
 				AccountID:   1,
-				Date:        getTime("2025-01-02"),
+				Date:        getDate("2025-01-02"),
 			},
 		},
 		{
@@ -304,7 +304,7 @@ func TestStore_UpdateIncome(t *testing.T) {
 				Description: "description",
 				Amount:      10,
 				AccountID:   2,
-				Date:        getTime("2025-01-02"),
+				Date:        getDate("2025-01-02"),
 			},
 		},
 
@@ -378,7 +378,7 @@ func TestStore_UpdateIncome(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
-					in := Income{Description: "description", Amount: 10, AccountID: 1, Date: getTime("2025-01-02")}
+					in := Income{Description: "description", Amount: 10, AccountID: 1, Date: getDate("2025-01-02")}
 					id, err := store.CreateTransaction(t.Context(), in, tenant1)
 					if err != nil {
 						t.Fatalf("failed to create transaction: %v", err)
@@ -433,18 +433,18 @@ func TestStore_UpdateExpense(t *testing.T) {
 				Description: "changed",
 				Amount:      10,
 				AccountID:   1,
-				Date:        getTime("2025-01-02"),
+				Date:        getDate("2025-01-02"),
 			},
 		},
 		{
 			name:         "update date",
 			updateTenant: tenant1,
-			updateInput:  ExpenseUpdate{Date: ptr(getTime("2025-01-03"))},
+			updateInput:  ExpenseUpdate{Date: ptr(getDate("2025-01-03"))},
 			want: Expense{
 				Description: "description",
 				Amount:      10,
 				AccountID:   1,
-				Date:        getTime("2025-01-03"),
+				Date:        getDate("2025-01-03"),
 			},
 		},
 		{
@@ -455,7 +455,7 @@ func TestStore_UpdateExpense(t *testing.T) {
 				Description: "description",
 				Amount:      5.5,
 				AccountID:   1,
-				Date:        getTime("2025-01-02"),
+				Date:        getDate("2025-01-02"),
 			},
 		},
 		{
@@ -466,7 +466,7 @@ func TestStore_UpdateExpense(t *testing.T) {
 				Description: "description",
 				Amount:      10,
 				AccountID:   2,
-				Date:        getTime("2025-01-02"),
+				Date:        getDate("2025-01-02"),
 			},
 		},
 
@@ -540,7 +540,7 @@ func TestStore_UpdateExpense(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
-					in := Expense{Description: "description", Amount: 10, AccountID: 1, Date: getTime("2025-01-02")}
+					in := Expense{Description: "description", Amount: 10, AccountID: 1, Date: getDate("2025-01-02")}
 					id, err := store.CreateTransaction(t.Context(), in, tenant1)
 					if err != nil {
 						t.Fatalf("failed to create transaction: %v", err)
@@ -593,7 +593,7 @@ func TestStore_UpdateTransfer(t *testing.T) {
 			updateInput:  TransferUpdate{Description: ptr("changed")},
 			want: Transfer{
 				Description:     "changed",
-				Date:            getTime("2025-01-02"),
+				Date:            getDate("2025-01-02"),
 				OriginAmount:    10,
 				OriginAccountID: 1,
 				TargetAmount:    11,
@@ -603,10 +603,10 @@ func TestStore_UpdateTransfer(t *testing.T) {
 		{
 			name:         "update date",
 			updateTenant: tenant1,
-			updateInput:  TransferUpdate{Date: ptr(getTime("2025-01-03"))},
+			updateInput:  TransferUpdate{Date: ptr(getDate("2025-01-03"))},
 			want: Transfer{
 				Description:     "desc",
-				Date:            getTime("2025-01-03"),
+				Date:            getDate("2025-01-03"),
 				OriginAmount:    10,
 				OriginAccountID: 1,
 				TargetAmount:    11,
@@ -619,7 +619,7 @@ func TestStore_UpdateTransfer(t *testing.T) {
 			updateInput:  TransferUpdate{TargetAmount: ptr(20.1)},
 			want: Transfer{
 				Description:     "desc",
-				Date:            getTime("2025-01-02"),
+				Date:            getDate("2025-01-02"),
 				OriginAmount:    10,
 				OriginAccountID: 1,
 				TargetAmount:    20.1,
@@ -632,7 +632,7 @@ func TestStore_UpdateTransfer(t *testing.T) {
 			updateInput:  TransferUpdate{OriginAmount: ptr(30.1)},
 			want: Transfer{
 				Description:     "desc",
-				Date:            getTime("2025-01-02"),
+				Date:            getDate("2025-01-02"),
 				OriginAmount:    30.1,
 				OriginAccountID: 1,
 				TargetAmount:    11,
@@ -645,7 +645,7 @@ func TestStore_UpdateTransfer(t *testing.T) {
 			updateInput:  TransferUpdate{TargetAccountID: ptr(uint(3))}, // valid Cash account
 			want: Transfer{
 				Description:     "desc",
-				Date:            getTime("2025-01-02"),
+				Date:            getDate("2025-01-02"),
 				OriginAmount:    10,
 				OriginAccountID: 1,
 				TargetAmount:    11,
@@ -658,7 +658,7 @@ func TestStore_UpdateTransfer(t *testing.T) {
 			updateInput:  TransferUpdate{OriginAccountID: ptr(uint(3))}, // valid Cash account
 			want: Transfer{
 				Description:     "desc",
-				Date:            getTime("2025-01-02"),
+				Date:            getDate("2025-01-02"),
 				OriginAmount:    10,
 				OriginAccountID: 3,
 				TargetAmount:    11,
@@ -759,7 +759,7 @@ func TestStore_UpdateTransfer(t *testing.T) {
 						OriginAccountID: 1,
 						TargetAmount:    11,
 						TargetAccountID: 2,
-						Date:            getTime("2025-01-02"),
+						Date:            getDate("2025-01-02"),
 					}
 					id, err := store.CreateTransaction(t.Context(), in, tenant1)
 					if err != nil {
@@ -801,27 +801,193 @@ func TestStore_UpdateTransfer(t *testing.T) {
 	}
 }
 
+var listTransactionsSampleData = map[int]Transaction{
+	// used in test 1
+	1: Income{Description: "First Income", Amount: 1.1, AccountID: 1, Date: getDate("2025-01-01")},
+	2: Expense{Description: "First expense", Amount: 2.2, AccountID: 1, Date: getDate("2025-01-02")},
+	3: Transfer{Description: "First transfer", OriginAmount: 3.3, OriginAccountID: 1, TargetAmount: 4.4, TargetAccountID: 2, Date: getDate("2025-01-03")},
+	// used in date based filter test
+	4: Income{Description: "1", Date: getDateTime("2023-12-31 23:58:00"), Amount: 1, AccountID: 1},
+	5: Income{Description: "2", Date: getDateTime("2024-01-01 00:00:00"), Amount: 1, AccountID: 1},
+	6: Income{Description: "3", Date: getDateTime("2024-01-02 00:00:00"), Amount: 1, AccountID: 1},
+	7: Income{Description: "4", Date: getDateTime("2024-01-03 00:00:00"), Amount: 1, AccountID: 1},
+	8: Income{Description: "5", Date: getDateTime("2024-01-04 00:00:00"), Amount: 1, AccountID: 1},
+
+	// used in filter by type
+	9:  Income{Description: "i1", Date: getDate("2023-01-01"), Amount: 1.1, AccountID: 1},
+	10: Expense{Description: "e1", Date: getDate("2023-01-02"), Amount: 2.2, AccountID: 1},
+	11: Transfer{Description: "t1", Date: getDate("2023-01-03"), OriginAmount: 3.3, OriginAccountID: 1, TargetAmount: 4.4, TargetAccountID: 2},
+	12: Income{Description: "i2", Date: getDate("2023-01-04"), Amount: 1.1, AccountID: 1},
+	13: Expense{Description: "e2", Date: getDate("2023-01-05"), Amount: 2.2, AccountID: 1},
+	14: Transfer{Description: "t2", Date: getDate("2023-01-06"), OriginAmount: 3.3, OriginAccountID: 1, TargetAmount: 4.4, TargetAccountID: 2},
+
+	// used in pagination tests
+	20: Income{Description: "1", Date: getDateTime("2022-01-01 00:00:00"), Amount: 1, AccountID: 1},
+	21: Income{Description: "2", Date: getDateTime("2022-01-02 00:00:00"), Amount: 1, AccountID: 1},
+	22: Income{Description: "3", Date: getDateTime("2022-01-03 00:00:00"), Amount: 1, AccountID: 1},
+	23: Income{Description: "4", Date: getDateTime("2022-01-04 00:00:00"), Amount: 1, AccountID: 1},
+	24: Income{Description: "5", Date: getDateTime("2022-01-05 00:00:00"), Amount: 1, AccountID: 1},
+	25: Income{Description: "6", Date: getDateTime("2022-01-06 00:00:00"), Amount: 1, AccountID: 1},
+	26: Income{Description: "7", Date: getDateTime("2022-01-07 00:00:00"), Amount: 1, AccountID: 1},
+	27: Income{Description: "8", Date: getDateTime("2022-01-08 00:00:00"), Amount: 1, AccountID: 1},
+	28: Income{Description: "9", Date: getDateTime("2022-01-09 00:00:00"), Amount: 1, AccountID: 1},
+}
+
+func TestStore_ListTransactions(t *testing.T) {
+	tcs := []struct {
+		name   string
+		tenant string
+
+		opts    ListOpts
+		want    []Transaction
+		wantErr string
+	}{
+		{
+			name:   "list basic transactions",
+			tenant: tenant1,
+			opts: ListOpts{
+				StartDate: getDate("2025-01-01"),
+				EndDate:   getDate("2025-01-04"),
+			},
+			want: []Transaction{
+				listTransactionsSampleData[3], listTransactionsSampleData[2], listTransactionsSampleData[1],
+			},
+		},
+		{
+			name:   "filter by date",
+			tenant: tenant1,
+			opts: ListOpts{
+				StartDate: getDate("2024-01-01"),
+				EndDate:   getDate("2024-01-03"),
+			},
+			want: []Transaction{
+				listTransactionsSampleData[7], listTransactionsSampleData[6], listTransactionsSampleData[5],
+			},
+		},
+		{
+			name:   "filter by type income",
+			tenant: tenant1,
+			opts: ListOpts{
+				StartDate: getDate("2023-01-01"),
+				EndDate:   getDate("2023-12-31"),
+				Types:     []TxType{IncomeTransaction},
+			},
+			want: []Transaction{
+				listTransactionsSampleData[12], listTransactionsSampleData[9],
+			},
+		},
+		{
+			name:   "filter by type income and expense",
+			tenant: tenant1,
+			opts: ListOpts{
+				StartDate: getDate("2023-01-01"),
+				EndDate:   getDate("2023-12-31"),
+				Types:     []TxType{IncomeTransaction, ExpenseTransaction},
+			},
+			want: []Transaction{
+				listTransactionsSampleData[13], listTransactionsSampleData[12],
+				listTransactionsSampleData[10], listTransactionsSampleData[9],
+			},
+		},
+		{
+			name:   "limit the responses",
+			tenant: tenant1,
+			opts: ListOpts{
+				StartDate: getDate("2022-01-01"),
+				EndDate:   getDate("2022-12-31"),
+				Limit:     2, Page: 1,
+			},
+			want: []Transaction{
+				listTransactionsSampleData[28], listTransactionsSampleData[27],
+			},
+		},
+		{
+			name:   "limit the responses page 2",
+			tenant: tenant1,
+			opts: ListOpts{
+				StartDate: getDate("2022-01-01"),
+				EndDate:   getDate("2022-12-31"),
+				Limit:     2, Page: 2,
+			},
+			want: []Transaction{
+				listTransactionsSampleData[26], listTransactionsSampleData[25],
+			},
+		},
+		{
+			name:   "limit the responses last page",
+			tenant: tenant1,
+			opts: ListOpts{
+				StartDate: getDate("2022-01-01"),
+				EndDate:   getDate("2022-12-31"),
+				Limit:     7, Page: 2,
+			},
+			want: []Transaction{
+				listTransactionsSampleData[21], listTransactionsSampleData[20],
+			},
+		},
+	}
+
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			dbCon := db.ConnDbName("TestListTransactions")
+			store, err := New(dbCon)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			accountSampleData(t, store)
+			// note, to optimize the test, we execute all tests on a common set of pre created transactions
+			transactionSampleData(t, store, listTransactionsSampleData)
+
+			for _, tc := range tcs {
+				t.Run(tc.name, func(t *testing.T) {
+
+					got, err := store.ListTransactions(t.Context(), tc.opts, tenant1)
+
+					if tc.wantErr != "" {
+						if err == nil {
+							t.Fatalf("expected error %s but got none", tc.wantErr)
+						}
+						if err.Error() != tc.wantErr {
+							t.Errorf("expected error %s but got %s", tc.wantErr, err.Error())
+						}
+						return
+					} else {
+						if err != nil {
+							t.Fatalf("unexpected error: %v", err)
+						}
+						if diff := cmp.Diff(got, tc.want, ignoreUnexportedAndIds...); diff != "" {
+							t.Errorf("unexpected result (-got +want):\n%s", diff)
+						}
+					}
+
+				})
+			}
+		})
+	}
+}
+
 var ignoreUnexportedTxFields = []cmp.Option{
 	cmpopts.IgnoreUnexported(Income{}),
 	cmpopts.IgnoreUnexported(Expense{}),
 	cmpopts.IgnoreUnexported(Transfer{}),
 }
-
-var sampleTransactions = map[int]Transaction{
-	1: Income{Description: "First Income", Amount: 1.1, AccountID: 1, Date: time.Now()},
-	2: Expense{Description: "First expense", Amount: 2.2, AccountID: 1, Date: time.Now()},
-	3: Transfer{
-		Description:     "First transfer",
-		OriginAmount:    3.3,
-		OriginAccountID: 1,
-		TargetAmount:    4.4,
-		TargetAccountID: 2,
-		Date:            time.Now(),
-		transaction:     transaction{},
-	},
+var ignoreUnexportedAndIds = []cmp.Option{
+	cmpopts.IgnoreUnexported(Income{}),
+	cmpopts.IgnoreUnexported(Expense{}),
+	cmpopts.IgnoreUnexported(Transfer{}),
+	cmpopts.IgnoreFields(Income{}, "Id"),
+	cmpopts.IgnoreFields(Expense{}, "Id"),
+	cmpopts.IgnoreFields(Transfer{}, "Id"),
 }
 
-func transactionSampleData(t *testing.T, store *Store) {
+var sampleTransactions = map[int]Transaction{
+	1: Income{Description: "First Income", Amount: 1.1, AccountID: 1, Date: getDate("2025-01-01")},
+	2: Expense{Description: "First expense", Amount: 2.2, AccountID: 1, Date: getDate("2025-01-02")},
+	3: Transfer{Description: "First transfer", OriginAmount: 3.3, OriginAccountID: 1, TargetAmount: 4.4, TargetAccountID: 2, Date: getDate("2025-01-03")},
+}
+
+func transactionSampleData(t *testing.T, store *Store, data map[int]Transaction) {
 
 	// =========================================
 	// create accounts providers
@@ -847,7 +1013,7 @@ func transactionSampleData(t *testing.T, store *Store) {
 	// =========================================
 	// Create Transactions
 	// =========================================
-	for _, tx := range sampleTransactions {
+	for _, tx := range data {
 		_, err = store.CreateTransaction(t.Context(), tx, tenant1)
 		if err != nil {
 			t.Fatalf("error creating account 1: %v", err)

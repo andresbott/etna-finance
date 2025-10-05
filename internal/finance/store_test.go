@@ -28,9 +28,17 @@ const (
 func ptr[T any](v T) *T {
 	return &v
 }
-func getTime(timeStr string) time.Time {
+func getDate(timeStr string) time.Time {
 	// Parse the string based on the provided layout
 	parsedTime, err := time.Parse("2006-01-02", timeStr)
+	if err != nil {
+		panic(fmt.Errorf("unable to parse time: %v", err))
+	}
+	return parsedTime
+}
+func getDateTime(timeStr string) time.Time {
+	// Parse the string based on the provided layout
+	parsedTime, err := time.Parse("2006-01-02 15:04:05", timeStr)
 	if err != nil {
 		panic(fmt.Errorf("unable to parse time: %v", err))
 

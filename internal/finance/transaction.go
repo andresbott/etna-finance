@@ -8,21 +8,22 @@ import (
 	"time"
 )
 
-type transactionType int
+type TxType int
 
 const (
-	incomeTransaction transactionType = iota
-	expenseTransaction
-	transferTransaction
-	stockTransaction
-	loanTransaction
+	UnknownTransaction TxType = iota
+	IncomeTransaction
+	ExpenseTransaction
+	TransferTransaction
+	StockTransaction
+	LoanTransaction
 )
 
 type dbTransaction struct {
 	Id          uint      `gorm:"primaryKey"`
 	Date        time.Time `gorm:"not null"`
 	Description string    `gorm:"size:255"`
-	Type        transactionType
+	Type        TxType
 	OwnerId     string `gorm:"index"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
@@ -30,10 +31,10 @@ type dbTransaction struct {
 	Entries     []dbEntry      `gorm:"foreignKey:TransactionID"` // One-to-many relationship
 }
 
-type EntryType int
+type entryType int
 
 const (
-	unknownEntryType EntryType = iota
+	unknownEntryType entryType = iota
 	incomeEntry
 	expenseEntry
 	transferInEntry
@@ -48,7 +49,7 @@ type dbEntry struct {
 	Amount   float64 `gorm:"not null"` // Amount in account currency
 	Quantity float64 // -- for stock shares (nullable for cash-only entries)
 
-	EntryType EntryType //income, expense, transferIn transferOut, stockbuy, stock sell
+	EntryType entryType //income, expense, transferIn transferOut, stockbuy, stock sell
 
 	OwnerId   string `gorm:"index"`
 	CreatedAt time.Time
@@ -69,6 +70,7 @@ type EmptyTransaction struct {
 }
 
 type Income struct {
+	Id          uint
 	Description string
 	Amount      float64
 	AccountID   uint
@@ -78,6 +80,7 @@ type Income struct {
 }
 
 type Expense struct {
+	Id          uint
 	Description string
 	Amount      float64
 	AccountID   uint
@@ -87,6 +90,7 @@ type Expense struct {
 }
 
 type Transfer struct {
+	Id              uint
 	Description     string
 	OriginAmount    float64
 	OriginAccountID uint
@@ -118,7 +122,7 @@ func (store *Store) CreateTransaction(ctx context.Context, input Transaction, te
 			Description: item.Description,
 			Date:        item.Date,
 			OwnerId:     tenant,
-			Type:        incomeTransaction,
+			Type:        IncomeTransaction,
 			Entries: []dbEntry{
 				{AccountID: item.AccountID, Amount: item.Amount, EntryType: incomeEntry, OwnerId: tenant},
 			},
@@ -129,7 +133,7 @@ func (store *Store) CreateTransaction(ctx context.Context, input Transaction, te
 			Description: item.Description,
 			Date:        item.Date,
 			OwnerId:     tenant,
-			Type:        expenseTransaction,
+			Type:        ExpenseTransaction,
 			Entries: []dbEntry{
 				{AccountID: item.AccountID, Amount: -item.Amount, EntryType: expenseEntry, OwnerId: tenant},
 			},
@@ -141,7 +145,7 @@ func (store *Store) CreateTransaction(ctx context.Context, input Transaction, te
 			Description: item.Description,
 			Date:        item.Date,
 			OwnerId:     tenant,
-			Type:        transferTransaction,
+			Type:        TransferTransaction,
 			Entries: []dbEntry{
 				{AccountID: item.OriginAccountID, Amount: -item.OriginAmount, EntryType: transferOutEntry, OwnerId: tenant},
 				{AccountID: item.TargetAccountID, Amount: item.TargetAmount, EntryType: transferInEntry, OwnerId: tenant},
@@ -198,21 +202,21 @@ func (store *Store) GetTransaction(ctx context.Context, Id uint, tenant string) 
 // publicTransactions takes a db representation of the transaction and returns a specific type
 func publicTransactions(in dbTransaction) (Transaction, error) {
 	switch in.Type {
-	case incomeTransaction:
+	case IncomeTransaction:
 		return Income{
 			Description: in.Description,
 			Date:        in.Date,
 			Amount:      in.Entries[0].Amount,
 			AccountID:   in.Entries[0].AccountID,
 		}, nil
-	case expenseTransaction:
+	case ExpenseTransaction:
 		return Expense{
 			Description: in.Description,
 			Date:        in.Date,
 			Amount:      -in.Entries[0].Amount,
 			AccountID:   in.Entries[0].AccountID,
 		}, nil
-	case transferTransaction:
+	case TransferTransaction:
 		var inEntity dbEntry
 		var outEntry dbEntry
 		entries := in.Entries
@@ -380,7 +384,7 @@ func (store *Store) UpdateIncome(ctx context.Context, input IncomeUpdate, Id uin
 		// update the main transaction
 		if len(selectedFields) > 0 {
 			q := store.db.Model(&dbTransaction{}).
-				Where("id = ? AND owner_id = ? AND type = ?", Id, tenant, incomeTransaction).
+				Where("id = ? AND owner_id = ? AND type = ?", Id, tenant, IncomeTransaction).
 				Select(selectedFields).
 				Updates(updateStruct)
 
@@ -480,7 +484,7 @@ func (store *Store) UpdateExpense(ctx context.Context, input ExpenseUpdate, Id u
 		// update the main transaction
 		if len(selectedFields) > 0 {
 			q := store.db.Model(&dbTransaction{}).
-				Where("id = ? AND owner_id = ? AND type =  ?", Id, tenant, expenseTransaction).
+				Where("id = ? AND owner_id = ? AND type =  ?", Id, tenant, ExpenseTransaction).
 				Select(selectedFields).
 				Updates(updateStruct)
 
@@ -606,7 +610,7 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 		// update the main transaction
 		if len(selectedFields) > 0 {
 			q := store.db.Model(&dbTransaction{}).
-				Where("id = ? AND owner_id = ? AND type = ?", Id, tenant, transferTransaction).
+				Where("id = ? AND owner_id = ? AND type = ?", Id, tenant, TransferTransaction).
 				Select(selectedFields).
 				Updates(updateStruct)
 
@@ -652,4 +656,153 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 	}
 
 	return nil
+}
+
+type ListOpts struct {
+	StartDate time.Time
+	EndDate   time.Time
+	//AccountIds []int
+	//CategoryIds []int
+	Types []TxType
+	Limit int
+	Page  int
+}
+
+const MaxSearchResults = 90
+const DefaultSearchResults = 30
+
+// ListTransactions returns an unsorted list of transactions matching the filter criteria
+func (store *Store) ListTransactions(ctx context.Context, opts ListOpts, tenant string) ([]Transaction, error) {
+
+	// code sample using preload, left in case of debugging
+	//var payload dbTransaction
+	//q1 := store.db.WithContext(ctx).Preload("Entries").Where("id = ? AND owner_id = ?", 1, tenant).First(&payload)
+	//if q1.Error != nil {
+	//	if errors.Is(q1.Error, gorm.ErrRecordNotFound) {
+	//		return nil, ErrTransactionNotFound
+	//	} else {
+	//		return nil, q1.Error
+	//	}
+	//}
+	//spew.Dump(payload)
+
+	// =====
+
+	db := store.db.WithContext(ctx).Table("db_transactions")
+
+	db = db.Select(`
+        db_transactions.id AS transaction_id,
+        db_transactions.date,
+        db_transactions.description,
+        db_transactions.type,
+
+        -- income
+        CAST(MAX(CASE WHEN db_entries.entry_type = 1 THEN db_entries.account_id END) AS INTEGER) AS income_account_id,
+        CAST(SUM(CASE WHEN db_entries.entry_type = 1 THEN db_entries.amount ELSE 0 END) AS REAL) AS income_amount,
+
+        -- expense
+        CAST(MAX(CASE WHEN db_entries.entry_type = 2 THEN db_entries.account_id END) AS INTEGER) AS expense_account_id,
+        CAST(SUM(CASE WHEN db_entries.entry_type = 2 THEN db_entries.amount ELSE 0 END) AS REAL) AS expense_amount,
+
+        -- transfer (out)
+        CAST(MAX(CASE WHEN db_entries.entry_type = 4 THEN db_entries.account_id END) AS INTEGER) AS origin_account_id,
+        CAST(SUM(CASE WHEN db_entries.entry_type = 4 THEN db_entries.amount ELSE 0 END) AS REAL) AS origin_amount,
+
+        -- transfer (in)
+        CAST(MAX(CASE WHEN db_entries.entry_type = 3 THEN db_entries.account_id END) AS INTEGER) AS target_account_id,
+        CAST(SUM(CASE WHEN db_entries.entry_type = 3 THEN db_entries.amount ELSE 0 END) AS REAL) AS target_amount
+    `).Joins("JOIN db_entries ON db_entries.transaction_id = db_transactions.id")
+
+	// ensure proper owner
+	db = db.Where("db_entries.owner_id = ? AND db_transactions.owner_id = ? ", tenant, tenant)
+	// Filter by date range
+	db = db.Where("db_transactions.date BETWEEN ? AND ?", opts.StartDate, opts.EndDate)
+	if len(opts.Types) > 0 {
+		db = db.Where("db_transactions.type IN (?)", opts.Types)
+	}
+
+	db = db.Group("db_transactions.id, db_transactions.date, db_transactions.description, db_transactions.type")
+
+	if opts.Limit == 0 {
+		opts.Limit = DefaultSearchResults
+	}
+	if opts.Limit > MaxSearchResults {
+		opts.Limit = MaxSearchResults
+	}
+
+	if opts.Page < 1 {
+		opts.Page = 1
+	}
+	offset := (opts.Page - 1) * opts.Limit
+
+	db = db.Order("date DESC").Limit(opts.Limit).Offset(offset)
+
+	//debugtarget := []map[string]any{} // left for debugging
+	type intermediate struct {
+		Date          time.Time
+		Description   string
+		Type          TxType
+		TransactionId uint
+
+		IncomeAccountId  uint
+		IncomeAmount     float64
+		ExpenseAccountId uint
+		ExpenseAmount    float64
+		OriginAccountId  uint
+		OriginAmount     float64
+		TargetAccountId  uint
+		TargetAmount     float64
+	}
+
+	var target []intermediate
+	q := db.Scan(&target)
+	if q.Error != nil {
+		if errors.Is(q.Error, gorm.ErrRecordNotFound) {
+			return nil, ErrTransactionNotFound
+		} else {
+			return nil, q.Error
+		}
+	}
+	//spew.Dump(debugtarget)
+	//return nil, nil
+
+	var txs []Transaction
+	for _, item := range target {
+		switch item.Type {
+		case IncomeTransaction:
+
+			tx := Income{
+				Id:          item.TransactionId,
+				Description: item.Description,
+				Amount:      item.IncomeAmount,
+				AccountID:   item.IncomeAccountId,
+				Date:        item.Date,
+			}
+			txs = append(txs, tx)
+		case ExpenseTransaction:
+			tx := Expense{
+				Id:          item.TransactionId,
+				Description: item.Description,
+				Amount:      -item.ExpenseAmount,
+				AccountID:   item.ExpenseAccountId,
+				Date:        item.Date,
+			}
+			txs = append(txs, tx)
+		case TransferTransaction:
+			tx := Transfer{
+				Id:              item.TransactionId,
+				Description:     item.Description,
+				Date:            item.Date,
+				OriginAmount:    -item.OriginAmount,
+				OriginAccountID: item.OriginAccountId,
+				TargetAmount:    item.TargetAmount,
+				TargetAccountID: item.TargetAccountId,
+			}
+			txs = append(txs, tx)
+		default:
+			tx := EmptyTransaction{}
+			txs = append(txs, tx)
+		}
+	}
+	return txs, nil
 }
