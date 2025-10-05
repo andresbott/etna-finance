@@ -2,7 +2,7 @@ package accounting
 
 import (
 	"context"
-	"database/sql"
+	"errors"
 	"fmt"
 	"gorm.io/gorm"
 	"time"
@@ -40,53 +40,46 @@ type sumResult struct {
 }
 
 type sumByCategoryOpts struct {
-	StartDate   time.Time
-	EndDate     time.Time
-	CategoryIds []uint
+	startDate   time.Time
+	endDate     time.Time
+	categoryIds []uint
 	entryType   entryType
-	Tenant      string
+	tenant      string
 }
 
 // sumEntryByCategories is an internal function to sum the values of entries filtering by Categories
 // only income and expenses permitted in the sum by categories; transfers and other operations are not added to a category
 func (store *Store) sumEntryByCategories(ctx context.Context, opts sumByCategoryOpts) (sumResult, error) {
-	db := store.db.WithContext(ctx).Where("owner_id = ?", opts.Tenant)
+	db := store.db.WithContext(ctx).Table("db_entries")
+
+	//db = db.Select("db_entries.*, db_transactions.date").
+	db = db.Select("ABS(SUM(amount)) as sum, COUNT(*) as count").
+		Joins("JOIN db_transactions ON db_transactions.id = db_entries.transaction_id")
+
+	// ensure proper owner
+	db = db.Where("db_entries.owner_id = ? AND db_transactions.owner_id = ? ", opts.tenant, opts.tenant)
 	// Filter by date range
-	db = db.Where("date BETWEEN ? AND ?", opts.StartDate, opts.EndDate)
+	db = db.Where("db_transactions.date BETWEEN ? AND ?", opts.startDate, opts.endDate)
 
 	// Fiter by type
 	if opts.entryType != incomeEntry && opts.entryType != expenseEntry {
 		return sumResult{Sum: 0, Count: 0}, fmt.Errorf("entry type not supported, must be income or expense: %d", opts.entryType)
 	}
-	db = db.Where("type IN ? ", opts.entryType)
 
-	// Filter by category ID if provided
-	if len(opts.CategoryIds) > 0 {
-		db = db.Where("category_id IN ?", opts.CategoryIds)
-	}
+	// select the entry type
+	db = db.Where("db_entries.entry_type = ?", opts.entryType)
 
-	type scan struct {
-		Sum   sql.NullFloat64
-		Count int64
-	}
+	//target := []map[string]any{} // left for debugging
+	var target sumResult
 
-	var result scan
-	err := db.Model(&dbEntry{}).
-		Select("SUM(target_amount) as sum, COUNT(*) as count").
-		Scan(&result).Error
-	if err != nil {
-		return sumResult{}, fmt.Errorf("unable to sum entries %w", err)
+	q := db.Scan(&target)
+	if q.Error != nil {
+		if errors.Is(q.Error, gorm.ErrRecordNotFound) {
+			return sumResult{}, ErrTransactionNotFound
+		} else {
+			return sumResult{}, q.Error
+		}
 	}
+	return target, nil
 
-	if !result.Sum.Valid {
-		return sumResult{}, ErrEntryNotFound
-	}
-	if result.Count == 0 || !result.Sum.Valid {
-		return sumResult{}, ErrEntryNotFound
-	}
-
-	return sumResult{
-		Sum:   result.Sum.Float64,
-		Count: result.Count,
-	}, nil
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/go-bumbu/testdbs"
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"sort"
 	"testing"
 	"time"
@@ -193,85 +192,6 @@ func TestGetCategoryReport(t *testing.T) {
 						})
 
 						if diff := cmp.Diff(got, tc.want); diff != "" {
-							t.Errorf("unexpected result (-want +got):\n%s", diff)
-						}
-					}
-				})
-			}
-		})
-	}
-}
-
-var ignoreCategoryIdFields = cmpopts.IgnoreFields(Category{},
-	"Id", "ParentId")
-
-func TestGetDescendants(t *testing.T) {
-	tcs := []struct {
-		name    string
-		catType CategoryType
-		tenant  string
-		wantErr string
-		want    []categoryIds
-	}{
-		{
-			name:    "create valid entry",
-			catType: IncomeCategory,
-			tenant:  tenant1,
-			want: []categoryIds{
-				{Category: Category{CategoryData: CategoryData{Name: "in_sub1", Type: 0}}, childrenIds: []uint{2, 3}},
-				{Category: Category{CategoryData: CategoryData{Name: "in_sub2", Type: 0}}, childrenIds: []uint{3}},
-				{Category: Category{CategoryData: CategoryData{Name: "in_top1", Type: 0}}, childrenIds: []uint{1, 2, 3}},
-				{Category: Category{CategoryData: CategoryData{Name: "in_top2", Type: 0}}, childrenIds: []uint{4}},
-			},
-		},
-		{
-			name:    "create valid entry",
-			catType: ExpenseCategory,
-			tenant:  tenant1,
-			want: []categoryIds{
-				{Category: Category{CategoryData: CategoryData{Name: "ex_sub1", Type: 1}}, childrenIds: []uint{2, 3}},
-				{Category: Category{CategoryData: CategoryData{Name: "ex_sub2", Type: 1}}, childrenIds: []uint{3}},
-				{Category: Category{CategoryData: CategoryData{Name: "ex_top1", Type: 1}}, childrenIds: []uint{1, 2, 3}},
-			},
-		},
-	}
-
-	for _, db := range testdbs.DBs() {
-		t.Run(db.DbType(), func(t *testing.T) {
-
-			dbCon := db.ConnDbName("storeGetDescendants")
-			store, err := New(dbCon)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			// todo add sample data
-			//sampleData(t, store)
-
-			for _, tc := range tcs {
-				t.Run(tc.name, func(t *testing.T) {
-
-					ctx := context.Background()
-
-					got, err := store.getCategoryIds(ctx, tc.catType, tc.tenant)
-					if tc.wantErr != "" {
-						if err == nil {
-							t.Fatalf("expected error: %s, but got none", tc.wantErr)
-						}
-						if err.Error() != tc.wantErr {
-							t.Errorf("expected error: %s, but got %v", tc.wantErr, err.Error())
-						}
-					} else {
-						if err != nil {
-							t.Fatalf("unexpected error: %v", err)
-						}
-
-						// Sort by Name
-						sort.Slice(got, func(i, j int) bool {
-							return got[i].Name < got[j].Name
-						})
-
-						if diff := cmp.Diff(got, tc.want, ignoreCategoryIdFields, cmp.AllowUnexported(categoryIds{})); diff != "" {
 							t.Errorf("unexpected result (-want +got):\n%s", diff)
 						}
 					}

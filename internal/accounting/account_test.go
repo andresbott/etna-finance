@@ -796,5 +796,4 @@ func accountSampleData(t *testing.T, store *Store) {
 			t.Fatalf("error creating account 1: %v", err)
 		}
 	}
-
 }

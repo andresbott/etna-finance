@@ -636,7 +636,7 @@ type ListOpts struct {
 	StartDate time.Time
 	EndDate   time.Time
 	//AccountIds []int
-	//CategoryIds []int
+	//categoryIds []int
 	Types []TxType
 	Limit int
 	Page  int

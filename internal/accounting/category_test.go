@@ -4,6 +4,8 @@ import (
 	"context"
 	"github.com/go-bumbu/testdbs"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"sort"
 	"testing"
 )
 
@@ -269,4 +271,109 @@ func TestStore_MoveCategoryErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+var ignoreCategoryIdFields = cmpopts.IgnoreFields(Category{},
+	"Id", "ParentId")
+
+func TestGetCategoryChildren(t *testing.T) {
+	tcs := []struct {
+		name    string
+		catType CategoryType
+		tenant  string
+		wantErr string
+		want    []categoryIds
+	}{
+		{
+			name:    "get income categories",
+			catType: IncomeCategory,
+			tenant:  tenant1,
+			want: []categoryIds{
+				{Category: sampleCategories[4], childrenIds: []uint{5}},
+				{Category: sampleCategories[0], childrenIds: []uint{1, 3, 4, 5}},
+				{Category: sampleCategories[2], childrenIds: []uint{3, 4, 5}},
+				{Category: sampleCategories[3], childrenIds: []uint{4}},
+			},
+		},
+		{
+			name:    "get expense categories",
+			catType: ExpenseCategory,
+			tenant:  tenant1,
+			want: []categoryIds{
+				{Category: sampleCategories[6], childrenIds: []uint{7, 8}},       // Bills
+				{Category: sampleCategories[7], childrenIds: []uint{8}},          // Electricity
+				{Category: sampleCategories[5], childrenIds: []uint{6}},          // Groceries
+				{Category: sampleCategories[1], childrenIds: []uint{2, 6, 7, 8}}, // Home
+			},
+		},
+	}
+
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+
+			dbCon := db.ConnDbName("storeGetDescendants")
+			store, err := New(dbCon)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			categorySampleDate(t, store, sampleCategories)
+
+			for _, tc := range tcs {
+				t.Run(tc.name, func(t *testing.T) {
+
+					ctx := context.Background()
+
+					got, err := store.getCategoryChildren(ctx, tc.catType, tc.tenant)
+					if tc.wantErr != "" {
+						if err == nil {
+							t.Fatalf("expected error: %s, but got none", tc.wantErr)
+						}
+						if err.Error() != tc.wantErr {
+							t.Errorf("expected error: %s, but got %v", tc.wantErr, err.Error())
+						}
+					} else {
+						if err != nil {
+							t.Fatalf("unexpected error: %v", err)
+						}
+
+						// Sort by Name
+						sort.Slice(got, func(i, j int) bool {
+							return got[i].Name < got[j].Name
+						})
+
+						if diff := cmp.Diff(got, tc.want, ignoreCategoryIdFields, cmp.AllowUnexported(categoryIds{})); diff != "" {
+							t.Errorf("unexpected result (-got +want):\n%s", diff)
+						}
+					}
+				})
+			}
+		})
+	}
+}
+
+var sampleCategories = []Category{
+	{Id: 1, ParentId: 0, CategoryData: CategoryData{Name: "Salary", Type: IncomeCategory}},
+	{Id: 2, ParentId: 0, CategoryData: CategoryData{Name: "Home", Type: ExpenseCategory}},
+	{Id: 3, ParentId: 1, CategoryData: CategoryData{Name: "Stock benefits", Type: IncomeCategory}},
+	{Id: 4, ParentId: 3, CategoryData: CategoryData{Name: "Voo", Type: IncomeCategory}},
+	{Id: 5, ParentId: 3, CategoryData: CategoryData{Name: "MSFT", Type: IncomeCategory}},
+	{Id: 6, ParentId: 2, CategoryData: CategoryData{Name: "Groceries", Type: ExpenseCategory}},
+	{Id: 7, ParentId: 2, CategoryData: CategoryData{Name: "Bills", Type: ExpenseCategory}},
+	{Id: 8, ParentId: 7, CategoryData: CategoryData{Name: "Electricity", Type: ExpenseCategory}},
+}
+
+func categorySampleDate(t *testing.T, store *Store, categories []Category) {
+
+	// =========================================
+	// create accounts
+	// =========================================
+
+	for _, cat := range categories {
+		_, err := store.CreateCategory(t.Context(), cat.CategoryData, cat.ParentId, tenant1)
+		if err != nil {
+			t.Fatalf("error creating account 1: %v", err)
+		}
+	}
+
 }

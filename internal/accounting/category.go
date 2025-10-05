@@ -141,6 +141,7 @@ type Category struct {
 	ParentId uint
 }
 
+// ListDescendantCategories returns a flat list of all child categories of a given parent and a specific category type
 func (store *Store) ListDescendantCategories(ctx context.Context, parent uint, depth int, categoryType CategoryType, tenant string) ([]Category, error) {
 	data := &[]dbCategory{}
 	err := store.categoryTree.Descendants(ctx, parent, depth, tenant, data)
@@ -165,4 +166,96 @@ func (store *Store) ListDescendantCategories(ctx context.Context, parent uint, d
 	}
 	return items, nil
 
+}
+
+type categoryIds struct {
+	Category
+	childrenIds []uint
+}
+
+// getCategoryChildren queries all categories of a type and tenant and returns a flat list of ALL categories + the associated
+// list of child ids for every single category.
+// eg, for a tree like
+// 0 - root
+// 1 -  |- income (type income)
+// 2 -  |    |-  salary
+// 3 -  |- expense (type expense)
+// 4 -  |    |-  general
+// 5 -  |    |     | - groceries
+// 6 -  |    |     | - restaurant
+//
+// the return for expense would be
+// {<Expense Category detail>, children: 3,4,5,6} , {<general Category detail>, children: 4,5,6},
+// {<groceries Category detail>, children: 5}, {<restaurant Category detail>, children: 6},
+//
+// This is a support function for generating a full income/expense report per category
+func (store *Store) getCategoryChildren(ctx context.Context, catType CategoryType, tenant string) ([]categoryIds, error) {
+	got, err := store.ListDescendantCategories(ctx, 0, -1, catType, tenant)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get income descendants %s", err.Error())
+	}
+
+	// transform got categories into categories trees
+	var catTree []categoryTree
+	for _, item := range got {
+		catTree = append(catTree, categoryTree{
+			Category: item,
+		})
+	}
+	lookup := buildTreeWithDescendants(catTree)
+
+	// build a new flat list where all the children are added
+	reportIncomeList := make([]categoryIds, len(got))
+
+	var i int
+	for _, node := range lookup {
+		descendants := collectDescendants(node)
+		ids := []uint{}
+		for _, d := range descendants {
+			ids = append(ids, d.Id)
+		}
+		reportIncomeList[i] = categoryIds{
+			Category: Category{
+				CategoryData: CategoryData{
+					Name:        node.Name,
+					Description: node.Description,
+					Type:        node.Type,
+				},
+				Id:       node.Id,
+				ParentId: node.ParentId,
+			},
+			childrenIds: ids,
+		}
+		i++
+	}
+	return reportIncomeList, nil
+}
+
+// Collect all descendants including self
+func collectDescendants(node *categoryTree) []*categoryTree {
+	result := []*categoryTree{node}
+	for _, child := range node.children {
+		result = append(result, collectDescendants(child)...)
+	}
+	return result
+}
+
+// builds a map of all items with all it's children referenced as pointers
+func buildTreeWithDescendants(nodes []categoryTree) map[uint]*categoryTree {
+	// create lookup map
+	lookup := make(map[uint]*categoryTree)
+	for i := range nodes {
+		lookup[nodes[i].Id] = &nodes[i]
+	}
+
+	// link children
+	for i := range nodes {
+		node := &nodes[i]
+		if node.ParentId != 0 {
+			parent := lookup[node.ParentId]
+			parent.children = append(parent.children, node)
+		}
+	}
+
+	return lookup
 }
