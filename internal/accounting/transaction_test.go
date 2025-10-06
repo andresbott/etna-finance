@@ -23,6 +23,7 @@ func TestStore_CreateTransaction(t *testing.T) {
 				Description: "income 1",
 				Amount:      2.5,
 				AccountID:   1,
+				CategoryID:  1,
 				Date:        time.Now(),
 			},
 		},
@@ -33,6 +34,7 @@ func TestStore_CreateTransaction(t *testing.T) {
 				Description: "expense 1",
 				Amount:      2.5,
 				AccountID:   1,
+				CategoryID:  2,
 				Date:        time.Now(),
 			},
 		},
@@ -52,11 +54,24 @@ func TestStore_CreateTransaction(t *testing.T) {
 			name:   "want error on empty description",
 			tenant: tenant1,
 			input: Expense{
-				Amount:    2.5,
-				AccountID: 1,
-				Date:      time.Now(),
+				Amount:     2.5,
+				AccountID:  1,
+				CategoryID: 2,
+				Date:       time.Now(),
 			},
 			wantErr: "description cannot be empty",
+		},
+		{
+			name:   "want error on wrong category type",
+			tenant: tenant1,
+			input: Income{
+				Description: "income 1",
+				Amount:      2.5,
+				AccountID:   1,
+				CategoryID:  2,
+				Date:        time.Now(),
+			},
+			wantErr: "incompatible category type for Income transaction",
 		},
 		{
 			name:   "want error on zero amount",
@@ -64,6 +79,7 @@ func TestStore_CreateTransaction(t *testing.T) {
 			input: Expense{
 				Description: "income 1",
 				AccountID:   1,
+				CategoryID:  2,
 				Date:        time.Now(),
 			},
 			wantErr: "amount cannot be zero",
@@ -75,6 +91,7 @@ func TestStore_CreateTransaction(t *testing.T) {
 				Description: "income 1",
 				Amount:      2.5,
 				AccountID:   1,
+				CategoryID:  2,
 			}, wantErr: "date cannot be zero",
 		},
 	}
@@ -88,6 +105,7 @@ func TestStore_CreateTransaction(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			categorySampleData(t, store, sampleCategories)
 			transactionSampleData(t, store, sampleTransactions)
 
 			for _, tc := range tcs {
@@ -116,7 +134,7 @@ func TestStore_CreateTransaction(t *testing.T) {
 						}
 
 						if diff := cmp.Diff(got, tc.input, ignoreUnexportedTxFields...); diff != "" {
-							t.Errorf("unexpected result (-want +got):\n%s", diff)
+							t.Errorf("unexpected result (+want -got):\n%s", diff)
 						}
 					}
 				})
@@ -154,6 +172,7 @@ func TestStore_GetTransaction(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			categorySampleData(t, store, sampleCategories)
 			transactionSampleData(t, store, sampleTransactions)
 
 			for _, tc := range tcs {
@@ -200,12 +219,12 @@ func TestStore_DeleteTransaction(t *testing.T) {
 					name:         "error when deleting non-existent entry",
 					deleteTenant: tenant1,
 					deleteID:     9999,
-					wantErr:      "baseTx not found",
+					wantErr:      "transaction not found",
 				},
 				{
 					name:         "error when deleting entry  for other tenant",
 					deleteTenant: tenant2,
-					wantErr:      "baseTx not found",
+					wantErr:      "transaction not found",
 				},
 			}
 
@@ -215,6 +234,7 @@ func TestStore_DeleteTransaction(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			categorySampleData(t, store, sampleCategories)
 			transactionSampleData(t, store, sampleTransactions)
 
 			for _, tc := range tcs {
@@ -271,6 +291,7 @@ func TestStore_UpdateIncome(t *testing.T) {
 				Description: "changed",
 				Amount:      10,
 				AccountID:   1,
+				CategoryID:  1,
 				Date:        getDate("2025-01-02"),
 			},
 		},
@@ -282,6 +303,7 @@ func TestStore_UpdateIncome(t *testing.T) {
 				Description: "description",
 				Amount:      10,
 				AccountID:   1,
+				CategoryID:  1,
 				Date:        getDate("2025-01-03"),
 			},
 		},
@@ -293,6 +315,7 @@ func TestStore_UpdateIncome(t *testing.T) {
 				Description: "description",
 				Amount:      5.5,
 				AccountID:   1,
+				CategoryID:  1,
 				Date:        getDate("2025-01-02"),
 			},
 		},
@@ -304,6 +327,19 @@ func TestStore_UpdateIncome(t *testing.T) {
 				Description: "description",
 				Amount:      10,
 				AccountID:   2,
+				CategoryID:  1,
+				Date:        getDate("2025-01-02"),
+			},
+		},
+		{
+			name:         "update category id",
+			updateTenant: tenant1,
+			updateInput:  IncomeUpdate{CategoryID: ptr(uint(3))}, // valid Cash account
+			want: Income{
+				Description: "description",
+				Amount:      10,
+				AccountID:   1,
+				CategoryID:  3,
 				Date:        getDate("2025-01-02"),
 			},
 		},
@@ -334,10 +370,16 @@ func TestStore_UpdateIncome(t *testing.T) {
 			wantErr:      "account cannot be zero",
 		},
 		{
+			name:         "zero category id error",
+			updateTenant: tenant1,
+			updateInput:  IncomeUpdate{CategoryID: ptr(uint(0))},
+			wantErr:      "category cannot be zero",
+		},
+		{
 			name:         "non-cash account error",
 			updateTenant: tenant1,
 			updateInput:  IncomeUpdate{AccountID: ptr(uint(5))},
-			wantErr:      "Incompatible account type for Income baseTx",
+			wantErr:      "incompatible account type for Income transaction",
 		},
 
 		// 🚨 No-op
@@ -353,14 +395,14 @@ func TestStore_UpdateIncome(t *testing.T) {
 			name:         "wrong tenant",
 			updateTenant: tenant2,
 			updateInput:  IncomeUpdate{Description: ptr("changed")},
-			wantErr:      "error updating baseTx: baseTx not found",
+			wantErr:      "error updating transaction: transaction not found",
 		},
 		{
-			name:         "non-existing baseTx",
+			name:         "non-existing transaction",
 			updateTenant: tenant1,
 			updateInput:  IncomeUpdate{Description: ptr("changed")},
 			txId:         9999,
-			wantErr:      "error updating baseTx: baseTx not found",
+			wantErr:      "error updating transaction: transaction not found",
 		},
 	}
 
@@ -373,12 +415,13 @@ func TestStore_UpdateIncome(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			categorySampleData(t, store, sampleCategories)
 			accountSampleData(t, store) // note: test operates on one set of data
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
-					in := Income{Description: "description", Amount: 10, AccountID: 1, Date: getDate("2025-01-02")}
+					in := Income{Description: "description", Amount: 10, AccountID: 1, CategoryID: 1, Date: getDate("2025-01-02")}
 					id, err := store.CreateTransaction(t.Context(), in, tenant1)
 					if err != nil {
 						t.Fatalf("failed to create baseTx: %v", err)
@@ -433,6 +476,7 @@ func TestStore_UpdateExpense(t *testing.T) {
 				Description: "changed",
 				Amount:      10,
 				AccountID:   1,
+				CategoryID:  2,
 				Date:        getDate("2025-01-02"),
 			},
 		},
@@ -444,6 +488,7 @@ func TestStore_UpdateExpense(t *testing.T) {
 				Description: "description",
 				Amount:      10,
 				AccountID:   1,
+				CategoryID:  2,
 				Date:        getDate("2025-01-03"),
 			},
 		},
@@ -455,6 +500,7 @@ func TestStore_UpdateExpense(t *testing.T) {
 				Description: "description",
 				Amount:      5.5,
 				AccountID:   1,
+				CategoryID:  2,
 				Date:        getDate("2025-01-02"),
 			},
 		},
@@ -466,6 +512,19 @@ func TestStore_UpdateExpense(t *testing.T) {
 				Description: "description",
 				Amount:      10,
 				AccountID:   2,
+				CategoryID:  2,
+				Date:        getDate("2025-01-02"),
+			},
+		},
+		{
+			name:         "update category id",
+			updateTenant: tenant1,
+			updateInput:  ExpenseUpdate{CategoryID: ptr(uint(6))}, // valid Cash account
+			want: Expense{
+				Description: "description",
+				Amount:      10,
+				AccountID:   1,
+				CategoryID:  6,
 				Date:        getDate("2025-01-02"),
 			},
 		},
@@ -496,10 +555,16 @@ func TestStore_UpdateExpense(t *testing.T) {
 			wantErr:      "account cannot be zero",
 		},
 		{
+			name:         "zero category id error",
+			updateTenant: tenant1,
+			updateInput:  ExpenseUpdate{CategoryID: ptr(uint(0))},
+			wantErr:      "category cannot be zero",
+		},
+		{
 			name:         "non-cash account error",
 			updateTenant: tenant1,
 			updateInput:  ExpenseUpdate{AccountID: ptr(uint(5))},
-			wantErr:      "Incompatible account type for Expense baseTx",
+			wantErr:      "incompatible account type for Expense transaction",
 		},
 
 		// 🚨 No-op
@@ -515,14 +580,14 @@ func TestStore_UpdateExpense(t *testing.T) {
 			name:         "wrong tenant",
 			updateTenant: tenant2,
 			updateInput:  ExpenseUpdate{Description: ptr("changed")},
-			wantErr:      "error updating baseTx: baseTx not found",
+			wantErr:      "error updating transaction: transaction not found",
 		},
 		{
-			name:         "non-existing baseTx",
+			name:         "non-existing transaction",
 			updateTenant: tenant1,
 			updateInput:  ExpenseUpdate{Description: ptr("changed")},
 			txId:         9999,
-			wantErr:      "error updating baseTx: baseTx not found",
+			wantErr:      "error updating transaction: transaction not found",
 		},
 	}
 
@@ -535,12 +600,14 @@ func TestStore_UpdateExpense(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			categorySampleData(t, store, sampleCategories)
 			accountSampleData(t, store) // note: test operates on one set of data
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
-					in := Expense{Description: "description", Amount: 10, AccountID: 1, Date: getDate("2025-01-02")}
+					in := Expense{Description: "description", Amount: 10, AccountID: 1, CategoryID: 2,
+						Date: getDate("2025-01-02")}
 					id, err := store.CreateTransaction(t.Context(), in, tenant1)
 					if err != nil {
 						t.Fatalf("failed to create baseTx: %v", err)
@@ -707,13 +774,13 @@ func TestStore_UpdateTransfer(t *testing.T) {
 			name:         "non-cash target account error",
 			updateTenant: tenant1,
 			updateInput:  TransferUpdate{TargetAccountID: ptr(uint(5))},
-			wantErr:      "Incompatible account type for Income baseTx",
+			wantErr:      "incompatible account type for Transfer transaction",
 		},
 		{
 			name:         "non-cash origin account error",
 			updateTenant: tenant1,
 			updateInput:  TransferUpdate{OriginAccountID: ptr(uint(5))},
-			wantErr:      "Incompatible account type for Income baseTx",
+			wantErr:      "incompatible account type for Transfer transaction",
 		},
 
 		// 🚨 No-op
@@ -729,14 +796,14 @@ func TestStore_UpdateTransfer(t *testing.T) {
 			name:         "wrong tenant",
 			updateTenant: tenant2,
 			updateInput:  TransferUpdate{Description: ptr("changed")},
-			wantErr:      "error updating baseTx: baseTx not found",
+			wantErr:      "error updating transaction: transaction not found",
 		},
 		{
-			name:         "non-existing baseTx",
+			name:         "non-existing transaction",
 			updateTenant: tenant1,
 			updateInput:  TransferUpdate{Description: ptr("changed")},
 			txId:         9999,
-			wantErr:      "error updating baseTx: baseTx not found",
+			wantErr:      "error updating transaction: transaction not found",
 		},
 	}
 
@@ -982,9 +1049,12 @@ var ignoreUnexportedAndIds = []cmp.Option{
 }
 
 var sampleTransactions = map[int]Transaction{
-	1: Income{Description: "First Income", Amount: 1.1, AccountID: 1, Date: getDate("2025-01-01")},
-	2: Expense{Description: "First expense", Amount: 2.2, AccountID: 1, Date: getDate("2025-01-02")},
-	3: Transfer{Description: "First transfer", OriginAmount: 3.3, OriginAccountID: 1, TargetAmount: 4.4, TargetAccountID: 2, Date: getDate("2025-01-03")},
+	1: Income{Description: "First Income", Amount: 1.1, AccountID: 1, CategoryID: 1,
+		Date: getDate("2025-01-01")},
+	2: Expense{Description: "First expense", Amount: 2.2, AccountID: 1, CategoryID: 2,
+		Date: getDate("2025-01-02")},
+	3: Transfer{Description: "First transfer", OriginAmount: 3.3, OriginAccountID: 1,
+		TargetAmount: 4.4, TargetAccountID: 2, Date: getDate("2025-01-03")},
 }
 
 func transactionSampleData(t *testing.T, store *Store, data map[int]Transaction) {
@@ -1016,7 +1086,7 @@ func transactionSampleData(t *testing.T, store *Store, data map[int]Transaction)
 	for _, tx := range data {
 		_, err = store.CreateTransaction(t.Context(), tx, tenant1)
 		if err != nil {
-			t.Fatalf("error creating account 1: %v", err)
+			t.Fatalf("error creating account: %v", err)
 		}
 	}
 }

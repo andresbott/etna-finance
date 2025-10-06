@@ -2,7 +2,6 @@ package accounting
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"gorm.io/gorm"
 	"time"
@@ -22,6 +21,7 @@ type dbEntry struct {
 	Id            uint `gorm:"primarykey"`
 	TransactionID uint `gorm:"not null;index"` // Foreign key
 	AccountID     uint `gorm:"not null;index"` // Foreign key
+	CategoryID    uint `gorm:"index"`          // Foreign key, only populated for income and expense
 
 	Amount   float64 `gorm:"not null"` // Amount in account currency
 	Quantity float64 // -- for stock shares (nullable for cash-only entries)
@@ -65,21 +65,22 @@ func (store *Store) sumEntryByCategories(ctx context.Context, opts sumByCategory
 	if opts.entryType != incomeEntry && opts.entryType != expenseEntry {
 		return sumResult{Sum: 0, Count: 0}, fmt.Errorf("entry type not supported, must be income or expense: %d", opts.entryType)
 	}
-
 	// select the entry type
 	db = db.Where("db_entries.entry_type = ?", opts.entryType)
+
+	// filter by cat type
+	if len(opts.categoryIds) > 0 {
+		db = db.Where("db_entries.category_id IN (?)", opts.categoryIds)
+	}
 
 	//target := []map[string]any{} // left for debugging
 	var target sumResult
 
 	q := db.Scan(&target)
 	if q.Error != nil {
-		if errors.Is(q.Error, gorm.ErrRecordNotFound) {
-			return sumResult{}, ErrTransactionNotFound
-		} else {
-			return sumResult{}, q.Error
-		}
+		return sumResult{}, q.Error
 	}
+	//spew.Dump(target)
 	return target, nil
 
 }

@@ -48,6 +48,7 @@ type Income struct {
 	Description string
 	Amount      float64
 	AccountID   uint
+	CategoryID  uint
 	Date        time.Time
 
 	baseTx
@@ -58,6 +59,7 @@ type Expense struct {
 	Description string
 	Amount      float64
 	AccountID   uint
+	CategoryID  uint
 	Date        time.Time
 
 	baseTx
@@ -82,14 +84,21 @@ func (store *Store) CreateTransaction(ctx context.Context, input Transaction, te
 	var tx dbTransaction
 	switch input.(type) {
 	case Income:
-
 		item := input.(Income)
 		acc, err := store.GetAccount(ctx, item.AccountID, tenant)
 		if err != nil {
-			return 0, fmt.Errorf("error creating baseTx: %w", err)
+			return 0, fmt.Errorf("error creating transaction: %w", err)
 		}
 		if acc.Type != Cash {
-			return 0, NewValidationErr("Incompatible account type for Income baseTx")
+			return 0, NewValidationErr("incompatible account type for Income transaction")
+		}
+
+		cat, err := store.GetCategory(ctx, item.CategoryID, tenant)
+		if err != nil {
+			return 0, fmt.Errorf("error creating transaction: %w", err)
+		}
+		if cat.Type != IncomeCategory {
+			return 0, NewValidationErr("incompatible category type for Income transaction")
 		}
 
 		tx = dbTransaction{
@@ -98,23 +107,57 @@ func (store *Store) CreateTransaction(ctx context.Context, input Transaction, te
 			OwnerId:     tenant,
 			Type:        IncomeTransaction,
 			Entries: []dbEntry{
-				{AccountID: item.AccountID, Amount: item.Amount, EntryType: incomeEntry, OwnerId: tenant},
+				{AccountID: item.AccountID, CategoryID: item.CategoryID, Amount: item.Amount,
+					EntryType: incomeEntry, OwnerId: tenant},
 			},
 		}
 	case Expense:
 		item := input.(Expense)
+		acc, err := store.GetAccount(ctx, item.AccountID, tenant)
+		if err != nil {
+			return 0, fmt.Errorf("error creating transaction: %w", err)
+		}
+		if acc.Type != Cash {
+			return 0, NewValidationErr("Incompatible account type for expense transaction")
+		}
+
+		cat, err := store.GetCategory(ctx, item.CategoryID, tenant)
+		if err != nil {
+			return 0, fmt.Errorf("error creating transaction: %w", err)
+		}
+		if cat.Type != ExpenseCategory {
+			return 0, NewValidationErr("incompatible category type for Expense transaction")
+		}
+
 		tx = dbTransaction{
 			Description: item.Description,
 			Date:        item.Date,
 			OwnerId:     tenant,
 			Type:        ExpenseTransaction,
 			Entries: []dbEntry{
-				{AccountID: item.AccountID, Amount: -item.Amount, EntryType: expenseEntry, OwnerId: tenant},
+				{AccountID: item.AccountID, CategoryID: item.CategoryID, Amount: -item.Amount,
+					EntryType: expenseEntry, OwnerId: tenant},
 			},
 		}
 
 	case Transfer:
 		item := input.(Transfer)
+		acc, err := store.GetAccount(ctx, item.OriginAccountID, tenant)
+		if err != nil {
+			return 0, fmt.Errorf("error creating transaction: %w", err)
+		}
+		if acc.Type != Cash {
+			return 0, NewValidationErr("Incompatible account type for Transfer transaction")
+		}
+
+		acc, err = store.GetAccount(ctx, item.TargetAccountID, tenant)
+		if err != nil {
+			return 0, fmt.Errorf("error creating transaction: %w", err)
+		}
+		if acc.Type != Cash {
+			return 0, NewValidationErr("Incompatible account type for Transfer transaction")
+		}
+
 		tx = dbTransaction{
 			Description: item.Description,
 			Date:        item.Date,
@@ -153,11 +196,11 @@ func (store *Store) CreateTransaction(ctx context.Context, input Transaction, te
 	return tx.Id, nil
 }
 
-var ErrTransactionNotFound = errors.New("baseTx not found")
-var ErrTransactionTypeNotFound = errors.New("baseTx type not found")
-var ErrEntryNotFound = errors.New("baseTx entry not found")
+var ErrTransactionNotFound = errors.New("transaction not found")
+var ErrTransactionTypeNotFound = errors.New("transaction type not found")
+var ErrEntryNotFound = errors.New("transaction entry not found")
 
-// GetTransaction Returns a baseTx after reading it from the DB
+// GetTransaction Returns a transaction after reading it from the DB
 // Note that type assertion needs to be used to transform the Transaction into a specific type
 func (store *Store) GetTransaction(ctx context.Context, Id uint, tenant string) (Transaction, error) {
 	var payload dbTransaction
@@ -170,10 +213,9 @@ func (store *Store) GetTransaction(ctx context.Context, Id uint, tenant string) 
 		}
 	}
 	return publicTransactions(payload)
-
 }
 
-// publicTransactions takes a db representation of the baseTx and returns a specific type
+// publicTransactions takes a db representation of the transaction and returns a specific type
 func publicTransactions(in dbTransaction) (Transaction, error) {
 	switch in.Type {
 	case IncomeTransaction:
@@ -182,6 +224,7 @@ func publicTransactions(in dbTransaction) (Transaction, error) {
 			Date:        in.Date,
 			Amount:      in.Entries[0].Amount,
 			AccountID:   in.Entries[0].AccountID,
+			CategoryID:  in.Entries[0].CategoryID,
 		}, nil
 	case ExpenseTransaction:
 		return Expense{
@@ -189,6 +232,7 @@ func publicTransactions(in dbTransaction) (Transaction, error) {
 			Date:        in.Date,
 			Amount:      -in.Entries[0].Amount,
 			AccountID:   in.Entries[0].AccountID,
+			CategoryID:  in.Entries[0].CategoryID,
 		}, nil
 	case TransferTransaction:
 		var inEntity dbEntry
@@ -257,6 +301,7 @@ type IncomeUpdate struct {
 	Description *string
 	Amount      *float64
 	AccountID   *uint
+	CategoryID  *uint
 	Date        *time.Time
 
 	txUpdate
@@ -266,6 +311,7 @@ type ExpenseUpdate struct {
 	Description *string
 	Amount      *float64
 	AccountID   *uint
+	CategoryID  *uint
 	Date        *time.Time
 
 	txUpdate
@@ -338,14 +384,30 @@ func (store *Store) UpdateIncome(ctx context.Context, input IncomeUpdate, Id uin
 		}
 		acc, err := store.GetAccount(ctx, *input.AccountID, tenant)
 		if err != nil {
-			return fmt.Errorf("error creating baseTx: %w", err)
+			return fmt.Errorf("error updating income: %w", err)
 		}
 		if acc.Type != Cash {
-			return NewValidationErr("Incompatible account type for Income baseTx")
+			return NewValidationErr("incompatible account type for Income transaction")
 		}
 
 		updateEntity.AccountID = *input.AccountID
 		selectedEntryFields = append(selectedEntryFields, "AccountID")
+	}
+
+	if input.CategoryID != nil {
+		if *input.CategoryID == 0 {
+			return NewValidationErr("category cannot be zero")
+		}
+		cat, err := store.GetCategory(ctx, *input.CategoryID, tenant)
+		if err != nil {
+			return fmt.Errorf("error updating income: %w", err)
+		}
+		if cat.Type != IncomeCategory {
+			return NewValidationErr("incompatible category type for Income transaction")
+		}
+
+		updateEntity.CategoryID = *input.CategoryID
+		selectedEntryFields = append(selectedEntryFields, "CategoryID")
 	}
 
 	if len(selectedFields) == 0 && len(selectedEntryFields) == 0 {
@@ -394,7 +456,7 @@ func (store *Store) UpdateIncome(ctx context.Context, input IncomeUpdate, Id uin
 	})
 
 	if err != nil {
-		return fmt.Errorf("error updating baseTx: %w", err)
+		return fmt.Errorf("error updating transaction: %w", err)
 	}
 
 	return nil
@@ -441,11 +503,27 @@ func (store *Store) UpdateExpense(ctx context.Context, input ExpenseUpdate, Id u
 			return fmt.Errorf("error creating baseTx: %w", err)
 		}
 		if acc.Type != Cash {
-			return NewValidationErr("Incompatible account type for Expense baseTx")
+			return NewValidationErr("incompatible account type for Expense transaction")
 		}
 
 		updateEntity.AccountID = *input.AccountID
 		selectedEntryFields = append(selectedEntryFields, "AccountID")
+	}
+
+	if input.CategoryID != nil {
+		if *input.CategoryID == 0 {
+			return NewValidationErr("category cannot be zero")
+		}
+		cat, err := store.GetCategory(ctx, *input.CategoryID, tenant)
+		if err != nil {
+			return fmt.Errorf("error updating income: %w", err)
+		}
+		if cat.Type != ExpenseCategory {
+			return NewValidationErr("incompatible category type for Income transaction")
+		}
+
+		updateEntity.CategoryID = *input.CategoryID
+		selectedEntryFields = append(selectedEntryFields, "CategoryID")
 	}
 
 	if len(selectedFields) == 0 && len(selectedEntryFields) == 0 {
@@ -489,12 +567,11 @@ func (store *Store) UpdateExpense(ctx context.Context, input ExpenseUpdate, Id u
 				return ErrEntryNotFound
 			}
 		}
-
 		return nil
 	})
 
 	if err != nil {
-		return fmt.Errorf("error updating baseTx: %w", err)
+		return fmt.Errorf("error updating transaction: %w", err)
 	}
 
 	return nil
@@ -538,10 +615,10 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 		}
 		acc, err := store.GetAccount(ctx, *input.TargetAccountID, tenant)
 		if err != nil {
-			return fmt.Errorf("error creating baseTx: %w", err)
+			return fmt.Errorf("error creating transaction: %w", err)
 		}
 		if acc.Type != Cash {
-			return NewValidationErr("Incompatible account type for Income baseTx")
+			return NewValidationErr("incompatible account type for Transfer transaction")
 		}
 		targetEntry.AccountID = *input.TargetAccountID
 		targetFields = append(targetFields, "AccountID")
@@ -565,10 +642,10 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 		}
 		acc, err := store.GetAccount(ctx, *input.OriginAccountID, tenant)
 		if err != nil {
-			return fmt.Errorf("error creating baseTx: %w", err)
+			return fmt.Errorf("error creating transaction: %w", err)
 		}
 		if acc.Type != Cash {
-			return NewValidationErr("Incompatible account type for Income baseTx")
+			return NewValidationErr("incompatible account type for Transfer transaction")
 		}
 		originEntry.AccountID = *input.OriginAccountID
 		originFields = append(originFields, "AccountID")
@@ -626,7 +703,7 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 	})
 
 	if err != nil {
-		return fmt.Errorf("error updating baseTx: %w", err)
+		return fmt.Errorf("error updating transaction: %w", err)
 	}
 
 	return nil

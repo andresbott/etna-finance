@@ -273,6 +273,69 @@ func TestStore_MoveCategoryErrors(t *testing.T) {
 	}
 }
 
+func TestGetCategory(t *testing.T) {
+	tcs := []struct {
+		name    string
+		id      uint
+		want    Category
+		tenant  string
+		wantErr string
+	}{
+		{
+			name:   "get a child income",
+			tenant: tenant1,
+			id:     5,
+			want: Category{Id: 5,
+				ParentId:     0, // 3 expected  TODO for now the node returns always 0 for, check https://github.com/go-bumbu/closure-tree/issues/10
+				CategoryData: CategoryData{Name: "MSFT", Type: IncomeCategory}},
+		},
+		{
+			name:   "get a child expense",
+			tenant: tenant1,
+			id:     8,
+			want: Category{Id: 8,
+				ParentId:     0, //7 expected  TODO for now the node returns always 0 for, check https://github.com/go-bumbu/closure-tree/issues/10
+				CategoryData: CategoryData{Name: "Electricity", Type: ExpenseCategory}},
+		},
+	}
+
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+
+			dbCon := db.ConnDbName("storeGetCategory")
+			store, err := New(dbCon)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			categorySampleData(t, store, sampleCategories)
+
+			for _, tc := range tcs {
+				t.Run(tc.name, func(t *testing.T) {
+
+					got, err := store.GetCategory(t.Context(), tc.id, tc.tenant)
+					if tc.wantErr != "" {
+						if err == nil {
+							t.Fatalf("expected error: %s, but got none", tc.wantErr)
+						}
+						if err.Error() != tc.wantErr {
+							t.Errorf("expected error: %s, but got %v", tc.wantErr, err.Error())
+						}
+					} else {
+						if err != nil {
+							t.Fatalf("unexpected error: %v", err)
+						}
+
+						if diff := cmp.Diff(got, tc.want, cmp.AllowUnexported(categoryIds{})); diff != "" {
+							t.Errorf("unexpected result (-got +want):\n%s", diff)
+						}
+					}
+				})
+			}
+		})
+	}
+}
+
 var ignoreCategoryIdFields = cmpopts.IgnoreFields(Category{},
 	"Id", "ParentId")
 
@@ -317,7 +380,7 @@ func TestGetCategoryChildren(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			categorySampleDate(t, store, sampleCategories)
+			categorySampleData(t, store, sampleCategories)
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
@@ -363,7 +426,7 @@ var sampleCategories = []Category{
 	{Id: 8, ParentId: 7, CategoryData: CategoryData{Name: "Electricity", Type: ExpenseCategory}},
 }
 
-func categorySampleDate(t *testing.T, store *Store, categories []Category) {
+func categorySampleData(t *testing.T, store *Store, categories []Category) {
 
 	// =========================================
 	// create accounts

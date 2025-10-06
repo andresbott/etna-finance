@@ -106,9 +106,7 @@ func (store *Store) UpdateCategory(ctx context.Context, Id uint, cat CategoryDat
 }
 
 func (store *Store) MoveCategory(ctx context.Context, Id, newParentID uint, tenant string) error {
-
 	var err error
-
 	node := dbCategory{}
 	err = store.categoryTree.GetNode(ctx, Id, tenant, &node)
 	if err != nil {
@@ -127,7 +125,25 @@ func (store *Store) MoveCategory(ctx context.Context, Id, newParentID uint, tena
 
 	err = store.categoryTree.Move(ctx, Id, newParentID, tenant)
 	return handleErr(err)
+}
 
+func (store *Store) GetCategory(ctx context.Context, Id uint, tenant string) (Category, error) {
+	var err error
+	node := dbCategory{}
+	err = store.categoryTree.GetNode(ctx, Id, tenant, &node)
+	if err != nil {
+		return Category{}, fmt.Errorf("unable to get category: %w", err)
+	}
+	category := Category{
+		CategoryData: CategoryData{
+			Name:        node.Name,
+			Description: node.Description,
+			Type:        node.Type,
+		},
+		Id:       node.NodeId,
+		ParentId: node.ParentId,
+	}
+	return category, nil
 }
 
 func (store *Store) DeleteCategoryRecursive(ctx context.Context, Id uint, tenant string) error {
