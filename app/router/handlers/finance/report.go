@@ -33,7 +33,7 @@ func (h *Handler) GetReport(userId string) http.Handler {
 			return
 		}
 
-		report, err := h.Store.GetCategoryReport(r.Context(), startDate, endDate, userId)
+		report, err := h.Store.ReportOnCategories(r.Context(), startDate, endDate, userId)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to list entries: %s", err.Error()), http.StatusInternalServerError)
 			return

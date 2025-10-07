@@ -275,7 +275,7 @@ func (h *MainAppHandler) financeApi(r *mux.Router) error {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
-		finHndlr.CreateEntry(userData.UserId).ServeHTTP(w, r)
+		finHndlr.CreateTx(userData.UserId).ServeHTTP(w, r)
 	})
 
 	r.Path(fmt.Sprintf("%s/{ID}", finEntries)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -291,7 +291,7 @@ func (h *MainAppHandler) financeApi(r *mux.Router) error {
 			return
 		}
 
-		finHndlr.UpdateEntry(itemId, userData.UserId).ServeHTTP(w, r)
+		finHndlr.UpdateTx(itemId, userData.UserId).ServeHTTP(w, r)
 	})
 
 	r.Path(fmt.Sprintf("%s/{ID}", finEntries)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

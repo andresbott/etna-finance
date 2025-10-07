@@ -4,13 +4,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/andresbott/etna/internal/model/finance"
+	"github.com/andresbott/etna/internal/accounting"
+	"strings"
+
 	"golang.org/x/text/currency"
 	"net/http"
 )
 
 type Handler struct {
-	Store *finance.Store
+	Store *accounting.Store
 }
 
 type accountProviderPayload struct {
@@ -19,6 +21,8 @@ type accountProviderPayload struct {
 	Description string           `json:"description"`
 	Accounts    []accountPayload `json:"accounts"`
 }
+
+var validationErr = accounting.ErrValidation("")
 
 func (h *Handler) CreateAccountProvider(userId string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -38,7 +42,7 @@ func (h *Handler) CreateAccountProvider(userId string) http.Handler {
 			return
 		}
 
-		account := finance.AccountProvider{
+		account := accounting.AccountProvider{
 			Name:        payload.Name,
 			Description: payload.Description,
 		}
@@ -89,7 +93,7 @@ func (h *Handler) UpdateAccountProvider(Id uint, userId string) http.Handler {
 			return
 		}
 
-		item := finance.AccountProviderUpdatePayload{
+		item := accounting.AccountProviderUpdatePayload{
 			Name:        payload.Name,
 			Description: payload.Description,
 			//Accounts    []Account
@@ -99,10 +103,10 @@ func (h *Handler) UpdateAccountProvider(Id uint, userId string) http.Handler {
 		if err != nil {
 			if errors.As(err, &validationErr) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
-			} else if errors.Is(err, finance.ErrAccountProviderNotFound) {
+			} else if errors.Is(err, accounting.ErrAccountProviderNotFound) {
 				http.Error(w, fmt.Sprintf("unable to update account provider in DB: %s", err.Error()), http.StatusNotFound)
 				return
-			} else if errors.Is(err, finance.ErrNoChanges) {
+			} else if errors.Is(err, accounting.ErrNoChanges) {
 				http.Error(w, "no changes applied", http.StatusBadRequest)
 				return
 			} else {
@@ -124,10 +128,10 @@ func (h *Handler) DeleteAccountProvider(Id uint, userId string) http.Handler {
 
 		err := h.Store.DeleteAccountProvider(r.Context(), Id, userId)
 		if err != nil {
-			if errors.Is(err, finance.ErrAccountProviderNotFound) {
+			if errors.Is(err, accounting.ErrAccountProviderNotFound) {
 				http.Error(w, err.Error(), http.StatusNotFound)
 				return
-			} else if errors.Is(err, finance.ErrAccountConstraintViolation) {
+			} else if errors.Is(err, accounting.ErrAccountConstraintViolation) {
 				http.Error(w, fmt.Sprintf("unable to delete account provider: %s", err.Error()), http.StatusConflict)
 				return
 			} else {
@@ -168,7 +172,7 @@ func (h *Handler) ListAccountProviders(userId string) http.Handler {
 					Id:       account.ID,
 					Name:     account.Name,
 					Currency: account.Currency.String(),
-					Type:     account.Type.String(),
+					Type:     accountTypeStr(account.Type),
 				}
 			}
 
@@ -210,8 +214,6 @@ type accountPayload struct {
 	Type       string `json:"type"` // enum of type
 }
 
-var validationErr = finance.ValidationErr("")
-
 func (h *Handler) CreateAccount(userId string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if userId == "" {
@@ -230,7 +232,7 @@ func (h *Handler) CreateAccount(userId string) http.Handler {
 			return
 		}
 
-		account := finance.Account{
+		account := accounting.Account{
 			Name:              payload.Name,
 			AccountProviderID: payload.ProviderId,
 		}
@@ -242,8 +244,8 @@ func (h *Handler) CreateAccount(userId string) http.Handler {
 		}
 		account.Currency = cur
 
-		t, err := finance.ParseAccountType(payload.Type)
-		if err != nil {
+		t := parseAccountType(payload.Type)
+		if t == accounting.UnknownAccountType {
 			http.Error(w, fmt.Sprintf("unable to parse account type: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
@@ -297,7 +299,7 @@ func (h *Handler) UpdateAccount(Id uint, userId string) http.Handler {
 			return
 		}
 
-		account := finance.AccountUpdatePayload{
+		account := accounting.AccountUpdatePayload{
 			Name: payload.Name,
 		}
 
@@ -311,19 +313,19 @@ func (h *Handler) UpdateAccount(Id uint, userId string) http.Handler {
 		}
 
 		if payload.Type != "" {
-			t, err := finance.ParseAccountType(payload.Type)
-			if err != nil {
+			t := parseAccountType(payload.Type)
+			if t == accounting.UnknownAccountType {
 				http.Error(w, fmt.Sprintf("unable to parse account type: %s", err.Error()), http.StatusBadRequest)
 				return
 			}
 			account.Type = t
 		}
 
-		err = h.Store.UpdateAccount(account, Id, userId)
+		err = h.Store.UpdateAccount(r.Context(), account, Id, userId)
 		if err != nil {
 			if errors.As(err, &validationErr) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
-			} else if errors.Is(err, finance.ErrAccountNotFound) {
+			} else if errors.Is(err, accounting.ErrAccountNotFound) {
 				http.Error(w, fmt.Sprintf("unable to update account in DB: %s", err.Error()), http.StatusNotFound)
 				return
 			} else {
@@ -345,7 +347,7 @@ func (h *Handler) DeleteAccount(Id uint, userId string) http.Handler {
 
 		err := h.Store.DeleteAccount(r.Context(), Id, userId)
 		if err != nil {
-			if errors.Is(err, finance.ErrAccountNotFound) {
+			if errors.Is(err, accounting.ErrAccountNotFound) {
 				http.Error(w, err.Error(), http.StatusNotFound)
 			} else {
 				http.Error(w, fmt.Sprintf("unable to delete account: %s", err.Error()), http.StatusInternalServerError)
@@ -356,4 +358,30 @@ func (h *Handler) DeleteAccount(Id uint, userId string) http.Handler {
 	})
 }
 
-// account status with query parameter account ids, end date ( start date is always begining of time)
+const (
+	unknownAccountStr    = "unknown"
+	cashAccountStr       = "cash"
+	investmentAccountStr = "investment"
+)
+
+func parseAccountType(in string) accounting.AccountType {
+	switch strings.ToLower(in) {
+	case cashAccountStr:
+		return accounting.CashAccountType
+	case expenseTxStr:
+		return accounting.InvestmentAccountType
+	default:
+		return accounting.UnknownAccountType
+	}
+}
+
+func accountTypeStr(in accounting.AccountType) string {
+	switch in {
+	case accounting.CashAccountType:
+		return cashAccountStr
+	case accounting.InvestmentAccountType:
+		return investmentAccountStr
+	default:
+		return unknownAccountStr
+	}
+}

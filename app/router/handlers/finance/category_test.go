@@ -3,18 +3,17 @@ package finance
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/andresbott/etna/internal/accounting"
+	"github.com/glebarez/sqlite"
 	"github.com/google/go-cmp/cmp"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
-
-	"github.com/andresbott/etna/internal/model/finance"
-	"github.com/glebarez/sqlite"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 func TestCreateCategory(t *testing.T) {
@@ -494,7 +493,7 @@ func SampleCategoryHandler(t *testing.T) (*CategoryHandler, func()) {
 		t.Fatalf("unable to connect to sqlite: %v", err)
 	}
 
-	store, err := finance.New(db)
+	store, err := accounting.New(db)
 	if err != nil {
 		t.Fatalf("unable to connect to finance: %v", err)
 	}
@@ -520,36 +519,36 @@ func SampleCategoryHandler(t *testing.T) (*CategoryHandler, func()) {
 }
 
 // Add helper functions to create test categories
-func createTestCategories(t *testing.T, store *finance.Store) {
+func createTestCategories(t *testing.T, store *accounting.Store) {
 
 	// Create some income categories
-	incomeCategory1 := finance.CategoryData{Name: "Salary", Type: finance.IncomeCategory}
+	incomeCategory1 := accounting.CategoryData{Name: "Salary", Type: accounting.IncomeCategory}
 	_, err := store.CreateCategory(t.Context(), incomeCategory1, 0, tenant1)
 	if err != nil {
 		t.Fatalf("error creating income category: %v", err)
 	}
 
-	incomeCategory2 := finance.CategoryData{Name: "Investments", Type: finance.IncomeCategory}
+	incomeCategory2 := accounting.CategoryData{Name: "Investments", Type: accounting.IncomeCategory}
 	_, err = store.CreateCategory(t.Context(), incomeCategory2, 0, tenant1)
 	if err != nil {
 		t.Fatalf("error creating income category: %v", err)
 	}
 
 	// Create some expense categories
-	expenseCategory1 := finance.CategoryData{Name: "Food", Type: finance.ExpenseCategory}
+	expenseCategory1 := accounting.CategoryData{Name: "Food", Type: accounting.ExpenseCategory}
 	expense1Id, err := store.CreateCategory(t.Context(), expenseCategory1, 0, tenant1)
 	if err != nil {
 		t.Fatalf("error creating expense category: %v", err)
 	}
 
-	expenseCategory2 := finance.CategoryData{Name: "Transportation", Type: finance.ExpenseCategory}
+	expenseCategory2 := accounting.CategoryData{Name: "Transportation", Type: accounting.ExpenseCategory}
 	_, err = store.CreateCategory(t.Context(), expenseCategory2, 0, tenant1)
 	if err != nil {
 		t.Fatalf("error creating expense category: %v", err)
 	}
 
 	// Create a subcategory
-	expenseSubcategory := finance.CategoryData{Name: "Groceries", Type: finance.ExpenseCategory}
+	expenseSubcategory := accounting.CategoryData{Name: "Groceries", Type: accounting.ExpenseCategory}
 	_, err = store.CreateCategory(t.Context(), expenseSubcategory, expense1Id, tenant1)
 	if err != nil {
 		t.Fatalf("error creating expense subcategory: %v", err)

@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/andresbott/etna/internal/model/finance"
+	"github.com/andresbott/etna/internal/accounting"
 	"github.com/glebarez/sqlite"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -92,7 +92,7 @@ func TestCreateAccountProvider(t *testing.T) {
 					t.Errorf("handler returned wrong status code: got %v want %v", status, tc.expectCode)
 				}
 
-				acc := finance.Account{}
+				acc := accounting.Account{}
 				err := json.NewDecoder(recorder.Body).Decode(&acc)
 				if err != nil {
 					t.Fatal(err)
@@ -217,14 +217,14 @@ func TestDeleteAccountProvider(t *testing.T) {
 			name:       "wrong user",
 			deleteID:   1, // id 3 does not have accounts associated
 			user:       emptyTenant,
-			expectErr:  finance.ErrAccountProviderNotFound.Error(),
+			expectErr:  accounting.ErrAccountProviderNotFound.Error(),
 			expectCode: http.StatusNotFound,
 		},
 		{
 			name:       "non-existent account",
 			user:       tenant1,
 			deleteID:   9999,
-			expectErr:  finance.ErrAccountProviderNotFound.Error(),
+			expectErr:  accounting.ErrAccountProviderNotFound.Error(),
 			expectCode: http.StatusNotFound,
 		},
 	}
@@ -426,7 +426,7 @@ func TestCreateAccount(t *testing.T) {
 					t.Errorf("handler returned wrong status code: got %v want %v", status, tc.expectCode)
 				}
 
-				acc := finance.Account{}
+				acc := accounting.Account{}
 				err := json.NewDecoder(recorder.Body).Decode(&acc)
 				if err != nil {
 					t.Fatal(err)
@@ -489,7 +489,7 @@ func TestUpdateAccount(t *testing.T) {
 
 			// Create a new account to get an ID
 			accountId, err := h.Store.CreateAccount(context.Background(),
-				finance.Account{Name: "Initial", Currency: currency.USD, AccountProviderID: 1}, tenant1)
+				accounting.Account{Name: "Initial", Currency: currency.USD, AccountProviderID: 1}, tenant1)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -545,7 +545,7 @@ func TestDeleteAccount(t *testing.T) {
 			name:       "non-existent account",
 			user:       tenant1,
 			deleteID:   9999,
-			expectErr:  finance.ErrAccountNotFound.Error(),
+			expectErr:  accounting.ErrAccountNotFound.Error(),
 			expectCode: http.StatusNotFound,
 		},
 	}
@@ -608,7 +608,7 @@ func SampleHandler(t *testing.T) (*Handler, func()) {
 		t.Fatalf("unable to connect to sqlite: %v", err)
 	}
 
-	store, err := finance.New(db)
+	store, err := accounting.New(db)
 	if err != nil {
 		t.Fatalf("unable to connect to finance: %v", err)
 	}
@@ -632,25 +632,25 @@ func SampleHandler(t *testing.T) (*Handler, func()) {
 	return &bkmh, closeFn
 }
 
-var sampleAccountProviders = []finance.AccountProvider{
-	{Name: "provider1", Description: "provider1", Accounts: []finance.Account{}}, // 1
-	{Name: "provider2", Description: "provider2", Accounts: []finance.Account{}}, // 2
-	{Name: "provider3", Description: "provider3", Accounts: []finance.Account{}}, // 3 does not have accounts
+var sampleAccountProviders = []accounting.AccountProvider{
+	{Name: "provider1", Description: "provider1", Accounts: []accounting.Account{}}, // 1
+	{Name: "provider2", Description: "provider2", Accounts: []accounting.Account{}}, // 2
+	{Name: "provider3", Description: "provider3", Accounts: []accounting.Account{}}, // 3 does not have accounts
 }
 
-var sampleAccountProviders2 = []finance.AccountProvider{
-	{Name: "provider4_tenant2", Description: "provider4t2", Accounts: []finance.Account{}}, // 4
+var sampleAccountProviders2 = []accounting.AccountProvider{
+	{Name: "provider4_tenant2", Description: "provider4t2", Accounts: []accounting.Account{}}, // 4
 }
 
-var sampleAccounts = []finance.Account{
-	{ID: 1, Name: "acc1", Currency: currency.EUR, Type: finance.Cash, AccountProviderID: 1},
-	{ID: 2, Name: "acc2", Currency: currency.USD, Type: finance.Cash, AccountProviderID: 2},
-	{ID: 3, Name: "acc3", Currency: currency.EUR, Type: finance.Cash, AccountProviderID: 1},
-	{ID: 3, Name: "acc4", Currency: currency.EUR, Type: finance.Cash, AccountProviderID: 1},
-	{ID: 4, Name: "acc5", Currency: currency.EUR, Type: finance.Cash, AccountProviderID: 1},
+var sampleAccounts = []accounting.Account{
+	{ID: 1, Name: "acc1", Currency: currency.EUR, Type: accounting.CashAccountType, AccountProviderID: 1},
+	{ID: 2, Name: "acc2", Currency: currency.USD, Type: accounting.CashAccountType, AccountProviderID: 2},
+	{ID: 3, Name: "acc3", Currency: currency.EUR, Type: accounting.CashAccountType, AccountProviderID: 1},
+	{ID: 3, Name: "acc4", Currency: currency.EUR, Type: accounting.CashAccountType, AccountProviderID: 1},
+	{ID: 4, Name: "acc5", Currency: currency.EUR, Type: accounting.CashAccountType, AccountProviderID: 1},
 }
 
-var sampleEntries = []finance.Entry{
+var sampleEntries = []accounting.Transaction{
 	{Description: "e1", TargetAmount: 1, Type: finance.ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-01 00:00:00")}, // 1
 	{Description: "e2", TargetAmount: 2, Type: finance.ExpenseEntry, Date: getTime("2025-01-02 00:00:00"),
 		TargetAccountID: 1, TargetAccountName: "acc1"},
@@ -675,10 +675,10 @@ var sampleEntries = []finance.Entry{
 	{Description: "e15", TargetAmount: 10, Type: finance.ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-16 00:00:00")},
 }
 
-var sampleAccounts2 = []finance.Account{
+var sampleAccounts2 = []accounting.Account{
 	{ID: 6, Name: "acc1tenant2", Currency: currency.EUR, Type: 0, AccountProviderID: 4},
 }
-var sampleEntries2 = []finance.Entry{
+var sampleEntries2 = []accounting.Transaction{
 	{Description: "t2e13", TargetAmount: 10, Type: finance.ExpenseEntry, TargetAccountID: 6, Date: getTime("2025-01-13 00:00:00")},
 	{Description: "t2e14", TargetAmount: 10, Type: finance.ExpenseEntry, TargetAccountID: 6, Date: getTime("2025-01-14 00:00:00")},
 	{Description: "t2e15", TargetAmount: 10, Type: finance.ExpenseEntry, TargetAccountID: 6, TargetAccountName: "acc1tenant2", Date: getTime("2025-01-15 00:00:00")},
@@ -692,7 +692,7 @@ const (
 	emptyTenant = "tenantEmpty"
 )
 
-func sampleData(t *testing.T, store *finance.Store) {
+func sampleData(t *testing.T, store *accounting.Store) {
 	ctx := context.Background()
 
 	// =========================================
@@ -759,14 +759,14 @@ func sampleData(t *testing.T, store *finance.Store) {
 	// =========================================
 
 	for _, entry := range sampleEntries {
-		_, err = store.CreateEntry(context.Background(), entry, tenant1)
+		_, err = store.CreateTransaction(context.Background(), entry, tenant1)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	for _, entry := range sampleEntries2 {
-		_, err = store.CreateEntry(context.Background(), entry, tenant2)
+		_, err = store.CreateTransaction(context.Background(), entry, tenant2)
 		if err != nil {
 			t.Fatal(err)
 		}

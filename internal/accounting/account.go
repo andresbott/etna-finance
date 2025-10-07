@@ -187,9 +187,9 @@ var ErrAccountNotFound = errors.New("account not found")
 type AccountType int
 
 const (
-	Unknown AccountType = iota
-	Cash    AccountType = iota
-	Investment
+	UnknownAccountType AccountType = iota
+	CashAccountType
+	InvestmentAccountType
 )
 
 type Account struct {
@@ -287,7 +287,7 @@ func (store *Store) UpdateAccount(ctx context.Context, item AccountUpdatePayload
 		selectedFields = append(selectedFields, "Name")
 	}
 
-	if item.Type != Unknown {
+	if item.Type != UnknownAccountType {
 		updateStruct.Type = item.Type
 		selectedFields = append(selectedFields, "Type")
 	}

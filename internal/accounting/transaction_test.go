@@ -344,7 +344,7 @@ func TestStore_UpdateIncome(t *testing.T) {
 		{
 			name:         "update account id",
 			updateTenant: tenant1,
-			updateInput:  IncomeUpdate{AccountID: ptr(uint(2))}, // valid Cash account
+			updateInput:  IncomeUpdate{AccountID: ptr(uint(2))}, // valid CashAccountType account
 			want: Income{
 				Description: "description",
 				Amount:      10,
@@ -356,7 +356,7 @@ func TestStore_UpdateIncome(t *testing.T) {
 		{
 			name:         "update category id",
 			updateTenant: tenant1,
-			updateInput:  IncomeUpdate{CategoryID: ptr(uint(3))}, // valid Cash account
+			updateInput:  IncomeUpdate{CategoryID: ptr(uint(3))}, // valid CashAccountType account
 			want: Income{
 				Description: "description",
 				Amount:      10,
@@ -368,7 +368,7 @@ func TestStore_UpdateIncome(t *testing.T) {
 		{
 			name:         "unset category id",
 			updateTenant: tenant1,
-			updateInput:  IncomeUpdate{CategoryID: ptr(uint(0))}, // valid Cash account
+			updateInput:  IncomeUpdate{CategoryID: ptr(uint(0))}, // valid CashAccountType account
 			want: Income{
 				Description: "description",
 				Amount:      10,
@@ -535,7 +535,7 @@ func TestStore_UpdateExpense(t *testing.T) {
 		{
 			name:         "update account id",
 			updateTenant: tenant1,
-			updateInput:  ExpenseUpdate{AccountID: ptr(uint(2))}, // valid Cash account
+			updateInput:  ExpenseUpdate{AccountID: ptr(uint(2))}, // valid CashAccountType account
 			want: Expense{
 				Description: "description",
 				Amount:      10,
@@ -547,7 +547,7 @@ func TestStore_UpdateExpense(t *testing.T) {
 		{
 			name:         "update category id",
 			updateTenant: tenant1,
-			updateInput:  ExpenseUpdate{CategoryID: ptr(uint(6))}, // valid Cash account
+			updateInput:  ExpenseUpdate{CategoryID: ptr(uint(6))}, // valid CashAccountType account
 			want: Expense{
 				Description: "description",
 				Amount:      10,
@@ -559,7 +559,7 @@ func TestStore_UpdateExpense(t *testing.T) {
 		{
 			name:         "unset category id",
 			updateTenant: tenant1,
-			updateInput:  ExpenseUpdate{CategoryID: ptr(uint(0))}, // valid Cash account
+			updateInput:  ExpenseUpdate{CategoryID: ptr(uint(0))}, // valid CashAccountType account
 			want: Expense{
 				Description: "description",
 				Amount:      10,
@@ -743,7 +743,7 @@ func TestStore_UpdateTransfer(t *testing.T) {
 		{
 			name:         "update target account id",
 			updateTenant: tenant1,
-			updateInput:  TransferUpdate{TargetAccountID: ptr(uint(3))}, // valid Cash account
+			updateInput:  TransferUpdate{TargetAccountID: ptr(uint(3))}, // valid CashAccountType account
 			want: Transfer{
 				Description:     "desc",
 				Date:            getDate("2025-01-02"),
@@ -756,7 +756,7 @@ func TestStore_UpdateTransfer(t *testing.T) {
 		{
 			name:         "update origin account id",
 			updateTenant: tenant1,
-			updateInput:  TransferUpdate{OriginAccountID: ptr(uint(3))}, // valid Cash account
+			updateInput:  TransferUpdate{OriginAccountID: ptr(uint(3))}, // valid CashAccountType account
 			want: Transfer{
 				Description:     "desc",
 				Date:            getDate("2025-01-02"),
@@ -1109,8 +1109,8 @@ func transactionSampleData(t *testing.T, store *Store, data map[int]Transaction)
 	// create accounts
 	// =========================================
 	Accs := []Account{
-		{AccountProviderID: accProviderId, Name: "acc1", Currency: currency.EUR, Type: Cash},
-		{AccountProviderID: accProviderId, Name: "acc2", Currency: currency.USD, Type: Cash},
+		{AccountProviderID: accProviderId, Name: "acc1", Currency: currency.EUR, Type: CashAccountType},
+		{AccountProviderID: accProviderId, Name: "acc2", Currency: currency.USD, Type: CashAccountType},
 	}
 	for _, acc := range Accs {
 		_, err = store.CreateAccount(t.Context(), acc, tenant1)

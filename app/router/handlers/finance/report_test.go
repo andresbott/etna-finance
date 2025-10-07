@@ -90,7 +90,7 @@ func TestFinanceHandler_GetReport(t *testing.T) {
 
 			recorder := httptest.NewRecorder()
 			req, _ := http.NewRequest("GET", "/api/entries"+tc.query, nil)
-			handler := h.ListEntries(tc.userId)
+			handler := h.ListTx(tc.userId)
 			handler.ServeHTTP(recorder, req)
 
 			if tc.expecErr != "" {

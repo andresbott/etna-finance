@@ -89,7 +89,7 @@ func (store *Store) CreateTransaction(ctx context.Context, input Transaction, te
 		if err != nil {
 			return 0, fmt.Errorf("error creating transaction: %w", err)
 		}
-		if acc.Type != Cash {
+		if acc.Type != CashAccountType {
 			return 0, NewValidationErr("incompatible account type for Income transaction")
 		}
 
@@ -119,7 +119,7 @@ func (store *Store) CreateTransaction(ctx context.Context, input Transaction, te
 		if err != nil {
 			return 0, fmt.Errorf("error creating transaction: %w", err)
 		}
-		if acc.Type != Cash {
+		if acc.Type != CashAccountType {
 			return 0, NewValidationErr("Incompatible account type for expense transaction")
 		}
 
@@ -150,7 +150,7 @@ func (store *Store) CreateTransaction(ctx context.Context, input Transaction, te
 		if err != nil {
 			return 0, fmt.Errorf("error creating transaction: %w", err)
 		}
-		if acc.Type != Cash {
+		if acc.Type != CashAccountType {
 			return 0, NewValidationErr("Incompatible account type for Transfer transaction")
 		}
 
@@ -158,7 +158,7 @@ func (store *Store) CreateTransaction(ctx context.Context, input Transaction, te
 		if err != nil {
 			return 0, fmt.Errorf("error creating transaction: %w", err)
 		}
-		if acc.Type != Cash {
+		if acc.Type != CashAccountType {
 			return 0, NewValidationErr("Incompatible account type for Transfer transaction")
 		}
 
@@ -390,7 +390,7 @@ func (store *Store) UpdateIncome(ctx context.Context, input IncomeUpdate, Id uin
 		if err != nil {
 			return fmt.Errorf("error updating income: %w", err)
 		}
-		if acc.Type != Cash {
+		if acc.Type != CashAccountType {
 			return NewValidationErr("incompatible account type for Income transaction")
 		}
 
@@ -504,7 +504,7 @@ func (store *Store) UpdateExpense(ctx context.Context, input ExpenseUpdate, Id u
 		if err != nil {
 			return fmt.Errorf("error creating baseTx: %w", err)
 		}
-		if acc.Type != Cash {
+		if acc.Type != CashAccountType {
 			return NewValidationErr("incompatible account type for Expense transaction")
 		}
 
@@ -618,7 +618,7 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 		if err != nil {
 			return fmt.Errorf("error creating transaction: %w", err)
 		}
-		if acc.Type != Cash {
+		if acc.Type != CashAccountType {
 			return NewValidationErr("incompatible account type for Transfer transaction")
 		}
 		targetEntry.AccountID = *input.TargetAccountID
@@ -645,7 +645,7 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 		if err != nil {
 			return fmt.Errorf("error creating transaction: %w", err)
 		}
-		if acc.Type != Cash {
+		if acc.Type != CashAccountType {
 			return NewValidationErr("incompatible account type for Transfer transaction")
 		}
 		originEntry.AccountID = *input.OriginAccountID

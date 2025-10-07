@@ -295,13 +295,13 @@ func TestListAccountsProvider(t *testing.T) {
 					checkTenant: tenant1,
 					want: []AccountProvider{
 						{Name: "provider1", Description: "provider1", Accounts: []Account{
-							{ID: 1, Name: "acc1", Currency: currency.EUR, Type: Cash, AccountProviderID: 1},
-							{ID: 3, Name: "acc3", Currency: currency.EUR, Type: Cash, AccountProviderID: 1},
-							{ID: 4, Name: "acc4", Currency: currency.EUR, Type: Unknown, AccountProviderID: 1},
-							{ID: 5, Name: "acc5", Currency: currency.EUR, Type: Investment, AccountProviderID: 1},
+							{ID: 1, Name: "acc1", Currency: currency.EUR, Type: CashAccountType, AccountProviderID: 1},
+							{ID: 3, Name: "acc3", Currency: currency.EUR, Type: CashAccountType, AccountProviderID: 1},
+							{ID: 4, Name: "acc4", Currency: currency.EUR, Type: UnknownAccountType, AccountProviderID: 1},
+							{ID: 5, Name: "acc5", Currency: currency.EUR, Type: InvestmentAccountType, AccountProviderID: 1},
 						}},
 						{Name: "provider2", Description: "provider2", Accounts: []Account{
-							{ID: 2, Name: "acc2", Currency: currency.USD, Type: Cash, AccountProviderID: 2},
+							{ID: 2, Name: "acc2", Currency: currency.USD, Type: CashAccountType, AccountProviderID: 2},
 						}},
 						{Name: "provider3", Description: "provider3", Accounts: []Account{}}, // 3 does not have accounts
 					},
@@ -361,7 +361,7 @@ func TestCreateAccount(t *testing.T) {
 				{
 					name:   "create valid account",
 					tenant: tenant1,
-					input:  Account{Name: "Main", Currency: currency.USD, Type: Investment, AccountProviderID: 1},
+					input:  Account{Name: "Main", Currency: currency.USD, Type: InvestmentAccountType, AccountProviderID: 1},
 				},
 				{
 					name:    "want error on empty name",
@@ -574,21 +574,21 @@ func TestUpdateAccount(t *testing.T) {
 					updateID:      1,
 					updateTenant:  tenant1,
 					updatePayload: AccountUpdatePayload{Name: ptr("Updated Name")},
-					want:          Account{ID: 1, Name: "Updated Name", Currency: currency.EUR, Type: Cash, AccountProviderID: 1},
+					want:          Account{ID: 1, Name: "Updated Name", Currency: currency.EUR, Type: CashAccountType, AccountProviderID: 1},
 				},
 				{
 					name:          "update currency",
 					updateID:      2,
 					updateTenant:  tenant1,
 					updatePayload: AccountUpdatePayload{Currency: &currency.EUR},
-					want:          Account{ID: 2, Name: "acc2", Currency: currency.EUR, Type: Cash, AccountProviderID: 2},
+					want:          Account{ID: 2, Name: "acc2", Currency: currency.EUR, Type: CashAccountType, AccountProviderID: 2},
 				},
 				{
 					name:          "update Type",
 					updateID:      3,
 					updateTenant:  tenant1,
-					updatePayload: AccountUpdatePayload{Type: Investment},
-					want:          Account{ID: 3, Name: "acc3", Currency: currency.EUR, Type: Investment, AccountProviderID: 1},
+					updatePayload: AccountUpdatePayload{Type: InvestmentAccountType},
+					want:          Account{ID: 3, Name: "acc3", Currency: currency.EUR, Type: InvestmentAccountType, AccountProviderID: 1},
 				},
 				{
 					name:          "update Provider Id",
@@ -724,11 +724,11 @@ var sampleAccountProviders = []AccountProvider{
 }
 
 var sampleAccounts = []Account{
-	{ID: 1, Name: "acc1", Currency: currency.EUR, Type: Cash, AccountProviderID: 1},
-	{ID: 2, Name: "acc2", Currency: currency.USD, Type: Cash, AccountProviderID: 2},
-	{ID: 3, Name: "acc3", Currency: currency.EUR, Type: Cash, AccountProviderID: 1},
-	{ID: 4, Name: "acc4", Currency: currency.EUR, Type: Unknown, AccountProviderID: 1},
-	{ID: 5, Name: "acc5", Currency: currency.EUR, Type: Investment, AccountProviderID: 1},
+	{ID: 1, Name: "acc1", Currency: currency.EUR, Type: CashAccountType, AccountProviderID: 1},
+	{ID: 2, Name: "acc2", Currency: currency.USD, Type: CashAccountType, AccountProviderID: 2},
+	{ID: 3, Name: "acc3", Currency: currency.EUR, Type: CashAccountType, AccountProviderID: 1},
+	{ID: 4, Name: "acc4", Currency: currency.EUR, Type: UnknownAccountType, AccountProviderID: 1},
+	{ID: 5, Name: "acc5", Currency: currency.EUR, Type: InvestmentAccountType, AccountProviderID: 1},
 }
 
 var sampleAccounts2 = []Account{
