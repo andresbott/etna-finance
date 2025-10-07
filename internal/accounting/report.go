@@ -19,8 +19,8 @@ type CategoryReportItem struct {
 	Count       int64
 }
 
-// GetCategoryReport generates a tree report of all incomes and expenses by grouped categories during the selected time frame
-func (store *Store) GetCategoryReport(ctx context.Context, startDate, endDate time.Time, tenant string) (CategoryReport, error) {
+// ReportOnCategories generates a tree report of all incomes and expenses by grouped categories during the selected time frame
+func (store *Store) ReportOnCategories(ctx context.Context, startDate, endDate time.Time, tenant string) (CategoryReport, error) {
 	report := CategoryReport{}
 	incomeReport, err := store.getCategoryReport(ctx, startDate, endDate, IncomeCategory, tenant)
 	if err != nil {
@@ -56,6 +56,7 @@ func (store *Store) getCategoryReport(ctx context.Context, startDate, endDate ti
 
 	reportItems := make([]CategoryReportItem, len(categories)+1)
 	i := 0
+
 	for _, item := range categories {
 		var sum sumResult
 		var err error
@@ -67,6 +68,7 @@ func (store *Store) getCategoryReport(ctx context.Context, startDate, endDate ti
 				return nil, err
 			}
 		}
+
 		reportItems[i] = CategoryReportItem{
 			Id:          item.Id,
 			ParentId:    item.ParentId,

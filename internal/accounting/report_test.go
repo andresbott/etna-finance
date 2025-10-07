@@ -1,7 +1,6 @@
 package accounting
 
 import (
-	"context"
 	"github.com/go-bumbu/testdbs"
 	"github.com/google/go-cmp/cmp"
 	"sort"
@@ -112,43 +111,45 @@ func TestGetCategoryReport(t *testing.T) {
 	}{
 		{
 			name:      "simple report over all time",
-			startDate: getDateTime("2024-01-01 00:00:01"),
-			endDate:   getDateTime("2025-01-30 00:00:01"),
+			startDate: getDate("2022-01-01"),
+			endDate:   getDate("2022-01-30"),
 			tenant:    tenant1,
 			want: CategoryReport{
 				Income: []CategoryReportItem{
-					{Id: 0, ParentId: 0, Name: "unclassified", Description: "entries without any category", Value: 2.5, Count: 1},
-					{Id: 4, ParentId: 0, Name: "in_top2", Value: 0, Count: 0},
-					{Id: 1, ParentId: 0, Name: "in_top1", Value: 553.5, Count: 2},
-					{Id: 3, ParentId: 2, Name: "in_sub2", Value: 3, Count: 1},
-					{Id: 2, ParentId: 1, Name: "in_sub1", Value: 553.5, Count: 2},
+					{Id: 0, Name: "unclassified", Description: "entries without any category", Value: 1900, Count: 1},
+					{Id: 4, ParentId: 3, Name: "Voo", Value: 1600, Count: 1},
+					{Id: 3, ParentId: 1, Name: "Stock benefits", Value: 10200, Count: 7},
+					{Id: 1, ParentId: 0, Name: "Salary", Value: 12600, Count: 9},
+					{Id: 5, ParentId: 3, Name: "MSFT", Value: 4800, Count: 3},
 				},
 				Expenses: []CategoryReportItem{
-					{Id: 0, ParentId: 0, Name: "unclassified", Description: "entries without any category", Value: 5317.6, Count: 11},
-					{Id: 1, ParentId: 0, Name: "ex_top1", Value: 99.6, Count: 2},
-					{Id: 3, ParentId: 2, Name: "ex_sub2", Value: 0, Count: 0},
-					{Id: 2, ParentId: 1, Name: "ex_sub1", Value: -100.4, Count: 1},
+					{Id: 0, Name: "unclassified", Description: "entries without any category"},
+					{Id: 2, ParentId: 0, Name: "Home", Value: 4500, Count: 9},
+					{Id: 6, ParentId: 2, Name: "Groceries", Value: 600, Count: 2},
+					{Id: 8, ParentId: 7, Name: "Electricity", Value: 1600, Count: 2},
+					{Id: 7, ParentId: 2, Name: "Bills", Value: 3200, Count: 5},
 				},
 			},
 		},
 		{
-			name:      "get entries with no category", // use time filter to get a smaller sample
-			startDate: getDateTime("2025-01-15 00:00:00"),
-			endDate:   getDateTime("2025-01-30 00:00:01"),
+			name:      "limit results by time",
+			startDate: getDate("2022-01-03"),
+			endDate:   getDate("2022-01-05"),
 			tenant:    tenant1,
 			want: CategoryReport{
 				Income: []CategoryReportItem{
-					{Id: 0, ParentId: 0, Name: "unclassified", Description: "entries without any category", Value: 2.5, Count: 1},
-					{Id: 4, ParentId: 0, Name: "in_top2", Value: 0, Count: 0},
-					{Id: 1, ParentId: 0, Name: "in_top1", Value: 550.5, Count: 1},
-					{Id: 3, ParentId: 2, Name: "in_sub2", Value: 0, Count: 0},
-					{Id: 2, ParentId: 1, Name: "in_sub1", Value: 550.5, Count: 1},
+					{Id: 0, Name: "unclassified", Description: "entries without any category"},
+					{Id: 4, ParentId: 3, Name: "Voo", Value: 0, Count: 0},
+					{Id: 3, ParentId: 1, Name: "Stock benefits", Value: 2500, Count: 2},
+					{Id: 1, ParentId: 0, Name: "Salary", Value: 3900, Count: 3},
+					{Id: 5, ParentId: 3, Name: "MSFT", Value: 1300, Count: 1},
 				},
 				Expenses: []CategoryReportItem{
-					{Id: 0, ParentId: 0, Name: "unclassified", Description: "entries without any category", Value: 5000, Count: 2},
-					{Id: 1, ParentId: 0, Name: "ex_top1"},
-					{Id: 3, ParentId: 2, Name: "ex_sub2"},
-					{Id: 2, ParentId: 1, Name: "ex_sub1"},
+					{Id: 0, Name: "unclassified", Description: "entries without any category"},
+					{Id: 2, ParentId: 0, Name: "Home", Value: 1200, Count: 3},
+					{Id: 6, ParentId: 2, Name: "Groceries", Value: 400, Count: 1},
+					{Id: 8, ParentId: 7, Name: "Electricity", Value: 0, Count: 0},
+					{Id: 7, ParentId: 2, Name: "Bills", Value: 800, Count: 2},
 				},
 			},
 		},
@@ -163,14 +164,13 @@ func TestGetCategoryReport(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			// todo add sample data
-			//sampleData(t, store)
+			categorySampleData(t, store, sampleCategories)
+			transactionSampleData(t, store, categoryReportSamples)
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
-					ctx := context.Background()
-					got, err := store.GetCategoryReport(ctx, tc.startDate, tc.endDate, tc.tenant)
+					got, err := store.ReportOnCategories(t.Context(), tc.startDate, tc.endDate, tc.tenant)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -199,4 +199,37 @@ func TestGetCategoryReport(t *testing.T) {
 			}
 		})
 	}
+}
+
+var categoryReportSamples = map[int]Transaction{
+
+	// A bunch of expenses
+	100: Expense{Description: "e1", Date: getDateTime("2022-01-01 00:00:00"), Amount: 100, AccountID: 1, CategoryID: 2},
+	101: Expense{Description: "e2", Date: getDateTime("2022-01-02 00:00:00"), Amount: 200, AccountID: 1, CategoryID: 6},
+	102: Expense{Description: "e3", Date: getDateTime("2022-01-03 00:00:00"), Amount: 300, AccountID: 1, CategoryID: 7},
+	103: Expense{Description: "e4", Date: getDateTime("2022-01-04 00:00:00"), Amount: 400, AccountID: 1, CategoryID: 6},
+	104: Expense{Description: "e5", Date: getDateTime("2022-01-05 00:00:00"), Amount: 500, AccountID: 1, CategoryID: 7},
+	105: Expense{Description: "e6", Date: getDateTime("2022-01-06 00:00:00"), Amount: 600, AccountID: 1, CategoryID: 2},
+	106: Expense{Description: "e7", Date: getDateTime("2022-01-07 00:00:00"), Amount: 700, AccountID: 1, CategoryID: 8},
+	107: Expense{Description: "e8", Date: getDateTime("2022-01-08 00:00:00"), Amount: 800, AccountID: 1, CategoryID: 7},
+	108: Expense{Description: "e9", Date: getDateTime("2022-01-09 00:00:00"), Amount: 900, AccountID: 1, CategoryID: 8},
+
+	// A bunch of incomes
+	220: Income{Description: "i1", Date: getDateTime("2022-01-01 00:00:00"), Amount: 1000, AccountID: 1, CategoryID: 1},
+	221: Income{Description: "i2", Date: getDateTime("2022-01-02 00:00:00"), Amount: 1100, AccountID: 1, CategoryID: 3},
+	222: Income{Description: "i3", Date: getDateTime("2022-01-03 00:00:00"), Amount: 1200, AccountID: 1, CategoryID: 3},
+	223: Income{Description: "i4", Date: getDateTime("2022-01-04 00:00:00"), Amount: 1300, AccountID: 1, CategoryID: 5},
+	224: Income{Description: "i5", Date: getDateTime("2022-01-05 00:00:00"), Amount: 1400, AccountID: 1, CategoryID: 1},
+	225: Income{Description: "i6", Date: getDateTime("2022-01-06 00:00:00"), Amount: 1500, AccountID: 1, CategoryID: 3},
+	226: Income{Description: "i7", Date: getDateTime("2022-01-07 00:00:00"), Amount: 1600, AccountID: 1, CategoryID: 4},
+	227: Income{Description: "i8", Date: getDateTime("2022-01-08 00:00:00"), Amount: 1700, AccountID: 1, CategoryID: 5},
+	228: Income{Description: "i9", Date: getDateTime("2022-01-09 00:00:00"), Amount: 1800, AccountID: 1, CategoryID: 5},
+	229: Income{Description: "i9", Date: getDateTime("2022-01-10 00:00:00"), Amount: 1900, AccountID: 1, CategoryID: 0},
+
+	// A bunch of Transfers
+	320: Transfer{Description: "t1", Date: getDateTime("2022-01-01 00:00:00"), OriginAmount: 10, OriginAccountID: 1, TargetAmount: 11, TargetAccountID: 2},
+	321: Transfer{Description: "t2", Date: getDateTime("2022-01-02 00:00:00"), OriginAmount: 20, OriginAccountID: 1, TargetAmount: 21, TargetAccountID: 2},
+	322: Transfer{Description: "t3", Date: getDateTime("2022-01-03 00:00:00"), OriginAmount: 30, OriginAccountID: 1, TargetAmount: 31, TargetAccountID: 2},
+	323: Transfer{Description: "t4", Date: getDateTime("2022-01-04 00:00:00"), OriginAmount: 40, OriginAccountID: 1, TargetAmount: 41, TargetAccountID: 2},
+	324: Transfer{Description: "t5", Date: getDateTime("2022-01-05 00:00:00"), OriginAmount: 50, OriginAccountID: 1, TargetAmount: 51, TargetAccountID: 2},
 }

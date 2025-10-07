@@ -28,6 +28,17 @@ func TestStore_CreateTransaction(t *testing.T) {
 			},
 		},
 		{
+			name:   "create valid income without a category",
+			tenant: tenant1,
+			input: Income{
+				Description: "income 1",
+				Amount:      2.5,
+				AccountID:   1,
+				CategoryID:  0,
+				Date:        time.Now(),
+			},
+		},
+		{
 			name:   "create valid expense",
 			tenant: tenant1,
 			input: Expense{
@@ -35,6 +46,17 @@ func TestStore_CreateTransaction(t *testing.T) {
 				Amount:      2.5,
 				AccountID:   1,
 				CategoryID:  2,
+				Date:        time.Now(),
+			},
+		},
+		{
+			name:   "create valid expense without a category",
+			tenant: tenant1,
+			input: Expense{
+				Description: "income 1",
+				Amount:      2.5,
+				AccountID:   1,
+				CategoryID:  0,
 				Date:        time.Now(),
 			},
 		},
@@ -343,6 +365,18 @@ func TestStore_UpdateIncome(t *testing.T) {
 				Date:        getDate("2025-01-02"),
 			},
 		},
+		{
+			name:         "unset category id",
+			updateTenant: tenant1,
+			updateInput:  IncomeUpdate{CategoryID: ptr(uint(0))}, // valid Cash account
+			want: Income{
+				Description: "description",
+				Amount:      10,
+				AccountID:   1,
+				CategoryID:  0,
+				Date:        getDate("2025-01-02"),
+			},
+		},
 
 		// 🚨 Validation Errors
 		{
@@ -368,12 +402,6 @@ func TestStore_UpdateIncome(t *testing.T) {
 			updateTenant: tenant1,
 			updateInput:  IncomeUpdate{AccountID: ptr(uint(0))},
 			wantErr:      "account cannot be zero",
-		},
-		{
-			name:         "zero category id error",
-			updateTenant: tenant1,
-			updateInput:  IncomeUpdate{CategoryID: ptr(uint(0))},
-			wantErr:      "category cannot be zero",
 		},
 		{
 			name:         "non-cash account error",
@@ -528,6 +556,18 @@ func TestStore_UpdateExpense(t *testing.T) {
 				Date:        getDate("2025-01-02"),
 			},
 		},
+		{
+			name:         "unset category id",
+			updateTenant: tenant1,
+			updateInput:  ExpenseUpdate{CategoryID: ptr(uint(0))}, // valid Cash account
+			want: Expense{
+				Description: "description",
+				Amount:      10,
+				AccountID:   1,
+				CategoryID:  0,
+				Date:        getDate("2025-01-02"),
+			},
+		},
 
 		// 🚨 Validation Errors
 		{
@@ -553,12 +593,6 @@ func TestStore_UpdateExpense(t *testing.T) {
 			updateTenant: tenant1,
 			updateInput:  ExpenseUpdate{AccountID: ptr(uint(0))},
 			wantErr:      "account cannot be zero",
-		},
-		{
-			name:         "zero category id error",
-			updateTenant: tenant1,
-			updateInput:  ExpenseUpdate{CategoryID: ptr(uint(0))},
-			wantErr:      "category cannot be zero",
 		},
 		{
 			name:         "non-cash account error",
@@ -1055,6 +1089,10 @@ var sampleTransactions = map[int]Transaction{
 		Date: getDate("2025-01-02")},
 	3: Transfer{Description: "First transfer", OriginAmount: 3.3, OriginAccountID: 1,
 		TargetAmount: 4.4, TargetAccountID: 2, Date: getDate("2025-01-03")},
+	4: Income{Description: "income without category", Amount: 1.1, AccountID: 1, CategoryID: 0,
+		Date: getDate("2025-01-04")},
+	5: Expense{Description: "expense without category", Amount: 1.1, AccountID: 1, CategoryID: 0,
+		Date: getDate("2025-01-05")},
 }
 
 func transactionSampleData(t *testing.T, store *Store, data map[int]Transaction) {

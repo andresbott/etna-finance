@@ -93,12 +93,14 @@ func (store *Store) CreateTransaction(ctx context.Context, input Transaction, te
 			return 0, NewValidationErr("incompatible account type for Income transaction")
 		}
 
-		cat, err := store.GetCategory(ctx, item.CategoryID, tenant)
-		if err != nil {
-			return 0, fmt.Errorf("error creating transaction: %w", err)
-		}
-		if cat.Type != IncomeCategory {
-			return 0, NewValidationErr("incompatible category type for Income transaction")
+		if item.CategoryID != 0 {
+			cat, err := store.GetCategory(ctx, item.CategoryID, tenant)
+			if err != nil {
+				return 0, fmt.Errorf("error creating transaction: %w", err)
+			}
+			if cat.Type != IncomeCategory {
+				return 0, NewValidationErr("incompatible category type for Income transaction")
+			}
 		}
 
 		tx = dbTransaction{
@@ -121,12 +123,14 @@ func (store *Store) CreateTransaction(ctx context.Context, input Transaction, te
 			return 0, NewValidationErr("Incompatible account type for expense transaction")
 		}
 
-		cat, err := store.GetCategory(ctx, item.CategoryID, tenant)
-		if err != nil {
-			return 0, fmt.Errorf("error creating transaction: %w", err)
-		}
-		if cat.Type != ExpenseCategory {
-			return 0, NewValidationErr("incompatible category type for Expense transaction")
+		if item.CategoryID != 0 {
+			cat, err := store.GetCategory(ctx, item.CategoryID, tenant)
+			if err != nil {
+				return 0, fmt.Errorf("error creating transaction: %w", err)
+			}
+			if cat.Type != ExpenseCategory {
+				return 0, NewValidationErr("incompatible category type for Expense transaction")
+			}
 		}
 
 		tx = dbTransaction{
@@ -395,17 +399,15 @@ func (store *Store) UpdateIncome(ctx context.Context, input IncomeUpdate, Id uin
 	}
 
 	if input.CategoryID != nil {
-		if *input.CategoryID == 0 {
-			return NewValidationErr("category cannot be zero")
+		if *input.CategoryID != 0 {
+			cat, err := store.GetCategory(ctx, *input.CategoryID, tenant)
+			if err != nil {
+				return fmt.Errorf("error updating income: %w", err)
+			}
+			if cat.Type != IncomeCategory {
+				return NewValidationErr("incompatible category type for Income transaction")
+			}
 		}
-		cat, err := store.GetCategory(ctx, *input.CategoryID, tenant)
-		if err != nil {
-			return fmt.Errorf("error updating income: %w", err)
-		}
-		if cat.Type != IncomeCategory {
-			return NewValidationErr("incompatible category type for Income transaction")
-		}
-
 		updateEntity.CategoryID = *input.CategoryID
 		selectedEntryFields = append(selectedEntryFields, "CategoryID")
 	}
@@ -511,15 +513,14 @@ func (store *Store) UpdateExpense(ctx context.Context, input ExpenseUpdate, Id u
 	}
 
 	if input.CategoryID != nil {
-		if *input.CategoryID == 0 {
-			return NewValidationErr("category cannot be zero")
-		}
-		cat, err := store.GetCategory(ctx, *input.CategoryID, tenant)
-		if err != nil {
-			return fmt.Errorf("error updating income: %w", err)
-		}
-		if cat.Type != ExpenseCategory {
-			return NewValidationErr("incompatible category type for Income transaction")
+		if *input.CategoryID != 0 {
+			cat, err := store.GetCategory(ctx, *input.CategoryID, tenant)
+			if err != nil {
+				return fmt.Errorf("error updating income: %w", err)
+			}
+			if cat.Type != ExpenseCategory {
+				return NewValidationErr("incompatible category type for Income transaction")
+			}
 		}
 
 		updateEntity.CategoryID = *input.CategoryID
