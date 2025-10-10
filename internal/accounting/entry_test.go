@@ -10,8 +10,8 @@ var sumEntriesSample = map[int]Transaction{
 
 	// A bunch of expenses
 	100: Expense{Description: "e1", Date: getDateTime("2022-01-01 00:00:00"), Amount: 100, AccountID: 1, CategoryID: 2},
-	101: Expense{Description: "e2", Date: getDateTime("2022-01-02 00:00:00"), Amount: 200, AccountID: 1, CategoryID: 6},
-	102: Expense{Description: "e3", Date: getDateTime("2022-01-03 00:00:00"), Amount: 300, AccountID: 1, CategoryID: 7},
+	101: Expense{Description: "e2", Date: getDateTime("2022-01-02 00:00:00"), Amount: 200, AccountID: 2, CategoryID: 6},
+	102: Expense{Description: "e3", Date: getDateTime("2022-01-03 00:00:00"), Amount: 300, AccountID: 3, CategoryID: 7},
 	103: Expense{Description: "e4", Date: getDateTime("2022-01-04 00:00:00"), Amount: 400, AccountID: 1, CategoryID: 2},
 	104: Expense{Description: "e5", Date: getDateTime("2022-01-05 00:00:00"), Amount: 500, AccountID: 1, CategoryID: 2},
 	105: Expense{Description: "e6", Date: getDateTime("2022-01-06 00:00:00"), Amount: 600, AccountID: 1, CategoryID: 2},
@@ -25,9 +25,9 @@ var sumEntriesSample = map[int]Transaction{
 	222: Income{Description: "i3", Date: getDateTime("2022-01-03 00:00:00"), Amount: 1200, AccountID: 1, CategoryID: 1},
 	223: Income{Description: "i4", Date: getDateTime("2022-01-04 00:00:00"), Amount: 1300, AccountID: 1, CategoryID: 1},
 	224: Income{Description: "i5", Date: getDateTime("2022-01-05 00:00:00"), Amount: 1400, AccountID: 1, CategoryID: 1},
-	225: Income{Description: "i6", Date: getDateTime("2022-01-06 00:00:00"), Amount: 1500, AccountID: 1, CategoryID: 1},
-	226: Income{Description: "i7", Date: getDateTime("2022-01-07 00:00:00"), Amount: 1600, AccountID: 1, CategoryID: 1},
-	227: Income{Description: "i8", Date: getDateTime("2022-01-08 00:00:00"), Amount: 1700, AccountID: 1, CategoryID: 1},
+	225: Income{Description: "i6", Date: getDateTime("2022-01-06 00:00:00"), Amount: 1500, AccountID: 2, CategoryID: 4},
+	226: Income{Description: "i7", Date: getDateTime("2022-01-07 00:00:00"), Amount: 1600, AccountID: 1, CategoryID: 4},
+	227: Income{Description: "i8", Date: getDateTime("2022-01-08 00:00:00"), Amount: 1700, AccountID: 2, CategoryID: 5},
 	228: Income{Description: "i9", Date: getDateTime("2022-01-09 00:00:00"), Amount: 1800, AccountID: 1, CategoryID: 1},
 
 	// A bunch of Transfers
@@ -76,6 +76,25 @@ func TestSumEntriesByCategories(t *testing.T) {
 			want:       sumResult{Sum: 1000, Count: 2}, // 102, 106
 		},
 		{
+			name:       "sum expenses by account ids",
+			startDate:  getDate("2022-01-01"),
+			endDate:    getDate("2022-01-09"),
+			tenant:     tenant1,
+			entityType: expenseEntry,
+			accountID:  []uint{2, 3},
+			want:       sumResult{Sum: 500, Count: 2}, // 101, 102
+		},
+		{
+			name:       "sum expenses by account and category ids",
+			startDate:  getDate("2022-01-01"),
+			endDate:    getDate("2022-01-09"),
+			tenant:     tenant1,
+			entityType: incomeEntry,
+			accountID:  []uint{2},
+			categoryID: []uint{4, 5},
+			want:       sumResult{Sum: 3200, Count: 2}, // 225, 227
+		},
+		{
 			name:       "expect empty result for another tenant",
 			startDate:  getDate("2022-01-01"),
 			endDate:    getDate("2022-01-09"),
@@ -98,13 +117,14 @@ func TestSumEntriesByCategories(t *testing.T) {
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
-					// Call the sumEntryByCategories method
-					got, err := store.sumEntryByCategories(
+					// Call the sumEntries method
+					got, err := store.sumEntries(
 						t.Context(),
-						sumByCategoryOpts{
+						sumEntriesOpts{
 							startDate:   tc.startDate,
 							endDate:     tc.endDate,
 							categoryIds: tc.categoryID,
+							accountIds:  tc.accountID,
 							entryType:   tc.entityType,
 							tenant:      tc.tenant,
 						},

@@ -5,6 +5,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"golang.org/x/text/currency"
+	"sort"
 	"testing"
 	"time"
 )
@@ -1111,6 +1112,7 @@ func transactionSampleData(t *testing.T, store *Store, data map[int]Transaction)
 	Accs := []Account{
 		{AccountProviderID: accProviderId, Name: "acc1", Currency: currency.EUR, Type: CashAccountType},
 		{AccountProviderID: accProviderId, Name: "acc2", Currency: currency.USD, Type: CashAccountType},
+		{AccountProviderID: accProviderId, Name: "acc3", Currency: currency.CHF, Type: CashAccountType},
 	}
 	for _, acc := range Accs {
 		_, err = store.CreateAccount(t.Context(), acc, tenant1)
@@ -1123,9 +1125,15 @@ func transactionSampleData(t *testing.T, store *Store, data map[int]Transaction)
 	// =========================================
 
 	// transform the map into a sorted array to have predictable test results
+	var dataKeys []int
+	for k, _ := range data {
+		dataKeys = append(dataKeys, k)
+	}
+	sort.Ints(dataKeys)
+
 	var dataAr = make([]Transaction, len(data))
-	for i := range data {
-		dataAr[i-1] = data[i]
+	for i, k := range dataKeys {
+		dataAr[i] = data[k]
 	}
 
 	for _, tx := range dataAr {

@@ -3,6 +3,7 @@ package accounting
 import (
 	"context"
 	"errors"
+	"golang.org/x/text/currency"
 	"time"
 )
 
@@ -15,8 +16,12 @@ type CategoryReportItem struct {
 	ParentId    uint
 	Name        string
 	Description string
-	Value       float64
-	Count       int64
+	Values      map[currency.Unit]CategoryReportValues
+}
+
+type CategoryReportValues struct {
+	Value float64
+	Count int64
 }
 
 // ReportOnCategories generates a tree report of all incomes and expenses by grouped categories during the selected time frame
@@ -42,31 +47,39 @@ func (store *Store) getCategoryReport(ctx context.Context, startDate, endDate ti
 	if err != nil {
 		return nil, err
 	}
-
-	var entrytype entryType
-
-	switch catType {
-	case IncomeCategory:
-		entrytype = incomeEntry
-	case ExpenseCategory:
-		entrytype = expenseEntry
-	default:
-		return nil, ErrWrongCategoryType
-	}
-
+	entrytype := mustCategory2Entry(catType)
 	reportItems := make([]CategoryReportItem, len(categories)+1)
+
+	accounts, err := store.ListAccounts(ctx, tenant)
+	if err != nil {
+		return nil, err
+	}
+	currencyAccounts := getAccountIdsCurrencyMap(accounts)
+
+	// iterate over all categories
 	i := 0
-
 	for _, item := range categories {
-		var sum sumResult
-		var err error
-
-		sum, err = store.sumEntryByCategories(ctx,
-			sumByCategoryOpts{startDate: startDate, endDate: endDate, categoryIds: item.childrenIds, entryType: entrytype, tenant: tenant})
-		if err != nil {
-			if !errors.Is(err, ErrEntryNotFound) {
-				return nil, err
+		var values = map[currency.Unit]CategoryReportValues{}
+		for curr, accountIds := range currencyAccounts {
+			opts := sumEntriesOpts{
+				startDate:   startDate,
+				endDate:     endDate,
+				categoryIds: item.childrenIds,
+				accountIds:  accountIds,
+				entryType:   entrytype,
+				tenant:      tenant,
 			}
+			sum, err := store.sumEntries(ctx, opts)
+			if err != nil {
+				if !errors.Is(err, ErrEntryNotFound) {
+					return nil, err
+				}
+			}
+			values[curr] = CategoryReportValues{
+				Value: sum.Sum,
+				Count: sum.Count,
+			}
+
 		}
 
 		reportItems[i] = CategoryReportItem{
@@ -74,28 +87,67 @@ func (store *Store) getCategoryReport(ctx context.Context, startDate, endDate ti
 			ParentId:    item.ParentId,
 			Name:        item.Name,
 			Description: item.Description,
-			Value:       sum.Sum,
-			Count:       sum.Count,
+			Values:      values,
 		}
 		i++
 	}
 
-	// find entries with not category (assigned to category 0)
-	sum, err := store.sumEntryByCategories(ctx,
-		sumByCategoryOpts{startDate: startDate, endDate: endDate, categoryIds: []uint{0}, entryType: entrytype, tenant: tenant})
-	if err != nil {
-		if !errors.Is(err, ErrEntryNotFound) {
-			return nil, err
+	// find entries without category (assigned to category 0)
+	var values = map[currency.Unit]CategoryReportValues{}
+	for curr, accountIds := range currencyAccounts {
+		opts := sumEntriesOpts{
+			startDate:   startDate,
+			endDate:     endDate,
+			categoryIds: []uint{0},
+			accountIds:  accountIds,
+			entryType:   entrytype,
+			tenant:      tenant,
 		}
+		sum, err := store.sumEntries(ctx, opts)
+		if err != nil {
+			if !errors.Is(err, ErrEntryNotFound) {
+				return nil, err
+			}
+		}
+		values[curr] = CategoryReportValues{
+			Value: sum.Sum,
+			Count: sum.Count,
+		}
+
 	}
+
 	reportItems[i] = CategoryReportItem{
 		Id:          0,
 		ParentId:    0,
 		Name:        "unclassified",
 		Description: "entries without any category",
-		Value:       sum.Sum,
-		Count:       sum.Count,
+		Values:      values,
 	}
 
 	return reportItems, nil
+}
+
+// mustCategory2Entry is an internal functino to convert category tipes into entry types
+// note that it will panic on wong category type
+func mustCategory2Entry(catType CategoryType) entryType {
+	var entrytype entryType
+	switch catType {
+	case IncomeCategory:
+		entrytype = incomeEntry
+	case ExpenseCategory:
+		entrytype = expenseEntry
+	default:
+		panic("wrong category type")
+	}
+	return entrytype
+}
+
+// getAccountIdsCurrencyMap takes a list of accounts and organizes them per currency
+func getAccountIdsCurrencyMap(in []Account) map[currency.Unit][]uint {
+	accountsByCurrency := make(map[currency.Unit][]uint)
+	for _, got := range in {
+		account := got
+		accountsByCurrency[account.Currency] = append(accountsByCurrency[account.Currency], account.ID)
+	}
+	return accountsByCurrency
 }

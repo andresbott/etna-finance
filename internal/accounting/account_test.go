@@ -7,6 +7,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"golang.org/x/text/currency"
 	"testing"
+	"time"
 )
 
 func TestCreateAccountProvider(t *testing.T) {
@@ -521,6 +522,12 @@ func TestDeleteAccount(t *testing.T) {
 					deleteID:     2,
 					wantErr:      ErrAccountNotFound.Error(),
 				},
+				{
+					name:         "error when deleting account that has entries referenced",
+					deleteTenant: tenant1,
+					deleteID:     3,
+					wantErr:      "cannot delete account: 1 entries still reference it",
+				},
 			}
 
 			dbCon := db.ConnDbName("TestGetAccount")
@@ -529,7 +536,14 @@ func TestDeleteAccount(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			accountSampleData(t, store) // note: test operates on one set of data
+			// note: all test operates on one set of data
+			accountSampleData(t, store)
+			// add one entry to trigger error on delete
+			_, err = store.CreateTransaction(t.Context(),
+				Income{Description: "test", Amount: 1, AccountID: 3, Date: time.Now()}, tenant1)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
@@ -728,7 +742,7 @@ var sampleAccounts = []Account{
 	{ID: 2, Name: "acc2", Currency: currency.USD, Type: CashAccountType, AccountProviderID: 2},
 	{ID: 3, Name: "acc3", Currency: currency.EUR, Type: CashAccountType, AccountProviderID: 1},
 	{ID: 4, Name: "acc4", Currency: currency.EUR, Type: UnknownAccountType, AccountProviderID: 1},
-	{ID: 5, Name: "acc5", Currency: currency.EUR, Type: InvestmentAccountType, AccountProviderID: 1},
+	{ID: 5, Name: "acc5", Currency: currency.CHF, Type: InvestmentAccountType, AccountProviderID: 1},
 }
 
 var sampleAccounts2 = []Account{

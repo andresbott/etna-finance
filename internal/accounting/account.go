@@ -325,8 +325,20 @@ func (store *Store) UpdateAccount(ctx context.Context, item AccountUpdatePayload
 }
 
 func (store *Store) DeleteAccount(ctx context.Context, Id uint, tenant string) error {
-	// TODO add a Delete constraint, don allow if it still has entries
-	d := store.db.WithContext(ctx).Where("id = ? AND owner_id = ?", Id, tenant).Delete(&dbAccount{})
+	db := store.db.WithContext(ctx)
+
+	// Check if any entries reference this account
+	var count int64
+	if err := db.Model(&dbEntry{}).
+		Where("account_id = ? AND owner_id = ?", Id, tenant).
+		Count(&count).Error; err != nil {
+		return fmt.Errorf("failed to check account entries: %w", err)
+	}
+	if count > 0 {
+		return fmt.Errorf("cannot delete account: %d entries still reference it", count)
+	}
+
+	d := store.db.Where("id = ? AND owner_id = ?", Id, tenant).Delete(&dbAccount{})
 	if d.Error != nil {
 		return d.Error
 	}
@@ -349,14 +361,24 @@ func (store *Store) ListAccounts(ctx context.Context, tenant string) ([]Account,
 
 	var accounts []Account
 	for _, got := range results {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		default:
-			accounts = append(accounts, dbToAccount(got))
-		}
+		accounts = append(accounts, dbToAccount(got))
 	}
 	return accounts, nil
+}
+
+func (store *Store) ListAccountsByCurrency(ctx context.Context, tenant string) (map[currency.Unit][]Account, error) {
+	results, err := store.ListAccounts(ctx, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	accountsByCurrency := make(map[currency.Unit][]Account)
+	for _, got := range results {
+		account := got
+		accountsByCurrency[account.Currency] = append(accountsByCurrency[account.Currency], account)
+	}
+
+	return accountsByCurrency, nil
 }
 
 // ListAccountsMap is a wrapper function around ListAccounts that returns a map [uint]Account where the

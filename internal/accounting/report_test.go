@@ -3,6 +3,7 @@ package accounting
 import (
 	"github.com/go-bumbu/testdbs"
 	"github.com/google/go-cmp/cmp"
+	"golang.org/x/text/currency"
 	"sort"
 	"testing"
 	"time"
@@ -116,18 +117,70 @@ func TestGetCategoryReport(t *testing.T) {
 			tenant:    tenant1,
 			want: CategoryReport{
 				Income: []CategoryReportItem{
-					{Id: 0, Name: "unclassified", Description: "entries without any category", Value: 1900, Count: 1},
-					{Id: 4, ParentId: 3, Name: "Voo", Value: 1600, Count: 1},
-					{Id: 3, ParentId: 1, Name: "Stock benefits", Value: 10200, Count: 7},
-					{Id: 1, ParentId: 0, Name: "Salary", Value: 12600, Count: 9},
-					{Id: 5, ParentId: 3, Name: "MSFT", Value: 4800, Count: 3},
+					{
+						Id: 0, Name: "unclassified", Description: "entries without any category",
+						Values: map[currency.Unit]CategoryReportValues{
+							currency.EUR: {Value: 1900, Count: 1}, currency.USD: {}, currency.CHF: {},
+						},
+					},
+					{
+						Id: 4, ParentId: 3, Name: "Voo",
+						Values: map[currency.Unit]CategoryReportValues{
+							currency.EUR: {Value: 1600, Count: 1}, currency.USD: {}, currency.CHF: {}},
+					},
+					{
+						Id: 3, ParentId: 1, Name: "Stock benefits",
+						Values: map[currency.Unit]CategoryReportValues{
+							currency.EUR: {Value: 6700, Count: 5},
+							currency.USD: {Value: 3500, Count: 2}, currency.CHF: {},
+						},
+					},
+					{
+						Id: 1, ParentId: 0, Name: "Salary",
+						Values: map[currency.Unit]CategoryReportValues{
+							currency.EUR: {Value: 9100, Count: 7},
+							currency.USD: {Value: 3500, Count: 2}, currency.CHF: {},
+						},
+					},
+					{
+						Id: 5, ParentId: 3, Name: "MSFT",
+						Values: map[currency.Unit]CategoryReportValues{
+							currency.EUR: {Value: 1300, Count: 1},
+							currency.USD: {Value: 3500, Count: 2}, currency.CHF: {},
+						},
+					},
 				},
 				Expenses: []CategoryReportItem{
-					{Id: 0, Name: "unclassified", Description: "entries without any category"},
-					{Id: 2, ParentId: 0, Name: "Home", Value: 4500, Count: 9},
-					{Id: 6, ParentId: 2, Name: "Groceries", Value: 600, Count: 2},
-					{Id: 8, ParentId: 7, Name: "Electricity", Value: 1600, Count: 2},
-					{Id: 7, ParentId: 2, Name: "Bills", Value: 3200, Count: 5},
+					{
+						Id: 0, Name: "unclassified", Description: "entries without any category",
+						Values: map[currency.Unit]CategoryReportValues{
+							currency.EUR: {Value: 0, Count: 0}, currency.USD: {}, currency.CHF: {},
+						},
+					},
+					{
+						Id: 2, ParentId: 0, Name: "Home",
+						Values: map[currency.Unit]CategoryReportValues{
+							currency.EUR: {Value: 4500, Count: 9}, currency.USD: {}, currency.CHF: {},
+						},
+					},
+					{
+						Id: 6, ParentId: 2, Name: "Groceries",
+						Values: map[currency.Unit]CategoryReportValues{
+							currency.EUR: {Value: 600, Count: 2}, currency.USD: {}, currency.CHF: {},
+						},
+					},
+					{
+						Id: 8, ParentId: 7, Name: "Electricity",
+						Values: map[currency.Unit]CategoryReportValues{
+							currency.EUR: {Value: 1600, Count: 2}, currency.USD: {}, currency.CHF: {},
+						},
+					},
+					{
+						Id: 7, ParentId: 2, Name: "Bills",
+						Values: map[currency.Unit]CategoryReportValues{
+							currency.EUR: {Value: 3200, Count: 5}, currency.USD: {}, currency.CHF: {},
+						},
+					},
 				},
 			},
 		},
@@ -138,18 +191,68 @@ func TestGetCategoryReport(t *testing.T) {
 			tenant:    tenant1,
 			want: CategoryReport{
 				Income: []CategoryReportItem{
-					{Id: 0, Name: "unclassified", Description: "entries without any category"},
-					{Id: 4, ParentId: 3, Name: "Voo", Value: 0, Count: 0},
-					{Id: 3, ParentId: 1, Name: "Stock benefits", Value: 2500, Count: 2},
-					{Id: 1, ParentId: 0, Name: "Salary", Value: 3900, Count: 3},
-					{Id: 5, ParentId: 3, Name: "MSFT", Value: 1300, Count: 1},
+					{
+						Id: 0, Name: "unclassified", Description: "entries without any category",
+						Values: map[currency.Unit]CategoryReportValues{
+							currency.EUR: {Value: 0, Count: 0}, currency.USD: {}, currency.CHF: {},
+						},
+					},
+					{
+						Id: 4, ParentId: 3, Name: "Voo",
+						Values: map[currency.Unit]CategoryReportValues{
+							currency.EUR: {Value: 0, Count: 0}, currency.USD: {}, currency.CHF: {},
+						},
+					},
+					{
+						Id: 3, ParentId: 1, Name: "Stock benefits",
+						Values: map[currency.Unit]CategoryReportValues{
+							currency.EUR: {Value: 2500, Count: 2}, currency.USD: {}, currency.CHF: {},
+						},
+					},
+					{
+						Id: 1, ParentId: 0, Name: "Salary",
+						Values: map[currency.Unit]CategoryReportValues{
+							currency.EUR: {Value: 3900, Count: 3}, currency.USD: {}, currency.CHF: {},
+						},
+					},
+					{
+						Id: 5, ParentId: 3, Name: "MSFT",
+						Values: map[currency.Unit]CategoryReportValues{
+							currency.EUR: {Value: 1300, Count: 1}, currency.USD: {}, currency.CHF: {},
+						},
+					},
 				},
 				Expenses: []CategoryReportItem{
-					{Id: 0, Name: "unclassified", Description: "entries without any category"},
-					{Id: 2, ParentId: 0, Name: "Home", Value: 1200, Count: 3},
-					{Id: 6, ParentId: 2, Name: "Groceries", Value: 400, Count: 1},
-					{Id: 8, ParentId: 7, Name: "Electricity", Value: 0, Count: 0},
-					{Id: 7, ParentId: 2, Name: "Bills", Value: 800, Count: 2},
+					{
+						Id: 0, Name: "unclassified", Description: "entries without any category",
+						Values: map[currency.Unit]CategoryReportValues{
+							currency.EUR: {Value: 0, Count: 0}, currency.USD: {}, currency.CHF: {},
+						},
+					},
+					{
+						Id: 2, ParentId: 0, Name: "Home",
+						Values: map[currency.Unit]CategoryReportValues{
+							currency.EUR: {Value: 1200, Count: 3}, currency.USD: {}, currency.CHF: {},
+						},
+					},
+					{
+						Id: 6, ParentId: 2, Name: "Groceries",
+						Values: map[currency.Unit]CategoryReportValues{
+							currency.EUR: {Value: 400, Count: 1}, currency.USD: {}, currency.CHF: {},
+						},
+					},
+					{
+						Id: 8, ParentId: 7, Name: "Electricity",
+						Values: map[currency.Unit]CategoryReportValues{
+							currency.EUR: {Value: 0, Count: 0}, currency.USD: {}, currency.CHF: {},
+						},
+					},
+					{
+						Id: 7, ParentId: 2, Name: "Bills",
+						Values: map[currency.Unit]CategoryReportValues{
+							currency.EUR: {Value: 800, Count: 2}, currency.USD: {}, currency.CHF: {},
+						},
+					},
 				},
 			},
 		},
@@ -222,8 +325,8 @@ var categoryReportSamples = map[int]Transaction{
 	224: Income{Description: "i5", Date: getDateTime("2022-01-05 00:00:00"), Amount: 1400, AccountID: 1, CategoryID: 1},
 	225: Income{Description: "i6", Date: getDateTime("2022-01-06 00:00:00"), Amount: 1500, AccountID: 1, CategoryID: 3},
 	226: Income{Description: "i7", Date: getDateTime("2022-01-07 00:00:00"), Amount: 1600, AccountID: 1, CategoryID: 4},
-	227: Income{Description: "i8", Date: getDateTime("2022-01-08 00:00:00"), Amount: 1700, AccountID: 1, CategoryID: 5},
-	228: Income{Description: "i9", Date: getDateTime("2022-01-09 00:00:00"), Amount: 1800, AccountID: 1, CategoryID: 5},
+	227: Income{Description: "i8", Date: getDateTime("2022-01-08 00:00:00"), Amount: 1700, AccountID: 2, CategoryID: 5},
+	228: Income{Description: "i9", Date: getDateTime("2022-01-09 00:00:00"), Amount: 1800, AccountID: 2, CategoryID: 5},
 	229: Income{Description: "i9", Date: getDateTime("2022-01-10 00:00:00"), Amount: 1900, AccountID: 1, CategoryID: 0},
 
 	// A bunch of Transfers
