@@ -189,6 +189,11 @@ type categoryIds struct {
 	childrenIds []uint
 }
 
+type categoryTree struct {
+	Category
+	children []*categoryTree
+}
+
 // getCategoryChildren queries all categories of a type and tenant and returns a flat list of ALL categories + the associated
 // list of child ids for every single category.
 // eg, for a tree like

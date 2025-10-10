@@ -188,7 +188,7 @@ func TestStore_GetTransaction(t *testing.T) {
 				},
 			}
 
-			dbCon := db.ConnDbName("storeGetEntry")
+			dbCon := db.ConnDbName("storeGetTransaction")
 			store, err := New(dbCon)
 			if err != nil {
 				t.Fatal(err)
@@ -1121,7 +1121,14 @@ func transactionSampleData(t *testing.T, store *Store, data map[int]Transaction)
 	// =========================================
 	// Create Transactions
 	// =========================================
-	for _, tx := range data {
+
+	// transform the map into a sorted array to have predictable test results
+	var dataAr = make([]Transaction, len(data))
+	for i := range data {
+		dataAr[i-1] = data[i]
+	}
+
+	for _, tx := range dataAr {
 		_, err = store.CreateTransaction(t.Context(), tx, tenant1)
 		if err != nil {
 			t.Fatalf("error creating account: %v", err)

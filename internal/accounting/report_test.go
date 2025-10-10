@@ -1,4 +1,4 @@
-package reporting
+package accounting
 
 import (
 	"github.com/go-bumbu/testdbs"

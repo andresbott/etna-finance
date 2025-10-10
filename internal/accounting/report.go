@@ -1,4 +1,4 @@
-package reporting
+package accounting
 
 import (
 	"context"
@@ -98,9 +98,4 @@ func (store *Store) getCategoryReport(ctx context.Context, startDate, endDate ti
 	}
 
 	return reportItems, nil
-}
-
-type categoryTree struct {
-	Category
-	children []*categoryTree
 }
