@@ -3,6 +3,7 @@ package accounting
 import (
 	"context"
 	"errors"
+	"fmt"
 	"golang.org/x/text/currency"
 	"time"
 )
@@ -29,8 +30,8 @@ type CategoryReportValues struct {
 // to capture currency conversion values over time + calculating the conversion at the time of the transaciton no at the
 // time of generating the report
 
-// ReportOnCategories generates a tree report of all incomes and expenses by grouped categories during the selected time frame
-func (store *Store) ReportOnCategories(ctx context.Context, startDate, endDate time.Time, tenant string) (CategoryReport, error) {
+// ReportInOutByCategory generates a tree report of all incomes and expenses by grouped categories during the selected time frame
+func (store *Store) ReportInOutByCategory(ctx context.Context, startDate, endDate time.Time, tenant string) (CategoryReport, error) {
 	report := CategoryReport{}
 	incomeReport, err := store.getCategoryReport(ctx, startDate, endDate, IncomeCategory, tenant)
 	if err != nil {
@@ -118,7 +119,6 @@ func (store *Store) getCategoryReport(ctx context.Context, startDate, endDate ti
 			Value: sum.Sum,
 			Count: sum.Count,
 		}
-
 	}
 
 	reportItems[i] = CategoryReportItem{
@@ -155,4 +155,181 @@ func getAccountIdsCurrencyMap(in []Account) map[currency.Unit][]uint {
 		accountsByCurrency[account.Currency] = append(accountsByCurrency[account.Currency], account.ID)
 	}
 	return accountsByCurrency
+}
+
+func (store *Store) AccountBalance(ctx context.Context, accountID uint, date time.Time, tenant string) (AccountBalance, error) {
+	opts := sumEntriesOpts2{
+		endDate:    date,
+		accountIds: []uint{accountID},
+		//entryType:  entrytype,
+		tenant: tenant,
+	}
+	sum, err := store.sumEntries2(ctx, opts)
+	if err != nil {
+		if !errors.Is(err, ErrEntryNotFound) {
+			return AccountBalance{}, err
+		}
+	}
+	r := AccountBalance{
+		Sum:   sum.Sum,
+		Count: sum.Count,
+		Date:  date,
+	}
+	return r, nil
+}
+
+type AccountBalance struct {
+	Date  time.Time
+	Sum   float64
+	Count uint
+}
+
+func (store *Store) AccountBalanceProgression(
+	ctx context.Context,
+	accountID uint,
+	startDate, endDate time.Time,
+	steps int,
+	tenant string,
+) ([]AccountBalance, error) {
+
+	if endDate.Before(startDate) {
+		return nil, fmt.Errorf("end date must be after start date")
+	}
+	if steps < 2 {
+		return nil, fmt.Errorf("steps must be greater than or equal to 2")
+	}
+
+	// round the start date to the exact day start date minus one nanosecond
+	startDate = endOfDay(startDate) // we want to start just at the end of the previous day
+	// ensure all queries run with end of the day to include operations on the end date
+	endDate = endOfDay(endDate)
+
+	// Total daysInRange in the range
+	daysInRange := int(endDate.Sub(startDate).Hours() / 24)
+	if daysInRange <= 0 {
+		daysInRange = 1
+	}
+
+	// The first step is to calculate all historical values until the start date
+	historicalOpts := sumEntriesOpts2{
+		startDate:  time.Time{}, // zero time = all historical
+		endDate:    startDate,
+		accountIds: []uint{accountID},
+		tenant:     tenant,
+	}
+	historicalSum, err := store.sumEntries2(ctx, historicalOpts)
+	if err != nil && !errors.Is(err, ErrEntryNotFound) {
+		return nil, err
+	}
+
+	var prevSum float64
+	prevSum = historicalSum.Sum
+	var prevCount uint
+	prevCount = historicalSum.Count
+
+	results := make([]AccountBalance, 0, steps)
+	results = append(results, AccountBalance{
+		Date:  toDate(startDate),
+		Sum:   prevSum,
+		Count: prevCount,
+	})
+
+	var stepCount int
+	var stepDuration time.Duration
+
+	stepCount = steps - 1
+	if stepCount > daysInRange {
+		stepCount = daysInRange
+	}
+	stepDuration = endDate.Sub(startDate) / time.Duration(stepCount)
+
+	//--- Steps 1..N: evenly spaced intervals ---
+	for i := 0; i < stepCount; i++ {
+		from := startDate.Add(time.Duration(i) * stepDuration)
+		to := from.Add(stepDuration)
+		from = from.Add(time.Nanosecond)
+
+		// last step ends exactly at endDate
+		if i == stepCount-1 {
+			to = endDate
+		}
+
+		opts := sumEntriesOpts2{
+			startDate:  from,
+			endDate:    to,
+			accountIds: []uint{accountID},
+			tenant:     tenant,
+		}
+
+		sum, err := store.sumEntries2(ctx, opts)
+		if err != nil {
+			if errors.Is(err, ErrEntryNotFound) {
+				continue
+			}
+			return nil, err
+		}
+		prevSum += sum.Sum
+		results = append(results, AccountBalance{
+			Date:  toDate(to), // remove the microsecond from the report for simplicity
+			Sum:   prevSum,
+			Count: sum.Count,
+		})
+	}
+
+	return results, nil
+}
+
+func endOfDay(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day()+1, 0, 0, 0, 0, t.Location()).Add(-time.Nanosecond)
+}
+
+func toDate(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+}
+
+type sumEntriesOpts2 struct {
+	startDate   time.Time
+	endDate     time.Time
+	categoryIds []uint
+	accountIds  []uint
+	entryTypes  []entryType
+	tenant      string
+}
+
+func (store *Store) sumEntries2(ctx context.Context, opts sumEntriesOpts2) (sumResult, error) {
+	db := store.db.WithContext(ctx).Table("db_entries")
+
+	//db = db.Select("db_entries.*, db_transactions.date").
+	db = db.Select("ABS(SUM(amount)) as sum, COUNT(*) as count").
+		Joins("JOIN db_transactions ON db_transactions.id = db_entries.transaction_id")
+
+	// ensure proper owner
+	db = db.Where("db_entries.owner_id = ? AND db_transactions.owner_id = ? ", opts.tenant, opts.tenant)
+	// Filter by date range
+	db = db.Where("db_transactions.date BETWEEN ? AND ?", opts.startDate, opts.endDate)
+
+	// filter by accountId
+	if opts.accountIds != nil {
+		db = db.Where("db_entries.account_id IN (?)", opts.accountIds)
+	}
+
+	// select the entry type
+	if opts.categoryIds != nil {
+		db = db.Where("db_entries.entry_type IN (?) ", opts.entryTypes)
+	}
+
+	// filter by cat type
+	if len(opts.categoryIds) > 0 {
+		db = db.Where("db_entries.category_id IN (?)", opts.categoryIds)
+	}
+
+	//target := []map[string]any{} // left for debugging
+	var target sumResult
+
+	q := db.Scan(&target)
+	if q.Error != nil {
+		return sumResult{}, q.Error
+	}
+	//spew.Dump(target)
+	return target, nil
 }

@@ -89,5 +89,4 @@ func (store *Store) sumEntries(ctx context.Context, opts sumEntriesOpts) (sumRes
 	}
 	//spew.Dump(target)
 	return target, nil
-
 }
