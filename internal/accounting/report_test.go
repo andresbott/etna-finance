@@ -169,7 +169,7 @@ func TestGetCategoryReport(t *testing.T) {
 	for _, db := range testdbs.DBs() {
 		t.Run(db.DbType(), func(t *testing.T) {
 
-			dbCon := db.ConnDbName("storeCreateEntry")
+			dbCon := db.ConnDbName("TestGetCategoryReport")
 			store, err := NewStore(dbCon)
 			if err != nil {
 				t.Fatal(err)
@@ -410,7 +410,7 @@ func TestAccountBalanceProgression(t *testing.T) {
 	for _, db := range testdbs.DBs() {
 		t.Run(db.DbType(), func(t *testing.T) {
 
-			dbCon := db.ConnDbName("storeCreateEntry")
+			dbCon := db.ConnDbName("TestAccountBalanceProgression")
 			store, err := NewStore(dbCon)
 			if err != nil {
 				t.Fatal(err)

@@ -72,7 +72,7 @@ func (store *Store) getCategoryReport(ctx context.Context, startDate, endDate ti
 				endDate:     endDate,
 				categoryIds: item.childrenIds,
 				accountIds:  accountIds,
-				entryType:   entrytype,
+				entryTypes:  []entryType{entrytype},
 				tenant:      tenant,
 			}
 			sum, err := store.sumEntries(ctx, opts)
@@ -106,7 +106,7 @@ func (store *Store) getCategoryReport(ctx context.Context, startDate, endDate ti
 			endDate:     endDate,
 			categoryIds: []uint{0},
 			accountIds:  accountIds,
-			entryType:   entrytype,
+			entryTypes:  []entryType{entrytype},
 			tenant:      tenant,
 		}
 		sum, err := store.sumEntries(ctx, opts)
@@ -157,25 +157,26 @@ func getAccountIdsCurrencyMap(in []Account) map[currency.Unit][]uint {
 	return accountsByCurrency
 }
 
-func (store *Store) AccountBalance(ctx context.Context, accountID uint, date time.Time, tenant string) (AccountBalance, error) {
-	opts := sumEntriesOpts2{
-		endDate:    date,
+// AccountBalance get the balance of a single account on a given point in time
+func (store *Store) AccountBalance(ctx context.Context, accountID uint, endDate time.Time, tenant string) (AccountBalance, error) {
+	end := endOfDay(endDate)
+	// The first step is to calculate all historical values until the start date
+	opts := sumEntriesOpts{
+		startDate:  time.Time{},
+		endDate:    end,
 		accountIds: []uint{accountID},
-		//entryType:  entrytype,
-		tenant: tenant,
+		entryTypes: []entryType{incomeEntry, expenseEntry, transferInEntry, transferOutEntry},
+		tenant:     tenant,
 	}
-	sum, err := store.sumEntries2(ctx, opts)
-	if err != nil {
-		if !errors.Is(err, ErrEntryNotFound) {
-			return AccountBalance{}, err
-		}
+	sum, err := store.sumEntries(ctx, opts)
+	if err != nil && !errors.Is(err, ErrEntryNotFound) {
+		return AccountBalance{}, err
 	}
-	r := AccountBalance{
+	return AccountBalance{
+		Date:  time.Time{},
 		Sum:   sum.Sum,
 		Count: sum.Count,
-		Date:  date,
-	}
-	return r, nil
+	}, err
 }
 
 type AccountBalance struct {
@@ -204,28 +205,15 @@ func (store *Store) AccountBalanceProgression(
 	// ensure all queries run with end of the day to include operations on the end date
 	endDate = endOfDay(endDate)
 
-	// Total daysInRange in the range
-	daysInRange := int(endDate.Sub(startDate).Hours() / 24)
-	if daysInRange <= 0 {
-		daysInRange = 1
-	}
-
-	// The first step is to calculate all historical values until the start date
-	historicalOpts := sumEntriesOpts2{
-		startDate:  time.Time{}, // zero time = all historical
-		endDate:    startDate,
-		accountIds: []uint{accountID},
-		tenant:     tenant,
-	}
-	historicalSum, err := store.sumEntries2(ctx, historicalOpts)
-	if err != nil && !errors.Is(err, ErrEntryNotFound) {
+	// get the balance on the beginning of the time
+	historicalSum, err := store.AccountBalance(ctx, accountID, startDate, tenant)
+	if err != nil {
 		return nil, err
 	}
 
 	var prevSum float64
 	prevSum = historicalSum.Sum
-	var prevCount uint
-	prevCount = historicalSum.Count
+	prevCount := historicalSum.Count
 
 	results := make([]AccountBalance, 0, steps)
 	results = append(results, AccountBalance{
@@ -236,6 +224,12 @@ func (store *Store) AccountBalanceProgression(
 
 	var stepCount int
 	var stepDuration time.Duration
+
+	// Total daysInRange in the range
+	daysInRange := int(endDate.Sub(startDate).Hours() / 24)
+	if daysInRange <= 0 {
+		daysInRange = 1
+	}
 
 	stepCount = steps - 1
 	if stepCount > daysInRange {
@@ -254,14 +248,15 @@ func (store *Store) AccountBalanceProgression(
 			to = endDate
 		}
 
-		opts := sumEntriesOpts2{
+		opts := sumEntriesOpts{
 			startDate:  from,
 			endDate:    to,
 			accountIds: []uint{accountID},
+			entryTypes: []entryType{incomeEntry, expenseEntry, transferInEntry, transferOutEntry},
 			tenant:     tenant,
 		}
 
-		sum, err := store.sumEntries2(ctx, opts)
+		sum, err := store.sumEntries(ctx, opts)
 		if err != nil {
 			if errors.Is(err, ErrEntryNotFound) {
 				continue
@@ -285,51 +280,4 @@ func endOfDay(t time.Time) time.Time {
 
 func toDate(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
-}
-
-type sumEntriesOpts2 struct {
-	startDate   time.Time
-	endDate     time.Time
-	categoryIds []uint
-	accountIds  []uint
-	entryTypes  []entryType
-	tenant      string
-}
-
-func (store *Store) sumEntries2(ctx context.Context, opts sumEntriesOpts2) (sumResult, error) {
-	db := store.db.WithContext(ctx).Table("db_entries")
-
-	//db = db.Select("db_entries.*, db_transactions.date").
-	db = db.Select("ABS(SUM(amount)) as sum, COUNT(*) as count").
-		Joins("JOIN db_transactions ON db_transactions.id = db_entries.transaction_id")
-
-	// ensure proper owner
-	db = db.Where("db_entries.owner_id = ? AND db_transactions.owner_id = ? ", opts.tenant, opts.tenant)
-	// Filter by date range
-	db = db.Where("db_transactions.date BETWEEN ? AND ?", opts.startDate, opts.endDate)
-
-	// filter by accountId
-	if opts.accountIds != nil {
-		db = db.Where("db_entries.account_id IN (?)", opts.accountIds)
-	}
-
-	// select the entry type
-	if opts.categoryIds != nil {
-		db = db.Where("db_entries.entry_type IN (?) ", opts.entryTypes)
-	}
-
-	// filter by cat type
-	if len(opts.categoryIds) > 0 {
-		db = db.Where("db_entries.category_id IN (?)", opts.categoryIds)
-	}
-
-	//target := []map[string]any{} // left for debugging
-	var target sumResult
-
-	q := db.Scan(&target)
-	if q.Error != nil {
-		return sumResult{}, q.Error
-	}
-	//spew.Dump(target)
-	return target, nil
 }

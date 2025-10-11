@@ -44,12 +44,13 @@ type sumEntriesOpts struct {
 	endDate     time.Time
 	categoryIds []uint
 	accountIds  []uint
-	entryType   entryType
+	entryTypes  []entryType
 	tenant      string
 }
 
-// sumEntries is an internal function to sum the values of entries filtering by Categories
-// only income and expenses permitted in the sum by categories; transfers and other operations are not added to a category
+// sumEntries is an internal function to sum the values of entries filtering by Categories entry types etc
+// Important: this function needs to stay internal as it mixes accounts with different currencies
+// the library needs to take extra care to handle the situations clearly
 func (store *Store) sumEntries(ctx context.Context, opts sumEntriesOpts) (sumResult, error) {
 	db := store.db.WithContext(ctx).Table("db_entries")
 
@@ -62,18 +63,16 @@ func (store *Store) sumEntries(ctx context.Context, opts sumEntriesOpts) (sumRes
 	// Filter by date range
 	db = db.Where("db_transactions.date BETWEEN ? AND ?", opts.startDate, opts.endDate)
 
-	// Fiter by type
-	if opts.entryType != incomeEntry && opts.entryType != expenseEntry {
-		return sumResult{Sum: 0, Count: 0}, fmt.Errorf("entry type not supported, must be income or expense: %d", opts.entryType)
-	}
-
 	// filter by accountId
 	if opts.accountIds != nil {
 		db = db.Where("db_entries.account_id IN (?)", opts.accountIds)
 	}
 
 	// select the entry type
-	db = db.Where("db_entries.entry_type = ?", opts.entryType)
+	if len(opts.entryTypes) == 0 {
+		return sumResult{Sum: 0, Count: 0}, fmt.Errorf("entry type must be set")
+	}
+	db = db.Where("db_entries.entry_type IN (?) ", opts.entryTypes)
 
 	// filter by cat type
 	if len(opts.categoryIds) > 0 {

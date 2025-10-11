@@ -38,14 +38,14 @@ var sumEntriesSample = map[int]Transaction{
 	324: Transfer{Description: "t5", Date: getDateTime("2022-01-05 00:00:00"), OriginAmount: 50, OriginAccountID: 1, TargetAmount: 51, TargetAccountID: 2},
 }
 
-func TestSumEntriesByCategories(t *testing.T) {
+func TestSumEntries(t *testing.T) {
 	tcs := []struct {
 		name       string
 		startDate  time.Time
 		endDate    time.Time
 		accountID  []uint
 		categoryID []uint
-		entityType entryType
+		entryTypes []entryType
 		tenant     string
 		wantErr    string
 		want       sumResult
@@ -55,7 +55,7 @@ func TestSumEntriesByCategories(t *testing.T) {
 			startDate:  getDate("2022-01-02"),
 			endDate:    getDate("2022-01-04"),
 			tenant:     tenant1,
-			entityType: expenseEntry,
+			entryTypes: []entryType{expenseEntry},
 			want:       sumResult{Sum: 900, Count: 3}, // 101, 102, 103
 		},
 		{
@@ -63,7 +63,7 @@ func TestSumEntriesByCategories(t *testing.T) {
 			startDate:  getDate("2022-01-07"),
 			endDate:    getDate("2022-01-09"),
 			tenant:     tenant1,
-			entityType: incomeEntry,
+			entryTypes: []entryType{incomeEntry},
 			want:       sumResult{Sum: 5100, Count: 3}, // 101, 102, 103
 		},
 		{
@@ -71,7 +71,7 @@ func TestSumEntriesByCategories(t *testing.T) {
 			startDate:  getDate("2022-01-01"),
 			endDate:    getDate("2022-01-09"),
 			tenant:     tenant1,
-			entityType: expenseEntry,
+			entryTypes: []entryType{expenseEntry},
 			categoryID: []uint{8, 7},                   // expenses 2,6,7,8
 			want:       sumResult{Sum: 1000, Count: 2}, // 102, 106
 		},
@@ -80,7 +80,7 @@ func TestSumEntriesByCategories(t *testing.T) {
 			startDate:  getDate("2022-01-01"),
 			endDate:    getDate("2022-01-09"),
 			tenant:     tenant1,
-			entityType: expenseEntry,
+			entryTypes: []entryType{expenseEntry},
 			accountID:  []uint{2, 3},
 			want:       sumResult{Sum: 500, Count: 2}, // 101, 102
 		},
@@ -89,7 +89,7 @@ func TestSumEntriesByCategories(t *testing.T) {
 			startDate:  getDate("2022-01-01"),
 			endDate:    getDate("2022-01-09"),
 			tenant:     tenant1,
-			entityType: incomeEntry,
+			entryTypes: []entryType{incomeEntry},
 			accountID:  []uint{2},
 			categoryID: []uint{4, 5},
 			want:       sumResult{Sum: 3200, Count: 2}, // 225, 227
@@ -99,7 +99,7 @@ func TestSumEntriesByCategories(t *testing.T) {
 			startDate:  getDate("2022-01-01"),
 			endDate:    getDate("2022-01-09"),
 			tenant:     tenant2,
-			entityType: expenseEntry,
+			entryTypes: []entryType{expenseEntry},
 			categoryID: []uint{8, 7},
 			want:       sumResult{Sum: 0, Count: 0}, // 102, 106
 		},
@@ -125,7 +125,7 @@ func TestSumEntriesByCategories(t *testing.T) {
 							endDate:     tc.endDate,
 							categoryIds: tc.categoryID,
 							accountIds:  tc.accountID,
-							entryType:   tc.entityType,
+							entryTypes:  tc.entryTypes,
 							tenant:      tc.tenant,
 						},
 					)
