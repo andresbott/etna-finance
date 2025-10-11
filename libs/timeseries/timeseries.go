@@ -59,20 +59,9 @@ func samplingPolicyName(retention, precision time.Duration, aggrFn string) strin
 // If it exists, all DownSamplingPolicies are replaced.
 func (ts *Registry) RegisterSeries(series TimeSeries) error {
 	return ts.db.Transaction(func(tx *gorm.DB) error {
-		var existing dbTimeSeries
-
-		err := tx.Where("name = ?", series.Name).First(&existing).Error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			// Create new
-			newSeries := dbTimeSeries{
-				Name: series.Name,
-			}
-			if err := tx.Create(&newSeries).Error; err != nil {
-				return fmt.Errorf("create series: %w", err)
-			}
-			existing = newSeries
-		} else if err != nil {
-			return fmt.Errorf("unable to find series series: %w", err)
+		existing, err := findOrCreateSeries(tx, series.Name)
+		if err != nil {
+			return err
 		}
 
 		// Load existing policies
@@ -85,37 +74,10 @@ func (ts *Registry) RegisterSeries(series TimeSeries) error {
 		for _, p := range existingPolicies {
 			existingMap[samplingPolicyName(p.Retention, p.Precision, p.AggregationFn)] = p
 		}
-
-		// Process new/updated policies
 		seen := make(map[string]bool)
-		for _, p := range series.Sampling {
-			samplingName := samplingPolicyName(p.Retention, p.Precision, p.AggregationFn)
-			seen[samplingName] = true
-			if existingPolicy, ok := existingMap[samplingName]; ok {
-				// Exists → check if needs update
-				if existingPolicy.Precision != p.Precision ||
-					existingPolicy.Retention != p.Retention || existingPolicy.AggregationFn != p.AggregationFn {
 
-					existingPolicy.Precision = p.Precision
-					existingPolicy.Retention = p.Retention
-					existingPolicy.AggregationFn = p.AggregationFn
-					if err := tx.Save(&existingPolicy).Error; err != nil {
-						return fmt.Errorf("unable to update policy %w", err)
-					}
-				}
-			} else {
-				// NewRegistry policy → insert
-				newPolicy := dbSamplingPolicy{
-					Name:          samplingName,
-					TimeSeriesID:  existing.ID,
-					Precision:     p.Precision,
-					Retention:     p.Retention,
-					AggregationFn: p.AggregationFn,
-				}
-				if err := tx.Create(&newPolicy).Error; err != nil {
-					return fmt.Errorf("unable to create policy %w", err)
-				}
-			}
+		if err := upsertPolicies(tx, existing.ID, existingMap, seen, series.Sampling); err != nil {
+			return err
 		}
 
 		// Delete old policies not present anymore
@@ -128,6 +90,56 @@ func (ts *Registry) RegisterSeries(series TimeSeries) error {
 		}
 		return nil
 	})
+}
+
+func findOrCreateSeries(tx *gorm.DB, name string) (dbTimeSeries, error) {
+	var existing dbTimeSeries
+	err := tx.Where("name = ?", name).First(&existing).Error
+	switch {
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		newSeries := dbTimeSeries{Name: name}
+		if err := tx.Create(&newSeries).Error; err != nil {
+			return dbTimeSeries{}, fmt.Errorf("create series: %w", err)
+		}
+		return newSeries, nil
+	case err != nil:
+		return dbTimeSeries{}, fmt.Errorf("find series: %w", err)
+	default:
+		return existing, nil
+	}
+}
+
+func upsertPolicies(tx *gorm.DB, seriesID uint, existingMap map[string]dbSamplingPolicy, seen map[string]bool, sampling []SamplingPolicy) error {
+	for _, p := range sampling {
+		name := samplingPolicyName(p.Retention, p.Precision, p.AggregationFn)
+		seen[name] = true
+
+		if existing, ok := existingMap[name]; ok {
+			if existing.Precision == p.Precision && existing.Retention == p.Retention && existing.AggregationFn == p.AggregationFn {
+				continue // no change
+			}
+
+			existing.Precision = p.Precision
+			existing.Retention = p.Retention
+			existing.AggregationFn = p.AggregationFn
+			if err := tx.Save(&existing).Error; err != nil {
+				return fmt.Errorf("update policy %s: %w", name, err)
+			}
+			continue
+		}
+
+		newPolicy := dbSamplingPolicy{
+			Name:          name,
+			TimeSeriesID:  seriesID,
+			Precision:     p.Precision,
+			Retention:     p.Retention,
+			AggregationFn: p.AggregationFn,
+		}
+		if err := tx.Create(&newPolicy).Error; err != nil {
+			return fmt.Errorf("create policy %s: %w", name, err)
+		}
+	}
+	return nil
 }
 
 // ListSeries returns all series with their downsampling policies

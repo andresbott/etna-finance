@@ -77,127 +77,175 @@ type Transfer struct {
 	baseTx
 }
 
-// CreateTransaction Allows to create a new baseTx in the DB for a specific tenant
-// note that there are only a limited type of transactions that can be created
+// CreateTransaction creates a new transaction in the DB for a specific tenant.
+// It delegates to the appropriate CreateX function depending on the input type.
 func (store *Store) CreateTransaction(ctx context.Context, input Transaction, tenant string) (uint, error) {
-
-	var tx dbTransaction
-	switch input.(type) {
+	switch item := input.(type) {
 	case Income:
-		item := input.(Income)
-		acc, err := store.GetAccount(ctx, item.AccountID, tenant)
-		if err != nil {
-			return 0, fmt.Errorf("error creating transaction: %w", err)
-		}
-		if acc.Type != CashAccountType {
-			return 0, NewValidationErr("incompatible account type for Income transaction")
-		}
-
-		if item.CategoryID != 0 {
-			cat, err := store.GetCategory(ctx, item.CategoryID, tenant)
-			if err != nil {
-				return 0, fmt.Errorf("error creating transaction: %w", err)
-			}
-			if cat.Type != IncomeCategory {
-				return 0, NewValidationErr("incompatible category type for Income transaction")
-			}
-		}
-
-		tx = dbTransaction{
-			Description: item.Description,
-			Date:        item.Date,
-			OwnerId:     tenant,
-			Type:        IncomeTransaction,
-			Entries: []dbEntry{
-				{AccountID: item.AccountID, CategoryID: item.CategoryID, Amount: item.Amount,
-					EntryType: incomeEntry, OwnerId: tenant},
-			},
-		}
+		return store.CreateIncome(ctx, item, tenant)
 	case Expense:
-		item := input.(Expense)
-		acc, err := store.GetAccount(ctx, item.AccountID, tenant)
-		if err != nil {
-			return 0, fmt.Errorf("error creating transaction: %w", err)
-		}
-		if acc.Type != CashAccountType {
-			return 0, NewValidationErr("Incompatible account type for expense transaction")
-		}
-
-		if item.CategoryID != 0 {
-			cat, err := store.GetCategory(ctx, item.CategoryID, tenant)
-			if err != nil {
-				return 0, fmt.Errorf("error creating transaction: %w", err)
-			}
-			if cat.Type != ExpenseCategory {
-				return 0, NewValidationErr("incompatible category type for Expense transaction")
-			}
-		}
-
-		tx = dbTransaction{
-			Description: item.Description,
-			Date:        item.Date,
-			OwnerId:     tenant,
-			Type:        ExpenseTransaction,
-			Entries: []dbEntry{
-				{AccountID: item.AccountID, CategoryID: item.CategoryID, Amount: -item.Amount,
-					EntryType: expenseEntry, OwnerId: tenant},
-			},
-		}
-
+		return store.CreateExpense(ctx, item, tenant)
 	case Transfer:
-		item := input.(Transfer)
-		acc, err := store.GetAccount(ctx, item.OriginAccountID, tenant)
-		if err != nil {
-			return 0, fmt.Errorf("error creating transaction: %w", err)
-		}
-		if acc.Type != CashAccountType {
-			return 0, NewValidationErr("Incompatible account type for Transfer transaction")
-		}
-
-		acc, err = store.GetAccount(ctx, item.TargetAccountID, tenant)
-		if err != nil {
-			return 0, fmt.Errorf("error creating transaction: %w", err)
-		}
-		if acc.Type != CashAccountType {
-			return 0, NewValidationErr("Incompatible account type for Transfer transaction")
-		}
-
-		tx = dbTransaction{
-			Description: item.Description,
-			Date:        item.Date,
-			OwnerId:     tenant,
-			Type:        TransferTransaction,
-			Entries: []dbEntry{
-				{AccountID: item.OriginAccountID, Amount: -item.OriginAmount, EntryType: transferOutEntry, OwnerId: tenant},
-				{AccountID: item.TargetAccountID, Amount: item.TargetAmount, EntryType: transferInEntry, OwnerId: tenant},
-			},
-		}
+		return store.CreateTransfer(ctx, item, tenant)
 	default:
-		return 0, errors.New("invalid input type")
+		return 0, errors.New("invalid transaction type")
+	}
+}
+
+func (store *Store) CreateIncome(ctx context.Context, item Income, tenant string) (uint, error) {
+	acc, err := store.GetAccount(ctx, item.AccountID, tenant)
+	if err != nil {
+		return 0, fmt.Errorf("error creating income: %w", err)
+	}
+	if acc.Type != CashAccountType {
+		return 0, NewValidationErr("incompatible account type for Income transaction")
 	}
 
-	if tx.Description == "" {
-		return 0, NewValidationErr("description cannot be empty")
-	}
-
-	if tx.Date.IsZero() {
-		return 0, NewValidationErr("date cannot be zero")
-	}
-
-	for _, entry := range tx.Entries {
-		if entry.Amount == 0 {
-			return 0, NewValidationErr("amount cannot be zero")
+	if item.CategoryID != 0 {
+		cat, err := store.GetCategory(ctx, item.CategoryID, tenant)
+		if err != nil {
+			return 0, fmt.Errorf("error creating income: %w", err)
 		}
-		if entry.AccountID == 0 {
-			return 0, NewValidationErr("account ID cannot be zero")
+		if cat.Type != IncomeCategory {
+			return 0, NewValidationErr("incompatible category type for Income transaction")
 		}
+	}
+
+	tx := dbTransaction{
+		Description: item.Description,
+		Date:        item.Date,
+		OwnerId:     tenant,
+		Type:        IncomeTransaction,
+		Entries: []dbEntry{
+			{
+				AccountID:  item.AccountID,
+				CategoryID: item.CategoryID,
+				Amount:     item.Amount,
+				EntryType:  incomeEntry,
+				OwnerId:    tenant,
+			},
+		},
+	}
+
+	if err := validateTransaction(tx); err != nil {
+		return 0, err
 	}
 
 	if err := store.db.WithContext(ctx).Create(&tx).Error; err != nil {
 		return 0, err
 	}
-
 	return tx.Id, nil
+}
+
+func (store *Store) CreateExpense(ctx context.Context, item Expense, tenant string) (uint, error) {
+	acc, err := store.GetAccount(ctx, item.AccountID, tenant)
+	if err != nil {
+		return 0, fmt.Errorf("error creating expense: %w", err)
+	}
+	if acc.Type != CashAccountType {
+		return 0, NewValidationErr("incompatible account type for Expense transaction")
+	}
+
+	if item.CategoryID != 0 {
+		cat, err := store.GetCategory(ctx, item.CategoryID, tenant)
+		if err != nil {
+			return 0, fmt.Errorf("error creating expense: %w", err)
+		}
+		if cat.Type != ExpenseCategory {
+			return 0, NewValidationErr("incompatible category type for Expense transaction")
+		}
+	}
+
+	tx := dbTransaction{
+		Description: item.Description,
+		Date:        item.Date,
+		OwnerId:     tenant,
+		Type:        ExpenseTransaction,
+		Entries: []dbEntry{
+			{
+				AccountID:  item.AccountID,
+				CategoryID: item.CategoryID,
+				Amount:     -item.Amount,
+				EntryType:  expenseEntry,
+				OwnerId:    tenant,
+			},
+		},
+	}
+
+	if err := validateTransaction(tx); err != nil {
+		return 0, err
+	}
+
+	if err := store.db.WithContext(ctx).Create(&tx).Error; err != nil {
+		return 0, err
+	}
+	return tx.Id, nil
+}
+
+func (store *Store) CreateTransfer(ctx context.Context, item Transfer, tenant string) (uint, error) {
+	originAcc, err := store.GetAccount(ctx, item.OriginAccountID, tenant)
+	if err != nil {
+		return 0, fmt.Errorf("error creating transfer: %w", err)
+	}
+	if originAcc.Type != CashAccountType {
+		return 0, NewValidationErr("incompatible origin account type for Transfer transaction")
+	}
+
+	targetAcc, err := store.GetAccount(ctx, item.TargetAccountID, tenant)
+	if err != nil {
+		return 0, fmt.Errorf("error creating transfer: %w", err)
+	}
+	if targetAcc.Type != CashAccountType {
+		return 0, NewValidationErr("incompatible target account type for Transfer transaction")
+	}
+
+	tx := dbTransaction{
+		Description: item.Description,
+		Date:        item.Date,
+		OwnerId:     tenant,
+		Type:        TransferTransaction,
+		Entries: []dbEntry{
+			{
+				AccountID: item.OriginAccountID,
+				Amount:    -item.OriginAmount,
+				EntryType: transferOutEntry,
+				OwnerId:   tenant,
+			},
+			{
+				AccountID: item.TargetAccountID,
+				Amount:    item.TargetAmount,
+				EntryType: transferInEntry,
+				OwnerId:   tenant,
+			},
+		},
+	}
+
+	if err := validateTransaction(tx); err != nil {
+		return 0, err
+	}
+
+	if err := store.db.WithContext(ctx).Create(&tx).Error; err != nil {
+		return 0, err
+	}
+	return tx.Id, nil
+}
+
+func validateTransaction(tx dbTransaction) error {
+	if tx.Description == "" {
+		return NewValidationErr("description cannot be empty")
+	}
+	if tx.Date.IsZero() {
+		return NewValidationErr("date cannot be zero")
+	}
+	for _, entry := range tx.Entries {
+		if entry.Amount == 0 {
+			return NewValidationErr("amount cannot be zero")
+		}
+		if entry.AccountID == 0 {
+			return NewValidationErr("account ID cannot be zero")
+		}
+	}
+	return nil
 }
 
 var ErrTransactionNotFound = errors.New("transaction not found")
@@ -243,11 +291,12 @@ func publicTransactions(in dbTransaction) (Transaction, error) {
 		var outEntry dbEntry
 		entries := in.Entries
 		for _, entry := range entries {
-			if entry.EntryType == transferInEntry {
+			switch entry.EntryType {
+			case transferInEntry:
 				inEntity = entry
-			} else if entry.EntryType == transferOutEntry {
+			case transferOutEntry:
 				outEntry = entry
-			} else {
+			default:
 				return nil, fmt.Errorf("unexpected entry type: %v found in transfer", entry.EntryType)
 			}
 		}
@@ -335,80 +384,124 @@ type TransferUpdate struct {
 // TODO: there is nothing preventing an income category to be tagged with an expense entry
 
 func (store *Store) UpdateTransaction(ctx context.Context, input TransactionUpdate, Id uint, tenant string) error {
-	switch input.(type) {
+	switch item := input.(type) {
 	case IncomeUpdate:
-		return store.UpdateIncome(ctx, input.(IncomeUpdate), Id, tenant)
-
+		return store.UpdateIncome(ctx, item, Id, tenant)
 	case ExpenseUpdate:
-		return nil
-
+		return store.UpdateExpense(ctx, item, Id, tenant)
 	case TransferUpdate:
-		return nil
+		return store.UpdateTransfer(ctx, item, Id, tenant)
 	default:
 		return errors.New("invalid baseTx type")
 	}
-
 }
 
-func (store *Store) UpdateIncome(ctx context.Context, input IncomeUpdate, Id uint, tenant string) error {
+func (store *Store) UpdateIncome(ctx context.Context, input IncomeUpdate, id uint, tenant string) error {
+	params := updateIncomeExpenseParams{
+		description:          input.Description,
+		date:                 input.Date,
+		amount:               input.Amount,
+		accountID:            input.AccountID,
+		categoryID:           input.CategoryID,
+		amountMultiplier:     1,
+		expectedCategoryType: IncomeCategory,
+		txType:               IncomeTransaction,
+		entryType:            incomeEntry,
+	}
+	return store.updateIncomeExpense(ctx, params, id, tenant)
+}
+
+func (store *Store) UpdateExpense(ctx context.Context, input ExpenseUpdate, id uint, tenant string) error {
+	params := updateIncomeExpenseParams{
+		description:          input.Description,
+		date:                 input.Date,
+		amount:               input.Amount,
+		accountID:            input.AccountID,
+		categoryID:           input.CategoryID,
+		amountMultiplier:     -1,
+		expectedCategoryType: ExpenseCategory,
+		txType:               ExpenseTransaction,
+		entryType:            expenseEntry,
+	}
+	return store.updateIncomeExpense(ctx, params, id, tenant)
+}
+
+type updateIncomeExpenseParams struct {
+	description          *string
+	date                 *time.Time
+	amount               *float64
+	accountID            *uint
+	categoryID           *uint
+	amountMultiplier     int
+	expectedCategoryType CategoryType
+	txType               TxType
+	entryType            entryType
+}
+
+// updateIncomeExpense is a common function to update incomes and expenses
+//
+//nolint:nestif// the linter flags it but the code is simple enough to follow it without refactoring
+func (store *Store) updateIncomeExpense(ctx context.Context, params updateIncomeExpenseParams, id uint, tenant string) error {
 	var selectedFields []string
 	var updateStruct dbTransaction
-
-	if input.Description != nil {
-		if *input.Description == "" {
-			return NewValidationErr("description cannot be empty")
-		}
-		updateStruct.Description = *input.Description
-		selectedFields = append(selectedFields, "Description")
-	}
-
-	if input.Date != nil {
-		if input.Date.IsZero() {
-			return NewValidationErr("date cannot be zero")
-		}
-		updateStruct.Date = *input.Date
-		selectedFields = append(selectedFields, "Date")
-	}
-
 	var updateEntity dbEntry
 	var selectedEntryFields []string
 
-	// these are entries
-	if input.Amount != nil {
-		if *input.Amount == 0 {
+	// Description
+	if params.description != nil {
+		if *params.description == "" {
+			return NewValidationErr("description cannot be empty")
+		}
+		updateStruct.Description = *params.description
+		selectedFields = append(selectedFields, "Description")
+	}
+
+	// Date
+	if params.date != nil {
+		if params.date.IsZero() {
+			return NewValidationErr("date cannot be zero")
+		}
+		updateStruct.Date = *params.date
+		selectedFields = append(selectedFields, "Date")
+	}
+
+	// Amount
+	if params.amount != nil {
+		if *params.amount == 0 {
 			return NewValidationErr("amount cannot be zero")
 		}
-		updateEntity.Amount = *input.Amount
+		updateEntity.Amount = float64(params.amountMultiplier) * (*params.amount)
 		selectedEntryFields = append(selectedEntryFields, "Amount")
 	}
 
-	if input.AccountID != nil {
-		if *input.AccountID == 0 {
+	// Account
+	if params.accountID != nil {
+		if *params.accountID == 0 {
 			return NewValidationErr("account cannot be zero")
 		}
-		acc, err := store.GetAccount(ctx, *input.AccountID, tenant)
+		acc, err := store.GetAccount(ctx, *params.accountID, tenant)
 		if err != nil {
-			return fmt.Errorf("error updating income: %w", err)
+			return fmt.Errorf("error updating transaction: %w", err)
 		}
 		if acc.Type != CashAccountType {
-			return NewValidationErr("incompatible account type for Income transaction")
+			return NewValidationErr("incompatible account type for transaction")
 		}
-
-		updateEntity.AccountID = *input.AccountID
+		updateEntity.AccountID = *params.accountID
 		selectedEntryFields = append(selectedEntryFields, "AccountID")
 	}
 
-	if input.CategoryID != nil {
-		if *input.CategoryID != 0 {
-			cat, err := store.GetCategory(ctx, *input.CategoryID, tenant)
+	// Category
+	if params.categoryID != nil {
+		if *params.categoryID != 0 {
+			cat, err := store.GetCategory(ctx, *params.categoryID, tenant)
 			if err != nil {
-				return fmt.Errorf("error updating income: %w", err)
+				return fmt.Errorf("error updating transaction: %w", err)
 			}
-			if cat.Type != IncomeCategory {
-				return NewValidationErr("incompatible category type for Income transaction")
+			if cat.Type != params.expectedCategoryType {
+				return NewValidationErr("incompatible category type for transaction")
 			}
 		}
-		updateEntity.CategoryID = *input.CategoryID
+		updateEntity.CategoryID = *params.categoryID
 		selectedEntryFields = append(selectedEntryFields, "CategoryID")
 	}
 
@@ -416,15 +509,44 @@ func (store *Store) UpdateIncome(ctx context.Context, input IncomeUpdate, Id uin
 		return ErrNoChanges
 	}
 
-	// Perform the update
+	wParams := writeTxUpdateParams{
+		selectedFields:   selectedFields,
+		entryType1Fields: selectedEntryFields,
+		updateStruct:     updateStruct,
+		entryType1Values: updateEntity,
+		txType:           params.txType,
+		entryType1:       params.entryType,
+	}
 
-	err := store.db.Transaction(func(tx *gorm.DB) error {
-		// update the main baseTx
-		if len(selectedFields) > 0 {
-			q := store.db.Model(&dbTransaction{}).
-				Where("id = ? AND owner_id = ? AND type = ?", Id, tenant, IncomeTransaction).
-				Select(selectedFields).
-				Updates(updateStruct)
+	if err := store.writeTxUpdate(wParams, id, tenant); err != nil {
+		return fmt.Errorf("error updating transaction: %w", err)
+	}
+	return nil
+}
+
+type writeTxUpdateParams struct {
+	// define the transaction
+	selectedFields []string
+	updateStruct   dbTransaction
+	txType         TxType
+	// define the first entry type
+	entryType1Fields []string
+	entryType1Values dbEntry
+	entryType1       entryType
+	// define the second entry type
+	entryType2Fields []string
+	entryType2Values dbEntry
+	entryType2       entryType
+}
+
+func (store *Store) writeTxUpdate(params writeTxUpdateParams, id uint, tenant string) error {
+	return store.db.Transaction(func(tx *gorm.DB) error {
+		// Update the main transaction
+		if len(params.selectedFields) > 0 {
+			q := tx.Model(&dbTransaction{}).
+				Where("id = ? AND owner_id = ? AND type = ?", id, tenant, params.txType).
+				Select(params.selectedFields).
+				Updates(params.updateStruct)
 
 			if q.Error != nil {
 				return q.Error
@@ -434,18 +556,25 @@ func (store *Store) UpdateIncome(ctx context.Context, input IncomeUpdate, Id uin
 			}
 		}
 
-		if len(selectedEntryFields) > 0 {
-			var entries []dbEntry
-			q1 := store.db.Find(&entries)
-			if q1.Error != nil {
-				return q1.Error
+		// Update fields of the first related entries
+		if len(params.entryType1Fields) > 0 {
+			q := tx.Model(&dbEntry{}).
+				Where("transaction_id = ? AND owner_id = ? AND entry_type = ?", id, tenant, params.entryType1).
+				Select(params.entryType1Fields).
+				Updates(params.entryType1Values)
+			if q.Error != nil {
+				return q.Error
 			}
-
-			q := store.db.Model(&dbEntry{}).
-				Where("transaction_id = ? AND owner_id = ? AND entry_type = ?", Id, tenant, incomeEntry).
-				Select(selectedEntryFields).
-				Updates(updateEntity)
-
+			if q.RowsAffected == 0 {
+				return ErrEntryNotFound
+			}
+		}
+		// Update fields of the second related entries
+		if len(params.entryType2Fields) > 0 {
+			q := tx.Model(&dbEntry{}).
+				Where("transaction_id = ? AND owner_id = ? AND entry_type = ?", id, tenant, params.entryType2).
+				Select(params.entryType2Fields).
+				Updates(params.entryType2Values)
 			if q.Error != nil {
 				return q.Error
 			}
@@ -456,128 +585,9 @@ func (store *Store) UpdateIncome(ctx context.Context, input IncomeUpdate, Id uin
 
 		return nil
 	})
-
-	if err != nil {
-		return fmt.Errorf("error updating transaction: %w", err)
-	}
-
-	return nil
 }
 
-func (store *Store) UpdateExpense(ctx context.Context, input ExpenseUpdate, Id uint, tenant string) error {
-	var selectedFields []string
-	var updateStruct dbTransaction
-
-	if input.Description != nil {
-		if *input.Description == "" {
-			return NewValidationErr("description cannot be empty")
-		}
-		updateStruct.Description = *input.Description
-		selectedFields = append(selectedFields, "Description")
-	}
-
-	if input.Date != nil {
-		if input.Date.IsZero() {
-			return NewValidationErr("date cannot be zero")
-		}
-		updateStruct.Date = *input.Date
-		selectedFields = append(selectedFields, "Date")
-	}
-
-	var updateEntity dbEntry
-	var selectedEntryFields []string
-
-	// these are entries
-	if input.Amount != nil {
-		if *input.Amount == 0 {
-			return NewValidationErr("amount cannot be zero")
-		}
-		updateEntity.Amount = -*input.Amount
-		selectedEntryFields = append(selectedEntryFields, "Amount")
-	}
-
-	if input.AccountID != nil {
-		if *input.AccountID == 0 {
-			return NewValidationErr("account cannot be zero")
-		}
-		acc, err := store.GetAccount(ctx, *input.AccountID, tenant)
-		if err != nil {
-			return fmt.Errorf("error creating baseTx: %w", err)
-		}
-		if acc.Type != CashAccountType {
-			return NewValidationErr("incompatible account type for Expense transaction")
-		}
-
-		updateEntity.AccountID = *input.AccountID
-		selectedEntryFields = append(selectedEntryFields, "AccountID")
-	}
-
-	if input.CategoryID != nil {
-		if *input.CategoryID != 0 {
-			cat, err := store.GetCategory(ctx, *input.CategoryID, tenant)
-			if err != nil {
-				return fmt.Errorf("error updating income: %w", err)
-			}
-			if cat.Type != ExpenseCategory {
-				return NewValidationErr("incompatible category type for Income transaction")
-			}
-		}
-
-		updateEntity.CategoryID = *input.CategoryID
-		selectedEntryFields = append(selectedEntryFields, "CategoryID")
-	}
-
-	if len(selectedFields) == 0 && len(selectedEntryFields) == 0 {
-		return ErrNoChanges
-	}
-
-	// Perform the update
-
-	err := store.db.Transaction(func(tx *gorm.DB) error {
-		// update the main baseTx
-		if len(selectedFields) > 0 {
-			q := store.db.Model(&dbTransaction{}).
-				Where("id = ? AND owner_id = ? AND type =  ?", Id, tenant, ExpenseTransaction).
-				Select(selectedFields).
-				Updates(updateStruct)
-
-			if q.Error != nil {
-				return q.Error
-			}
-			if q.RowsAffected == 0 {
-				return ErrTransactionNotFound
-			}
-		}
-
-		if len(selectedEntryFields) > 0 {
-			var entries []dbEntry
-			q1 := store.db.Find(&entries)
-			if q1.Error != nil {
-				return q1.Error
-			}
-
-			q := store.db.Model(&dbEntry{}).
-				Where("transaction_id = ? AND owner_id = ? AND entry_type = ?", Id, tenant, expenseEntry).
-				Select(selectedEntryFields).
-				Updates(updateEntity)
-
-			if q.Error != nil {
-				return q.Error
-			}
-			if q.RowsAffected == 0 {
-				return ErrEntryNotFound
-			}
-		}
-		return nil
-	})
-
-	if err != nil {
-		return fmt.Errorf("error updating transaction: %w", err)
-	}
-
-	return nil
-}
-
+//nolint:gocyclo// the linter flags it but the code is simply different input validations and payload generation
 func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id uint, tenant string) error {
 	var selectedFields []string
 	var updateStruct dbTransaction
@@ -656,57 +666,22 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 		return ErrNoChanges
 	}
 
-	// Perform the update
+	wParams := writeTxUpdateParams{
+		selectedFields: selectedFields,
+		updateStruct:   updateStruct,
+		txType:         TransferTransaction,
 
-	err := store.db.Transaction(func(tx *gorm.DB) error {
-		// update the main baseTx
-		if len(selectedFields) > 0 {
-			q := store.db.Model(&dbTransaction{}).
-				Where("id = ? AND owner_id = ? AND type = ?", Id, tenant, TransferTransaction).
-				Select(selectedFields).
-				Updates(updateStruct)
+		entryType1Fields: targetFields,
+		entryType1Values: targetEntry,
+		entryType1:       transferInEntry,
 
-			if q.Error != nil {
-				return q.Error
-			}
-			if q.RowsAffected == 0 {
-				return ErrTransactionNotFound
-			}
-		}
-
-		if len(targetFields) > 0 {
-			q := store.db.Model(&dbEntry{}).
-				Where("transaction_id = ? AND owner_id = ? AND entry_type = ?", Id, tenant, transferInEntry).
-				Select(targetFields).
-				Updates(targetEntry)
-			if q.Error != nil {
-				return q.Error
-			}
-			if q.RowsAffected == 0 {
-				return ErrTransactionNotFound
-			}
-		}
-
-		if len(originFields) > 0 {
-			q := store.db.Model(&dbEntry{}).
-				Where("transaction_id = ? AND owner_id = ? AND entry_type = ?", Id, tenant, transferOutEntry).
-				Select(originFields).
-				Updates(originEntry)
-			if q.Error != nil {
-				return q.Error
-			}
-			if q.RowsAffected == 0 {
-				return ErrTransactionNotFound
-			}
-		}
-
-		return nil
-	})
-
-	if err != nil {
+		entryType2Fields: originFields,
+		entryType2Values: originEntry,
+		entryType2:       transferOutEntry,
+	}
+	if err := store.writeTxUpdate(wParams, Id, tenant); err != nil {
 		return fmt.Errorf("error updating transaction: %w", err)
 	}
-
 	return nil
 }
 

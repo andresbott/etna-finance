@@ -408,7 +408,7 @@ func TestStore_UpdateIncome(t *testing.T) {
 			name:         "non-cash account error",
 			updateTenant: tenant1,
 			updateInput:  IncomeUpdate{AccountID: ptr(uint(5))},
-			wantErr:      "incompatible account type for Income transaction",
+			wantErr:      "incompatible account type for transaction",
 		},
 
 		// 🚨 No-op
@@ -599,7 +599,7 @@ func TestStore_UpdateExpense(t *testing.T) {
 			name:         "non-cash account error",
 			updateTenant: tenant1,
 			updateInput:  ExpenseUpdate{AccountID: ptr(uint(5))},
-			wantErr:      "incompatible account type for Expense transaction",
+			wantErr:      "incompatible account type for transaction",
 		},
 
 		// 🚨 No-op
@@ -1126,7 +1126,7 @@ func transactionSampleData(t *testing.T, store *Store, data map[int]Transaction)
 
 	// transform the map into a sorted array to have predictable test results
 	var dataKeys []int
-	for k, _ := range data {
+	for k := range data {
 		dataKeys = append(dataKeys, k)
 	}
 	sort.Ints(dataKeys)

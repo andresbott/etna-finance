@@ -265,9 +265,9 @@ func (h *Handler) ListTx(userId string) http.Handler {
 		}
 
 		for i, entry := range entries {
-			switch entry.(type) {
+			switch entry := entry.(type) {
 			case accounting.Income:
-				item := entry.(accounting.Income)
+				item := entry
 				response.Items[i] = transactionPayload{
 					Id:          item.Id,
 					Description: item.Description,
@@ -278,7 +278,7 @@ func (h *Handler) ListTx(userId string) http.Handler {
 					CategoryId:  item.CategoryID,
 				}
 			case accounting.Expense:
-				item := entry.(accounting.Expense)
+				item := entry
 				response.Items[i] = transactionPayload{
 					Id:          item.Id,
 					Description: item.Description,
@@ -289,7 +289,7 @@ func (h *Handler) ListTx(userId string) http.Handler {
 					CategoryId:  item.CategoryID,
 				}
 			case accounting.Transfer:
-				item := entry.(accounting.Transfer)
+				item := entry
 				response.Items[i] = transactionPayload{
 					Id:              item.Id,
 					Description:     item.Description,
