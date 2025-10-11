@@ -108,7 +108,7 @@ func TestSumEntriesByCategories(t *testing.T) {
 	for _, db := range testdbs.DBs() {
 		t.Run(db.DbType(), func(t *testing.T) {
 			dbCon := db.ConnDbName("TestSumEntries")
-			store, err := New(dbCon)
+			store, err := NewStore(dbCon)
 			if err != nil {
 				t.Fatal(err)
 			}

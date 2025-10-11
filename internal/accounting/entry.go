@@ -36,7 +36,7 @@ type dbEntry struct {
 
 type sumResult struct {
 	Sum   float64
-	Count int64
+	Count uint
 }
 
 type sumEntriesOpts struct {

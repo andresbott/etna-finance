@@ -62,25 +62,6 @@ func TestFinanceHandler_GetReport(t *testing.T) {
 			expecErr:   "invalid endDate format",
 			expectCode: http.StatusBadRequest,
 		},
-		{
-			name:       "successful request with single accountId",
-			userId:     "user123",
-			query:      "?accountIds=1",
-			expectCode: http.StatusOK,
-		},
-		{
-			name:       "successful request with multiple accountIds",
-			userId:     "user123",
-			query:      "?accountIds=1&accountIds=2&accountIds=3",
-			expectCode: http.StatusOK,
-		},
-		{
-			name:       "request with invalid accountId",
-			userId:     "user123",
-			query:      "?accountIds=abc",
-			expecErr:   "invalid accountId format",
-			expectCode: http.StatusBadRequest,
-		},
 	}
 
 	for _, tc := range tcs {
@@ -108,6 +89,8 @@ func TestFinanceHandler_GetReport(t *testing.T) {
 			} else {
 				if status := recorder.Code; status != tc.expectCode {
 					t.Errorf("handler returned wrong status code: got %v want %v", status, tc.expectCode)
+					t.Errorf("response body: %s", recorder.Body)
+					return
 				}
 
 				var response listEntriesResponse

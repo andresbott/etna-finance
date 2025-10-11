@@ -65,7 +65,7 @@ import (
 //		t.Run(db.DbType(), func(t *testing.T) {
 //
 //			dbCon := db.ConnDbName("storeCreateEntry")
-//			store, err := New(dbCon)
+//			store, err := NewStore(dbCon)
 //			if err != nil {
 //				t.Fatal(err)
 //			}
@@ -262,7 +262,7 @@ func TestGetCategoryReport(t *testing.T) {
 		t.Run(db.DbType(), func(t *testing.T) {
 
 			dbCon := db.ConnDbName("storeCreateEntry")
-			store, err := New(dbCon)
+			store, err := NewStore(dbCon)
 			if err != nil {
 				t.Fatal(err)
 			}

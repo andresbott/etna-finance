@@ -81,8 +81,8 @@ func (store *Store) CreateCategory(ctx context.Context, cat CategoryData, parent
 
 func (store *Store) UpdateCategory(ctx context.Context, Id uint, cat CategoryData, tenant string) error {
 
+	// TODO refactor to use a struct with pointers for the update
 	var err error
-
 	if cat.Type != IncomeCategory && cat.Type != ExpenseCategory {
 		return ErrWrongCategoryType
 	}
@@ -90,6 +90,9 @@ func (store *Store) UpdateCategory(ctx context.Context, Id uint, cat CategoryDat
 	node := dbCategory{}
 	err = store.categoryTree.GetNode(ctx, Id, tenant, &node)
 	if err != nil {
+		if errors.Is(err, closuretree.ErrNodeNotFound) {
+			return fmt.Errorf("unable to get parent category: %w", ErrCategoryNotFound)
+		}
 		return fmt.Errorf("unable to get parent category: %w", err)
 	}
 	if node.Type != cat.Type {
@@ -110,6 +113,9 @@ func (store *Store) MoveCategory(ctx context.Context, Id, newParentID uint, tena
 	node := dbCategory{}
 	err = store.categoryTree.GetNode(ctx, Id, tenant, &node)
 	if err != nil {
+		if errors.Is(err, closuretree.ErrNodeNotFound) {
+			return fmt.Errorf("unable to get parent category: %w", ErrCategoryNotFound)
+		}
 		return fmt.Errorf("unable to get parent category: %w", err)
 	}
 

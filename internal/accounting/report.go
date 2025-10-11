@@ -21,8 +21,13 @@ type CategoryReportItem struct {
 
 type CategoryReportValues struct {
 	Value float64
-	Count int64
+	Count uint
 }
+
+// TODO there should be another report that converts transactions to the target currency, so that instead of
+// having one report per currency we only have one with the maine currency, this currently depends on having a way
+// to capture currency conversion values over time + calculating the conversion at the time of the transaciton no at the
+// time of generating the report
 
 // ReportOnCategories generates a tree report of all incomes and expenses by grouped categories during the selected time frame
 func (store *Store) ReportOnCategories(ctx context.Context, startDate, endDate time.Time, tenant string) (CategoryReport, error) {

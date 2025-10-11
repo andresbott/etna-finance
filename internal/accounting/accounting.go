@@ -9,12 +9,9 @@ import (
 type Store struct {
 	db           *gorm.DB
 	categoryTree *closuretree.Tree
-
-	AccountColNames         map[string]string // hold a map of struct field names to db column names
-	AccountProviderColNames map[string]string // hold a map of struct field names to db column names
 }
 
-func New(db *gorm.DB) (*Store, error) {
+func NewStore(db *gorm.DB) (*Store, error) {
 	if db == nil {
 		return nil, fmt.Errorf("db cannot be nil")
 	}

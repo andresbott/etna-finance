@@ -140,10 +140,15 @@ func (h *Handler) UpdateTx(Id uint, userId string) http.Handler {
 			return
 		}
 
-		var entry accounting.TransactionUpdate
+		tr, err := h.Store.GetTransaction(r.Context(), Id, userId)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to retrive transaction: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
 
-		switch parseTxType(payload.Type) {
-		case accounting.IncomeTransaction:
+		var entry accounting.TransactionUpdate
+		switch tr.(type) {
+		case accounting.Income:
 			entry = accounting.IncomeUpdate{
 				Description: payload.Description,
 				Date:        payload.Date,
@@ -151,7 +156,7 @@ func (h *Handler) UpdateTx(Id uint, userId string) http.Handler {
 				AccountID:   payload.AccountId,
 				CategoryID:  payload.CategoryId,
 			}
-		case accounting.ExpenseTransaction:
+		case accounting.Expense:
 			entry = accounting.ExpenseUpdate{
 				Description: payload.Description,
 				Date:        payload.Date,
@@ -159,7 +164,7 @@ func (h *Handler) UpdateTx(Id uint, userId string) http.Handler {
 				AccountID:   payload.AccountId,
 				CategoryID:  payload.CategoryId,
 			}
-		case accounting.TransferTransaction:
+		case accounting.Transfer:
 			entry = accounting.TransferUpdate{
 				Description:     payload.Description,
 				Date:            payload.Date,
@@ -170,6 +175,7 @@ func (h *Handler) UpdateTx(Id uint, userId string) http.Handler {
 			}
 		default:
 			http.Error(w, fmt.Sprintf("unknown entry type: %s", payload.Type), http.StatusBadRequest)
+			return
 		}
 
 		err = h.Store.UpdateTransaction(r.Context(), entry, Id, userId)
@@ -185,7 +191,7 @@ func (h *Handler) UpdateTx(Id uint, userId string) http.Handler {
 	})
 }
 
-func (h *Handler) DeleteEntry(Id uint, userId string) http.Handler {
+func (h *Handler) DeleteTx(Id uint, userId string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if userId == "" {
 			http.Error(w, "unable to delete entry: user not provided", http.StatusBadRequest)

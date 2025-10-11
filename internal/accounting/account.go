@@ -183,6 +183,7 @@ var ErrNoChanges = errors.New("no changes were performed")
 // =======================================================================================
 
 var ErrAccountNotFound = errors.New("account not found")
+var ErrAccountContainsEntries = errors.New("account still contains referenced transactions")
 
 type AccountType int
 
@@ -335,7 +336,7 @@ func (store *Store) DeleteAccount(ctx context.Context, Id uint, tenant string) e
 		return fmt.Errorf("failed to check account entries: %w", err)
 	}
 	if count > 0 {
-		return fmt.Errorf("cannot delete account: %d entries still reference it", count)
+		return fmt.Errorf("unable to delete account: %w", ErrAccountContainsEntries)
 	}
 
 	d := store.db.Where("id = ? AND owner_id = ?", Id, tenant).Delete(&dbAccount{})

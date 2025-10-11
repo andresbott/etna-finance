@@ -40,10 +40,10 @@ func TestCreateCategory(t *testing.T) {
 			expectCode:   http.StatusOK,
 		},
 		{
-			name:         "successful with parent id",
+			name:         "assert create child category",
 			userId:       tenant1,
 			categoryType: ExpenseCategoryType,
-			payload:      bytes.NewBuffer([]byte(`{"name":"Groceries", "parentId": 1}`)),
+			payload:      bytes.NewBuffer([]byte(`{"name":"Groceries", "parentId": 3}`)),
 			expectCode:   http.StatusOK,
 		},
 		{
@@ -105,6 +105,8 @@ func TestCreateCategory(t *testing.T) {
 			} else {
 				if status := recorder.Code; status != tc.expectCode {
 					t.Errorf("handler returned wrong status code: got %v want %v", status, tc.expectCode)
+					t.Errorf("response body: %s", recorder.Body)
+					return
 				}
 
 				if tc.categoryType == IncomeCategoryType {
@@ -136,6 +138,7 @@ func TestUpdateCategory(t *testing.T) {
 		name         string
 		userId       string
 		categoryType string
+		categoryId   uint
 		payload      io.Reader
 		expectErr    string
 		expectCode   int
@@ -144,6 +147,7 @@ func TestUpdateCategory(t *testing.T) {
 			name:         "successful income category update",
 			userId:       tenant1,
 			categoryType: IncomeCategoryType,
+			categoryId:   1,
 			payload:      bytes.NewBuffer([]byte(`{"name":"Updated Income"}`)),
 			expectCode:   http.StatusOK,
 		},
@@ -151,6 +155,7 @@ func TestUpdateCategory(t *testing.T) {
 			name:         "successful expense category update",
 			userId:       tenant1,
 			categoryType: ExpenseCategoryType,
+			categoryId:   3,
 			payload:      bytes.NewBuffer([]byte(`{"name":"Updated Expenses"}`)),
 			expectCode:   http.StatusOK,
 		},
@@ -158,6 +163,7 @@ func TestUpdateCategory(t *testing.T) {
 			name:         "empty user id",
 			userId:       "",
 			categoryType: ExpenseCategoryType,
+			categoryId:   3,
 			payload:      bytes.NewBuffer([]byte(`{"name":"Food"}`)),
 			expectErr:    "unable to update category: user not provided",
 			expectCode:   http.StatusBadRequest,
@@ -191,7 +197,7 @@ func TestUpdateCategory(t *testing.T) {
 			userId:       tenant2,
 			categoryType: ExpenseCategoryType,
 			payload:      bytes.NewBuffer([]byte(`{"name":"Food"}`)),
-			expectErr:    "unable to update category in DB: category not found",
+			expectErr:    "unable to update category in DB: unable to get parent category: category not found",
 			expectCode:   http.StatusNotFound,
 		},
 	}
@@ -201,12 +207,9 @@ func TestUpdateCategory(t *testing.T) {
 			h, end := SampleCategoryHandler(t)
 			defer end()
 
-			// First create a category to update
-			var categoryId uint = 1 // We'll use a pre-existing category or create one
-
-			req, _ := http.NewRequest("PATCH", "/api/category/"+strconv.FormatUint(uint64(categoryId), 10), tc.payload)
+			req, _ := http.NewRequest("PATCH", "/api/category/"+strconv.FormatUint(uint64(tc.categoryId), 10), tc.payload)
 			recorder := httptest.NewRecorder()
-			handler := h.updateCategory(categoryId, tc.userId, tc.categoryType)
+			handler := h.updateCategory(tc.categoryId, tc.userId, tc.categoryType)
 			handler.ServeHTTP(recorder, req)
 
 			if tc.expectErr != "" {
@@ -224,6 +227,7 @@ func TestUpdateCategory(t *testing.T) {
 			} else {
 				if status := recorder.Code; status != tc.expectCode {
 					t.Errorf("handler returned wrong status code: got %v want %v", status, tc.expectCode)
+					t.Errorf("response body: %s", recorder.Body)
 				}
 			}
 		})
@@ -290,7 +294,7 @@ func TestMoveCategory(t *testing.T) {
 			userId:       emptyTenant,
 			categoryType: ExpenseCategoryType,
 			payload:      bytes.NewBuffer([]byte(`{"targetParentId": 2}`)),
-			expectErr:    "unable to move category in DB: category not found",
+			expectErr:    "unable to move category in DB: unable to get parent category: category not found",
 			expectCode:   http.StatusNotFound,
 		},
 	}
@@ -421,15 +425,15 @@ func TestListCategory(t *testing.T) {
 			categoryType: ExpenseCategoryType,
 			parentId:     0,
 			expectCode:   http.StatusOK,
-			expectBody:   `{"items":[{"id":1,"name":"Food","description":""},{"id":2,"name":"Transportation","description":""},{"id":3,"parentId":1,"name":"Groceries","description":""}]}`,
+			expectBody:   `{"items":[{"id":3,"name":"Food","description":""},{"id":4,"name":"Transportation","description":""},{"id":5,"parentId":3,"name":"Groceries","description":""}]}`,
 		},
 		{
 			name:         "list child level expenses categories",
 			userId:       tenant1,
 			categoryType: ExpenseCategoryType,
-			parentId:     1,
+			parentId:     3,
 			expectCode:   http.StatusOK,
-			expectBody:   `{"items":[{"id":3,"parentId":1,"name":"Groceries","description":""}]}`,
+			expectBody:   `{"items":[{"id":5,"parentId":3,"name":"Groceries","description":""}]}`,
 		},
 		{
 			name:         "list top level income categories",
@@ -477,7 +481,7 @@ func TestListCategory(t *testing.T) {
 					t.Errorf("handler returned wrong status code: got %v want %v", status, tc.expectCode)
 				}
 				if diff := cmp.Diff(tc.expectBody, gotBody); diff != "" {
-					t.Errorf("unexpected response body (-want +got):\n%s", diff)
+					t.Errorf("unexpected response body (+want -got):\n%s", diff)
 				}
 			}
 		})
@@ -493,7 +497,7 @@ func SampleCategoryHandler(t *testing.T) (*CategoryHandler, func()) {
 		t.Fatalf("unable to connect to sqlite: %v", err)
 	}
 
-	store, err := accounting.New(db)
+	store, err := accounting.NewStore(db)
 	if err != nil {
 		t.Fatalf("unable to connect to finance: %v", err)
 	}

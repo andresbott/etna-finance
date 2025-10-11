@@ -69,7 +69,6 @@ func (h *CategoryHandler) createCategory(userId, categoryType string) http.Handl
 			http.Error(w, fmt.Sprintf("unable to decode json: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
-
 		if payload.Name == "" {
 			http.Error(w, "wrong payload: Name is empty", http.StatusBadRequest)
 			return
@@ -103,6 +102,7 @@ func (h *CategoryHandler) createCategory(userId, categoryType string) http.Handl
 			Name:        data.Name,
 			Description: data.Description,
 		}
+
 		var respJson []byte
 		respJson, err = json.Marshal(category)
 
@@ -166,7 +166,7 @@ func (h *CategoryHandler) updateCategory(Id uint, userId, categoryType string) h
 }
 
 // updateCategory is an internal function taking care of running the update operations and returning an error if anything goes wrong
-func updateCategory(ctx context.Context, Id uint, userId, categoryType string, payload categoryUpdatePayload, store *finance.Store) error {
+func updateCategory(ctx context.Context, Id uint, userId, categoryType string, payload categoryUpdatePayload, store *accounting.Store) error {
 	var err error
 
 	data := accounting.CategoryData{
@@ -187,7 +187,7 @@ func updateCategory(ctx context.Context, Id uint, userId, categoryType string, p
 	}
 
 	if payload.ParentId != nil {
-		err = store.MoveCategory(ctx, Id, *payload.ParentId, data.Type, userId)
+		err = store.MoveCategory(ctx, Id, *payload.ParentId, userId)
 		if err != nil {
 			return err
 		}
@@ -226,12 +226,7 @@ func (h *CategoryHandler) moveCategory(Id uint, userId, categoryType string) htt
 			return
 		}
 
-		if categoryType == IncomeCategoryType {
-			err = h.Store.MoveCategory(r.Context(), Id, payload.TargetParentId, accounting.IncomeCategory, userId)
-		} else {
-			err = h.Store.MoveCategory(r.Context(), Id, payload.TargetParentId, accounting.ExpenseCategory, userId)
-		}
-
+		err = h.Store.MoveCategory(r.Context(), Id, payload.TargetParentId, userId)
 		if err != nil {
 			if errors.As(err, &validationErr) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -268,13 +263,7 @@ func (h *CategoryHandler) deleteRecurseCategory(Id uint, userId, categoryType st
 			return
 		}
 
-		var err error
-		if categoryType == IncomeCategoryType {
-			err = h.Store.DeleteCategoryRecursive(r.Context(), Id, accounting.IncomeCategory, userId)
-		} else {
-			err = h.Store.DeleteCategoryRecursive(r.Context(), Id, accounting.ExpenseCategory, userId)
-		}
-
+		err := h.Store.DeleteCategoryRecursive(r.Context(), Id, userId)
 		if err != nil {
 			if errors.Is(err, accounting.ErrCategoryNotFound) {
 				http.Error(w, err.Error(), http.StatusNotFound)

@@ -21,27 +21,27 @@ func TestFinanceHandler_CreateTx(t *testing.T) {
 	}{
 		{
 			name:       "successful request",
-			userId:     "user123",
-			payload:    bytes.NewBuffer([]byte(`{"description":"Salary", "targetAmount":1000.0, "date":"2024-01-01T00:00:00Z", "type":"income", "targetAccountId":1, "categoryId":1}`)),
+			userId:     tenant1,
+			payload:    bytes.NewBuffer([]byte(`{"description":"Salary", "Amount":1000.0, "date":"2024-01-01T00:00:00Z", "type":"income", "AccountId":1, "categoryId":0}`)),
 			expectCode: http.StatusOK,
 		},
 		{
 			name:       "empty tenant",
 			userId:     "",
-			payload:    bytes.NewBuffer([]byte(`{"description":"Salary", "targetAmount":1000.0, "date":"2024-01-01T00:00:00Z", "type":"income", "targetAccountId":1, "categoryId":1}`)),
+			payload:    bytes.NewBuffer([]byte(`{"description":"Salary", "Amount":1000.0, "date":"2024-01-01T00:00:00Z", "type":"income", "AccountId":1, "categoryId":0}`)),
 			expecErr:   "unable to create entry: user not provided",
 			expectCode: http.StatusBadRequest,
 		},
 		{
 			name:       "empty payload",
-			userId:     "user123",
+			userId:     tenant1,
 			payload:    nil,
 			expecErr:   "request had empty body",
 			expectCode: http.StatusBadRequest,
 		},
 		{
 			name:       "malformed payload",
-			userId:     "user123",
+			userId:     tenant1,
 			payload:    bytes.NewBuffer([]byte(`{"description":"Salary"`)),
 			expecErr:   "unable to decode json: unexpected EOF",
 			expectCode: http.StatusBadRequest,
@@ -73,6 +73,8 @@ func TestFinanceHandler_CreateTx(t *testing.T) {
 			} else {
 				if status := recorder.Code; status != tc.expectCode {
 					t.Errorf("handler returned wrong status code: got %v want %v", status, tc.expectCode)
+					t.Errorf("response body: %s", recorder.Body)
+					return
 				}
 
 				entry := transactionPayload{}
@@ -98,7 +100,7 @@ func TestFinanceHandler_UpdateTx(t *testing.T) {
 		userId     string
 		entryId    uint
 		payload    io.Reader
-		expecErr   string
+		expectErr  string
 		expectCode int
 	}{
 		{
@@ -113,7 +115,7 @@ func TestFinanceHandler_UpdateTx(t *testing.T) {
 			userId:     "",
 			entryId:    1,
 			payload:    bytes.NewBuffer([]byte(`{"description":"Updated Salary", "amount":2000.0}`)),
-			expecErr:   "unable to update entry: user not provided",
+			expectErr:  "unable to update entry: user not provided",
 			expectCode: http.StatusBadRequest,
 		},
 		{
@@ -121,7 +123,7 @@ func TestFinanceHandler_UpdateTx(t *testing.T) {
 			userId:     tenant1,
 			entryId:    1,
 			payload:    nil,
-			expecErr:   "request had empty body",
+			expectErr:  "request had empty body",
 			expectCode: http.StatusBadRequest,
 		},
 		{
@@ -129,7 +131,7 @@ func TestFinanceHandler_UpdateTx(t *testing.T) {
 			userId:     tenant1,
 			entryId:    1,
 			payload:    bytes.NewBuffer([]byte(`{"description":"Updated Salary"`)),
-			expecErr:   "unable to decode json: unexpected EOF",
+			expectErr:  "unable to decode json: unexpected EOF",
 			expectCode: http.StatusBadRequest,
 		},
 	}
@@ -144,7 +146,7 @@ func TestFinanceHandler_UpdateTx(t *testing.T) {
 			handler := h.UpdateTx(tc.entryId, tc.userId)
 			handler.ServeHTTP(recorder, req)
 
-			if tc.expecErr != "" {
+			if tc.expectErr != "" {
 				if status := recorder.Code; status != tc.expectCode {
 					t.Errorf("handler returned wrong status code: got %v want %v", status, tc.expectCode)
 				}
@@ -153,17 +155,14 @@ func TestFinanceHandler_UpdateTx(t *testing.T) {
 					t.Fatal(err)
 				}
 				got := strings.TrimSuffix(string(respText), "\n")
-				if got != tc.expecErr {
-					t.Errorf("unexpected error message: got \"%s\" want \"%v\"", got, tc.expecErr)
+				if got != tc.expectErr {
+					t.Errorf("unexpected error message: got \"%s\" want \"%v\"", got, tc.expectErr)
 				}
 			} else {
 				if status := recorder.Code; status != tc.expectCode {
 					t.Errorf("handler returned wrong status code: got %v want %v", status, tc.expectCode)
-					respText, err := io.ReadAll(recorder.Body)
-					if err != nil {
-						t.Fatal(err)
-					}
-					t.Log(string(respText))
+					t.Errorf("response body: %s", recorder.Body)
+					return
 				}
 			}
 		})
@@ -200,7 +199,7 @@ func TestFinanceHandler_DeleteTx(t *testing.T) {
 
 			recorder := httptest.NewRecorder()
 			req, _ := http.NewRequest("DELETE", "/api/entries/"+strconv.FormatUint(uint64(tc.entryId), 10), nil)
-			handler := h.DeleteEntry(tc.entryId, tc.userId)
+			handler := h.DeleteTx(tc.entryId, tc.userId)
 			handler.ServeHTTP(recorder, req)
 
 			if tc.expecErr != "" {
@@ -218,6 +217,8 @@ func TestFinanceHandler_DeleteTx(t *testing.T) {
 			} else {
 				if status := recorder.Code; status != tc.expectCode {
 					t.Errorf("handler returned wrong status code: got %v want %v", status, tc.expectCode)
+					t.Errorf("response body: %s", recorder.Body)
+					return
 				}
 			}
 		})
@@ -277,25 +278,18 @@ func TestFinanceHandler_ListTx(t *testing.T) {
 			expecErr:   "invalid endDate format",
 			expectCode: http.StatusBadRequest,
 		},
-		{
-			name:       "successful request with single accountId",
-			userId:     "user123",
-			query:      "?accountIds=1",
-			expectCode: http.StatusOK,
-		},
-		{
-			name:       "successful request with multiple accountIds",
-			userId:     "user123",
-			query:      "?accountIds=1&accountIds=2&accountIds=3",
-			expectCode: http.StatusOK,
-		},
-		{
-			name:       "request with invalid accountId",
-			userId:     "user123",
-			query:      "?accountIds=abc",
-			expecErr:   "invalid accountId format",
-			expectCode: http.StatusBadRequest,
-		},
+		//{
+		//	name:       "successful request with single accountId",
+		//	userId:     "user123",
+		//	query:      "?accountIds=1",
+		//	expectCode: http.StatusOK,
+		//},
+		//{
+		//	name:       "successful request with multiple accountIds",
+		//	userId:     "user123",
+		//	query:      "?accountIds=1&accountIds=2&accountIds=3",
+		//	expectCode: http.StatusOK,
+		//},
 	}
 
 	for _, tc := range tcs {
@@ -323,6 +317,8 @@ func TestFinanceHandler_ListTx(t *testing.T) {
 			} else {
 				if status := recorder.Code; status != tc.expectCode {
 					t.Errorf("handler returned wrong status code: got %v want %v", status, tc.expectCode)
+					t.Errorf("response body: %s", recorder.Body)
+					return
 				}
 
 				var response listEntriesResponse

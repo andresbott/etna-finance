@@ -3,7 +3,7 @@ package router
 import (
 	"fmt"
 	finHandler "github.com/andresbott/etna/app/router/handlers/finance"
-	"github.com/andresbott/etna/internal/model/finance"
+	"github.com/andresbott/etna/internal/accounting"
 	"github.com/go-bumbu/userauth/authenticator"
 	"github.com/go-bumbu/userauth/handlers/sessionauth"
 	"github.com/gorilla/mux"
@@ -17,7 +17,7 @@ func (h *MainAppHandler) attachApiV0(r *mux.Router) error {
 	auth := authenticator.New(authHandlers, h.logger, nil, nil)
 
 	r.Use(auth.Middleware)
-	err := h.financeApi(r)
+	err := h.accountingAPI(r)
 	if err != nil {
 		return err
 	}
@@ -38,9 +38,9 @@ const finReport = "/fin/report"
 // I haven't put too much thought into it for now and I will change it in the future
 //
 //nolint:gocognit,gocyclo // the function is quite big and verbose but easy to follow
-func (h *MainAppHandler) financeApi(r *mux.Router) error {
+func (h *MainAppHandler) accountingAPI(r *mux.Router) error {
 
-	fineStore, err := finance.New(h.db)
+	fineStore, err := accounting.NewStore(h.db)
 	if err != nil {
 		return fmt.Errorf("unable to create tags Store :%v", err)
 	}
@@ -266,7 +266,7 @@ func (h *MainAppHandler) financeApi(r *mux.Router) error {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
-		finHndlr.ListEntries(userData.UserId).ServeHTTP(w, r)
+		finHndlr.ListTx(userData.UserId).ServeHTTP(w, r)
 	})
 
 	r.Path(finEntries).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -307,16 +307,7 @@ func (h *MainAppHandler) financeApi(r *mux.Router) error {
 			return
 		}
 
-		finHndlr.DeleteEntry(itemId, userData.UserId).ServeHTTP(w, r)
-	})
-
-	r.Path(fmt.Sprintf("%s/lock", finEntries)).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userData, err := sessionauth.CtxGetUserData(r)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
-			return
-		}
-		finHndlr.LockEntries(userData.UserId).ServeHTTP(w, r)
+		finHndlr.DeleteTx(itemId, userData.UserId).ServeHTTP(w, r)
 	})
 
 	// ==========================================================================

@@ -349,6 +349,9 @@ func (h *Handler) DeleteAccount(Id uint, userId string) http.Handler {
 		if err != nil {
 			if errors.Is(err, accounting.ErrAccountNotFound) {
 				http.Error(w, err.Error(), http.StatusNotFound)
+
+			} else if errors.Is(err, accounting.ErrAccountContainsEntries) {
+				http.Error(w, err.Error(), http.StatusBadRequest)
 			} else {
 				http.Error(w, fmt.Sprintf("unable to delete account: %s", err.Error()), http.StatusInternalServerError)
 			}
