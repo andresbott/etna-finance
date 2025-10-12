@@ -408,7 +408,7 @@ func TestStore_UpdateIncome(t *testing.T) {
 			name:         "non-cash account error",
 			updateTenant: tenant1,
 			updateInput:  IncomeUpdate{AccountID: ptr(uint(5))},
-			wantErr:      "incompatible account type for transaction",
+			wantErr:      "incompatible account type 'Investment' for transaction",
 		},
 
 		// 🚨 No-op
@@ -599,7 +599,7 @@ func TestStore_UpdateExpense(t *testing.T) {
 			name:         "non-cash account error",
 			updateTenant: tenant1,
 			updateInput:  ExpenseUpdate{AccountID: ptr(uint(5))},
-			wantErr:      "incompatible account type for transaction",
+			wantErr:      "incompatible account type 'Investment' for transaction",
 		},
 
 		// 🚨 No-op
@@ -809,13 +809,13 @@ func TestStore_UpdateTransfer(t *testing.T) {
 			name:         "non-cash target account error",
 			updateTenant: tenant1,
 			updateInput:  TransferUpdate{TargetAccountID: ptr(uint(5))},
-			wantErr:      "incompatible account type for Transfer transaction",
+			wantErr:      "incompatible account type 'Investment' for transaction",
 		},
 		{
 			name:         "non-cash origin account error",
 			updateTenant: tenant1,
 			updateInput:  TransferUpdate{OriginAccountID: ptr(uint(5))},
-			wantErr:      "incompatible account type for Transfer transaction",
+			wantErr:      "incompatible account type 'Investment' for transaction",
 		},
 
 		// 🚨 No-op

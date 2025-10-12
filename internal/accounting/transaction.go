@@ -510,7 +510,7 @@ func (store *Store) updateIncomeExpense(ctx context.Context, params updateIncome
 			CashAccountType, CheckinAccountType,
 		}
 		if !slices.Contains(allowedAccountTypes, acc.Type) {
-			return NewValidationErr(fmt.Sprintf("incompatible account type %s for transaction", acc.Type.String()))
+			return NewValidationErr(fmt.Sprintf("incompatible account type '%s' for transaction", acc.Type.String()))
 		}
 
 		updateEntry.AccountID = *params.accountID
@@ -527,9 +527,9 @@ func (store *Store) updateIncomeExpense(ctx context.Context, params updateIncome
 			if cat.Type != params.expectedCategoryType {
 				return NewValidationErr("incompatible category type for transaction")
 			}
-			updateEntry.CategoryID = *params.categoryID
-			selectedEntryFields = append(selectedEntryFields, "CategoryID")
 		}
+		updateEntry.CategoryID = *params.categoryID
+		selectedEntryFields = append(selectedEntryFields, "CategoryID")
 	}
 	if len(selectedFields) == 0 && len(selectedEntryFields) == 0 {
 		return ErrNoChanges
@@ -659,7 +659,7 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 			return fmt.Errorf("error creating transaction: %w", err)
 		}
 		if !slices.Contains(allowedAccountTypes, acc.Type) {
-			return NewValidationErr(fmt.Sprintf("incompatible account type %s for transaction", acc.Type.String()))
+			return NewValidationErr(fmt.Sprintf("incompatible account type '%s' for transaction", acc.Type.String()))
 		}
 		targetEntry.AccountID = *input.TargetAccountID
 		targetFields = append(targetFields, "AccountID")
@@ -686,7 +686,7 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 			return fmt.Errorf("error creating transaction: %w", err)
 		}
 		if !slices.Contains(allowedAccountTypes, acc.Type) {
-			return NewValidationErr(fmt.Sprintf("incompatible account type %s for transaction", acc.Type.String()))
+			return NewValidationErr(fmt.Sprintf("incompatible account type '%s' for transaction", acc.Type.String()))
 		}
 		originEntry.AccountID = *input.OriginAccountID
 		originFields = append(originFields, "AccountID")

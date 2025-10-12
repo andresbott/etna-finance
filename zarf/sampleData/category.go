@@ -29,11 +29,13 @@ type CategoryResponse struct {
 // createCategory posts a category to the API and returns the generated ID
 func createCategory(baseURL string, categoryType string, category Category) (int, error) {
 	var url string
-	if categoryType == "expense" {
+
+	switch categoryType {
+	case "expense":
 		url = fmt.Sprintf("%s/api/v0/fin/category/expense", baseURL)
-	} else if categoryType == "income" {
+	case "income":
 		url = fmt.Sprintf("%s/api/v0/fin/category/income", baseURL)
-	} else {
+	default:
 		return 0, fmt.Errorf("invalid category type: %s", categoryType)
 	}
 
@@ -48,7 +50,12 @@ func createCategory(baseURL string, categoryType string, category Category) (int
 	if err != nil {
 		return 0, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		e := resp.Body.Close()
+		if e != nil {
+			panic(e)
+		}
+	}()
 
 	if resp.StatusCode >= 300 {
 		data, _ := io.ReadAll(resp.Body)

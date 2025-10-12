@@ -1,11 +1,7 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"time"
 )
 
@@ -53,29 +49,11 @@ type EntryDefinition struct {
 func createEntry(baseURL string, entry Entry) (uint, error) {
 	url := fmt.Sprintf("%s/api/v0/fin/entries", baseURL)
 
-	body, _ := json.Marshal(entry)
-	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(body))
-	req.Header.Set("Content-Type", "application/json")
-	if authCookie != nil {
-		req.AddCookie(authCookie)
-	}
-
-	resp, err := client.Do(req)
+	var entryResp Entry
+	err := postJSON(url, entry, &entryResp)
 	if err != nil {
 		return 0, err
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 300 {
-		data, _ := io.ReadAll(resp.Body)
-		return 0, fmt.Errorf("createEntry failed: %s", data)
-	}
-
-	var entryResp Entry
-	if err := json.NewDecoder(resp.Body).Decode(&entryResp); err != nil {
-		return 0, err
-	}
-
 	return entryResp.ID, nil
 }
 
@@ -87,6 +65,7 @@ func deltaTime(daysDelta int) time.Time {
 // findCategoryID searches for a category by name in the given category map and returns the category ID
 func findCategoryID(categoryName string, categoryMap map[string]int) (uint, error) {
 	if id, exists := categoryMap[categoryName]; exists {
+		//nolint: gosec // only sample data
 		return uint(id), nil
 	}
 	return 0, fmt.Errorf("category '%s' not found", categoryName)
@@ -113,7 +92,7 @@ func convertEntryDefinitionToEntry(def EntryDefinition, expenseCategoryMap, inco
 		}
 
 		entry.Amount = def.Amount
-		entry.AccountId = uint(accountID)
+		entry.AccountId = uint(accountID) //nolint: gosec // only sample data
 		entry.CategoryId = categoryID
 
 	case "expense":
@@ -128,7 +107,7 @@ func convertEntryDefinitionToEntry(def EntryDefinition, expenseCategoryMap, inco
 		}
 
 		entry.Amount = def.Amount
-		entry.AccountId = uint(accountID)
+		entry.AccountId = uint(accountID) //nolint: gosec // only sample data
 		entry.CategoryId = categoryID
 
 	case "transfer":
@@ -143,9 +122,9 @@ func convertEntryDefinitionToEntry(def EntryDefinition, expenseCategoryMap, inco
 		}
 
 		entry.OriginAmount = def.OriginAmount
-		entry.OriginAccountID = uint(originAccountID)
+		entry.OriginAccountID = uint(originAccountID) //nolint: gosec // only sample data
 		entry.TargetAmount = def.TargetAmount
-		entry.TargetAccountID = uint(targetAccountID)
+		entry.TargetAccountID = uint(targetAccountID) //nolint: gosec // only sample data
 
 	default:
 		return Entry{}, fmt.Errorf("unknown entry type: %s", def.Type)

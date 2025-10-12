@@ -426,12 +426,12 @@ func TestCreateAccount(t *testing.T) {
 					t.Errorf("handler returned wrong status code: got %v want %v", status, tc.expectCode)
 				}
 
-				acc := accounting.Account{}
+				acc := accountPayload{}
 				err := json.NewDecoder(recorder.Body).Decode(&acc)
 				if err != nil {
 					t.Fatal(err)
 				}
-				if acc.ID == 0 {
+				if acc.Id == 0 {
 					t.Error("returned account ID is empty")
 				}
 			}

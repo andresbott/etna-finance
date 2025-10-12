@@ -126,7 +126,12 @@ func login(baseURL, username, password string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		e := resp.Body.Close()
+		if e != nil {
+			panic(e)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		data, _ := io.ReadAll(resp.Body)
@@ -144,7 +149,7 @@ func login(baseURL, username, password string) error {
 }
 
 // postJSON is a helper that performs authenticated JSON POST requests
-func postJSON(url string, payload interface{}) error {
+func postJSON(url string, payload, response interface{}) error {
 	body, _ := json.Marshal(payload)
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
@@ -161,11 +166,22 @@ func postJSON(url string, payload interface{}) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		e := resp.Body.Close()
+		if e != nil {
+			panic(e)
+		}
+	}()
 
 	if resp.StatusCode >= 300 {
 		data, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("POST %s failed: %s", url, data)
+	}
+
+	if response != nil {
+		if err := json.NewDecoder(resp.Body).Decode(response); err != nil {
+			return err
+		}
 	}
 
 	return nil
