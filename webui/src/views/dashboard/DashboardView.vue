@@ -1,7 +1,6 @@
 <script setup>
 import {
     VerticalLayout,
-    HorizontalLayout,
     Placeholder,
     ResponsiveHorizontal
 } from '@go-bumbu/vue-layouts'
@@ -10,7 +9,6 @@ import TopBar from '@/views/topbar.vue'
 import { useUserStore } from '@/lib/user/userstore.js'
 import { onMounted, ref, computed } from 'vue'
 import Card from 'primevue/card'
-import Button from 'primevue/button'
 import Chart from 'primevue/chart'
 import { useAccounts } from '@/composables/useAccounts.js'
 

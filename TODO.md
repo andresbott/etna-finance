@@ -1,17 +1,39 @@
 # TODO
-* entries in the backed and filtered by account ID depending on query parameters
-* entries pagination handled by the backend
-* categories
-  * crud on categories both backend and frondend
-  * modify dialogs to support slection of categorie4s
 
-# Brain dump
+## CSV import
+* new dialog to upload CSV
+  * select account
+* new backend that processes CSV and generates  entries list
+  * apply text to category 
+  * search for duplicates
+  * apply / return errors
+  
+* new View that allows to define import rules per account
+  * rules are like, N column => field mapping
+  * column name => field name
+  * list of description regex to category mapping 
+  * mandatory fields
+    * amount
+    * date
+    * description
+## Currency
+* expose available currencies in the config file, use fallback as default
 
+## CI
+add goreleaser to build and create the releases
+
+## Backup restore
 * backup/restore
   * use a background scheduled anacron job to generate backups
   * backup is a json dump of the tables + dump version
   * to import we keep importers in place for every version, like migration
   * the startup process should check for DB changes and do a backup/import if there is a change
+
+# Brain dump
+* maintenance
+  * add maintenance job that will check if there are entries assigned to a non-existing category and assigng them to the root category
+    * add a log message to the job
+  * make sure that you can't delete a category that has entries
 
 * movements
   * income uses:  target account, amount, currency and category
@@ -59,11 +81,7 @@
   * tree
   * name
   * icons
-* CRUD Account entry, 
-  * proper date handling, using unix timestamp
-  * proper currency handling (using account currency (?))
-  * classification => tree  
-  * add filter for account
+
 * Report
   * Generate tree balance
   * View with current status

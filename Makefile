@@ -20,7 +20,7 @@ COVERAGE_THRESHOLD ?= 70
 .PHONY: coverage
 coverage:
 	@fail=0; \
-	for pkg in $$(go list ./internal/...); do \
+	for pkg in $$(go list ./internal/... ./libs/...); do \
 		go test -coverprofile=coverage.out -covermode=atomic $$pkg > /dev/null; \
 		if [ -f coverage.out ]; then \
 			coverage=$$(go tool cover -func=coverage.out | grep total: | awk '{print $$3}' | sed 's/%//'); \
@@ -59,6 +59,9 @@ run: ## start the GO service
 	@APP_LOG_LEVEL="debug" go run main.go start -c zarf/appData/config.yaml
 
 run-ui: package-ui run## build the UI and start the GO service
+
+sampledata: ## create sample data on a running instance
+	@go run zarf/sampleData/*.go
 
 #==========================================================================================
 ##@ Building

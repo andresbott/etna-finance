@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/andresbott/etna/internal/model/finance"
+	"github.com/andresbott/etna/internal/accounting"
 	"github.com/glebarez/sqlite"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -92,7 +92,7 @@ func TestCreateAccountProvider(t *testing.T) {
 					t.Errorf("handler returned wrong status code: got %v want %v", status, tc.expectCode)
 				}
 
-				acc := finance.Account{}
+				acc := accounting.Account{}
 				err := json.NewDecoder(recorder.Body).Decode(&acc)
 				if err != nil {
 					t.Fatal(err)
@@ -201,7 +201,7 @@ func TestDeleteAccountProvider(t *testing.T) {
 		},
 		{
 			name:       "error when providers still has accounts",
-			deleteID:   1, // id 3 does not have accounts associated
+			deleteID:   1,
 			user:       tenant1,
 			expectErr:  "unable to delete account provider: account constraint violation",
 			expectCode: http.StatusConflict,
@@ -209,22 +209,22 @@ func TestDeleteAccountProvider(t *testing.T) {
 		{
 			name:       "missing user",
 			user:       "",
-			deleteID:   1, // id 3 does not have accounts associated
+			deleteID:   1,
 			expectErr:  "unable to get account: user not provided",
 			expectCode: http.StatusBadRequest,
 		},
 		{
 			name:       "wrong user",
-			deleteID:   1, // id 3 does not have accounts associated
+			deleteID:   1,
 			user:       emptyTenant,
-			expectErr:  finance.ErrAccountProviderNotFound.Error(),
+			expectErr:  accounting.ErrAccountProviderNotFound.Error(),
 			expectCode: http.StatusNotFound,
 		},
 		{
 			name:       "non-existent account",
 			user:       tenant1,
 			deleteID:   9999,
-			expectErr:  finance.ErrAccountProviderNotFound.Error(),
+			expectErr:  accounting.ErrAccountProviderNotFound.Error(),
 			expectCode: http.StatusNotFound,
 		},
 	}
@@ -426,7 +426,7 @@ func TestCreateAccount(t *testing.T) {
 					t.Errorf("handler returned wrong status code: got %v want %v", status, tc.expectCode)
 				}
 
-				acc := finance.Account{}
+				acc := accounting.Account{}
 				err := json.NewDecoder(recorder.Body).Decode(&acc)
 				if err != nil {
 					t.Fatal(err)
@@ -489,7 +489,7 @@ func TestUpdateAccount(t *testing.T) {
 
 			// Create a new account to get an ID
 			accountId, err := h.Store.CreateAccount(context.Background(),
-				finance.Account{Name: "Initial", Currency: currency.USD, AccountProviderID: 1}, tenant1)
+				accounting.Account{Name: "Initial", Currency: currency.USD, AccountProviderID: 1}, tenant1)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -531,8 +531,15 @@ func TestDeleteAccount(t *testing.T) {
 		{
 			name:       "successful deletion",
 			user:       tenant1,
-			deleteID:   1,
+			deleteID:   4, // account 4 does not have any entries linked,
 			expectCode: http.StatusOK,
+		},
+		{
+			name:       "expect error",
+			user:       tenant1,
+			deleteID:   1,
+			expectErr:  "unable to delete account: account still contains referenced transactions",
+			expectCode: http.StatusBadRequest,
 		},
 		{
 			name:       "missing user",
@@ -545,7 +552,7 @@ func TestDeleteAccount(t *testing.T) {
 			name:       "non-existent account",
 			user:       tenant1,
 			deleteID:   9999,
-			expectErr:  finance.ErrAccountNotFound.Error(),
+			expectErr:  accounting.ErrAccountNotFound.Error(),
 			expectCode: http.StatusNotFound,
 		},
 	}
@@ -608,7 +615,7 @@ func SampleHandler(t *testing.T) (*Handler, func()) {
 		t.Fatalf("unable to connect to sqlite: %v", err)
 	}
 
-	store, err := finance.New(db)
+	store, err := accounting.NewStore(db)
 	if err != nil {
 		t.Fatalf("unable to connect to finance: %v", err)
 	}
@@ -632,58 +639,52 @@ func SampleHandler(t *testing.T) (*Handler, func()) {
 	return &bkmh, closeFn
 }
 
-var sampleAccountProviders = []finance.AccountProvider{
-	{Name: "provider1", Description: "provider1", Accounts: []finance.Account{}}, // 1
-	{Name: "provider2", Description: "provider2", Accounts: []finance.Account{}}, // 2
-	{Name: "provider3", Description: "provider3", Accounts: []finance.Account{}}, // 3 does not have accounts
+var sampleAccountProviders = []accounting.AccountProvider{
+	{Name: "provider1", Description: "provider1", Accounts: []accounting.Account{}}, // 1
+	{Name: "provider2", Description: "provider2", Accounts: []accounting.Account{}}, // 2
+	{Name: "provider3", Description: "provider3", Accounts: []accounting.Account{}}, // 3 does not have accounts
 }
 
-var sampleAccountProviders2 = []finance.AccountProvider{
-	{Name: "provider4_tenant2", Description: "provider4t2", Accounts: []finance.Account{}}, // 4
+var sampleAccountProviders2 = []accounting.AccountProvider{
+	{Name: "provider4_tenant2", Description: "provider4t2", Accounts: []accounting.Account{}}, // 4
 }
 
-var sampleAccounts = []finance.Account{
-	{ID: 1, Name: "acc1", Currency: currency.EUR, Type: finance.Cash, AccountProviderID: 1},
-	{ID: 2, Name: "acc2", Currency: currency.USD, Type: finance.Cash, AccountProviderID: 2},
-	{ID: 3, Name: "acc3", Currency: currency.EUR, Type: finance.Cash, AccountProviderID: 1},
-	{ID: 3, Name: "acc4", Currency: currency.EUR, Type: finance.Cash, AccountProviderID: 1},
-	{ID: 4, Name: "acc5", Currency: currency.EUR, Type: finance.Cash, AccountProviderID: 1},
+var sampleAccounts = []accounting.Account{
+	{ID: 1, Name: "acc1", Currency: currency.EUR, Type: accounting.CashAccountType, AccountProviderID: 1},
+	{ID: 2, Name: "acc2", Currency: currency.USD, Type: accounting.CashAccountType, AccountProviderID: 2},
+	{ID: 3, Name: "acc3", Currency: currency.EUR, Type: accounting.CashAccountType, AccountProviderID: 1},
+	{ID: 3, Name: "acc4", Currency: currency.EUR, Type: accounting.CashAccountType, AccountProviderID: 1},
+	{ID: 4, Name: "acc5", Currency: currency.EUR, Type: accounting.CashAccountType, AccountProviderID: 1},
 }
 
-var sampleEntries = []finance.Entry{
-	{Description: "e1", TargetAmount: 1, Type: finance.ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-01 00:00:00")}, // 1
-	{Description: "e2", TargetAmount: 2, Type: finance.ExpenseEntry, Date: getTime("2025-01-02 00:00:00"),
-		TargetAccountID: 1, TargetAccountName: "acc1"},
-	{Description: "e3", TargetAmount: 3, Type: finance.ExpenseEntry, Date: getTime("2025-01-03 00:00:00"),
-		TargetAccountID: 2, TargetAccountName: "acc2"},
-	{Description: "e4", TargetAmount: 4, Type: finance.ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-04 00:00:00")},
-	{Description: "e5", TargetAmount: 5, Type: finance.ExpenseEntry, Date: getTime("2025-01-05 00:00:00"),
-		TargetAccountID: 2, TargetAccountName: "acc2"},
-	{Description: "e6", TargetAmount: 6, Type: finance.ExpenseEntry, Date: getTime("2025-01-06 00:00:00"),
-		TargetAccountID: 1, TargetAccountName: "acc1"},
-	{Description: "e7", TargetAmount: 7, Type: finance.ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-07 00:00:00")},
-	{Description: "e8", TargetAmount: 8, Type: finance.ExpenseEntry, Date: getTime("2025-01-08 00:00:00"),
-		TargetAccountID: 2, TargetAccountName: "acc2"},
-	{Description: "e9", TargetAmount: 9, Type: finance.ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-09 00:00:00")},
-	{Description: "e10", TargetAmount: 10, OriginAmount: 4.5, Type: finance.TransferEntry, Date: getTime("2025-01-10 00:00:00"),
-		TargetAccountID: 2, TargetAccountName: "acc2", OriginAccountID: 1, OriginAccountName: "acc1"},
-	{Description: "e11", TargetAmount: 10, Type: finance.ExpenseEntry, TargetAccountID: 1, TargetAccountName: "acc1", Date: getTime("2025-01-11 00:00:00")},
-	{Description: "e12", TargetAmount: 10, Type: finance.ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-12 00:00:00")},
-	{Description: "e13", TargetAmount: 10, Type: finance.ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-13 00:00:00")},
-	{Description: "e14", TargetAmount: 10, Type: finance.ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-14 00:00:00")},
-	{Description: "e14", TargetAmount: 10, Type: finance.ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-15 00:00:00")},
-	{Description: "e15", TargetAmount: 10, Type: finance.ExpenseEntry, TargetAccountID: 1, Date: getTime("2025-01-16 00:00:00")},
+var sampleEntries = []accounting.Transaction{
+	accounting.Expense{Description: "e1", Amount: 1, AccountID: 1, Date: getTime("2025-01-01 00:00:00")},
+	accounting.Expense{Description: "e2", Amount: 2, AccountID: 1, Date: getTime("2025-01-02 00:00:00")},
+	accounting.Expense{Description: "e3", Amount: 3, AccountID: 2, Date: getTime("2025-01-03 00:00:00")},
+	accounting.Expense{Description: "e4", Amount: 4, AccountID: 1, Date: getTime("2025-01-04 00:00:00")},
+	accounting.Expense{Description: "e5", Amount: 5, AccountID: 2, Date: getTime("2025-01-05 00:00:00")},
+	accounting.Expense{Description: "e6", Amount: 6, AccountID: 1, Date: getTime("2025-01-06 00:00:00")},
+	accounting.Expense{Description: "e7", Amount: 7, AccountID: 1, Date: getTime("2025-01-07 00:00:00")},
+	accounting.Expense{Description: "e8", Amount: 8, AccountID: 2, Date: getTime("2025-01-08 00:00:00")},
+	accounting.Expense{Description: "e9", Amount: 9, AccountID: 1, Date: getTime("2025-01-09 00:00:00")},
+	accounting.Expense{Description: "e10", Amount: 10, AccountID: 2, Date: getTime("2025-01-10 00:00:00")},
+	accounting.Expense{Description: "e11", Amount: 10, AccountID: 1, Date: getTime("2025-01-11 00:00:00")},
+	accounting.Expense{Description: "e12", Amount: 10, AccountID: 1, Date: getTime("2025-01-12 00:00:00")},
+	accounting.Expense{Description: "e13", Amount: 10, AccountID: 1, Date: getTime("2025-01-13 00:00:00")},
+	accounting.Expense{Description: "e14", Amount: 10, AccountID: 1, Date: getTime("2025-01-14 00:00:00")},
+	accounting.Expense{Description: "e14", Amount: 10, AccountID: 1, Date: getTime("2025-01-15 00:00:00")},
+	accounting.Expense{Description: "e15", Amount: 10, AccountID: 1, Date: getTime("2025-01-16 00:00:00")},
 }
 
-var sampleAccounts2 = []finance.Account{
-	{ID: 6, Name: "acc1tenant2", Currency: currency.EUR, Type: 0, AccountProviderID: 4},
+var sampleAccounts2 = []accounting.Account{
+	{ID: 6, Name: "acc1tenant2", Currency: currency.EUR, Type: accounting.CashAccountType, AccountProviderID: 4},
 }
-var sampleEntries2 = []finance.Entry{
-	{Description: "t2e13", TargetAmount: 10, Type: finance.ExpenseEntry, TargetAccountID: 6, Date: getTime("2025-01-13 00:00:00")},
-	{Description: "t2e14", TargetAmount: 10, Type: finance.ExpenseEntry, TargetAccountID: 6, Date: getTime("2025-01-14 00:00:00")},
-	{Description: "t2e15", TargetAmount: 10, Type: finance.ExpenseEntry, TargetAccountID: 6, TargetAccountName: "acc1tenant2", Date: getTime("2025-01-15 00:00:00")},
-	{Description: "t2e16", TargetAmount: 10, Type: finance.ExpenseEntry, TargetAccountID: 6, TargetAccountName: "acc1tenant2", Date: getTime("2025-01-16 00:00:00")},
-	{Description: "t2e17", TargetAmount: 10, Type: finance.ExpenseEntry, TargetAccountID: 6, Date: getTime("2025-02-17 00:00:00")},
+var sampleEntries2 = []accounting.Transaction{
+	accounting.Expense{Description: "t2e13", Amount: 10, AccountID: 6, Date: getTime("2025-01-13 00:00:00")},
+	accounting.Expense{Description: "t2e14", Amount: 10, AccountID: 6, Date: getTime("2025-01-14 00:00:00")},
+	accounting.Expense{Description: "t2e15", Amount: 10, AccountID: 6, Date: getTime("2025-01-15 00:00:00")},
+	accounting.Expense{Description: "t2e16", Amount: 10, AccountID: 6, Date: getTime("2025-01-16 00:00:00")},
+	accounting.Expense{Description: "t2e17", Amount: 10, AccountID: 6, Date: getTime("2025-02-17 00:00:00")},
 }
 
 const (
@@ -692,7 +693,7 @@ const (
 	emptyTenant = "tenantEmpty"
 )
 
-func sampleData(t *testing.T, store *finance.Store) {
+func sampleData(t *testing.T, store *accounting.Store) {
 	ctx := context.Background()
 
 	// =========================================
@@ -759,14 +760,14 @@ func sampleData(t *testing.T, store *finance.Store) {
 	// =========================================
 
 	for _, entry := range sampleEntries {
-		_, err = store.CreateEntry(context.Background(), entry, tenant1)
+		_, err = store.CreateTransaction(context.Background(), entry, tenant1)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	for _, entry := range sampleEntries2 {
-		_, err = store.CreateEntry(context.Background(), entry, tenant2)
+		_, err = store.CreateTransaction(context.Background(), entry, tenant2)
 		if err != nil {
 			t.Fatal(err)
 		}

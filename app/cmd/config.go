@@ -1,4 +1,4 @@
-package config
+package cmd
 
 import (
 	"fmt"
@@ -91,7 +91,7 @@ type Msg struct {
 	Msg   string
 }
 
-func Get(file string) (AppCfg, error) {
+func getAppCfg(file string) (AppCfg, error) {
 	configMsg := []Msg{}
 	cfg := AppCfg{}
 	var err error

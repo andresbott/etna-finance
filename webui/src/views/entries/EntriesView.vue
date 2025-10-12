@@ -14,7 +14,7 @@ import Button from 'primevue/button'
 import Tree from 'primevue/tree'
 import DatePicker from 'primevue/datepicker'
 import TransferDialog from './dialogs/TransferDialog.vue'
-import StockDialog from './StockDialog.vue'
+import StockDialog from './dialogs/StockDialog.vue'
 import DeleteDialog from '@/components/common/confirmDialog.vue'
 
 import { useEntries } from '@/composables/useEntries.ts'
@@ -292,8 +292,6 @@ const getRowClass = (data) => ({
                         <div class="sidebar-controls">
                             <Button
                                 icon="pi pi-chevron-left"
-                                text
-                                rounded
                                 @click="leftSidebarCollapsed = !leftSidebarCollapsed"
                                 :class="{ 'rotate-180': leftSidebarCollapsed }"
                             />
@@ -373,11 +371,11 @@ const getRowClass = (data) => ({
                                         }}
                                     </template>
                                 </Column>
-                                <Column field="targetAmount" header="Amount">
+                                <Column field="Amount" header="Amount">
                                     <template #body="{ data }">
                                         <div v-if="data.type === 'expense'" class="amount expense">
                                             -{{
-                                                data.targetAmount.toLocaleString('es-ES', {
+                                                data.Amount.toLocaleString('es-ES', {
                                                     minimumFractionDigits: 2,
                                                     maximumFractionDigits: 2
                                                 })

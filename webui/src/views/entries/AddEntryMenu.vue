@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import Button from 'primevue/button'
 import Menu from 'primevue/menu'
 import IncomeExpenseDialog from '@/views/entries/dialogs/IncomeExpenseDialog.vue'
-import StockDialog from './StockDialog.vue'
+import StockDialog from './dialogs/StockDialog.vue'
 import TransferDialog from '@/views/entries/dialogs/TransferDialog.vue'
 
 /* Internal state for menu and dialog visibility */

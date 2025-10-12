@@ -13,11 +13,15 @@ type reportResponse struct {
 	Expenses []reportEntry `json:"expenses"`
 }
 type reportEntry struct {
-	Id          uint    `json:"id"`
-	ParentId    uint    `json:"ParentId"`
-	Name        string  `json:"name"`
-	Description string  `json:"description"`
-	Value       float64 `json:"amount"`
+	Id          uint                    `json:"id"`
+	ParentId    uint                    `json:"ParentId"`
+	Name        string                  `json:"name"`
+	Description string                  `json:"description"`
+	Values      map[string]reportValues `json:"values"`
+}
+type reportValues struct {
+	Value float64 `json:"amount"`
+	Count uint    `json:"count"`
 }
 
 func (h *Handler) GetReport(userId string) http.Handler {
@@ -33,7 +37,7 @@ func (h *Handler) GetReport(userId string) http.Handler {
 			return
 		}
 
-		report, err := h.Store.GetReport(r.Context(), startDate, endDate, userId)
+		report, err := h.Store.ReportInOutByCategory(r.Context(), startDate, endDate, userId)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to list entries: %s", err.Error()), http.StatusInternalServerError)
 			return
@@ -45,22 +49,36 @@ func (h *Handler) GetReport(userId string) http.Handler {
 		}
 
 		for i, income := range report.Income {
+			values := make(map[string]reportValues)
+			for k, v := range income.Values {
+				values[k.String()] = reportValues{
+					Value: v.Value,
+					Count: v.Count,
+				}
+			}
 			response.Incomes[i] = reportEntry{
 				Id:          income.Id,
 				ParentId:    income.ParentId,
 				Name:        income.Name,
 				Description: income.Description,
-				Value:       income.Value,
+				Values:      values,
 			}
 		}
 
 		for i, expense := range report.Expenses {
+			values := make(map[string]reportValues)
+			for k, v := range expense.Values {
+				values[k.String()] = reportValues{
+					Value: v.Value,
+					Count: v.Count,
+				}
+			}
 			response.Expenses[i] = reportEntry{
 				Id:          expense.Id,
 				ParentId:    expense.ParentId,
 				Name:        expense.Name,
 				Description: expense.Description,
-				Value:       expense.Value,
+				Values:      values,
 			}
 		}
 
