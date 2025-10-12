@@ -22,6 +22,7 @@ import { useAccounts } from '@/composables/useAccounts.js'
 import IncomeExpenseDialog from '@/views/entries/dialogs/IncomeExpenseDialog.vue'
 import AddEntryMenu from '@/views/entries/AddEntryMenu.vue'
 import { useCategoryUtils } from '@/utils/categoryUtils'
+import { useAccountUtils } from '@/utils/accountUtils'
 
 /* --- Reactive State --- */
 const today = new Date()
@@ -38,6 +39,7 @@ const { entries, isLoading, deleteEntry, isDeleting, refetch } = useEntries(
 )
 const { accounts, isLoading: isAccountsLoading } = useAccounts()
 const { getCategoryName } = useCategoryUtils()
+const { getAccountCurrency,getAccountName } = useAccountUtils()
 
 const leftSidebarCollapsed = ref(true)
 
@@ -356,7 +358,7 @@ const getRowClass = (data) => ({
                                             />{{ data.targetAccountName }}
                                         </span>
                                         <span v-else>
-                                            {{ data.targetAccountName }}
+                                            {{ getAccountName(data.accountId) }}
                                         </span>
                                     </template>
                                 </Column>
@@ -380,19 +382,19 @@ const getRowClass = (data) => ({
                                                     maximumFractionDigits: 2
                                                 })
                                             }}
-                                            {{ data.targetAccountCurrency || '' }}
+                                            {{ getAccountCurrency(data.accountId) }}
                                         </div>
                                         <div
                                             v-else-if="data.type === 'income'"
                                             class="amount income"
                                         >
                                             {{
-                                                data.targetAmount.toLocaleString('es-ES', {
+                                                data.Amount.toLocaleString('es-ES', {
                                                     minimumFractionDigits: 2,
                                                     maximumFractionDigits: 2
                                                 })
                                             }}
-                                            {{ data.targetAccountCurrency || '' }}
+                                            {{ getAccountCurrency(data.accountId) }}
                                         </div>
                                         <div
                                             v-else-if="data.type === 'transfer'"

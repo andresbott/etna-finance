@@ -262,8 +262,14 @@ func (h *Handler) CreateAccount(userId string) http.Handler {
 			}
 		}
 
-		account.ID = accID
-		respJson, err := json.Marshal(account)
+		responsePayload := accountPayload{
+			Id:       accID,
+			Name:     account.Name,
+			Currency: account.Currency.String(),
+			Type:     account.Type.String(),
+		}
+
+		respJson, err := json.Marshal(responsePayload)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

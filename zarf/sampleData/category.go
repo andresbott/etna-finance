@@ -5,15 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 )
 
 // Category represents an expense or income category
 type Category struct {
-	ID          int    `json:"id,omitempty"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	ParentID    int    `json:"parentId,omitempty"`
+	ID          int        `json:"id,omitempty"`
+	Name        string     `json:"name"`
+	Description string     `json:"description"`
+	ParentID    int        `json:"parentId,omitempty"`
+	Children    []Category `json:"_,omitempty"`
 }
 
 // CategoryResponse represents the API response
@@ -59,4 +61,41 @@ func createCategory(baseURL string, categoryType string, category Category) (int
 	}
 
 	return catResp.ID, nil
+}
+
+// createCategoriesRecursive creates categories from a nested structure
+func createCategoriesRecursive(baseURL string, categoryType string, categories []Category, parentID int) (map[string]int, error) {
+	categoryIDs := make(map[string]int)
+
+	for _, category := range categories {
+		// Set parent ID if provided
+		if parentID > 0 {
+			category.ParentID = parentID
+		}
+
+		// Create the category
+		categoryID, err := createCategory(baseURL, categoryType, category)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create category '%s': %v", category.Name, err)
+		}
+
+		// Store the ID with the category name as key
+		categoryIDs[category.Name] = categoryID
+		slog.Info(fmt.Sprintf("✅ %s category '%s' created with ID: %d", categoryType, category.Name, categoryID))
+
+		// Recursively create children if they exist
+		if len(category.Children) > 0 {
+			childIDs, err := createCategoriesRecursive(baseURL, categoryType, category.Children, categoryID)
+			if err != nil {
+				return nil, err
+			}
+
+			// Merge child IDs into the main map
+			for name, id := range childIDs {
+				categoryIDs[name] = id
+			}
+		}
+	}
+
+	return categoryIDs, nil
 }

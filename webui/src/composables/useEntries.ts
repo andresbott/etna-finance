@@ -42,7 +42,6 @@ export function useEntries(
             if (!start || !end) {
                 return Promise.resolve([])
             }
-
             return GetEntries(start, end, accountIds)
         }
     })
