@@ -3,7 +3,7 @@ import { ref, computed, watch } from 'vue'
 import {
     VerticalLayout,
     Placeholder,
-    SidebarContent,
+    SidebarContent
 } from '@go-bumbu/vue-layouts'
 import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
 
@@ -21,6 +21,7 @@ import { useEntries } from '@/composables/useEntries.ts'
 import { useAccounts } from '@/composables/useAccounts.js'
 import IncomeExpenseDialog from '@/views/entries/dialogs/IncomeExpenseDialog.vue'
 import AddEntryMenu from '@/views/entries/AddEntryMenu.vue'
+import { useCategoryUtils } from '@/utils/categoryUtils'
 
 /* --- Reactive State --- */
 const today = new Date()
@@ -36,9 +37,9 @@ const { entries, isLoading, deleteEntry, isDeleting, refetch } = useEntries(
     selectedAccountIds
 )
 const { accounts, isLoading: isAccountsLoading } = useAccounts()
+const { getCategoryName } = useCategoryUtils()
 
 const leftSidebarCollapsed = ref(true)
-const menu = ref(null)
 
 const selectedEntry = ref(null)
 const isEditMode = ref(false)
@@ -237,7 +238,10 @@ const getRowClass = (data) => ({
         </template>
         <template #default>
             <div class="main-app-content">
-                <SidebarContent  :leftSidebarCollapsed="leftSidebarCollapsed" :rightSidebarCollapsed="true">
+                <SidebarContent
+                    :leftSidebarCollapsed="leftSidebarCollapsed"
+                    :rightSidebarCollapsed="true"
+                >
                     <template #left>
                         <div class="left-sidebar-content">
                             <div class="filter-section">
@@ -273,9 +277,12 @@ const getRowClass = (data) => ({
                                 </div>
 
                                 <div class="filter-actions">
-                                <span class="selected-count" v-if="selectedAccountIds.length > 0">
-                                    {{ selectedAccountIds.length }} account(s) selected
-                                </span>
+                                    <span
+                                        class="selected-count"
+                                        v-if="selectedAccountIds.length > 0"
+                                    >
+                                        {{ selectedAccountIds.length }} account(s) selected
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -341,16 +348,16 @@ const getRowClass = (data) => ({
 
                                 <Column header="Account">
                                     <template #body="{ data }">
-                                    <span v-if="data.type === 'transfer'">
-                                        {{ data.originAccountName
-                                        }}<i
-                                        class="pi pi-arrow-right"
-                                        style="font-size: 0.9rem; margin: 0 8px"
-                                    />{{ data.targetAccountName }}
-                                    </span>
+                                        <span v-if="data.type === 'transfer'">
+                                            {{ data.originAccountName
+                                            }}<i
+                                                class="pi pi-arrow-right"
+                                                style="font-size: 0.9rem; margin: 0 8px"
+                                            />{{ data.targetAccountName }}
+                                        </span>
                                         <span v-else>
-                                        {{ data.targetAccountName }}
-                                    </span>
+                                            {{ data.targetAccountName }}
+                                        </span>
                                     </template>
                                 </Column>
                                 <Column field="date" header="Date">
@@ -375,7 +382,10 @@ const getRowClass = (data) => ({
                                             }}
                                             {{ data.targetAccountCurrency || '' }}
                                         </div>
-                                        <div v-else-if="data.type === 'income'" class="amount income">
+                                        <div
+                                            v-else-if="data.type === 'income'"
+                                            class="amount income"
+                                        >
                                             {{
                                                 data.targetAmount.toLocaleString('es-ES', {
                                                     minimumFractionDigits: 2,
@@ -418,6 +428,12 @@ const getRowClass = (data) => ({
                                         </div>
                                     </template>
                                 </Column>
+                                <!-- Category column -->
+                                <Column field="category" header="Category">
+                                    <template #body="{ data }">
+                                        {{ data?.categoryId || getCategoryName(data?.categoryId, data.type) }}
+                                    </template>
+                                </Column>
 
                                 <Column header="Actions" style="width: 100px">
                                     <template #body="{ data }">
@@ -446,7 +462,6 @@ const getRowClass = (data) => ({
                     </template>
                 </SidebarContent>
             </div>
-
         </template>
         <template #footer>
             <Placeholder :width="'100%'" :height="30" :color="12">Footer</Placeholder>
@@ -454,6 +469,7 @@ const getRowClass = (data) => ({
     </VerticalLayout>
 
     <!-- Dialog Components -->
+    <!-- TODO: Pass the `category-id`  -->
     <IncomeExpenseDialog
         v-model:visible="dialogs.incomeExpense.value"
         :is-edit="isEditMode"
@@ -464,6 +480,7 @@ const getRowClass = (data) => ({
         :stock-amount="selectedEntry?.targetStockAmount"
         :date="selectedEntry?.date ? new Date(selectedEntry.date) : new Date()"
         :entry-id="selectedEntry?.id"
+        :category-id="selectedEntry?.category?.id"
     />
 
     <TransferDialog
@@ -502,8 +519,6 @@ const getRowClass = (data) => ({
 </template>
 
 <style scoped>
-
-
 .header {
     display: flex;
     justify-content: space-between;

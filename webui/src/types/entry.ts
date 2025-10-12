@@ -4,7 +4,7 @@ export interface Entry {
     description?: string
     amount: number
     accountId: string
-    categoryId?: string
+    categoryId?: number
     notes?: string
 }
 
@@ -13,7 +13,7 @@ export interface CreateEntryDTO {
     description?: string
     amount: number
     accountId: string
-    categoryId?: string
+    categoryId?: number
     notes?: string
 }
 
@@ -23,7 +23,7 @@ export interface UpdateEntryDTO {
     description?: string
     amount?: number
     accountId?: string
-    categoryId?: string
+    categoryId?: number
     notes?: string
 }
 
