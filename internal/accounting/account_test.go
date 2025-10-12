@@ -1,4 +1,4 @@
-package finance
+package accounting
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"golang.org/x/text/currency"
 	"testing"
+	"time"
 )
 
 func TestCreateAccountProvider(t *testing.T) {
@@ -32,7 +33,7 @@ func TestCreateAccountProvider(t *testing.T) {
 			}
 
 			dbCon := db.ConnDbName("TestCreateAccountProvider")
-			store, err := New(dbCon)
+			store, err := NewStore(dbCon)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -99,11 +100,11 @@ func TestGetAccountProvider(t *testing.T) {
 			}
 
 			dbCon := db.ConnDbName("TestGetAccountProvider")
-			store, err := New(dbCon)
+			store, err := NewStore(dbCon)
 			if err != nil {
 				t.Fatal(err)
 			}
-			sampleData(t, store) // note: test operates on one set of data
+			accountSampleData(t, store) // note: test operates on one set of data
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
@@ -161,11 +162,11 @@ func TestDeleteAccountProvider(t *testing.T) {
 			}
 
 			dbCon := db.ConnDbName("DeleteAccountProvider")
-			store, err := New(dbCon)
+			store, err := NewStore(dbCon)
 			if err != nil {
 				t.Fatal(err)
 			}
-			sampleData(t, store) // note: test operates on one set of data
+			accountSampleData(t, store) // note: test operates on one set of data
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
@@ -237,11 +238,11 @@ func TestUpdateAccountProvider(t *testing.T) {
 			}
 
 			dbCon := db.ConnDbName("UpdateAccountProvider")
-			store, err := New(dbCon)
+			store, err := NewStore(dbCon)
 			if err != nil {
 				t.Fatal(err)
 			}
-			sampleData(t, store) // note: test operates on one set of data
+			accountSampleData(t, store) // note: test operates on one set of data
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
@@ -287,7 +288,7 @@ func TestListAccountsProvider(t *testing.T) {
 				{
 					name:        "list multiple Account Providers sorted",
 					checkTenant: tenant1,
-					want:        sampleAccountProviders,
+					want:        []AccountProvider{sampleAccountProviders[0], sampleAccountProviders[1], sampleAccountProviders[2]},
 				},
 				{
 					name:        "get account provider with prefetched accounts",
@@ -295,13 +296,13 @@ func TestListAccountsProvider(t *testing.T) {
 					checkTenant: tenant1,
 					want: []AccountProvider{
 						{Name: "provider1", Description: "provider1", Accounts: []Account{
-							{ID: 1, Name: "acc1", Currency: currency.EUR, Type: Cash, AccountProviderID: 1},
-							{ID: 3, Name: "acc3", Currency: currency.EUR, Type: 0, AccountProviderID: 1},
-							{ID: 3, Name: "acc4", Currency: currency.EUR, Type: 0, AccountProviderID: 1},
-							{ID: 4, Name: "acc5", Currency: currency.EUR, Type: 0, AccountProviderID: 1},
+							{ID: 1, Name: "acc1", Currency: currency.EUR, Type: CashAccountType, AccountProviderID: 1},
+							{ID: 3, Name: "acc3", Currency: currency.EUR, Type: CashAccountType, AccountProviderID: 1},
+							{ID: 4, Name: "acc4", Currency: currency.EUR, Type: UnknownAccountType, AccountProviderID: 1},
+							{ID: 5, Name: "acc5", Currency: currency.EUR, Type: InvestmentAccountType, AccountProviderID: 1},
 						}},
 						{Name: "provider2", Description: "provider2", Accounts: []Account{
-							{ID: 2, Name: "acc2", Currency: currency.USD, Type: Cash, AccountProviderID: 2},
+							{ID: 2, Name: "acc2", Currency: currency.USD, Type: CashAccountType, AccountProviderID: 2},
 						}},
 						{Name: "provider3", Description: "provider3", Accounts: []Account{}}, // 3 does not have accounts
 					},
@@ -314,11 +315,11 @@ func TestListAccountsProvider(t *testing.T) {
 			}
 
 			dbCon := db.ConnDbName("TestListAccountsProvider")
-			store, err := New(dbCon)
+			store, err := NewStore(dbCon)
 			if err != nil {
 				t.Fatal(err)
 			}
-			sampleData(t, store) // note: test operates on one set of data
+			accountSampleData(t, store) // note: test operates on one set of data
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
@@ -361,7 +362,7 @@ func TestCreateAccount(t *testing.T) {
 				{
 					name:   "create valid account",
 					tenant: tenant1,
-					input:  Account{Name: "Main", Currency: currency.USD, Type: Investment, AccountProviderID: 1},
+					input:  Account{Name: "Main", Currency: currency.USD, Type: InvestmentAccountType, AccountProviderID: 1},
 				},
 				{
 					name:    "want error on empty name",
@@ -384,12 +385,12 @@ func TestCreateAccount(t *testing.T) {
 			}
 
 			dbCon := db.ConnDbName("TestCreateAccount")
-			store, err := New(dbCon)
+			store, err := NewStore(dbCon)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			sampleData(t, store) // note: test operates on one set of data
+			accountSampleData(t, store) // note: test operates on one set of data
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
@@ -456,12 +457,12 @@ func TestGetAccount(t *testing.T) {
 			}
 
 			dbCon := db.ConnDbName("TestGetAccount")
-			store, err := New(dbCon)
+			store, err := NewStore(dbCon)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			sampleData(t, store) // note: test operates on one set of data
+			accountSampleData(t, store) // note: test operates on one set of data
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
@@ -521,15 +522,28 @@ func TestDeleteAccount(t *testing.T) {
 					deleteID:     2,
 					wantErr:      ErrAccountNotFound.Error(),
 				},
+				{
+					name:         "error when deleting account that has entries referenced",
+					deleteTenant: tenant1,
+					deleteID:     3,
+					wantErr:      "unable to delete account: account still contains referenced transactions",
+				},
 			}
 
 			dbCon := db.ConnDbName("TestGetAccount")
-			store, err := New(dbCon)
+			store, err := NewStore(dbCon)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			sampleData(t, store) // note: test operates on one set of data
+			// note: all test operates on one set of data
+			accountSampleData(t, store)
+			// add one entry to trigger error on delete
+			_, err = store.CreateTransaction(t.Context(),
+				Income{Description: "test", Amount: 1, AccountID: 3, Date: time.Now()}, tenant1)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
@@ -574,27 +588,27 @@ func TestUpdateAccount(t *testing.T) {
 					updateID:      1,
 					updateTenant:  tenant1,
 					updatePayload: AccountUpdatePayload{Name: ptr("Updated Name")},
-					want:          Account{ID: 1, Name: "Updated Name", Currency: currency.EUR, Type: Cash, AccountProviderID: 1},
+					want:          Account{ID: 1, Name: "Updated Name", Currency: currency.EUR, Type: CashAccountType, AccountProviderID: 1},
 				},
 				{
 					name:          "update currency",
 					updateID:      2,
 					updateTenant:  tenant1,
 					updatePayload: AccountUpdatePayload{Currency: &currency.EUR},
-					want:          Account{ID: 2, Name: "acc2", Currency: currency.EUR, Type: Cash, AccountProviderID: 2},
+					want:          Account{ID: 2, Name: "acc2", Currency: currency.EUR, Type: CashAccountType, AccountProviderID: 2},
 				},
 				{
 					name:          "update Type",
 					updateID:      3,
 					updateTenant:  tenant1,
-					updatePayload: AccountUpdatePayload{Type: Investment},
-					want:          Account{ID: 3, Name: "acc3", Currency: currency.EUR, Type: Investment, AccountProviderID: 1},
+					updatePayload: AccountUpdatePayload{Type: InvestmentAccountType},
+					want:          Account{ID: 3, Name: "acc3", Currency: currency.EUR, Type: InvestmentAccountType, AccountProviderID: 1},
 				},
 				{
 					name:          "update Provider Id",
 					updateID:      4,
 					updateTenant:  tenant1,
-					updatePayload: AccountUpdatePayload{ProviderID: ptr(2)},
+					updatePayload: AccountUpdatePayload{ProviderID: ptr(uint(2))},
 					want:          Account{ID: 4, Name: "acc4", Currency: currency.EUR, Type: 0, AccountProviderID: 2},
 				},
 				{
@@ -614,18 +628,18 @@ func TestUpdateAccount(t *testing.T) {
 			}
 
 			dbCon := db.ConnDbName("TestUpdateAccount")
-			store, err := New(dbCon)
+			store, err := NewStore(dbCon)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			sampleData(t, store) // note: test operates on one set of data
+			accountSampleData(t, store) // note: test operates on one set of data
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 					ctx := context.Background()
 
-					err = store.UpdateAccount(tc.updatePayload, tc.updateID, tc.updateTenant)
+					err = store.UpdateAccount(t.Context(), tc.updatePayload, tc.updateID, tc.updateTenant)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -676,23 +690,24 @@ func TestListAccounts(t *testing.T) {
 				{
 					name:        "want empty result when listing for different tenant",
 					checkTenant: emptyTenant,
-					want:        []Account{},
+					want:        nil,
 				},
 			}
 
 			dbCon := db.ConnDbName("ListAccounts")
-			store, err := New(dbCon)
+			store, err := NewStore(dbCon)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			sampleData(t, store) // note: test operates on one set of data
+			accountSampleData(t, store) // note: test operates on one set of data
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
 					ctx := context.Background()
 					got, err := store.ListAccounts(ctx, tc.checkTenant)
+
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -712,5 +727,87 @@ func TestListAccounts(t *testing.T) {
 				})
 			}
 		})
+	}
+}
+
+var sampleAccountProviders = []AccountProvider{
+	{Name: "provider1", Description: "provider1", Accounts: []Account{}},           // 1
+	{Name: "provider2", Description: "provider2", Accounts: []Account{}},           // 2
+	{Name: "provider3", Description: "provider3", Accounts: []Account{}},           // 3 does not have accounts
+	{Name: "provider4_tenant2", Description: "provider4t2", Accounts: []Account{}}, // 3 does not have accounts
+}
+
+var sampleAccounts = []Account{
+	{ID: 1, Name: "acc1", Currency: currency.EUR, Type: CashAccountType, AccountProviderID: 1},
+	{ID: 2, Name: "acc2", Currency: currency.USD, Type: CashAccountType, AccountProviderID: 2},
+	{ID: 3, Name: "acc3", Currency: currency.EUR, Type: CashAccountType, AccountProviderID: 1},
+	{ID: 4, Name: "acc4", Currency: currency.EUR, Type: UnknownAccountType, AccountProviderID: 1},
+	{ID: 5, Name: "acc5", Currency: currency.CHF, Type: InvestmentAccountType, AccountProviderID: 1},
+}
+
+var sampleAccounts2 = []Account{
+	{ID: 6, Name: "acc1tenant2", Currency: currency.EUR, Type: 0, AccountProviderID: 4},
+}
+
+func accountSampleData(t *testing.T, store *Store) {
+	ctx := context.Background()
+	// =========================================
+	// create accounts providers
+	// =========================================
+
+	provider1, err := store.CreateAccountProvider(ctx, sampleAccountProviders[0], tenant1)
+	if err != nil {
+		t.Fatalf("error creating provider 1: %v", err)
+	}
+	provider2, err := store.CreateAccountProvider(ctx, sampleAccountProviders[1], tenant1)
+	if err != nil {
+		t.Fatalf("error creating provider 2: %v", err)
+	}
+	provider3, err := store.CreateAccountProvider(ctx, sampleAccountProviders[2], tenant1)
+	if err != nil {
+		t.Fatalf("error creating provider 2: %v", err)
+	}
+	_ = provider3
+
+	provider4, err := store.CreateAccountProvider(ctx, sampleAccountProviders[3], tenant2)
+	if err != nil {
+		t.Fatalf("error creating provider 2: %v", err)
+	}
+
+	// =========================================
+	// create accounts
+	// =========================================
+
+	acc := sampleAccounts[0]
+	acc.AccountProviderID = provider1
+	account1, err := store.CreateAccount(ctx, acc, tenant1)
+	if err != nil {
+		t.Fatalf("error creating account 1: %v", err)
+	}
+	_ = account1
+
+	acc = sampleAccounts[1]
+	acc.AccountProviderID = provider2
+	account2, err := store.CreateAccount(ctx, acc, tenant1)
+	if err != nil {
+		t.Fatalf("error creating account 2: %v", err)
+	}
+	_ = account2
+
+	for i := 2; i < len(sampleAccounts); i++ {
+		acc = sampleAccounts[i]
+		acc.AccountProviderID = provider1
+		_, err = store.CreateAccount(ctx, acc, tenant1)
+		if err != nil {
+			t.Fatalf("error creating account 1: %v", err)
+		}
+	}
+	for i := 0; i < len(sampleAccounts2); i++ {
+		acc2 := sampleAccounts2[i]
+		acc2.AccountProviderID = provider4
+		_, err := store.CreateAccount(ctx, acc2, tenant2)
+		if err != nil {
+			t.Fatalf("error creating account 1: %v", err)
+		}
 	}
 }

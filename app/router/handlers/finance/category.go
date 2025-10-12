@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/andresbott/etna/internal/model/finance"
+	"github.com/andresbott/etna/internal/accounting"
 	"net/http"
 )
 
 type CategoryHandler struct {
-	Store *finance.Store
+	Store *accounting.Store
 }
 
 // Category types
@@ -69,22 +69,21 @@ func (h *CategoryHandler) createCategory(userId, categoryType string) http.Handl
 			http.Error(w, fmt.Sprintf("unable to decode json: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
-
 		if payload.Name == "" {
 			http.Error(w, "wrong payload: Name is empty", http.StatusBadRequest)
 			return
 		}
 
 		var catId uint
-		data := finance.CategoryData{
+		data := accounting.CategoryData{
 			Name:        payload.Name,
 			Description: payload.Description,
 		}
 		switch categoryType {
 		case IncomeCategoryType:
-			data.Type = finance.IncomeCategory
+			data.Type = accounting.IncomeCategory
 		case ExpenseCategoryType:
-			data.Type = finance.ExpenseCategory
+			data.Type = accounting.ExpenseCategory
 		}
 
 		catId, err = h.Store.CreateCategory(r.Context(), data, payload.ParentId, userId)
@@ -103,9 +102,10 @@ func (h *CategoryHandler) createCategory(userId, categoryType string) http.Handl
 			Name:        data.Name,
 			Description: data.Description,
 		}
+
 		var respJson []byte
 		respJson, err = json.Marshal(category)
-		
+
 		if err != nil {
 			http.Error(w, fmt.Sprintf("response marshal error: %s", err.Error()), http.StatusInternalServerError)
 			return
@@ -153,7 +153,7 @@ func (h *CategoryHandler) updateCategory(Id uint, userId, categoryType string) h
 			if errors.As(err, &validationErr) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
-			} else if errors.Is(err, finance.ErrCategoryNotFound) {
+			} else if errors.Is(err, accounting.ErrCategoryNotFound) {
 				http.Error(w, fmt.Sprintf("unable to update category in DB: %s", err.Error()), http.StatusNotFound)
 				return
 			} else {
@@ -166,19 +166,19 @@ func (h *CategoryHandler) updateCategory(Id uint, userId, categoryType string) h
 }
 
 // updateCategory is an internal function taking care of running the update operations and returning an error if anything goes wrong
-func updateCategory(ctx context.Context, Id uint, userId, categoryType string, payload categoryUpdatePayload, store *finance.Store) error {
+func updateCategory(ctx context.Context, Id uint, userId, categoryType string, payload categoryUpdatePayload, store *accounting.Store) error {
 	var err error
 
-	data := finance.CategoryData{
+	data := accounting.CategoryData{
 		Name:        payload.Name,
 		Description: payload.Description,
 	}
 
 	switch categoryType {
 	case IncomeCategoryType:
-		data.Type = finance.IncomeCategory
+		data.Type = accounting.IncomeCategory
 	case ExpenseCategoryType:
-		data.Type = finance.ExpenseCategory
+		data.Type = accounting.ExpenseCategory
 	}
 
 	err = store.UpdateCategory(ctx, Id, data, userId)
@@ -187,7 +187,7 @@ func updateCategory(ctx context.Context, Id uint, userId, categoryType string, p
 	}
 
 	if payload.ParentId != nil {
-		err = store.MoveCategory(ctx, Id, *payload.ParentId, data.Type, userId)
+		err = store.MoveCategory(ctx, Id, *payload.ParentId, userId)
 		if err != nil {
 			return err
 		}
@@ -226,17 +226,12 @@ func (h *CategoryHandler) moveCategory(Id uint, userId, categoryType string) htt
 			return
 		}
 
-		if categoryType == IncomeCategoryType {
-			err = h.Store.MoveCategory(r.Context(), Id, payload.TargetParentId, finance.IncomeCategory, userId)
-		} else {
-			err = h.Store.MoveCategory(r.Context(), Id, payload.TargetParentId, finance.ExpenseCategory, userId)
-		}
-
+		err = h.Store.MoveCategory(r.Context(), Id, payload.TargetParentId, userId)
 		if err != nil {
 			if errors.As(err, &validationErr) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
-			} else if errors.Is(err, finance.ErrCategoryNotFound) {
+			} else if errors.Is(err, accounting.ErrCategoryNotFound) {
 				http.Error(w, fmt.Sprintf("unable to move category in DB: %s", err.Error()), http.StatusNotFound)
 				return
 			} else {
@@ -268,18 +263,12 @@ func (h *CategoryHandler) deleteRecurseCategory(Id uint, userId, categoryType st
 			return
 		}
 
-		var err error
-		if categoryType == IncomeCategoryType {
-			err = h.Store.DeleteCategoryRecursive(r.Context(), Id, finance.IncomeCategory, userId)
-		} else {
-			err = h.Store.DeleteCategoryRecursive(r.Context(), Id, finance.ExpenseCategory, userId)
-		}
-
+		err := h.Store.DeleteCategoryRecursive(r.Context(), Id, userId)
 		if err != nil {
-			if errors.Is(err, finance.ErrCategoryNotFound) {
+			if errors.Is(err, accounting.ErrCategoryNotFound) {
 				http.Error(w, err.Error(), http.StatusNotFound)
 				return
-			} else if errors.Is(err, finance.ErrCategoryConstraintViolation) {
+			} else if errors.Is(err, accounting.ErrCategoryConstraintViolation) {
 				http.Error(w, fmt.Sprintf("unable to delete category: %s", err.Error()), http.StatusConflict)
 				return
 			} else {
@@ -321,7 +310,7 @@ func (h *CategoryHandler) listCategory(Id uint, userId, categoryType string) htt
 		switch categoryType {
 		case IncomeCategoryType:
 
-			items, err := h.Store.ListDescendantCategories(r.Context(), Id, depth, finance.IncomeCategory, userId)
+			items, err := h.Store.ListDescendantCategories(r.Context(), Id, depth, accounting.IncomeCategory, userId)
 			if err != nil {
 				break
 			}
@@ -337,7 +326,7 @@ func (h *CategoryHandler) listCategory(Id uint, userId, categoryType string) htt
 
 		case ExpenseCategoryType:
 
-			items, err := h.Store.ListDescendantCategories(r.Context(), Id, depth, finance.ExpenseCategory, userId)
+			items, err := h.Store.ListDescendantCategories(r.Context(), Id, depth, accounting.ExpenseCategory, userId)
 			if err != nil {
 				break
 			}
@@ -357,7 +346,7 @@ func (h *CategoryHandler) listCategory(Id uint, userId, categoryType string) htt
 		}
 
 		if err != nil {
-			if errors.Is(err, finance.ErrCategoryNotFound) {
+			if errors.Is(err, accounting.ErrCategoryNotFound) {
 				http.Error(w, err.Error(), http.StatusNotFound)
 			} else {
 				http.Error(w, fmt.Sprintf("unable to delete category: %s", err.Error()), http.StatusInternalServerError)

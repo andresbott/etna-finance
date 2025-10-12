@@ -5,20 +5,26 @@ import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
 
 <template>
     <HorizontalLayout class="footer" :centerContent="true">
-        <template #left> Powered by.. TODO </template>
+        <template #left> </template>
 
-        <template #default> </template>
+        <template #default> Powered by <a href="https://github.com/andresbott/etna-finance" target="_blank">https://github.com/andresbott/etna-finance</a></template>
 
         <template #right> </template>
     </HorizontalLayout>
 </template>
 
-<style scoped>
+<style>
 .footer {
-    background-color: var(--c-surface-200);
-    color: var(--c-primary-500);
+    background-color: var(--c-primary-600);
+    color: var(--c-primary-100);
+
     font-size: 80%;
-    padding: 0.2rem;
+    padding: 0.5rem;
+}
+.footer a {
+    color: var(--c-primary-100);
+    text-decoration: none;
+    margin-right: 0.5rem;
 }
 .c-horizontal {
     grid-template-columns: 1fr 2fr 1fr;

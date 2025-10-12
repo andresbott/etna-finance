@@ -29,7 +29,9 @@ export function useCategoryUtils() {
     const { IncomeTreeData, ExpenseTreeData } = useCategoryTree()
 
     const getCategoryName = (id: number | string, type: 'expense' | 'income') => {
-        if (!id || id === 0) return 'Root'
+        if (id === 0) return 'Root'
+        if (!id) return '-'
+
 
         const nodes = type === 'expense' ? ExpenseTreeData.value : IncomeTreeData.value
         const node = findNodeById(nodes, id)

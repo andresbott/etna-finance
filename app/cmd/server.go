@@ -15,8 +15,6 @@ import (
 	"github.com/spf13/cobra"
 	"gorm.io/gorm"
 
-	"github.com/andresbott/etna/app/config"
-	"github.com/andresbott/etna/app/logger"
 	"github.com/andresbott/etna/app/metainfo"
 )
 
@@ -38,13 +36,13 @@ func serverCmd() *cobra.Command {
 }
 
 func runServer(configFile string) error {
-	cfg, err := config.Get(configFile)
+	cfg, err := getAppCfg(configFile)
 	if err != nil {
 		return err
 	}
 	_ = cfg
 	// setup the logger
-	l, err := logger.GetDefault(logger.GetLogLevel(cfg.Env.LogLevel))
+	l, err := defaultLogger(GetLogLevel(cfg.Env.LogLevel))
 	if err != nil {
 		return err
 	}
@@ -124,7 +122,7 @@ func runServer(configFile string) error {
 
 }
 
-func getUserStore(cfg config.AppCfg, l *slog.Logger) (userauth.UserGetter, error) {
+func getUserStore(cfg AppCfg, l *slog.Logger) (userauth.UserGetter, error) {
 	var userGet userauth.UserGetter
 	// load the correct user manager
 	switch cfg.Auth.UserStore.StoreType {

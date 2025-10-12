@@ -1,4 +1,4 @@
-package logger
+package cmd
 
 import (
 	"github.com/mattn/go-isatty"
@@ -25,7 +25,7 @@ func GetLogLevel(in string) slog.Level {
 	}
 }
 
-func GetDefault(level slog.Level) (*slog.Logger, error) {
+func defaultLogger(level slog.Level) (*slog.Logger, error) {
 
 	useTty := isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
 	//useTty = false

@@ -32,4 +32,12 @@ cd webui
 npm run dev
 ```
 
+### Install sample content
+while the backend is up and running (on localhost:8085) run
+```
+@go run zarf/sampleData/*.go
+```
+this will install sample content for the user demo
+
+### Accessing 
 now you can login with demo:demo or admin:admin
