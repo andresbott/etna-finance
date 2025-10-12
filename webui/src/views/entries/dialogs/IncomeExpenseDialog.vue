@@ -5,7 +5,7 @@ import Button from 'primevue/button'
 import { Form } from '@primevue/forms'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
-import { useEntries } from '@/composables/useEntries.js'
+import { useEntries } from '@/composables/useEntries.ts'
 import { useAccounts } from '@/composables/useAccounts.js'
 
 import AccountSelector from '@/components/AccountSelector.vue'
@@ -22,21 +22,21 @@ const props = defineProps({
     entryType: { type: String, required: true }, // 'expense' or 'income'
     entryId: { type: Number, default: null },
     description: { type: String, default: '' },
-    targetAmount: { type: Number, default: 0 },
+    Amount: { type: Number, default: 0 },
     stockAmount: { type: Number, default: 0 },
     date: { type: Date, default: () => new Date() },
-    targetAccountId: { type: Number, default: null },
+    AccountId: { type: Number, default: null },
     visible: { type: Boolean, default: false }
 })
 
-// Convert numeric targetAccountId to {id: true} format for form validation
+// Convert numeric AccountId to {id: true} format for form validation
 const getFormattedAccountId = (accountId) => {
     if (accountId === null || accountId === undefined) return null
     return { [accountId]: true }
 }
 
 const formValues = ref({
-    targetAccountId: getFormattedAccountId(props.targetAccountId),
+    AccountId: getFormattedAccountId(props.AccountId),
     stockAmount: props.stockAmount
 })
 
@@ -44,7 +44,7 @@ const formValues = ref({
 watch(props, (newProps) => {
     formValues.value = {
         ...newProps,
-        targetAccountId: getFormattedAccountId(newProps.targetAccountId)
+        AccountId: getFormattedAccountId(newProps.AccountId)
     }
 })
 
@@ -105,7 +105,7 @@ const updateSelectedAccount = (accountObject) => {
 
 // Also keep the watch for reactive updates, with immediate flag
 watch(
-    () => formValues.value.targetAccountId,
+    () => formValues.value.AccountId,
     (newValue) => {
         updateSelectedAccount(newValue)
     },
@@ -128,8 +128,8 @@ const resolver = computed(() => {
     const baseSchema = {
         description: z.string().min(1, { message: 'Description is required' }),
         date: z.date(),
-        targetAmount: z.number().min(0.01, { message: 'Amount must be greater than 0' }),
-        targetAccountId: accountValidation
+        Amount: z.number().min(0.01, { message: 'Amount must be greater than 0' }),
+        AccountId: accountValidation
     }
 
     // Add stockAmount to schema if selected account is of type stocks
@@ -154,10 +154,11 @@ const handleSubmit = async (e) => {
     // Extract account IDs from the form values
     const formData = { ...e.values }
 
-    // Convert targetAccountId from {id: true} to numeric id
-    if (formData.targetAccountId && typeof formData.targetAccountId === 'object') {
-        const targetKeys = Object.keys(formData.targetAccountId)
-        formData.targetAccountId = targetKeys.length > 0 ? parseInt(targetKeys[0], 10) : null
+    // TODO here we use the form data directly instead of the composable
+    // Convert AccountId from {id: true} to numeric id
+    if (formData.AccountId && typeof formData.AccountId === 'object') {
+        const targetKeys = Object.keys(formData.AccountId)
+        formData.AccountId = targetKeys.length > 0 ? parseInt(targetKeys[0], 10) : null
     }
 
     const entryData = {
@@ -209,29 +210,29 @@ const emit = defineEmits(['update:visible'])
 
                 <!-- Account field -->
                 <div>
-                    <label for="targetAccountId" class="form-label">Account</label>
+                    <label for="AccountId" class="form-label">Account</label>
                     <AccountSelector
-                        v-model="formValues.targetAccountId"
-                        name="targetAccountId"
+                        v-model="formValues.AccountId"
+                        name="AccountId"
                         @update:modelValue="handleAccountSelection"
-                        :accountTypes="['cash']"
+                        :accountTypes="['cash', 'checkin']"
                     />
-                    <Message v-if="$form.targetAccountId?.invalid" severity="error" size="small">
-                        {{ $form.targetAccountId.error?.message }}
+                    <Message v-if="$form.AccountId?.invalid" severity="error" size="small">
+                        {{ $form.AccountId.error?.message }}
                     </Message>
                 </div>
 
                 <!-- Amount Field -->
                 <div>
-                    <label for="targetAmount" class="form-label">Amount</label>
+                    <label for="Amount" class="form-label">Amount</label>
                     <InputNumber
-                        id="targetAmount"
-                        name="targetAmount"
+                        id="Amount"
+                        name="Amount"
                         :minFractionDigits="2"
                         :maxFractionDigits="2"
                     />
-                    <Message v-if="$form.targetAmount?.invalid" severity="error" size="small">
-                        {{ $form.targetAmount.error?.message }}
+                    <Message v-if="$form.Amount?.invalid" severity="error" size="small">
+                        {{ $form.Amount.error?.message }}
                     </Message>
                 </div>
 

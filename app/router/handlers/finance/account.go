@@ -172,7 +172,7 @@ func (h *Handler) ListAccountProviders(userId string) http.Handler {
 					Id:       account.ID,
 					Name:     account.Name,
 					Currency: account.Currency.String(),
-					Type:     accountTypeStr(account.Type),
+					Type:     strings.ToLower(account.Type.String()),
 				}
 			}
 
@@ -246,7 +246,7 @@ func (h *Handler) CreateAccount(userId string) http.Handler {
 
 		t := parseAccountType(payload.Type)
 		if t == accounting.UnknownAccountType {
-			http.Error(w, fmt.Sprintf("unable to parse account type: %s", err.Error()), http.StatusBadRequest)
+			http.Error(w, fmt.Sprintf("unable to parse account type: %s", payload.Type), http.StatusBadRequest)
 			return
 		}
 		account.Type = t
@@ -362,29 +362,25 @@ func (h *Handler) DeleteAccount(Id uint, userId string) http.Handler {
 }
 
 const (
-	unknownAccountStr    = "unknown"
 	cashAccountStr       = "cash"
+	checkinAccountStr    = "checkin"
+	savingsAccountStr    = "savings"
 	investmentAccountStr = "investment"
 )
 
 func parseAccountType(in string) accounting.AccountType {
+	in = strings.TrimSpace(in)
+	in = strings.ToLower(in)
 	switch strings.ToLower(in) {
 	case cashAccountStr:
 		return accounting.CashAccountType
-	case expenseTxStr:
+	case checkinAccountStr:
+		return accounting.CheckinAccountType
+	case savingsAccountStr:
+		return accounting.SavingsAccountType
+	case investmentAccountStr:
 		return accounting.InvestmentAccountType
 	default:
 		return accounting.UnknownAccountType
-	}
-}
-
-func accountTypeStr(in accounting.AccountType) string {
-	switch in {
-	case accounting.CashAccountType:
-		return cashAccountStr
-	case accounting.InvestmentAccountType:
-		return investmentAccountStr
-	default:
-		return unknownAccountStr
 	}
 }

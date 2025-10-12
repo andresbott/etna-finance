@@ -25,7 +25,7 @@ const props = defineProps({
 const emit = defineEmits(['update:visible'])
 
 const currencies = ref(['CHF', 'USD', 'EUR'])
-const accountTypes = ref(['cash', 'investment'])
+const accountTypes = ref(['cash', 'checkin','savings','investment'])
 
 const formValues = ref({
     name: props.name,

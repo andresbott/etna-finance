@@ -13,11 +13,9 @@ import DeleteDialog from '@/components/common/confirmDialog.vue'
 import AccountProviderDialog from './AccountProviderDialog.vue'
 
 import { useAccounts } from '@/composables/useAccounts.js'
-import { useUserStore } from '@/lib/user/userstore.js'
 
 // Composables
 const { accounts, isLoading, deleteAccount, deleteAccountProvider } = useAccounts()
-const userStore = useUserStore()
 
 // Reactive State
 const expandedKeys = ref({})

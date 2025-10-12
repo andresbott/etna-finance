@@ -188,10 +188,27 @@ var ErrAccountContainsEntries = errors.New("account still contains referenced tr
 type AccountType int
 
 const (
-	UnknownAccountType AccountType = iota
-	CashAccountType
-	InvestmentAccountType
+	UnknownAccountType    AccountType = iota
+	CashAccountType                   // e.g. wallet
+	CheckinAccountType                // where the salary goes
+	SavingsAccountType                // where you save money and get dividends
+	InvestmentAccountType             // stocks and others
 )
+
+func (t AccountType) String() string {
+	switch t {
+	case CashAccountType:
+		return "Cash"
+	case CheckinAccountType:
+		return "Checkin"
+	case SavingsAccountType:
+		return "Savings"
+	case InvestmentAccountType:
+		return "Investment"
+	default:
+		return "Unknown"
+	}
+}
 
 type Account struct {
 	ID                uint

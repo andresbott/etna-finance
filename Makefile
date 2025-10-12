@@ -60,6 +60,9 @@ run: ## start the GO service
 
 run-ui: package-ui run## build the UI and start the GO service
 
+sampledata: ## create sample data on a running instance
+	@go run zarf/sampleData/*.go
+
 #==========================================================================================
 ##@ Building
 #==========================================================================================

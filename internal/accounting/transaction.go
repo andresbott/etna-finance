@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"gorm.io/gorm"
+	"slices"
 	"time"
 )
 
@@ -93,12 +94,19 @@ func (store *Store) CreateTransaction(ctx context.Context, input Transaction, te
 }
 
 func (store *Store) CreateIncome(ctx context.Context, item Income, tenant string) (uint, error) {
+	if item.AccountID == 0 {
+		return 0, ErrValidation("account ID is required")
+	}
+
 	acc, err := store.GetAccount(ctx, item.AccountID, tenant)
 	if err != nil {
 		return 0, fmt.Errorf("error creating income: %w", err)
 	}
-	if acc.Type != CashAccountType {
-		return 0, NewValidationErr("incompatible account type for Income transaction")
+	allowedAccountTypes := []AccountType{
+		CashAccountType, CheckinAccountType,
+	}
+	if !slices.Contains(allowedAccountTypes, acc.Type) {
+		return 0, NewValidationErr(fmt.Sprintf("incompatible account type %s for income transaction", acc.Type.String()))
 	}
 
 	if item.CategoryID != 0 {
@@ -138,12 +146,18 @@ func (store *Store) CreateIncome(ctx context.Context, item Income, tenant string
 }
 
 func (store *Store) CreateExpense(ctx context.Context, item Expense, tenant string) (uint, error) {
+	if item.AccountID == 0 {
+		return 0, ErrValidation("account ID is required")
+	}
 	acc, err := store.GetAccount(ctx, item.AccountID, tenant)
 	if err != nil {
 		return 0, fmt.Errorf("error creating expense: %w", err)
 	}
-	if acc.Type != CashAccountType {
-		return 0, NewValidationErr("incompatible account type for Expense transaction")
+	allowedAccountTypes := []AccountType{
+		CashAccountType, CheckinAccountType,
+	}
+	if !slices.Contains(allowedAccountTypes, acc.Type) {
+		return 0, NewValidationErr(fmt.Sprintf("incompatible account type %s for expense transaction", acc.Type.String()))
 	}
 
 	if item.CategoryID != 0 {
@@ -183,20 +197,28 @@ func (store *Store) CreateExpense(ctx context.Context, item Expense, tenant stri
 }
 
 func (store *Store) CreateTransfer(ctx context.Context, item Transfer, tenant string) (uint, error) {
+
+	if item.OriginAccountID == 0 || item.TargetAccountID == 0 {
+		return 0, ErrValidation("origin and target account IDs are required")
+	}
+
 	originAcc, err := store.GetAccount(ctx, item.OriginAccountID, tenant)
 	if err != nil {
 		return 0, fmt.Errorf("error creating transfer: %w", err)
 	}
-	if originAcc.Type != CashAccountType {
-		return 0, NewValidationErr("incompatible origin account type for Transfer transaction")
-	}
 
+	allowedAccountTypes := []AccountType{
+		CashAccountType, CheckinAccountType,
+	}
+	if !slices.Contains(allowedAccountTypes, originAcc.Type) {
+		return 0, NewValidationErr(fmt.Sprintf("incompatible account type %s for transfer transaction", originAcc.Type.String()))
+	}
 	targetAcc, err := store.GetAccount(ctx, item.TargetAccountID, tenant)
 	if err != nil {
 		return 0, fmt.Errorf("error creating transfer: %w", err)
 	}
-	if targetAcc.Type != CashAccountType {
-		return 0, NewValidationErr("incompatible target account type for Transfer transaction")
+	if !slices.Contains(allowedAccountTypes, targetAcc.Type) {
+		return 0, NewValidationErr(fmt.Sprintf("incompatible account type %s for transfer transaction", targetAcc.Type.String()))
 	}
 
 	tx := dbTransaction{
