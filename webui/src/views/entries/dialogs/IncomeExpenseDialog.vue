@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, computed, nextTick, onMounted } from 'vue'
+import { ref, watch, computed} from 'vue'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
 import { Form } from '@primevue/forms'
@@ -23,15 +23,17 @@ const props = defineProps({
     entryType: { type: String, required: true }, // 'expense' or 'income'
     entryId: { type: Number, default: null },
     description: { type: String, default: '' },
-    Amount: { type: Number, default: 0 },
+    amount: { type: Number, default: 0 },
     stockAmount: { type: Number, default: 0 },
     date: { type: Date, default: () => new Date() },
 
-    AccountId: { type: Number, default: null },
+    accountId: { type: Number, default: null },
     visible: { type: Boolean, default: false },
     categoryId: { type: Number, default: 0 }
 })
 const categoryId = ref(props.categoryId)
+
+console.log(props)
 
 // Convert numeric targetAccountId to {id: true} format for form validation
 const getFormattedAccountId = (accountId) => {
@@ -40,15 +42,21 @@ const getFormattedAccountId = (accountId) => {
 }
 
 const formValues = ref({
-    AccountId: getFormattedAccountId(props.AccountId),
-    stockAmount: props.stockAmount
+    description: props.description,
+    amount: props.amount,
+    AccountId: getFormattedAccountId(props.accountId),
+    stockAmount: props.stockAmount,
+    date: props.date
 })
 
 // Watch props to update form values when editing
 watch(props, (newProps) => {
     formValues.value = {
-        ...newProps,
-        AccountId: getFormattedAccountId(newProps.AccountId)
+        description: newProps.description,
+        amount: newProps.amount,
+        AccountId: getFormattedAccountId(newProps.accountId),
+        stockAmount: newProps.stockAmount,
+        date: newProps.date
     }
 })
 
@@ -132,7 +140,7 @@ const resolver = computed(() => {
     const baseSchema = {
         description: z.string().min(1, { message: 'Description is required' }),
         date: z.date(),
-        Amount: z.number().min(0.01, { message: 'Amount must be greater than 0' }),
+        amount: z.number().min(0.01, { message: 'Amount must be greater than 0' }),
         AccountId: accountValidation
     }
 
@@ -229,15 +237,15 @@ const emit = defineEmits(['update:visible'])
 
                 <!-- Amount Field -->
                 <div>
-                    <label for="Amount" class="form-label">Amount</label>
+                    <label for="amount" class="form-label">Amount</label>
                     <InputNumber
-                        id="Amount"
-                        name="Amount"
+                        id="amount"
+                        name="amount"
                         :minFractionDigits="2"
                         :maxFractionDigits="2"
                     />
-                    <Message v-if="$form.Amount?.invalid" severity="error" size="small">
-                        {{ $form.Amount.error?.message }}
+                    <Message v-if="$form.amount?.invalid" severity="error" size="small">
+                        {{ $form.amount.error?.message }}
                     </Message>
                 </div>
 

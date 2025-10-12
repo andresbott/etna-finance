@@ -1,13 +1,10 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
-import {
-    VerticalLayout,
-    Placeholder,
-    SidebarContent
-} from '@go-bumbu/vue-layouts'
+import {     VerticalLayout,    SidebarContent} from '@go-bumbu/vue-layouts'
 import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
 
 import TopBar from '@/views/topbar.vue'
+import Footer from '@/views/parts/Footer.vue'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Button from 'primevue/button'
@@ -42,7 +39,6 @@ const { getCategoryName } = useCategoryUtils()
 const { getAccountCurrency,getAccountName } = useAccountUtils()
 
 const leftSidebarCollapsed = ref(true)
-
 const selectedEntry = ref(null)
 const isEditMode = ref(false)
 
@@ -59,7 +55,6 @@ const dialogs = {
     stock: ref(false)
 }
 
-const expenseDialog = ref(false)
 
 /* --- Account Tree Data --- */
 const accountsTree = computed(() => {
@@ -152,40 +147,11 @@ const clearSelection = () => {
     refetch()
 }
 
-/* --- Menu Actions --- */
-const openNewEntryDialog = (type) => {
-    isEditMode.value = false
-    selectedEntry.value = null
-
-    // Handle IncomeExpense dialog for income and expense types
-    if (type === 'income' || type === 'expense') {
-        selectedEntry.value = { type }
-        dialogs.incomeExpense.value = true
-    } else {
-        dialogs[type].value = true
-    }
-}
-
-const menuItems = ref([
-    { label: 'Add Expense', icon: 'pi pi-minus', command: () => openNewEntryDialog('expense') },
-    { label: 'Add Income', icon: 'pi pi-plus', command: () => openNewEntryDialog('income') },
-    {
-        label: 'Add Transfer',
-        icon: 'pi pi-arrow-right-arrow-left',
-        command: () => openNewEntryDialog('transfer')
-    },
-    { label: 'CSV import', icon: 'pi pi-bolt', command: () => openNewEntryDialog('transfer') },
-    {
-        label: 'Stock Operation',
-        icon: 'pi pi-chart-line',
-        command: () => openNewEntryDialog('stock')
-    }
-])
-
 /* --- Entry Actions --- */
 const openEditEntryDialog = (entry) => {
     isEditMode.value = true
     selectedEntry.value = entry
+    console.log(entry)
 
     if (entry.type === 'expense' || entry.type === 'income') {
         // Use IncomeExpenseDialog for income and expense entries
@@ -347,15 +313,22 @@ const getRowClass = (data) => ({
                                 </Column>
 
                                 <Column field="description" header="Description" />
+                                <Column field="category" header="Category">
+                                    <template #body="{ data }">
+                                             <div v-if="data.type === 'expense' || data.type === 'income'" >
+                                            {{ getCategoryName(data?.categoryId, data.type) }}
+                                        </div>
+                                        <div v-else>-</div>
+                                    </template>
+                                </Column>
 
                                 <Column header="Account">
                                     <template #body="{ data }">
                                         <span v-if="data.type === 'transfer'">
-                                            {{ data.originAccountName
-                                            }}<i
+                                            {{ getAccountName(data.originAccountId) }}<i
                                                 class="pi pi-arrow-right"
                                                 style="font-size: 0.9rem; margin: 0 8px"
-                                            />{{ data.targetAccountName }}
+                                            />{{ getAccountName(data.targetAccountId) }}
                                         </span>
                                         <span v-else>
                                             {{ getAccountName(data.accountId) }}
@@ -430,12 +403,7 @@ const getRowClass = (data) => ({
                                         </div>
                                     </template>
                                 </Column>
-                                <!-- Category column -->
-                                <Column field="category" header="Category">
-                                    <template #body="{ data }">
-                                        {{ data?.categoryId || getCategoryName(data?.categoryId, data.type) }}
-                                    </template>
-                                </Column>
+
 
                                 <Column header="Actions" style="width: 100px">
                                     <template #body="{ data }">
@@ -466,7 +434,8 @@ const getRowClass = (data) => ({
             </div>
         </template>
         <template #footer>
-            <Placeholder :width="'100%'" :height="30" :color="12">Footer</Placeholder>
+            <Footer />
+<!--            <Placeholder :width="'100%'" :height="30" :color="12">Footer</Placeholder>-->
         </template>
     </VerticalLayout>
 
@@ -477,8 +446,8 @@ const getRowClass = (data) => ({
         :is-edit="isEditMode"
         :entry-type="selectedEntry?.type"
         :description="selectedEntry?.description"
-        :target-amount="selectedEntry?.targetAmount"
-        :target-account-id="selectedEntry?.targetAccountId"
+        :amount="selectedEntry?.Amount"
+        :account-id="selectedEntry?.accountId"
         :stock-amount="selectedEntry?.targetStockAmount"
         :date="selectedEntry?.date ? new Date(selectedEntry.date) : new Date()"
         :entry-id="selectedEntry?.id"
@@ -521,12 +490,6 @@ const getRowClass = (data) => ({
 </template>
 
 <style scoped>
-.header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2rem;
-}
 
 .left-sidebar-content {
     padding: 1rem;

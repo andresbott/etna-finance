@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/andresbott/etna/internal/accounting"
+	"github.com/davecgh/go-spew/spew"
 	"net/http"
 	"strings"
 	"time"
@@ -22,7 +23,7 @@ type transactionPayload struct {
 	// used for income / expense
 	Amount     float64 `json:"Amount"`
 	AccountId  uint    `json:"accountId"`
-	CategoryId uint    `json:"CategoryId"`
+	CategoryId uint    `json:"categoryId"`
 
 	// used for transfers
 	TargetAmount    float64 `json:"targetAmount"`
@@ -139,6 +140,8 @@ func (h *Handler) UpdateTx(Id uint, userId string) http.Handler {
 			http.Error(w, fmt.Sprintf("unable to decode json: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
+
+		spew.Dump(payload)
 
 		tr, err := h.Store.GetTransaction(r.Context(), Id, userId)
 		if err != nil {
@@ -294,7 +297,7 @@ func (h *Handler) ListTx(userId string) http.Handler {
 					Id:              item.Id,
 					Description:     item.Description,
 					Date:            item.Date,
-					Type:            expenseTxStr,
+					Type:            transferTxStr,
 					TargetAmount:    item.TargetAmount,
 					TargetAccountID: item.TargetAccountID,
 					OriginAmount:    item.OriginAmount,

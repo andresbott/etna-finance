@@ -466,8 +466,8 @@ type updateIncomeExpenseParams struct {
 func (store *Store) updateIncomeExpense(ctx context.Context, params updateIncomeExpenseParams, id uint, tenant string) error {
 	var selectedFields []string
 	var updateStruct dbTransaction
-	var updateEntity dbEntry
 	var selectedEntryFields []string
+	var updateEntry dbEntry
 
 	// Description
 	if params.description != nil {
@@ -492,7 +492,7 @@ func (store *Store) updateIncomeExpense(ctx context.Context, params updateIncome
 		if *params.amount == 0 {
 			return NewValidationErr("amount cannot be zero")
 		}
-		updateEntity.Amount = float64(params.amountMultiplier) * (*params.amount)
+		updateEntry.Amount = float64(params.amountMultiplier) * (*params.amount)
 		selectedEntryFields = append(selectedEntryFields, "Amount")
 	}
 
@@ -505,10 +505,15 @@ func (store *Store) updateIncomeExpense(ctx context.Context, params updateIncome
 		if err != nil {
 			return fmt.Errorf("error updating transaction: %w", err)
 		}
-		if acc.Type != CashAccountType {
-			return NewValidationErr("incompatible account type for transaction")
+
+		allowedAccountTypes := []AccountType{
+			CashAccountType, CheckinAccountType,
 		}
-		updateEntity.AccountID = *params.accountID
+		if !slices.Contains(allowedAccountTypes, acc.Type) {
+			return NewValidationErr(fmt.Sprintf("incompatible account type %s for transaction", acc.Type.String()))
+		}
+
+		updateEntry.AccountID = *params.accountID
 		selectedEntryFields = append(selectedEntryFields, "AccountID")
 	}
 
@@ -522,20 +527,19 @@ func (store *Store) updateIncomeExpense(ctx context.Context, params updateIncome
 			if cat.Type != params.expectedCategoryType {
 				return NewValidationErr("incompatible category type for transaction")
 			}
+			updateEntry.CategoryID = *params.categoryID
+			selectedEntryFields = append(selectedEntryFields, "CategoryID")
 		}
-		updateEntity.CategoryID = *params.categoryID
-		selectedEntryFields = append(selectedEntryFields, "CategoryID")
 	}
-
 	if len(selectedFields) == 0 && len(selectedEntryFields) == 0 {
 		return ErrNoChanges
 	}
 
 	wParams := writeTxUpdateParams{
 		selectedFields:   selectedFields,
-		entryType1Fields: selectedEntryFields,
 		updateStruct:     updateStruct,
-		entryType1Values: updateEntity,
+		entryType1Fields: selectedEntryFields,
+		entryType1Values: updateEntry,
 		txType:           params.txType,
 		entryType1:       params.entryType,
 	}
@@ -642,6 +646,10 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 		targetFields = append(targetFields, "Amount")
 	}
 
+	allowedAccountTypes := []AccountType{
+		CashAccountType, CheckinAccountType,
+	}
+
 	if input.TargetAccountID != nil {
 		if *input.TargetAccountID == 0 {
 			return NewValidationErr("amount cannot be zero")
@@ -650,8 +658,8 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 		if err != nil {
 			return fmt.Errorf("error creating transaction: %w", err)
 		}
-		if acc.Type != CashAccountType {
-			return NewValidationErr("incompatible account type for Transfer transaction")
+		if !slices.Contains(allowedAccountTypes, acc.Type) {
+			return NewValidationErr(fmt.Sprintf("incompatible account type %s for transaction", acc.Type.String()))
 		}
 		targetEntry.AccountID = *input.TargetAccountID
 		targetFields = append(targetFields, "AccountID")
@@ -677,8 +685,8 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 		if err != nil {
 			return fmt.Errorf("error creating transaction: %w", err)
 		}
-		if acc.Type != CashAccountType {
-			return NewValidationErr("incompatible account type for Transfer transaction")
+		if !slices.Contains(allowedAccountTypes, acc.Type) {
+			return NewValidationErr(fmt.Sprintf("incompatible account type %s for transaction", acc.Type.String()))
 		}
 		originEntry.AccountID = *input.OriginAccountID
 		originFields = append(originFields, "AccountID")
@@ -723,6 +731,8 @@ const DefaultSearchResults = 30
 // ListTransactions returns an unsorted list of transactions matching the filter criteria
 func (store *Store) ListTransactions(ctx context.Context, opts ListOpts, tenant string) ([]Transaction, error) {
 
+	// TODO add unit test to verify category id is part of the payload
+
 	// code sample using preload, left in case of debugging
 	//var payload dbTransaction
 	//q1 := store.db.WithContext(ctx).Preload("Entries").Where("id = ? AND owner_id = ?", 1, tenant).First(&payload)
@@ -744,6 +754,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts, tenant 
         db_transactions.date,
         db_transactions.description,
         db_transactions.type,
+		db_entries.category_id,
 
         -- income
         CAST(MAX(CASE WHEN db_entries.entry_type = 1 THEN db_entries.account_id END) AS INTEGER) AS income_account_id,
@@ -793,6 +804,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts, tenant 
 		Type          TxType
 		TransactionId uint
 
+		CategoryId       uint
 		IncomeAccountId  uint
 		IncomeAmount     float64
 		ExpenseAccountId uint
@@ -825,6 +837,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts, tenant 
 				Description: item.Description,
 				Amount:      item.IncomeAmount,
 				AccountID:   item.IncomeAccountId,
+				CategoryID:  item.CategoryId,
 				Date:        item.Date,
 			}
 			txs = append(txs, tx)
@@ -834,6 +847,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts, tenant 
 				Description: item.Description,
 				Amount:      -item.ExpenseAmount,
 				AccountID:   item.ExpenseAccountId,
+				CategoryID:  item.CategoryId,
 				Date:        item.Date,
 			}
 			txs = append(txs, tx)
