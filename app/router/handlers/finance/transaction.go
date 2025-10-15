@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/andresbott/etna/internal/accounting"
-	"github.com/davecgh/go-spew/spew"
 	"net/http"
 	"strings"
 	"time"
@@ -140,8 +139,6 @@ func (h *Handler) UpdateTx(Id uint, userId string) http.Handler {
 			http.Error(w, fmt.Sprintf("unable to decode json: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
-
-		spew.Dump(payload)
 
 		tr, err := h.Store.GetTransaction(r.Context(), Id, userId)
 		if err != nil {

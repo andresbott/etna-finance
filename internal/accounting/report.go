@@ -159,6 +159,13 @@ func getAccountIdsCurrencyMap(in []Account) map[currency.Unit][]uint {
 
 // AccountBalance get the balance of a single account on a given point in time
 func (store *Store) AccountBalance(ctx context.Context, accountID uint, endDate time.Time, tenant string) (AccountBalance, error) {
+
+	// check the account
+	_, err := store.GetAccount(ctx, accountID, tenant)
+	if err != nil {
+		return AccountBalance{}, err
+	}
+
 	end := endOfDay(endDate)
 	// The first step is to calculate all historical values until the start date
 	opts := sumEntriesOpts{

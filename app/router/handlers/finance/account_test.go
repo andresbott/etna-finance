@@ -674,6 +674,7 @@ var sampleEntries = []accounting.Transaction{
 	accounting.Expense{Description: "e14", Amount: 10, AccountID: 1, Date: getTime("2025-01-14 00:00:00")},
 	accounting.Expense{Description: "e14", Amount: 10, AccountID: 1, Date: getTime("2025-01-15 00:00:00")},
 	accounting.Expense{Description: "e15", Amount: 10, AccountID: 1, Date: getTime("2025-01-16 00:00:00")},
+	accounting.Income{Description: "i1", Amount: 10, AccountID: 1, Date: getTime("2025-01-17 00:00:00")},
 }
 
 var sampleAccounts2 = []accounting.Account{
