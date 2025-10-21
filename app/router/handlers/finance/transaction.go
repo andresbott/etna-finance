@@ -223,7 +223,11 @@ func (h *Handler) ListTx(userId string) http.Handler {
 			return
 		}
 
-		startDate, endDate, err := getDateRange(r.URL.Query().Get("startDate"), r.URL.Query().Get("endDate"))
+		now := time.Now()
+		startDate, endDate, err := getDateRange(
+			r.URL.Query().Get("startDate"), r.URL.Query().Get("endDate"),
+			now.AddDate(0, 0, -30), now,
+		)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return

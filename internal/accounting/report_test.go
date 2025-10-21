@@ -245,7 +245,7 @@ var categoryReportSamples = map[int]Transaction{
 	324: Transfer{Description: "t5", Date: getDateTime("2022-01-05 00:00:00"), OriginAmount: 50, OriginAccountID: 1, TargetAmount: 51, TargetAccountID: 2},
 }
 
-func TestAccountBalance(t *testing.T) {
+func TestAccountBalanceSingle(t *testing.T) {
 	tcs := []struct {
 		name      string
 		date      time.Time
@@ -259,28 +259,28 @@ func TestAccountBalance(t *testing.T) {
 			accountId: 1,
 			date:      getDate("2022-01-30"),
 			tenant:    tenant1,
-			want:      AccountBalance{Sum: 604.5, Count: 5},
+			want:      AccountBalance{Date: getDate("2022-01-30"), Sum: 604.5, Count: 5},
 		},
 		{
 			name:      "asert over all time on account 2",
 			accountId: 2,
 			date:      getDate("2022-01-30"),
 			tenant:    tenant1,
-			want:      AccountBalance{Sum: 247.2, Count: 5},
+			want:      AccountBalance{Date: getDate("2022-01-30"), Sum: 247.2, Count: 5},
 		},
 		{
 			name:      "asert account 1 at day 4",
 			accountId: 1,
 			date:      getDate("2022-01-04"),
 			tenant:    tenant1,
-			want:      AccountBalance{Sum: 374.5, Count: 4},
+			want:      AccountBalance{Date: getDate("2022-01-04"), Sum: 374.5, Count: 4},
 		},
 		{
-			name:      "initial balance before any aciton",
+			name:      "initial balance before any action",
 			accountId: 1,
 			date:      getDate("2021-01-30"),
 			tenant:    tenant1,
-			want:      AccountBalance{Sum: 0, Count: 0},
+			want:      AccountBalance{Date: getDate("2021-01-30"), Sum: 0, Count: 0},
 		},
 	}
 
@@ -298,7 +298,7 @@ func TestAccountBalance(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
-					got, err := store.AccountBalance(t.Context(), tc.accountId, tc.date, tc.tenant)
+					got, err := store.AccountBalanceSingle(t.Context(), tc.accountId, tc.date, tc.tenant)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -338,7 +338,7 @@ var balanceSampleData = map[int]Transaction{
 	8: Transfer{Description: "t2", Date: getDateTime("2022-01-08 00:00:00"), OriginAmount: 200, OriginAccountID: 2, TargetAmount: 230, TargetAccountID: 1},
 }
 
-func TestAccountBalanceProgression(t *testing.T) {
+func TestAccountBalance(t *testing.T) {
 	tcs := []struct {
 		name      string
 		startDate time.Time
@@ -349,6 +349,52 @@ func TestAccountBalanceProgression(t *testing.T) {
 		want      []AccountBalance
 		wantErr   string
 	}{
+		{
+			name:      "get 1 value with all the data",
+			accountId: 1,
+			endDate:   getDate("2022-01-31"),
+			tenant:    tenant1,
+			want: []AccountBalance{
+				{Date: getDate("2022-01-31"), Sum: 120, Count: 12},
+			},
+		},
+		{
+			name:      "get 1 value with all the data with count 1",
+			accountId: 1,
+			endDate:   getDate("2022-01-31"),
+			count:     1,
+			tenant:    tenant1,
+			want: []AccountBalance{
+				{Date: getDate("2022-01-31"), Sum: 120, Count: 12},
+			},
+		},
+		{
+			name:      "verify different accountId",
+			accountId: 2,
+			endDate:   getDate("2023-01-31"),
+			tenant:    tenant1,
+			want: []AccountBalance{
+				{Date: getDate("2023-01-31"), Sum: 5, Count: 5},
+			},
+		},
+		{
+			name:      "assert initial status",
+			accountId: 1,
+			endDate:   getDate("2021-01-30"),
+			tenant:    tenant1,
+			want: []AccountBalance{
+				{Date: getDate("2021-01-30"), Sum: 0, Count: 0},
+			},
+		},
+		{
+			name:      "get balance on specific date",
+			accountId: 1,
+			endDate:   getDate("2022-01-26"),
+			tenant:    tenant1,
+			want: []AccountBalance{
+				{Date: getDate("2022-01-26"), Sum: 70, Count: 7},
+			},
+		},
 		{
 			name:      "get 2 start and end on count = 2",
 			accountId: 1,
@@ -370,8 +416,20 @@ func TestAccountBalanceProgression(t *testing.T) {
 			tenant:    tenant1,
 			want: []AccountBalance{
 				{Date: getDate("2022-01-02"), Sum: 20, Count: 2},
-				{Date: getDate("2022-01-17"), Sum: 40, Count: 2},
+				{Date: getDate("2022-01-16"), Sum: 40, Count: 2},
 				{Date: getDate("2022-01-31"), Sum: 120, Count: 8},
+			},
+		},
+		{
+			name:      "get 3 items no start time",
+			accountId: 1,
+			endDate:   getDate("2022-01-31"),
+			count:     3,
+			tenant:    tenant1,
+			want: []AccountBalance{
+				{Date: getDate("2022-01-29"), Sum: 100, Count: 10},
+				{Date: getDate("2022-01-30"), Sum: 110, Count: 1},
+				{Date: getDate("2022-01-31"), Sum: 120, Count: 1},
 			},
 		},
 
@@ -384,13 +442,12 @@ func TestAccountBalanceProgression(t *testing.T) {
 			tenant:    tenant1,
 			want: []AccountBalance{
 				{Date: getDate("2022-01-02"), Sum: 20, Count: 2},
-				{Date: getDate("2022-01-10"), Sum: 40, Count: 2},
-				{Date: getDate("2022-01-17"), Sum: 40, Count: 0},
-				{Date: getDate("2022-01-24"), Sum: 50, Count: 1},
-				{Date: getDate("2022-01-31"), Sum: 120, Count: 7},
+				{Date: getDate("2022-01-09"), Sum: 40, Count: 2},
+				{Date: getDate("2022-01-16"), Sum: 40, Count: 0},
+				{Date: getDate("2022-01-23"), Sum: 40, Count: 0},
+				{Date: getDate("2022-01-31"), Sum: 120, Count: 8},
 			},
 		},
-
 		{
 			name:      "get same result without data",
 			accountId: 1,
@@ -401,7 +458,7 @@ func TestAccountBalanceProgression(t *testing.T) {
 			want: []AccountBalance{
 				{Date: getDate("2022-02-28"), Sum: 230, Count: 23},
 				{Date: getDate("2022-03-02"), Sum: 240, Count: 1},
-				{Date: getDate("2022-03-04"), Sum: 240, Count: 0},
+				{Date: getDate("2022-03-03"), Sum: 240, Count: 0},
 				{Date: getDate("2022-03-05"), Sum: 240, Count: 0},
 			},
 		},
@@ -410,7 +467,7 @@ func TestAccountBalanceProgression(t *testing.T) {
 	for _, db := range testdbs.DBs() {
 		t.Run(db.DbType(), func(t *testing.T) {
 
-			dbCon := db.ConnDbName("TestAccountBalanceProgression")
+			dbCon := db.ConnDbName("TestAccountBalance")
 			store, err := NewStore(dbCon)
 			if err != nil {
 				t.Fatal(err)
@@ -421,7 +478,7 @@ func TestAccountBalanceProgression(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
-					got, err := store.AccountBalanceProgression(t.Context(), tc.accountId, tc.startDate, tc.endDate, tc.count, tc.tenant)
+					got, err := store.AccountBalance(t.Context(), tc.accountId, tc.count, tc.startDate, tc.endDate, tc.tenant)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -435,7 +492,7 @@ func TestAccountBalanceProgression(t *testing.T) {
 						}
 
 						if diff := cmp.Diff(got, tc.want); diff != "" {
-							t.Errorf("unexpected result (-want +got):\n%s", diff)
+							t.Errorf("unexpected result (+want -got):\n%s", diff)
 						}
 					}
 				})
@@ -472,4 +529,10 @@ var balanceSampleDataProgression = map[int]Transaction{
 
 	158: Expense{Description: "e59", Date: getDateTime("2022-02-28 00:00:00"), Amount: 10, AccountID: 1},
 	159: Expense{Description: "e60", Date: getDateTime("2022-03-01 00:00:00"), Amount: 10, AccountID: 1},
+
+	201: Expense{Description: "e1", Date: getDateTime("2023-01-01 00:00:00"), Amount: 10, AccountID: 2},
+	202: Expense{Description: "e2", Date: getDateTime("2023-01-01 00:10:00"), Amount: 10, AccountID: 2},
+	203: Income{Description: "e2", Date: getDateTime("2023-01-01 00:20:00"), Amount: 10, AccountID: 2},
+	204: Transfer{Description: "e2", Date: getDateTime("2023-01-02 00:20:00"), OriginAmount: 10, OriginAccountID: 2, TargetAmount: 10, TargetAccountID: 1},
+	205: Transfer{Description: "e2", Date: getDateTime("2023-01-02 00:20:00"), OriginAmount: 12, OriginAccountID: 1, TargetAmount: 15, TargetAccountID: 2},
 }

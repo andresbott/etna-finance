@@ -24,18 +24,18 @@ func TestFinanceHandler_IncomeExpenseReport(t *testing.T) {
 			query:      "?startDate=2025-01-01&end_date=2025-12-31",
 			expectCode: http.StatusOK,
 		},
-		//{ // TODO uncommented because not testable at the moment
+		//{ // not testable
 		//	name:       "successful request with default date range",
 		//	userId:     tenant1,
 		//	query:      "",
 		//	expectCode: http.StatusOK,
 		//},
-		//{
-		//	name:       "successful request with only end date",
-		//	userId:     tenant1,
-		//	query:      "?end_date=2025-12-31",
-		//	expectCode: http.StatusOK,
-		//},
+		{
+			name:       "successful request with only end date",
+			userId:     tenant1,
+			query:      "?endDate=2025-01-31",
+			expectCode: http.StatusOK,
+		},
 		{
 			name:       "successful request with only start date",
 			userId:     tenant1,
@@ -53,14 +53,14 @@ func TestFinanceHandler_IncomeExpenseReport(t *testing.T) {
 			name:       "invalid start date format",
 			userId:     tenant1,
 			query:      "?startDate=invalid&end_date=2025-12-31",
-			expecErr:   "invalid startDate format",
+			expecErr:   "unable to parse start date: parsing time \"invalid\" as \"2006-01-02\": cannot parse \"invalid\" as \"2006\"",
 			expectCode: http.StatusBadRequest,
 		},
 		{
 			name:       "invalid end date format",
 			userId:     tenant1,
 			query:      "?startDate=2025-01-01&endDate=invalid",
-			expecErr:   "invalid endDate format",
+			expecErr:   "unable to parse end date: parsing time \"invalid\" as \"2006-01-02\": cannot parse \"invalid\" as \"2006\"",
 			expectCode: http.StatusBadRequest,
 		},
 	}
@@ -103,7 +103,6 @@ func TestFinanceHandler_IncomeExpenseReport(t *testing.T) {
 				if !hasData(response) {
 					t.Errorf("report did not contain any data")
 				}
-
 			}
 		})
 	}
@@ -139,29 +138,58 @@ func TestFinanceHandler_AccountBalance(t *testing.T) {
 		query      string
 		expecErr   string
 		expectCode int
-		wantValue  map[uint]float64
+		wantValue  map[uint][]float64
 	}{
 		{
 			name:       "successful request with one account",
 			userId:     tenant1,
 			query:      "?accountIds=1",
 			expectCode: http.StatusOK,
-			wantValue: map[uint]float64{
-				1: 79,
+			wantValue: map[uint][]float64{
+				1: {79},
+			},
+		},
+		{
+			name:       "successful request with two accounts",
+			userId:     tenant1,
+			query:      "?accountIds=1,2",
+			expectCode: http.StatusOK,
+			wantValue: map[uint][]float64{
+				1: {79},
+				2: {26},
+			},
+		},
+		{
+			name:       "successful request with accounts and steps",
+			userId:     tenant1,
+			query:      "?accountIds=1,2&steps=3",
+			expectCode: http.StatusOK,
+			wantValue: map[uint][]float64{
+				1: {79, 79, 79},
+				2: {26, 26, 26},
+			},
+		},
+		{
+			name:       "successful request with accounts and steps and end date",
+			userId:     tenant1,
+			query:      "?accountIds=1,2&steps=5&endDate=2025-01-15",
+			expectCode: http.StatusOK,
+			wantValue: map[uint][]float64{
+				1: {39, 49, 59, 69, 79},
+				2: {26, 26, 26, 26, 26},
 			},
 		},
 
 		{
-			name:       "successful request with one account",
+			name:       "successful request with accounts and dates",
 			userId:     tenant1,
-			query:      "?accountIds=1,2",
+			query:      "?accountIds=1,2&steps=3&endDate=2025-01-15&startDate=2025-01-03",
 			expectCode: http.StatusOK,
-			wantValue: map[uint]float64{
-				1: 79,
-				2: 26,
+			wantValue: map[uint][]float64{
+				1: {3, 29, 79},
+				2: {3, 16, 26},
 			},
 		},
-
 		{
 			name:       "empty result on different tenant",
 			userId:     "other",
@@ -207,9 +235,13 @@ func TestFinanceHandler_AccountBalance(t *testing.T) {
 				}
 
 				// verify all values given in the want
-				for k, v := range tc.wantValue {
-					if diff := cmp.Diff(v, response.Accounts[k].Sum); diff != "" {
-						t.Errorf("unexpected response body (+want -got):\n%s", diff)
+				for key, values := range tc.wantValue {
+					gotVals := make([]float64, len(response.Accounts[key]))
+					for i, val := range response.Accounts[key] {
+						gotVals[i] = val.Sum
+					}
+					if diff := cmp.Diff(values, gotVals); diff != "" {
+						t.Errorf("unexpected value for account id %d (+want -got):\n%s", key, diff)
 					}
 				}
 			}

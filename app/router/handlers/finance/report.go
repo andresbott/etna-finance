@@ -34,12 +34,22 @@ func (h *Handler) IncomeExpenseReport(userId string) http.Handler {
 			return
 		}
 
-		startDate, endDate, err := getDateRange(r.URL.Query().Get("startDate"), r.URL.Query().Get("endDate"))
+		now := time.Now()
+		endDate, err := parseDate(r.URL.Query().Get("endDate"), now)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			http.Error(w, fmt.Sprintf("unable to parse end date: %s", err), http.StatusBadRequest)
 			return
 		}
+		startDate, err := parseDate(r.URL.Query().Get("startDate"), endDate.AddDate(0, 0, -30))
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to parse start date: %s", err), http.StatusBadRequest)
+			return
+		}
+		// set the endDate time to midnight of the next day
+		endDate = endDate.AddDate(0, 0, 1)
+		endDate = time.Date(endDate.Year(), endDate.Month(), endDate.Day(), 0, 0, 0, 0, endDate.Location())
 
+		// get the report
 		report, err := h.Store.ReportInOutByCategory(r.Context(), startDate, endDate, userId)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to list entries: %s", err.Error()), http.StatusInternalServerError)
@@ -97,31 +107,18 @@ func (h *Handler) IncomeExpenseReport(userId string) http.Handler {
 	})
 }
 
-func getDateRange(startDateStr, endDateStr string) (time.Time, time.Time, error) {
+func getDateRange(startDateStr, endDateStr string, defaultStart, defaultEnd time.Time) (time.Time, time.Time, error) {
 
-	// Set default date range to last 30 days if not provided
-	now := time.Now()
-	endDate := now
-	startDate := now.AddDate(0, 0, -30) // 30 days ago
-
-	// Parse dates if provided
-	if startDateStr != "" {
-		var err error
-		startDate, err = time.Parse(time.DateOnly, startDateStr)
-		if err != nil {
-			return startDate, endDate, errors.New("invalid startDate format")
-		}
+	startDate, err := parseDate(startDateStr, defaultStart)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("unable to parse start date: %w", err)
 	}
-	// set the start time to midnight
-	startDate = time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, startDate.Location())
 
-	if endDateStr != "" {
-		var err error
-		endDate, err = time.Parse(time.DateOnly, endDateStr)
-		if err != nil {
-			return startDate, endDate, errors.New("invalid endDate format")
-		}
+	endDate, err := parseDate(endDateStr, defaultEnd)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("unable to parse end date: %w", err)
 	}
+
 	// set the endDate time to midnight of the next day
 	endDate = endDate.AddDate(0, 0, 1)
 	endDate = time.Date(endDate.Year(), endDate.Month(), endDate.Day(), 0, 0, 0, 0, endDate.Location())
@@ -129,8 +126,20 @@ func getDateRange(startDateStr, endDateStr string) (time.Time, time.Time, error)
 	return startDate, endDate, nil
 }
 
+func parseDate(dateStr string, defaultDate time.Time) (time.Time, error) {
+	date := defaultDate
+	if dateStr != "" {
+		var err error
+		date, err = time.Parse(time.DateOnly, dateStr)
+		if err != nil {
+			return time.Time{}, err
+		}
+	}
+	return date, nil
+}
+
 type accountBalancesResponse struct {
-	Accounts map[uint]accountBalance `json:"accounts"`
+	Accounts map[uint][]accountBalance `json:"accounts"`
 }
 
 type accountBalance struct {
@@ -146,19 +155,43 @@ func (h *Handler) AccountBalance(userId string) http.Handler {
 			return
 		}
 
+		startDate, err := parseDate(r.URL.Query().Get("startDate"), time.Time{})
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to parse start date: %s", err), http.StatusBadRequest)
+			return
+		}
+		now := time.Now()
+		endDate, err := parseDate(r.URL.Query().Get("endDate"), now)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to parse end date: %s", err), http.StatusBadRequest)
+			return
+		}
+
+		// calculate the steps
+		stepsStr := r.URL.Query().Get("steps")
+		steps := 0
+		if stepsStr != "" {
+			steps, err = strconv.Atoi(stepsStr)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("unable to parse query parameter 'steps': %s", err.Error()), http.StatusBadRequest)
+				return
+			}
+		}
+
 		accountIds := r.URL.Query().Get("accountIds")
 		ids := strings.Split(accountIds, ",")
 
 		response := accountBalancesResponse{
-			Accounts: map[uint]accountBalance{},
+			Accounts: map[uint][]accountBalance{},
 		}
 		for _, accountId := range ids {
 			id, err := strconv.ParseUint(accountId, 10, 64)
 			if err != nil {
-				http.Error(w, fmt.Sprintf("unable to parse account IDs: %s", err.Error()), http.StatusBadRequest)
+				http.Error(w, fmt.Sprintf("unable to parse query parameter 'accountIds': %s", err.Error()), http.StatusBadRequest)
 				return
 			}
-			data, err := h.Store.AccountBalance(r.Context(), uint(id), time.Now(), userId)
+
+			data, err := h.Store.AccountBalance(r.Context(), uint(id), steps, startDate, endDate, userId)
 			if err != nil {
 				if errors.Is(err, accounting.ErrAccountNotFound) {
 					http.Error(w, fmt.Sprintf("account id not found: %d", id), http.StatusBadRequest)
@@ -168,11 +201,7 @@ func (h *Handler) AccountBalance(userId string) http.Handler {
 					return
 				}
 			}
-			response.Accounts[uint(id)] = accountBalance{
-				Date:  data.Date,
-				Sum:   data.Sum,
-				Count: data.Count,
-			}
+			response.Accounts[uint(id)] = transformAccountBalance(data)
 		}
 
 		respJson, err := json.Marshal(response)
@@ -185,4 +214,16 @@ func (h *Handler) AccountBalance(userId string) http.Handler {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(respJson)
 	})
+}
+
+func transformAccountBalance(in []accounting.AccountBalance) []accountBalance {
+	out := make([]accountBalance, len(in))
+	for i := 0; i < len(in); i++ {
+		out[i] = accountBalance{
+			Date:  in[i].Date,
+			Sum:   in[i].Sum,
+			Count: in[i].Count,
+		}
+	}
+	return out
 }
