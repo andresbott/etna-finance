@@ -311,16 +311,25 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) error {
 	})
 
 	// ==========================================================================
-	// CategoryReport
+	// Report
 	// ==========================================================================
 
-	r.Path(finReport).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Path(fmt.Sprintf("%s/income-expense", finReport)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userData, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
-		finHndlr.GetReport(userData.UserId).ServeHTTP(w, r)
+		finHndlr.IncomeExpenseReport(userData.UserId).ServeHTTP(w, r)
+	})
+
+	r.Path(fmt.Sprintf("%s/balance", finReport)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userData, err := sessionauth.CtxGetUserData(r)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		finHndlr.AccountBalance(userData.UserId).ServeHTTP(w, r)
 	})
 
 	return nil

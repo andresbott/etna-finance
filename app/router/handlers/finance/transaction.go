@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/andresbott/etna/internal/accounting"
-	"github.com/davecgh/go-spew/spew"
 	"net/http"
 	"strings"
 	"time"
@@ -141,8 +140,6 @@ func (h *Handler) UpdateTx(Id uint, userId string) http.Handler {
 			return
 		}
 
-		spew.Dump(payload)
-
 		tr, err := h.Store.GetTransaction(r.Context(), Id, userId)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to retrive transaction: %s", err.Error()), http.StatusInternalServerError)
@@ -226,7 +223,11 @@ func (h *Handler) ListTx(userId string) http.Handler {
 			return
 		}
 
-		startDate, endDate, err := getDateRange(r.URL.Query().Get("startDate"), r.URL.Query().Get("endDate"))
+		now := time.Now()
+		startDate, endDate, err := getDateRange(
+			r.URL.Query().Get("startDate"), r.URL.Query().Get("endDate"),
+			now.AddDate(0, 0, -30), now,
+		)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return

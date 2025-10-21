@@ -268,14 +268,14 @@ func TestFinanceHandler_ListTx(t *testing.T) {
 			name:       "invalid start date format",
 			userId:     "user123",
 			query:      "?startDate=invalid&end_date=2024-12-31",
-			expecErr:   "invalid startDate format",
+			expecErr:   "unable to parse start date: parsing time \"invalid\" as \"2006-01-02\": cannot parse \"invalid\" as \"2006\"",
 			expectCode: http.StatusBadRequest,
 		},
 		{
 			name:       "invalid end date format",
 			userId:     "user123",
 			query:      "?startDate=2024-01-01&endDate=invalid",
-			expecErr:   "invalid endDate format",
+			expecErr:   "unable to parse end date: parsing time \"invalid\" as \"2006-01-02\": cannot parse \"invalid\" as \"2006\"",
 			expectCode: http.StatusBadRequest,
 		},
 		//{
