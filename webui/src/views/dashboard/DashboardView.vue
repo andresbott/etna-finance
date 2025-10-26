@@ -1,9 +1,5 @@
 <script setup>
-import {
-    VerticalLayout,
-    Placeholder,
-    ResponsiveHorizontal
-} from '@go-bumbu/vue-layouts'
+import { VerticalLayout, Placeholder, ResponsiveHorizontal } from '@go-bumbu/vue-layouts'
 import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
 import TopBar from '@/views/topbar.vue'
 import { useUserStore } from '@/lib/user/userstore.js'
@@ -12,7 +8,6 @@ import Card from 'primevue/card'
 import Chart from 'primevue/chart'
 import { useAccounts } from '@/composables/useAccounts.js'
 
-const userStore = useUserStore()
 const { accounts } = useAccounts()
 
 // Add your data fetching and state management here

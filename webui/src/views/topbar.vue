@@ -5,11 +5,13 @@ import UserProfile from '@/lib/user/UserProfile.vue'
 import { useUserStore } from '@/lib/user/userstore.js'
 import Button from 'primevue/button'
 import AppTitle from '@/views/parts/AppTitle.vue'
+import { useUiStore } from '@/store/uiStore.js'
 import Menubar from 'primevue/menubar'
 import { useRouter } from 'vue-router'
 
 const user = useUserStore()
 const router = useRouter()
+const uiStore = useUiStore()
 
 const menuItems = [
     {
@@ -36,7 +38,8 @@ const menuItems = [
         </template>
 
         <template #default>
-            <Menubar :model="menuItems" class="nav-menu" />
+            <Menubar :model="menuItems" class="nav-menu hidden lg:block" />
+            <Button icon="pi pi-bars" @click="uiStore.openDrawer" class="block lg:hidden" />
         </template>
 
         <template #right>

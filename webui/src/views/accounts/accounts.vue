@@ -146,7 +146,7 @@ const handleDeleteProvider = async () => {
                     >
                         <Column field="name" header="Name" expander />
 
-                        <Column field="description" header="Description"  >
+                        <Column field="description" header="Description">
                             <template #body="{ node }">
                                 <div v-if="node.children">
                                     <span>{{ node.data.description }}</span>
@@ -159,10 +159,9 @@ const handleDeleteProvider = async () => {
 
                         <Column field="currency" header="Currency" />
 
-                        <Column >
-
+                        <Column>
                             <template #body="{ node }">
-                                <div class="actions" :class="{ 'childless': !node.children }">
+                                <div class="actions" :class="{ childless: !node.children }">
                                     <Button
                                         icon="pi pi-plus"
                                         v-if="node.children"
@@ -177,10 +176,10 @@ const handleDeleteProvider = async () => {
                                         rounded
                                         class="action-button"
                                         @click="
-                                                node.children
-                                                    ? editProvider(node.data)
-                                                    : editAccount(node.data)
-                                            "
+                                            node.children
+                                                ? editProvider(node.data)
+                                                : editAccount(node.data)
+                                        "
                                     />
                                     <Button
                                         icon="pi pi-trash"
@@ -190,10 +189,10 @@ const handleDeleteProvider = async () => {
                                         class="action-button"
                                         :disabled="node.children && node.children.length > 0"
                                         @click="
-                                                node.children
-                                                    ? showDeleteProviderDialog(node.data)
-                                                    : showDeleteAccountDialog(node.data)
-                                            "
+                                            node.children
+                                                ? showDeleteProviderDialog(node.data)
+                                                : showDeleteAccountDialog(node.data)
+                                        "
                                         tooltip="Delete"
                                         tooltipOptions="{ position: 'top' }"
                                     />
@@ -211,6 +210,7 @@ const handleDeleteProvider = async () => {
     </VerticalLayout>
 
     <AccountDialog
+        v-if="selectedAccount"
         v-model:visible="accountDialogVisible"
         :is-edit="isEdit"
         :account-id="selectedAccount?.id"
@@ -248,9 +248,6 @@ const handleDeleteProvider = async () => {
 </template>
 
 <style scoped>
-
-
-
 .accounts-view {
     padding: 2rem;
 }
@@ -267,7 +264,7 @@ const handleDeleteProvider = async () => {
     justify-content: flex-start;
 }
 
-.actions{
+.actions {
     display: flex;
     justify-content: flex-end;
     gap: 4px;
@@ -275,11 +272,9 @@ const handleDeleteProvider = async () => {
 }
 
 .actions.childless {
-    margin-left: 38px;         /* keeps the indentation */
-    width: calc(100% - 38px);  /* ensures full width minus the margin */
+    margin-left: 38px; /* keeps the indentation */
+    width: calc(100% - 38px); /* ensures full width minus the margin */
 }
-
-
 
 .action-button {
     padding: 0.25rem;
