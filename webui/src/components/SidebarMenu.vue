@@ -102,16 +102,7 @@
                                     class="flex items-center cursor-pointer px-4 py-3"
                                 >
                                     <i class="pi pi-arrow-up-right mr-2"></i>
-                                    <span class="font-medium">Expense</span>
-                                </router-link>
-                            </li>
-                            <li>
-                                <router-link
-                                    to="/reports"
-                                    class="flex items-center cursor-pointer px-4 py-3"
-                                >
-                                    <i class="pi pi-arrow-down-right mr-2"></i>
-                                    <span class="font-medium">Income</span>
+                                    <span class="font-medium">Expense & Income</span>
                                 </router-link>
                             </li>
                         </ul>
