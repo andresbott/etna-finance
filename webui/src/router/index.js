@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '@/lib/user/userstore.js'
+import { useUiStore } from '@/store/uiStore'
 
 const router = createRouter({
     // history: createWebHistory(),
@@ -34,6 +35,14 @@ const router = createRouter({
             component: () => import('@/views/entries/EntriesView.vue')
         },
         {
+            path: '/reports',
+            name: 'reports',
+            meta: {
+                requiresAuth: true
+            },
+            component: () => import('@/views/reports/ReportsView.vue')
+        },
+        {
             path: '/categories',
             name: 'categories',
             meta: {
@@ -65,6 +74,7 @@ const router = createRouter({
 // based on: https://stackoverflow.com/questions/52653337/vuejs-redirect-from-login-register-to-home-if-already-loggedin-redirect-from
 router.beforeEach((to, from, next) => {
     const user = useUserStore()
+    const uiStore = useUiStore()
 
     const navigate = function (to, next) {
         if (to.matched.some((record) => record.meta.requiresAuth)) {
@@ -92,6 +102,8 @@ router.beforeEach((to, from, next) => {
     } else {
         navigate(to, next)
     }
+
+    uiStore.isDrawerVisible = false
 })
 
 export default router
