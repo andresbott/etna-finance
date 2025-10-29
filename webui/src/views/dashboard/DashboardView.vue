@@ -17,6 +17,23 @@ const generateRandomData = (count) => {
     return Array.from({ length: count }, () => Math.floor(Math.random() * 10000))
 }
 
+const fetchReportData = async () => {
+    try {
+        const response = await fetch(
+            '/api/v0/fin/report/balance?accountIds=1&steps=30&startDate=2025-01-03'
+        )
+
+        if (!response.ok) {
+            throw new Error('Network response was not ok')
+        }
+        const data = await response.json()
+
+        console.log('Fetched report data:', data)
+    } catch (error) {
+        console.error('Error fetching report data:', error)
+    }
+}
+
 const getRandomColor = () => {
     const colors = [
         '#22c55e', // green
@@ -106,6 +123,7 @@ const chartOptions = ref({
 
 onMounted(() => {
     // Initialize your data here
+    fetchReportData()
 })
 const leftSidebarCollapsed = ref(true)
 

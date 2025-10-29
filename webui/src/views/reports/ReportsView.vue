@@ -143,141 +143,126 @@ onMounted(() => fetchReportData())
 </script>
 
 <template>
-    <VerticalLayout :center-content="false" :fullHeight="true">
-        <template #header>
-            <TopBar />
-        </template>
-        <template #default>
-            <div class="main-app-content">
-                <SidebarContent
-                    :leftSidebarCollapsed="leftSidebarCollapsed"
-                    :rightSidebarCollapsed="true"
-                >
-                    <template #default>
-                        <div class="reports">
-                            <div class="sidebar-controls">
-                                <div class="date-filters">
-                                    <div>
-                                        <label>From:</label>
-                                        <DatePicker
-                                            v-model="startDate"
-                                            :showIcon="true"
-                                            :showButtonBar="true"
-                                            dateFormat="dd/mm/y"
-                                            placeholder="Start date"
-                                            @date-select="refetch"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label>To:</label>
-                                        <DatePicker
-                                            v-model="endDate"
-                                            :showIcon="true"
-                                            :showButtonBar="true"
-                                            dateFormat="dd/mm/y"
-                                            placeholder="End date"
-                                            @date-select="refetch"
-                                        />
-                                    </div>
-                                </div>
+    <div class="main-app-content">
+        <SidebarContent :leftSidebarCollapsed="leftSidebarCollapsed" :rightSidebarCollapsed="true">
+            <template #default>
+                <div class="reports">
+                    <div class="sidebar-controls">
+                        <div class="date-filters">
+                            <div>
+                                <label>From:</label>
+                                <DatePicker
+                                    v-model="startDate"
+                                    :showIcon="true"
+                                    :showButtonBar="true"
+                                    dateFormat="dd/mm/y"
+                                    placeholder="Start date"
+                                    @date-select="refetch"
+                                />
                             </div>
-
-                            <!-- Income Tree Table -->
-                            <div class="report-section">
-                                <div class="section-header">
-                                    <h2 class="report-title">Income</h2>
-                                    <Button
-                                        :icon="incomeVisible ? 'pi pi-minus' : 'pi pi-plus'"
-                                        :label="incomeVisible ? 'Collapse All' : 'Expand All'"
-                                        class="p-button-sm p-button-text"
-                                        @click="toggleIncomeVisibility"
-                                    />
-                                </div>
-
-                                <TreeTable :value="incomeTableData" class="report-table">
-                                    <Column field="name" header="Name" :expander="true" />
-                                    <Column field="description" header="Description" />
-                                    <Column
-                                        v-if="incomeVisible"
-                                        v-for="currency in currencies"
-                                        :key="currency"
-                                        :header="currency"
-                                        class="amount-column"
-                                    >
-                                        <template #body="slotProps">
-                                            <div
-                                                v-if="
-                                                    slotProps.node.data.values &&
-                                                    slotProps.node.data.values[currency]
-                                                "
-                                            >
-                                                <div>
-                                                    {{
-                                                        formatAmount(
-                                                            slotProps.node.data.values[currency]
-                                                                .amount
-                                                        )
-                                                    }}
-                                                </div>
-                                            </div>
-                                            <span v-else class="empty-value">-</span>
-                                        </template>
-                                    </Column>
-                                </TreeTable>
-                            </div>
-
-                            <!-- Expense Tree Table -->
-                            <div class="report-section">
-                                <div class="section-header">
-                                    <h2 class="report-title">Expenses</h2>
-                                    <Button
-                                        :icon="expenseVisible ? 'pi pi-minus' : 'pi pi-plus'"
-                                        :label="expenseVisible ? 'Collapse All' : 'Expand All'"
-                                        class="p-button-sm p-button-text"
-                                        @click="toggleExpenseVisibility"
-                                    />
-                                </div>
-
-                                <TreeTable :value="expenseTableData" class="report-table">
-                                    <Column field="name" header="Name" :expander="true" />
-                                    <Column field="description" header="Description" />
-                                    <Column
-                                        v-if="expenseVisible"
-                                        v-for="currency in currencies"
-                                        :key="currency"
-                                        :header="currency"
-                                        class="amount-column"
-                                    >
-                                        <template #body="slotProps">
-                                            <div
-                                                v-if="
-                                                    slotProps.node.data.values &&
-                                                    slotProps.node.data.values[currency]
-                                                "
-                                            >
-                                                <div>
-                                                    {{
-                                                        formatAmount(
-                                                            slotProps.node.data.values[currency]
-                                                                .amount
-                                                        )
-                                                    }}
-                                                </div>
-                                            </div>
-                                            <span v-else class="empty-value">-</span>
-                                        </template>
-                                    </Column>
-                                </TreeTable>
+                            <div>
+                                <label>To:</label>
+                                <DatePicker
+                                    v-model="endDate"
+                                    :showIcon="true"
+                                    :showButtonBar="true"
+                                    dateFormat="dd/mm/y"
+                                    placeholder="End date"
+                                    @date-select="refetch"
+                                />
                             </div>
                         </div>
-                    </template>
-                </SidebarContent>
-            </div>
-        </template>
-        <template #footer>
-            <Footer />
-        </template>
-    </VerticalLayout>
+                    </div>
+
+                    <!-- Income Tree Table -->
+                    <div class="report-section">
+                        <div class="section-header">
+                            <h2 class="report-title">Income</h2>
+                            <Button
+                                :icon="incomeVisible ? 'pi pi-minus' : 'pi pi-plus'"
+                                :label="incomeVisible ? 'Collapse All' : 'Expand All'"
+                                class="p-button-sm p-button-text"
+                                @click="toggleIncomeVisibility"
+                            />
+                        </div>
+
+                        <TreeTable :value="incomeTableData" class="report-table">
+                            <Column field="name" header="Name" :expander="true" />
+                            <Column field="description" header="Description" />
+                            <Column
+                                v-if="incomeVisible"
+                                v-for="currency in currencies"
+                                :key="currency"
+                                :header="currency"
+                                class="amount-column"
+                            >
+                                <template #body="slotProps">
+                                    <div
+                                        v-if="
+                                            slotProps.node.data.values &&
+                                            slotProps.node.data.values[currency]
+                                        "
+                                    >
+                                        <div>
+                                            {{
+                                                formatAmount(
+                                                    slotProps.node.data.values[currency].amount
+                                                )
+                                            }}
+                                        </div>
+                                    </div>
+                                    <span v-else class="empty-value">-</span>
+                                </template>
+                            </Column>
+                        </TreeTable>
+                    </div>
+
+                    <!-- Expense Tree Table -->
+                    <div class="report-section">
+                        <div class="section-header">
+                            <h2 class="report-title">Expenses</h2>
+                            <Button
+                                :icon="expenseVisible ? 'pi pi-minus' : 'pi pi-plus'"
+                                :label="expenseVisible ? 'Collapse All' : 'Expand All'"
+                                class="p-button-sm p-button-text"
+                                @click="toggleExpenseVisibility"
+                            />
+                        </div>
+
+                        <TreeTable :value="expenseTableData" class="report-table">
+                            <Column field="name" header="Name" :expander="true" />
+                            <Column field="description" header="Description" />
+                            <Column
+                                v-if="expenseVisible"
+                                v-for="currency in currencies"
+                                :key="currency"
+                                :header="currency"
+                                class="amount-column"
+                            >
+                                <template #body="slotProps">
+                                    <div
+                                        v-if="
+                                            slotProps.node.data.values &&
+                                            slotProps.node.data.values[currency]
+                                        "
+                                    >
+                                        <div>
+                                            {{
+                                                formatAmount(
+                                                    slotProps.node.data.values[currency].amount
+                                                )
+                                            }}
+                                        </div>
+                                    </div>
+                                    <span v-else class="empty-value">-</span>
+                                </template>
+                            </Column>
+                        </TreeTable>
+                    </div>
+                </div>
+            </template>
+        </SidebarContent>
+    </div>
 </template>
 
 <style scoped>

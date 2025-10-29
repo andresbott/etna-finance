@@ -1,10 +1,8 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
-import {     VerticalLayout,    SidebarContent} from '@go-bumbu/vue-layouts'
+import { VerticalLayout, SidebarContent } from '@go-bumbu/vue-layouts'
 import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
 
-import TopBar from '@/views/topbar.vue'
-import Footer from '@/views/parts/Footer.vue'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Button from 'primevue/button'
@@ -36,7 +34,7 @@ const { entries, isLoading, deleteEntry, isDeleting, refetch } = useEntries(
 )
 const { accounts, isLoading: isAccountsLoading } = useAccounts()
 const { getCategoryName } = useCategoryUtils()
-const { getAccountCurrency,getAccountName } = useAccountUtils()
+const { getAccountCurrency, getAccountName } = useAccountUtils()
 
 const leftSidebarCollapsed = ref(true)
 const selectedEntry = ref(null)
@@ -54,7 +52,6 @@ const dialogs = {
     transfer: ref(false),
     stock: ref(false)
 }
-
 
 /* --- Account Tree Data --- */
 const accountsTree = computed(() => {
@@ -200,244 +197,218 @@ const getRowClass = (data) => ({
 </script>
 
 <template>
-    <VerticalLayout :center-content="false" :fullHeight="true">
-        <template #header>
-            <TopBar />
-        </template>
-        <template #default>
-            <div class="main-app-content">
-                <SidebarContent
-                    :leftSidebarCollapsed="leftSidebarCollapsed"
-                    :rightSidebarCollapsed="true"
-                >
-                    <template #left>
-                        <div class="left-sidebar-content">
-                            <div class="filter-section">
-                                <div class="filter-header">
-                                    <h3>Filter by Accounts</h3>
-                                    <Button
-                                        icon="pi pi-times"
-                                        text
-                                        size="small"
-                                        @click="clearSelection"
-                                        v-if="Object.keys(selectedKeys).length > 0"
-                                        class="clear-button"
-                                    />
-                                </div>
-
-                                <div class="tree-container">
-                                    <Tree
-                                        :value="accountsTree"
-                                        v-model:selectionKeys="selectedKeys"
-                                        :expandedKeys="expandedKeys"
-                                        v-model:expandedKeys="expandedKeys"
-                                        selectionMode="multiple"
-                                        :loading="isAccountsLoading"
-                                        class="w-full mb-3 account-tree"
-                                    >
-                                        <template #empty>
-                                            <div class="p-2" v-if="isAccountsLoading">
-                                                Loading accounts...
-                                            </div>
-                                            <div class="p-2" v-else>No accounts found</div>
-                                        </template>
-                                    </Tree>
-                                </div>
-
-                                <div class="filter-actions">
-                                    <span
-                                        class="selected-count"
-                                        v-if="selectedAccountIds.length > 0"
-                                    >
-                                        {{ selectedAccountIds.length }} account(s) selected
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    </template>
-
-                    <template #default>
-                        <div class="sidebar-controls">
+    <div class="main-app-content">
+        <SidebarContent :leftSidebarCollapsed="leftSidebarCollapsed" :rightSidebarCollapsed="true">
+            <template #left>
+                <div class="left-sidebar-content">
+                    <div class="filter-section">
+                        <div class="filter-header">
+                            <h3>Filter by Accounts</h3>
                             <Button
-                                icon="pi pi-chevron-left"
-                                @click="leftSidebarCollapsed = !leftSidebarCollapsed"
-                                :class="{ 'rotate-180': leftSidebarCollapsed }"
+                                icon="pi pi-times"
+                                text
+                                size="small"
+                                @click="clearSelection"
+                                v-if="Object.keys(selectedKeys).length > 0"
+                                class="clear-button"
                             />
-                            <div class="date-filters">
-                                <div class="date-field">
-                                    <label>From:</label>
-                                    <DatePicker
-                                        v-model="startDate"
-                                        :showIcon="true"
-                                        :showButtonBar="true"
-                                        dateFormat="dd/mm/y"
-                                        placeholder="Start date"
-                                        @date-select="refetch"
-                                    />
-                                </div>
-                                <div class="date-field">
-                                    <label>To:</label>
-                                    <DatePicker
-                                        v-model="endDate"
-                                        :showIcon="true"
-                                        :showButtonBar="true"
-                                        dateFormat="dd/mm/y"
-                                        placeholder="End date"
-                                        @date-select="refetch"
-                                    />
-                                </div>
-                            </div>
-                            <div class="add-entry-menu">
-                                <AddEntryMenu />
-                            </div>
                         </div>
 
-                        <div class="entries-view">
-                            <DataTable
-                                :value="entries"
-                                :loading="isLoading"
-                                stripedRows
-                                paginator
-                                style="width: 100%"
-                                :rows="50"
-                                :rowsPerPageOptions="[50, 100, 200]"
-                                :rowClass="getRowClass"
+                        <div class="tree-container">
+                            <Tree
+                                :value="accountsTree"
+                                v-model:selectionKeys="selectedKeys"
+                                :expandedKeys="expandedKeys"
+                                v-model:expandedKeys="expandedKeys"
+                                selectionMode="multiple"
+                                :loading="isAccountsLoading"
+                                class="w-full mb-3 account-tree"
                             >
-                                <Column header="" style="width: 40px">
-                                    <template #body="{ data }">
-                                        <i
-                                            :class="getEntryTypeIcon(data.type)"
-                                            style="font-size: 0.8rem"
-                                        />
-                                    </template>
-                                </Column>
-
-                                <Column field="description" header="Description" />
-                                <Column field="category" header="Category">
-                                    <template #body="{ data }">
-                                             <div v-if="data.type === 'expense' || data.type === 'income'" >
-                                            {{ getCategoryName(data?.categoryId, data.type) }}
-                                        </div>
-                                        <div v-else>-</div>
-                                    </template>
-                                </Column>
-
-                                <Column header="Account">
-                                    <template #body="{ data }">
-                                        <span v-if="data.type === 'transfer'">
-                                            {{ getAccountName(data.originAccountId) }}<i
-                                                class="pi pi-arrow-right"
-                                                style="font-size: 0.9rem; margin: 0 8px"
-                                            />{{ getAccountName(data.targetAccountId) }}
-                                        </span>
-                                        <span v-else>
-                                            {{ getAccountName(data.accountId) }}
-                                        </span>
-                                    </template>
-                                </Column>
-                                <Column field="date" header="Date">
-                                    <template #body="{ data }">
-                                        {{
-                                            new Date(data.date).toLocaleDateString('es-ES', {
-                                                day: '2-digit',
-                                                month: '2-digit',
-                                                year: '2-digit'
-                                            })
-                                        }}
-                                    </template>
-                                </Column>
-                                <Column field="Amount" header="Amount">
-                                    <template #body="{ data }">
-                                        <div v-if="data.type === 'expense'" class="amount expense">
-                                            -{{
-                                                data.Amount.toLocaleString('es-ES', {
-                                                    minimumFractionDigits: 2,
-                                                    maximumFractionDigits: 2
-                                                })
-                                            }}
-                                            {{ getAccountCurrency(data.accountId) }}
-                                        </div>
-                                        <div
-                                            v-else-if="data.type === 'income'"
-                                            class="amount income"
-                                        >
-                                            {{
-                                                data.Amount.toLocaleString('es-ES', {
-                                                    minimumFractionDigits: 2,
-                                                    maximumFractionDigits: 2
-                                                })
-                                            }}
-                                            {{ getAccountCurrency(data.accountId) }}
-                                        </div>
-                                        <div
-                                            v-else-if="data.type === 'transfer'"
-                                            class="amount transfer"
-                                        >
-                                            {{
-                                                data.originAmount?.toLocaleString('es-ES', {
-                                                    minimumFractionDigits: 2,
-                                                    maximumFractionDigits: 2
-                                                }) || '0.00'
-                                            }}
-                                            {{ data.originAccountCurrency || '' }}
-                                            <i
-                                                class="pi pi-arrow-right"
-                                                style="font-size: 0.9rem; margin: 0 8px"
-                                            />
-                                            {{
-                                                data.targetAmount.toLocaleString('es-ES', {
-                                                    minimumFractionDigits: 2,
-                                                    maximumFractionDigits: 2
-                                                })
-                                            }}
-                                            {{ data.targetAccountCurrency || '' }}
-                                        </div>
-                                        <div v-else class="amount">
-                                            {{
-                                                data.targetAmount.toLocaleString('es-ES', {
-                                                    minimumFractionDigits: 2,
-                                                    maximumFractionDigits: 2
-                                                })
-                                            }}
-                                            {{ data.targetAccountCurrency || '' }}
-                                        </div>
-                                    </template>
-                                </Column>
-
-
-                                <Column header="Actions" style="width: 100px">
-                                    <template #body="{ data }">
-                                        <div class="actions">
-                                            <Button
-                                                icon="pi pi-pencil"
-                                                text
-                                                rounded
-                                                class="action-button"
-                                                @click="openEditEntryDialog(data)"
-                                            />
-                                            <Button
-                                                icon="pi pi-trash"
-                                                text
-                                                rounded
-                                                severity="danger"
-                                                class="action-button"
-                                                :loading="isDeleting"
-                                                @click="openDeleteDialog(data)"
-                                            />
-                                        </div>
-                                    </template>
-                                </Column>
-                            </DataTable>
+                                <template #empty>
+                                    <div class="p-2" v-if="isAccountsLoading">
+                                        Loading accounts...
+                                    </div>
+                                    <div class="p-2" v-else>No accounts found</div>
+                                </template>
+                            </Tree>
                         </div>
-                    </template>
-                </SidebarContent>
-            </div>
-        </template>
-        <template #footer>
-            <Footer />
-<!--            <Placeholder :width="'100%'" :height="30" :color="12">Footer</Placeholder>-->
-        </template>
-    </VerticalLayout>
+
+                        <div class="filter-actions">
+                            <span class="selected-count" v-if="selectedAccountIds.length > 0">
+                                {{ selectedAccountIds.length }} account(s) selected
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </template>
+
+            <template #default>
+                <div class="sidebar-controls">
+                    <Button
+                        icon="pi pi-chevron-left"
+                        @click="leftSidebarCollapsed = !leftSidebarCollapsed"
+                        :class="{ 'rotate-180': leftSidebarCollapsed }"
+                    />
+                    <div class="date-filters">
+                        <div class="date-field">
+                            <label>From:</label>
+                            <DatePicker
+                                v-model="startDate"
+                                :showIcon="true"
+                                :showButtonBar="true"
+                                dateFormat="dd/mm/y"
+                                placeholder="Start date"
+                                @date-select="refetch"
+                            />
+                        </div>
+                        <div class="date-field">
+                            <label>To:</label>
+                            <DatePicker
+                                v-model="endDate"
+                                :showIcon="true"
+                                :showButtonBar="true"
+                                dateFormat="dd/mm/y"
+                                placeholder="End date"
+                                @date-select="refetch"
+                            />
+                        </div>
+                    </div>
+                    <div class="add-entry-menu">
+                        <AddEntryMenu />
+                    </div>
+                </div>
+
+                <div class="entries-view">
+                    <DataTable
+                        :value="entries"
+                        :loading="isLoading"
+                        stripedRows
+                        paginator
+                        style="width: 100%"
+                        :rows="50"
+                        :rowsPerPageOptions="[50, 100, 200]"
+                        :rowClass="getRowClass"
+                    >
+                        <Column header="" style="width: 40px">
+                            <template #body="{ data }">
+                                <i :class="getEntryTypeIcon(data.type)" style="font-size: 0.8rem" />
+                            </template>
+                        </Column>
+
+                        <Column field="description" header="Description" />
+                        <Column field="category" header="Category">
+                            <template #body="{ data }">
+                                <div v-if="data.type === 'expense' || data.type === 'income'">
+                                    {{ getCategoryName(data?.categoryId, data.type) }}
+                                </div>
+                                <div v-else>-</div>
+                            </template>
+                        </Column>
+
+                        <Column header="Account">
+                            <template #body="{ data }">
+                                <span v-if="data.type === 'transfer'">
+                                    {{ getAccountName(data.originAccountId)
+                                    }}<i
+                                        class="pi pi-arrow-right"
+                                        style="font-size: 0.9rem; margin: 0 8px"
+                                    />{{ getAccountName(data.targetAccountId) }}
+                                </span>
+                                <span v-else>
+                                    {{ getAccountName(data.accountId) }}
+                                </span>
+                            </template>
+                        </Column>
+                        <Column field="date" header="Date">
+                            <template #body="{ data }">
+                                {{
+                                    new Date(data.date).toLocaleDateString('es-ES', {
+                                        day: '2-digit',
+                                        month: '2-digit',
+                                        year: '2-digit'
+                                    })
+                                }}
+                            </template>
+                        </Column>
+                        <Column field="Amount" header="Amount">
+                            <template #body="{ data }">
+                                <div v-if="data.type === 'expense'" class="amount expense">
+                                    -{{
+                                        data.Amount.toLocaleString('es-ES', {
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 2
+                                        })
+                                    }}
+                                    {{ getAccountCurrency(data.accountId) }}
+                                </div>
+                                <div v-else-if="data.type === 'income'" class="amount income">
+                                    {{
+                                        data.Amount.toLocaleString('es-ES', {
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 2
+                                        })
+                                    }}
+                                    {{ getAccountCurrency(data.accountId) }}
+                                </div>
+                                <div v-else-if="data.type === 'transfer'" class="amount transfer">
+                                    {{
+                                        data.originAmount?.toLocaleString('es-ES', {
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 2
+                                        }) || '0.00'
+                                    }}
+                                    {{ data.originAccountCurrency || '' }}
+                                    <i
+                                        class="pi pi-arrow-right"
+                                        style="font-size: 0.9rem; margin: 0 8px"
+                                    />
+                                    {{
+                                        data.targetAmount.toLocaleString('es-ES', {
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 2
+                                        })
+                                    }}
+                                    {{ data.targetAccountCurrency || '' }}
+                                </div>
+                                <div v-else class="amount">
+                                    {{
+                                        data.targetAmount.toLocaleString('es-ES', {
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 2
+                                        })
+                                    }}
+                                    {{ data.targetAccountCurrency || '' }}
+                                </div>
+                            </template>
+                        </Column>
+
+                        <Column header="Actions" style="width: 100px">
+                            <template #body="{ data }">
+                                <div class="actions">
+                                    <Button
+                                        icon="pi pi-pencil"
+                                        text
+                                        rounded
+                                        class="action-button"
+                                        @click="openEditEntryDialog(data)"
+                                    />
+                                    <Button
+                                        icon="pi pi-trash"
+                                        text
+                                        rounded
+                                        severity="danger"
+                                        class="action-button"
+                                        :loading="isDeleting"
+                                        @click="openDeleteDialog(data)"
+                                    />
+                                </div>
+                            </template>
+                        </Column>
+                    </DataTable>
+                </div>
+            </template>
+        </SidebarContent>
+    </div>
 
     <!-- Dialog Components -->
     <!-- TODO: Pass the `category-id`  -->
@@ -490,7 +461,6 @@ const getRowClass = (data) => ({
 </template>
 
 <style scoped>
-
 .left-sidebar-content {
     padding: 1rem;
 }
