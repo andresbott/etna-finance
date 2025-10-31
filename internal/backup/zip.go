@@ -2,7 +2,6 @@ package backup
 
 import (
 	"archive/zip"
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -11,7 +10,6 @@ import (
 // zipWriter wraps a zip.Writer and its underlying file
 type zipWriter struct {
 	file   *os.File
-	buffer *bytes.Buffer // optional: non-nil if writing in memory
 	writer *zip.Writer
 }
 
@@ -25,7 +23,7 @@ func (zw *zipWriter) Close() error {
 
 // createZipFile initializes the zipWriter
 func createZipFile(dest string) (*zipWriter, error) {
-	f, err := os.Create(dest)
+	f, err := os.Create(dest) //nolint: gosec // destination is sanitized before calling the private function
 	if err != nil {
 		return nil, fmt.Errorf("failed to create zip file: %w", err)
 	}
@@ -35,15 +33,6 @@ func createZipFile(dest string) (*zipWriter, error) {
 		writer: zip.NewWriter(f),
 	}
 	return zw, nil
-}
-
-// createZipMemory creates an in-memory ZIP writer
-func createZipMemory() *zipWriter {
-	buf := new(bytes.Buffer)
-	return &zipWriter{
-		buffer: buf,
-		writer: zip.NewWriter(buf),
-	}
 }
 
 // writeJsonFile writes a JSON file into the provided zip.Writer.

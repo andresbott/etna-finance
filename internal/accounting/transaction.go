@@ -725,7 +725,7 @@ type ListOpts struct {
 	Page  int
 }
 
-const MaxSearchResults = 90
+const MaxSearchResults = 300
 const DefaultSearchResults = 30
 
 // ListTransactions returns an unsorted list of transactions matching the filter criteria

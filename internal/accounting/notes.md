@@ -1,6 +1,6 @@
 
 # Problems to solve
-* TODO get the current status of an account
+* DONE get the current status of an account
   * balance
 * DONE get the incomes/expenses for a certain period of time
   * report by category
