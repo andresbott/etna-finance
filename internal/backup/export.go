@@ -2,10 +2,12 @@ package backup
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/andresbott/etna/internal/accounting"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -22,7 +24,7 @@ func zipAbsPath(dest string) (string, error) {
 	return fullPath, nil
 }
 
-func Export(ctx context.Context, store *accounting.Store, destination string) error {
+func ExportToDir(ctx context.Context, store *accounting.Store, destination string) error {
 	absPath, err := zipAbsPath(destination)
 	if err != nil {
 		return err
@@ -30,7 +32,37 @@ func Export(ctx context.Context, store *accounting.Store, destination string) er
 	return export(ctx, store, absPath)
 }
 
+func verifyZipPath(zipFile string) error {
+	if !strings.HasSuffix(strings.ToLower(zipFile), ".zip") {
+		return errors.New("invalid file extension: must be a .zip file")
+	}
+
+	dir := filepath.Dir(zipFile)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return errors.New("directory does not exist: " + dir)
+	}
+
+	if _, err := os.Stat(zipFile); err == nil {
+		return errors.New("file already exists: " + zipFile)
+	} else if !os.IsNotExist(err) {
+
+		return err
+	}
+	return nil
+}
+
+func ExportToFile(ctx context.Context, store *accounting.Store, zipFile string) error {
+	err := verifyZipPath(zipFile)
+	if err != nil {
+		return err
+	}
+	return export(ctx, store, zipFile)
+}
+
 func export(ctx context.Context, store *accounting.Store, fullPath string) error {
+	if store == nil {
+		return errors.New("finance store was not initialized")
+	}
 
 	zw, err := createZipFile(fullPath)
 	if err != nil {

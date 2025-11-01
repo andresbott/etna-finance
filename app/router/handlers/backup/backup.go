@@ -67,6 +67,44 @@ func hashFilename(name string) string {
 	return hex.EncodeToString(sum[:8]) // short 8-byte hash for readability
 }
 
+func (h *Handler) Download(id string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		absPath, err := filepath.Abs(h.Destination)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to resolve destination: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		files, err := os.ReadDir(absPath)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to read directory: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		var targetFile string
+		for _, f := range files {
+			if !f.IsDir() && strings.HasSuffix(strings.ToLower(f.Name()), ".zip") && hashFilename(f.Name()) == id {
+				targetFile = f.Name()
+				break
+			}
+		}
+		if targetFile == "" {
+			http.Error(w, "file not found", http.StatusNotFound)
+			return
+		}
+
+		filePath := filepath.Join(absPath, targetFile)
+
+		// Set headers for download
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", targetFile))
+		w.Header().Set("Content-Type", "application/zip")
+
+		// Serve the file
+		http.ServeFile(w, r, filePath)
+	})
+}
+
 func (h *Handler) Delete(id string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		absPath, err := filepath.Abs(h.Destination)
@@ -125,7 +163,7 @@ func (h *Handler) CreateBackup() http.Handler {
 		backupFile := filepath.Join(absPath, fmt.Sprintf("backup-%s.zip", now))
 
 		// Create the backup file
-		err = backup.Export(r.Context(), h.Store, backupFile)
+		err = backup.ExportToFile(r.Context(), h.Store, backupFile)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed to create backup: %v", err), http.StatusInternalServerError)
 			return

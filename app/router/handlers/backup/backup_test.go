@@ -219,14 +219,14 @@ func TestHandler_CreateBackup(t *testing.T) {
 			},
 			expectCode: http.StatusOK,
 		},
-		//{
-		//	name: "backup.ExportToFile returns error",
-		//	mockExport: func(ctx context.Context, s *accounting.Store, path string) error {
-		//		return fmt.Errorf("export failed")
-		//	},
-		//	expectCode: http.StatusInternalServerError,
-		//	expectErr:  "failed to create backup: export failed",
-		//},
+		{
+			name: "backup.ExportToFile returns error",
+			store: func() *accounting.Store {
+				return nil
+			},
+			expectCode: http.StatusInternalServerError,
+			expectErr:  "failed to create backup: finance store was not initialized\n",
+		},
 	}
 
 	for _, tc := range tcs {
@@ -278,6 +278,75 @@ func TestHandler_CreateBackup(t *testing.T) {
 				}
 			}
 
+		})
+	}
+}
+
+func TestHandler_Download(t *testing.T) {
+	tcs := []struct {
+		name       string
+		filename   string
+		expectCode int
+		expectErr  string
+	}{
+		{
+			name:       "successful download",
+			filename:   "backup.zip",
+			expectCode: http.StatusOK,
+		},
+		{
+			name:       "file not found",
+			filename:   "nonexistent",
+			expectCode: http.StatusNotFound,
+			expectErr:  "file not found",
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			tempDir := t.TempDir()
+
+			fileName := "backup.zip"
+			filePath := filepath.Join(tempDir, fileName)
+			if err := os.WriteFile(filePath, []byte("test content"), 0644); err != nil {
+				t.Fatalf("failed to create test file: %v", err)
+			}
+			fileID := hashFilename(tc.filename)
+
+			h := &Handler{Destination: tempDir}
+
+			recorder := httptest.NewRecorder()
+			req, _ := http.NewRequest("GET", "/download/"+fileID, nil)
+
+			handler := h.Download(fileID)
+			handler.ServeHTTP(recorder, req)
+
+			if recorder.Code != tc.expectCode {
+				t.Fatalf("unexpected status code: got %v, want %v", recorder.Code, tc.expectCode)
+			}
+
+			if tc.expectErr != "" {
+				body, _ := io.ReadAll(recorder.Body)
+				if !strings.Contains(string(body), tc.expectErr) {
+					t.Errorf("unexpected error message: got %q, want substring %q", string(body), tc.expectErr)
+				}
+			} else {
+				// Successful download: check headers and content
+				contentDisposition := recorder.Header().Get("Content-Disposition")
+				if !strings.Contains(contentDisposition, "attachment") {
+					t.Errorf("missing or incorrect Content-Disposition header: %s", contentDisposition)
+				}
+
+				contentType := recorder.Header().Get("Content-Type")
+				if contentType != "application/zip" {
+					t.Errorf("expected Content-Type application/zip, got %s", contentType)
+				}
+
+				body, _ := io.ReadAll(recorder.Body)
+				if string(body) != "test content" {
+					t.Errorf("unexpected file content: %s", string(body))
+				}
+			}
 		})
 	}
 }
