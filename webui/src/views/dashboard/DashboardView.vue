@@ -1,8 +1,6 @@
 <script setup>
-import { VerticalLayout, Placeholder, ResponsiveHorizontal } from '@go-bumbu/vue-layouts'
+import { ResponsiveHorizontal } from '@go-bumbu/vue-layouts'
 import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
-import TopBar from '@/views/topbar.vue'
-import { useUserStore } from '@/lib/user/userstore.js'
 import { onMounted, ref, computed } from 'vue'
 import Card from 'primevue/card'
 import Chart from 'primevue/chart'
@@ -20,7 +18,7 @@ const generateRandomData = (count) => {
 const fetchReportData = async () => {
     try {
         const response = await fetch(
-            '/api/v0/fin/report/balance?accountIds=1&steps=30&startDate=2025-01-03'
+            '/api/v0/fin/report/balance?accountIds=1,2&steps=30&startDate=2025-09-24&endDate=2025-10-29'
         )
 
         if (!response.ok) {

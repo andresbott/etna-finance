@@ -5,8 +5,10 @@ import Topbar from './views/topbar.vue'
 import Footer from './views/parts/Footer.vue'
 import SidebarMenu from './components/SidebarMenu.vue'
 import { useUiStore } from '@/store/uiStore.js'
+import { useUserStore } from '@/lib/user/userstore.js'
 
 const uiStore = useUiStore()
+const user = useUserStore()
 
 onMounted(() => {
     uiStore.initUi()
@@ -24,7 +26,7 @@ onUnmounted(() => {
         </template>
         <template #default>
             <div class="content">
-                <SidebarMenu />
+                <SidebarMenu v-if="user.isLoggedIn" />
                 <router-view />
             </div>
         </template>
