@@ -3,7 +3,6 @@ package router
 import (
 	"fmt"
 	finHandler "github.com/andresbott/etna/app/router/handlers/finance"
-	"github.com/andresbott/etna/internal/accounting"
 	"github.com/go-bumbu/userauth/authenticator"
 	"github.com/go-bumbu/userauth/handlers/sessionauth"
 	"github.com/gorilla/mux"
@@ -40,12 +39,7 @@ const finReport = "/fin/report"
 //nolint:gocognit,gocyclo // the function is quite big and verbose but easy to follow
 func (h *MainAppHandler) accountingAPI(r *mux.Router) error {
 
-	fineStore, err := accounting.NewStore(h.db)
-	if err != nil {
-		return fmt.Errorf("unable to create tags Store :%v", err)
-	}
-
-	finHndlr := finHandler.Handler{Store: fineStore}
+	finHndlr := finHandler.Handler{Store: h.finStore}
 
 	// ==========================================================================
 	// Account Providers
@@ -148,7 +142,7 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) error {
 	// Entry Category
 	// ==========================================================================
 
-	catHandler := finHandler.CategoryHandler{Store: fineStore}
+	catHandler := finHandler.CategoryHandler{Store: h.finStore}
 
 	// list income categories
 	r.Path(finCategoryIncome).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

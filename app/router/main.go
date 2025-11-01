@@ -2,8 +2,11 @@ package router
 
 import (
 	_ "embed"
+	"fmt"
 	handlrs "github.com/andresbott/etna/app/router/handlers"
+	"github.com/andresbott/etna/app/router/handlers/backup"
 	"github.com/andresbott/etna/app/spa"
+	"github.com/andresbott/etna/internal/accounting"
 	"github.com/go-bumbu/http/middleware"
 	"github.com/go-bumbu/userauth"
 	"github.com/go-bumbu/userauth/handlers/sessionauth"
@@ -14,37 +17,49 @@ import (
 )
 
 type Cfg struct {
-	Db             *gorm.DB
-	SessionAuth    *sessionauth.Manager
-	UserMngr       userauth.LoginHandler
-	Logger         *slog.Logger
-	ProductionMode bool
+	Db                *gorm.DB
+	SessionAuth       *sessionauth.Manager
+	UserMngr          userauth.LoginHandler
+	Logger            *slog.Logger
+	BackupDestination string
+	ProductionMode    bool
 }
 
 // MainAppHandler is the entrypoint http handler for the whole application
 type MainAppHandler struct {
-	router         *mux.Router
-	db             *gorm.DB
-	SessionAuth    *sessionauth.Manager
-	userMngr       userauth.LoginHandler
-	logger         *slog.Logger
-	productionMode bool
+	router            *mux.Router
+	db                *gorm.DB
+	finStore          *accounting.Store
+	SessionAuth       *sessionauth.Manager
+	userMngr          userauth.LoginHandler
+	logger            *slog.Logger
+	backupDestination string
+	productionMode    bool
 }
 
 func (h *MainAppHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.router.ServeHTTP(w, r)
 }
 
+var financeStore *accounting.Store
+
 func New(cfg Cfg) (*MainAppHandler, error) {
 	r := mux.NewRouter()
 	app := MainAppHandler{
-		router:         r,
-		db:             cfg.Db,
-		SessionAuth:    cfg.SessionAuth,
-		userMngr:       cfg.UserMngr,
-		logger:         cfg.Logger,
-		productionMode: cfg.ProductionMode,
+		router:            r,
+		db:                cfg.Db,
+		SessionAuth:       cfg.SessionAuth,
+		userMngr:          cfg.UserMngr,
+		logger:            cfg.Logger,
+		backupDestination: cfg.BackupDestination,
+		productionMode:    cfg.ProductionMode,
 	}
+
+	fineStore, err := accounting.NewStore(cfg.Db)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create accounting Store :%v", err)
+	}
+	app.finStore = fineStore
 
 	prodMid := middleware.New(middleware.Cfg{
 		JsonErrors:  false,
@@ -55,9 +70,11 @@ func New(cfg Cfg) (*MainAppHandler, error) {
 	r.Use(prodMid.Middleware)
 
 	app.attachUserAuth(app.router.PathPrefix("/auth").Subrouter())
+	// backup/restore
+	app.attachBackup(app.router.PathPrefix("/backup").Subrouter())
 
 	// add a handler for /api/v0, this includes authentication on tasks
-	err := app.attachApiV0(app.router.PathPrefix("/api/v0").Subrouter())
+	err = app.attachApiV0(app.router.PathPrefix("/api/v0").Subrouter())
 	if err != nil {
 		return nil, err
 	}
@@ -101,6 +118,45 @@ func (h *MainAppHandler) attachUserAuth(r *mux.Router) {
 	// OPTIONS
 	//r.Path("/user/options").Methods(http.MethodGet).Handler(handlers.StatusErr(http.StatusNotImplemented))
 	r.Path("/user/options").HandlerFunc(StatusErr(http.StatusMethodNotAllowed))
+}
+
+func (h *MainAppHandler) attachBackup(r *mux.Router) {
+
+	backupHndl := backup.Handler{
+		Destination: h.backupDestination,
+		Store:       h.finStore,
+	}
+	r.Path("/list").Methods(http.MethodGet).Handler(backupHndl.List())
+	r.Path("/create").Methods(http.MethodPut).Handler(backupHndl.CreateBackup())
+	r.Path("/delete/{ID}").Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		itemId, ok := vars["ID"]
+		if !ok {
+			http.Error(w, "could not extract tag id from request context", http.StatusInternalServerError)
+			return
+		}
+		if itemId == "" {
+			http.Error(w, "no id provided", http.StatusBadRequest)
+			return
+		}
+		backupHndl.Delete(itemId)
+	})
+
+	r.Path("/download/{ID}").Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		itemId, ok := vars["ID"]
+		if !ok {
+			http.Error(w, "could not extract tag id from request context", http.StatusInternalServerError)
+			return
+		}
+		if itemId == "" {
+			http.Error(w, "no id provided", http.StatusBadRequest)
+			return
+		}
+		http.Error(w, "not implemented", http.StatusNotImplemented)
+		return
+	})
+
 }
 
 func StatusErr(status int) func(w http.ResponseWriter, r *http.Request) {

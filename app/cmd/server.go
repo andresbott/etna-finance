@@ -5,6 +5,8 @@ import (
 	"github.com/andresbott/etna/app/router"
 	handlers "github.com/andresbott/etna/app/router/handlers"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/glebarez/sqlite"
@@ -62,8 +64,15 @@ func runServer(configFile string) error {
 		}
 	}
 
+	// init data dir
+	err = initDataDir(cfg.DataDir)
+	if err != nil {
+		return err
+	}
+	l.Info("using data directory", slog.String("path", cfg.DataDir))
+
 	// initialize DB
-	db, err := gorm.Open(sqlite.Open(dbFile), &gorm.Config{
+	db, err := gorm.Open(sqlite.Open(filepath.Join(cfg.DataDir, dbFile)), &gorm.Config{
 		// TODO add slogger translation
 		//Logger: zeroGorm.New(l.ZeroLog, zeroGorm.Cfg{IgnoreRecordNotFoundError: true}),
 	})
@@ -92,7 +101,8 @@ func runServer(configFile string) error {
 		UserMngr: userauth.LoginHandler{
 			UserStore: userStore,
 		},
-		Logger: l,
+		Logger:            l,
+		BackupDestination: filepath.Join(cfg.DataDir, backupsDir),
 	}
 	mainAppHandler, err := router.New(routerCfg)
 	if err != nil {
@@ -157,4 +167,40 @@ func getUserStore(cfg AppCfg, l *slog.Logger) (userauth.UserGetter, error) {
 		return userGet, fmt.Errorf("wrong user store in configuration, %s is not supported", cfg.Auth.UserStore.StoreType)
 	}
 	return userGet, nil
+}
+
+const backupsDir = "backup"
+
+func initDataDir(path string) error {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path: %w", err)
+	}
+
+	info, err := os.Stat(absPath)
+	if os.IsNotExist(err) {
+		// Create the directory (and any missing parents)
+		if err := os.MkdirAll(absPath, 0755); err != nil {
+			return fmt.Errorf("failed to create directory: %w", err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("failed to stat path: %w", err)
+	} else if !info.IsDir() {
+		return fmt.Errorf("path is not a directory: %s", absPath)
+	}
+
+	// create backup dir
+	backupInfo, err := os.Stat(filepath.Join(absPath, backupsDir))
+	if os.IsNotExist(err) {
+		// Create the directory (and any missing parents)
+		if err := os.MkdirAll(filepath.Join(absPath, backupsDir), 0755); err != nil {
+			return fmt.Errorf("failed to create directory: %w", err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("failed to stat path: %w", err)
+	} else if !backupInfo.IsDir() {
+		return fmt.Errorf("backup path is not a directory: %s", absPath)
+	}
+
+	return nil
 }

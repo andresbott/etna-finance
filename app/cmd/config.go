@@ -4,15 +4,17 @@ import (
 	"fmt"
 	"github.com/go-bumbu/config"
 	"github.com/gorilla/securecookie"
+	"path/filepath"
 	"strconv"
 )
 
 type AppCfg struct {
-	Server serverCfg
-	Obs    serverCfg `config:"Observability"`
-	Auth   authConfig
-	Env    Env
-	Msgs   []Msg
+	Server  serverCfg
+	Obs     serverCfg `config:"Observability"`
+	Auth    authConfig
+	Env     Env
+	Msgs    []Msg
+	DataDir string
 }
 
 type Env struct {
@@ -53,7 +55,7 @@ type User struct {
 
 // Default represents the basic set of sensible defaults
 var defaultCfg = AppCfg{
-
+	DataDir: "./data",
 	Server: serverCfg{
 		BindIp: "",
 		Port:   8085,
@@ -91,6 +93,8 @@ type Msg struct {
 	Msg   string
 }
 
+const EnvBarPrefix = "ETNA"
+
 func getAppCfg(file string) (AppCfg, error) {
 	configMsg := []Msg{}
 	cfg := AppCfg{}
@@ -98,7 +102,7 @@ func getAppCfg(file string) (AppCfg, error) {
 	_, err = config.Load(
 		config.Defaults{Item: defaultCfg},
 		config.CfgFile{Path: file, Mandatory: false},
-		config.EnvVar{Prefix: "BUMBU"},
+		config.EnvVar{Prefix: EnvBarPrefix},
 		config.Unmarshal{Item: &cfg},
 		config.Writer{Fn: func(level, msg string) {
 			if level == config.InfoLevel {
@@ -113,6 +117,12 @@ func getAppCfg(file string) (AppCfg, error) {
 	if err != nil {
 		return cfg, err
 	}
+
+	absPath, err := filepath.Abs(cfg.DataDir)
+	if err != nil {
+		return cfg, fmt.Errorf("failed to get absolute path: %w", err)
+	}
+	cfg.DataDir = absPath
 
 	// handle auth cookie hash
 	if cfg.Auth.HashKey == "" || cfg.Auth.BlockKey == "" {
