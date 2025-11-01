@@ -136,7 +136,7 @@ const getAccountIcon = (type) => {
     position: relative;
     height: 100%;
     width: 300px;
-    background: #1e1e1e;
+    background: var(--c-card-background);
     transition: transform 0.3s;
     overflow-y: auto;
     padding: 20px 10px;
