@@ -13,33 +13,43 @@ const user = useUserStore()
 const router = useRouter()
 const uiStore = useUiStore()
 
-const menuItems = [
-    {
-        label: 'Entries',
-        command: () => {
-            router.push('/entries')
-        }
-    },
-    {
-        label: 'Reports',
-        command: () => {
-            router.push('/reports')
-        }
-    }
-]
+// const menuItems = [
+//     {
+//         label: 'Entries',
+//         command: () => {
+//             router.push('/entries')
+//         }
+//     },
+//     {
+//         label: 'Reports',
+//         command: () => {
+//             router.push('/reports')
+//         }
+//     }
+// ]
+
+const toggleSidebar = () => {
+    uiStore.toggleDrawer()
+}
 </script>
 
 <template>
     <HL class="topbar" :centerContent="true" :verticalCenterContent="false">
         <template #left>
-            <router-link to="/start" class="layout-topbar-logo">
-                <AppTitle icon="pi-money-bill" text="Etna" class="ml-4 mr-2" />
-            </router-link>
+            <div class="pl-4 flex items-center">
+                <i
+                    v-if="user.isLoggedIn"
+                    class="pi pi-bars text-2xl cursor-pointer text-gray-700"
+                    @click="toggleSidebar"
+                ></i>
+                <router-link to="/start" class="layout-topbar-logo">
+                    <AppTitle icon="pi-money-bill" text="Etna" class="ml-4 mr-2" />
+                </router-link>
+            </div>
         </template>
 
         <template #default>
-            <Menubar :model="menuItems" class="nav-menu hidden lg:block" />
-            <Button icon="pi pi-bars" @click="uiStore.openDrawer" class="block lg:hidden" />
+            <!-- <Menubar :model="menuItems" class="nav-menu hidden lg:block" /> -->
         </template>
 
         <template #right>
@@ -84,6 +94,10 @@ const menuItems = [
 
 :deep(.p-menuitem-link) {
     //padding: 0.5rem 0;
+}
+
+i {
+    line-height: inherit;
 }
 
 //:deep(.p-menuitem-link:hover) {

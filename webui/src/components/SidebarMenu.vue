@@ -1,17 +1,19 @@
 <template>
-    <Drawer v-model:visible="uiStore.isDrawerVisible" position="left" header=" ">
-        <template #default>
-            <div class="flex flex-col h-full">
-                <ul class="list-none p-0 m-0 overflow-y-auto w-full h-full">
-                    <!-- Overview -->
+    <div class="relative-sidebar-wrapper">
+        <Transition name="slide-left">
+            <div v-if="uiStore.isDrawerVisible" class="sidebar-panel">
+                <ul class="list-none p-0 m-0 w-full">
                     <li>
-                        <router-link to="/" class="flex items-center cursor-pointer px-4 py-3">
+                        <router-link
+                            to="/"
+                            class="flex items-center cursor-pointer px-4 py-3 hover:bg-gray-100"
+                            @click="uiStore.closeDrawer()"
+                        >
                             <i class="pi pi-home mr-2"></i>
                             <span class="font-medium">Overview</span>
                         </router-link>
                     </li>
 
-                    <!-- Accounts -->
                     <li>
                         <a
                             v-styleclass="{
@@ -22,7 +24,7 @@
                                 leaveActiveClass: 'animate-slideup',
                                 leaveToClass: 'hidden'
                             }"
-                            class="flex items-center cursor-pointer px-4 py-3"
+                            class="flex items-center cursor-pointer px-4 py-3 hover:bg-gray-100"
                         >
                             <i class="pi pi-chart-line mr-2"></i>
                             <span class="font-medium">Accounts</span>
@@ -42,7 +44,7 @@
                                         leaveToClass: 'hidden',
                                         leaveActiveClass: 'animate-slideup'
                                     }"
-                                    class="flex items-center cursor-pointer px-4 py-3"
+                                    class="flex items-center cursor-pointer px-4 py-3 hover:bg-gray-100"
                                 >
                                     <i class="pi pi-wallet mr-2"></i>
                                     <span class="font-medium">{{ provider.name }}</span>
@@ -52,12 +54,12 @@
                                     ></i>
                                 </a>
 
-                                <!-- Accounts Submenu -->
                                 <ul class="list-none hidden overflow-hidden">
                                     <li v-for="account in provider.accounts" :key="account.id">
                                         <router-link
                                             :to="`/entries/${account.id}`"
-                                            class="flex items-center cursor-pointer px-4 py-3"
+                                            class="flex items-center cursor-pointer px-4 py-3 hover:bg-gray-100"
+                                            @click="uiStore.closeDrawer()"
                                         >
                                             <i
                                                 :class="getAccountIcon(account.type)"
@@ -75,7 +77,6 @@
                         </ul>
                     </li>
 
-                    <!-- Reports -->
                     <li>
                         <a
                             v-styleclass="{
@@ -86,7 +87,7 @@
                                 leaveActiveClass: 'animate-slideup',
                                 leaveToClass: 'hidden'
                             }"
-                            class="flex items-center cursor-pointer px-4 py-3"
+                            class="flex items-center cursor-pointer px-4 py-3 hover:bg-gray-100"
                         >
                             <i class="pi pi-chart-line mr-2"></i>
                             <span class="font-medium">Reports</span>
@@ -99,7 +100,8 @@
                             <li>
                                 <router-link
                                     to="/reports"
-                                    class="flex items-center cursor-pointer px-4 py-3"
+                                    class="flex items-center cursor-pointer px-4 py-3 hover:bg-gray-100"
+                                    @click="uiStore.closeDrawer()"
                                 >
                                     <i class="pi pi-arrow-up-right mr-2"></i>
                                     <span class="font-medium">Expense & Income</span>
@@ -109,15 +111,13 @@
                     </li>
                 </ul>
             </div>
-        </template>
-    </Drawer>
+        </Transition>
+    </div>
 </template>
 
 <script setup>
-import { Drawer } from 'primevue'
 import { useUiStore } from '@/store/uiStore.js'
 import { useAccounts } from '@/composables/useAccounts.js'
-import { onMounted, onUnmounted } from 'vue'
 
 const uiStore = useUiStore()
 const { accounts } = useAccounts()
@@ -132,24 +132,29 @@ const getAccountIcon = (type) => {
     }
     return icons[type] || 'pi pi-wallet'
 }
-
-const checkScreenWidth = () => {
-    if (window.innerWidth >= 1024) {
-        useUiStore().closeDrawer()
-    }
-}
-
-onMounted(() => {
-    checkScreenWidth()
-    window.addEventListener('resize', checkScreenWidth)
-})
-
-onUnmounted(() => {
-    window.removeEventListener('resize', checkScreenWidth)
-})
 </script>
 
 <style scoped>
+.sidebar-panel {
+    position: relative;
+    height: 100%;
+    width: 300px;
+    background: #1e1e1e;
+    transition: transform 0.3s;
+    overflow-y: auto;
+    padding: 20px 10px;
+}
+
+.slide-left-enter-from,
+.slide-left-leave-to {
+    transform: translateX(-100%);
+}
+
+.slide-left-enter-active,
+.slide-left-leave-active {
+    transition: transform 0.3s ease-out;
+}
+
 i {
     line-height: unset !important;
 }

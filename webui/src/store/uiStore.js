@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { defineStore } from 'pinia'
 
 export const useUiStore = defineStore('ui', () => {
@@ -12,5 +12,33 @@ export const useUiStore = defineStore('ui', () => {
         isDrawerVisible.value = false
     }
 
-    return { isDrawerVisible, openDrawer, closeDrawer }
+    const toggleDrawer = () => {
+        isDrawerVisible.value = !isDrawerVisible.value
+    }
+
+    const checkScreenWidth = () => {
+        if (window.innerWidth >= 1024) {
+            openDrawer()
+        } else {
+            closeDrawer()
+        }
+    }
+
+    const initUi = () => {
+        checkScreenWidth()
+        window.addEventListener('resize', checkScreenWidth)
+    }
+
+    const cleanupUi = () => {
+        window.removeEventListener('resize', checkScreenWidth)
+    }
+
+    return {
+        isDrawerVisible,
+        openDrawer,
+        closeDrawer,
+        toggleDrawer,
+        initUi,
+        cleanupUi
+    }
 })

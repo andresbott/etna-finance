@@ -1,14 +1,9 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { VerticalLayout, SidebarContent } from '@go-bumbu/vue-layouts'
 import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
 
 import { fetchIncomeExpense } from '@/composables/useIncomeExpense.js'
-
-import TopBar from '@/views/topbar.vue'
-import Footer from '@/views/parts/Footer.vue'
 import DatePicker from 'primevue/datepicker'
-
 import { Button, Column, TreeTable } from 'primevue'
 
 const today = new Date()
@@ -17,11 +12,10 @@ const endDate = ref(new Date())
 
 const incomeTableData = ref([])
 const expenseTableData = ref([])
-const incomeVisible = ref(true)
-const expenseVisible = ref(true)
-
 const reportData = ref(null)
-const leftSidebarCollapsed = ref(true)
+
+const expandedIncomeKeys = ref({})
+const expandedExpenseKeys = ref({})
 
 const fetchReportData = async () => {
     try {
@@ -32,8 +26,9 @@ const fetchReportData = async () => {
 
         reportData.value = await response
 
-        incomeTableData.value = incomeNodes.value
-        expenseTableData.value = expenseNodes.value
+        // Apply zero filtering before assigning
+        incomeTableData.value = filterZeroNodes(incomeNodes.value)
+        expenseTableData.value = filterZeroNodes(expenseNodes.value)
     } catch (error) {
         console.error('Error fetching report data:', error)
     }
@@ -44,48 +39,66 @@ const formatAmount = (amount) =>
 
 const formatDateForAPI = (date) => {
     if (!date) return ''
-
-    const dateObj = new Date(date)
-
-    const year = dateObj.getFullYear()
-    const month = String(dateObj.getMonth() + 1).padStart(2, '0')
-    const day = String(dateObj.getDate()).padStart(2, '0')
-
+    const d = new Date(date)
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
     return `${year}-${month}-${day}`
 }
 
 const currencies = computed(() => {
     if (!reportData.value) return []
-    const currencySet = new Set()
+    const set = new Set()
     const income = reportData.value.income || []
     const expenses = reportData.value.expenses || []
     ;[...income, ...expenses].forEach((item) => {
-        Object.keys(item.values || {}).forEach((c) => currencySet.add(c))
+        Object.keys(item.values || {}).forEach((c) => set.add(c))
     })
-    return Array.from(currencySet).sort()
+    return Array.from(set).sort()
 })
 
-/* ------------------- TREE BUILDING ------------------- */
 const buildTree = (items) => {
     if (!items || items.length === 0) return []
-    const itemsById = {}
+    const map = {}
+    items.forEach((item) => (map[item.id] = { ...item, children: [] }))
+    const roots = []
     items.forEach((item) => {
-        itemsById[item.id] = { ...item, children: [] }
-    })
-    const rootItems = []
-    items.forEach((item) => {
-        if (item.ParentId === 0 || !itemsById[item.ParentId]) {
-            rootItems.push(itemsById[item.id])
+        if (item.ParentId === 0 || !map[item.ParentId]) {
+            roots.push(map[item.id])
         } else {
-            itemsById[item.ParentId].children.push(itemsById[item.id])
+            map[item.ParentId].children.push(map[item.id])
         }
     })
-    const buildNode = (item) => ({
+    const toNode = (item) => ({
         key: String(item.id),
         data: { name: item.name, description: item.description, values: item.values },
-        children: item.children?.map(buildNode)
+        children: item.children?.map(toNode)
     })
-    return rootItems.map(buildNode)
+    return roots.map(toNode)
+}
+
+const filterZeroNodes = (nodes) => {
+    if (!nodes || nodes.length === 0) return []
+
+    const hasNonZeroValues = (values) => {
+        if (!values) return false
+        return Object.values(values).some((v) => v.amount && v.amount !== 0)
+    }
+
+    const filterRecursive = (list) => {
+        return list
+            .map((node) => {
+                const filteredChildren = filterRecursive(node.children || [])
+                const selfHasValue = hasNonZeroValues(node.data.values)
+                if (selfHasValue || filteredChildren.length > 0) {
+                    return { ...node, children: filteredChildren }
+                }
+                return null
+            })
+            .filter((n) => n !== null)
+    }
+
+    return filterRecursive(nodes)
 }
 
 const incomeNodes = computed(() =>
@@ -95,48 +108,43 @@ const expenseNodes = computed(() =>
     reportData.value?.expenses ? buildTree(reportData.value.expenses) : []
 )
 
+const expandAllNodes = (nodes) => {
+    const expanded = {}
+    const traverse = (list) => {
+        list.forEach((n) => {
+            expanded[n.key] = true
+            if (n.children && n.children.length > 0) traverse(n.children)
+        })
+    }
+    traverse(nodes)
+    return expanded
+}
+
 const toggleIncomeVisibility = () => {
-    if (incomeVisible.value) {
-        // Hide income table
-        incomeTableData.value = []
-        incomeVisible.value = false
+    if (Object.keys(expandedIncomeKeys.value).length > 0) {
+        expandedIncomeKeys.value = {}
     } else {
-        // Show income table
-        incomeTableData.value = incomeNodes.value
-        incomeVisible.value = true
+        expandedIncomeKeys.value = expandAllNodes(incomeTableData.value)
     }
 }
 
 const toggleExpenseVisibility = () => {
-    if (expenseVisible.value) {
-        // Hide expense table
-        expenseTableData.value = []
-        expenseVisible.value = false
+    if (Object.keys(expandedExpenseKeys.value).length > 0) {
+        expandedExpenseKeys.value = {}
     } else {
-        // Show expense table
-        expenseTableData.value = expenseNodes.value
-        expenseVisible.value = true
+        expandedExpenseKeys.value = expandAllNodes(expenseTableData.value)
     }
 }
 
-const refetch = () => fetchReportData()
-
 watch([startDate, endDate], () => {
-    if (startDate.value && endDate.value) {
-        fetchReportData()
-    }
+    if (startDate.value && endDate.value) fetchReportData()
 })
 
 watch(incomeNodes, (newNodes) => {
-    if (incomeVisible.value) {
-        incomeTableData.value = newNodes
-    }
+    incomeTableData.value = filterZeroNodes(newNodes)
 })
-
 watch(expenseNodes, (newNodes) => {
-    if (expenseVisible.value) {
-        expenseTableData.value = newNodes
-    }
+    expenseTableData.value = filterZeroNodes(newNodes)
 })
 
 onMounted(() => fetchReportData())
@@ -144,124 +152,130 @@ onMounted(() => fetchReportData())
 
 <template>
     <div class="main-app-content">
-        <SidebarContent :leftSidebarCollapsed="leftSidebarCollapsed" :rightSidebarCollapsed="true">
-            <template #default>
-                <div class="reports">
-                    <div class="sidebar-controls">
-                        <div class="date-filters">
-                            <div>
-                                <label>From:</label>
-                                <DatePicker
-                                    v-model="startDate"
-                                    :showIcon="true"
-                                    :showButtonBar="true"
-                                    dateFormat="dd/mm/y"
-                                    placeholder="Start date"
-                                    @date-select="refetch"
-                                />
-                            </div>
-                            <div>
-                                <label>To:</label>
-                                <DatePicker
-                                    v-model="endDate"
-                                    :showIcon="true"
-                                    :showButtonBar="true"
-                                    dateFormat="dd/mm/y"
-                                    placeholder="End date"
-                                    @date-select="refetch"
-                                />
-                            </div>
-                        </div>
+        <div class="reports">
+            <div class="sidebar-controls">
+                <div class="date-filters">
+                    <div>
+                        <label>From:</label>
+                        <DatePicker
+                            v-model="startDate"
+                            :showIcon="true"
+                            :showButtonBar="true"
+                            dateFormat="dd/mm/y"
+                            placeholder="Start date"
+                            @date-select="refetch"
+                        />
                     </div>
-
-                    <!-- Income Tree Table -->
-                    <div class="report-section">
-                        <div class="section-header">
-                            <h2 class="report-title">Income</h2>
-                            <Button
-                                :icon="incomeVisible ? 'pi pi-minus' : 'pi pi-plus'"
-                                :label="incomeVisible ? 'Collapse All' : 'Expand All'"
-                                class="p-button-sm p-button-text"
-                                @click="toggleIncomeVisibility"
-                            />
-                        </div>
-
-                        <TreeTable :value="incomeTableData" class="report-table">
-                            <Column field="name" header="Name" :expander="true" />
-                            <Column field="description" header="Description" />
-                            <Column
-                                v-if="incomeVisible"
-                                v-for="currency in currencies"
-                                :key="currency"
-                                :header="currency"
-                                class="amount-column"
-                            >
-                                <template #body="slotProps">
-                                    <div
-                                        v-if="
-                                            slotProps.node.data.values &&
-                                            slotProps.node.data.values[currency]
-                                        "
-                                    >
-                                        <div>
-                                            {{
-                                                formatAmount(
-                                                    slotProps.node.data.values[currency].amount
-                                                )
-                                            }}
-                                        </div>
-                                    </div>
-                                    <span v-else class="empty-value">-</span>
-                                </template>
-                            </Column>
-                        </TreeTable>
-                    </div>
-
-                    <!-- Expense Tree Table -->
-                    <div class="report-section">
-                        <div class="section-header">
-                            <h2 class="report-title">Expenses</h2>
-                            <Button
-                                :icon="expenseVisible ? 'pi pi-minus' : 'pi pi-plus'"
-                                :label="expenseVisible ? 'Collapse All' : 'Expand All'"
-                                class="p-button-sm p-button-text"
-                                @click="toggleExpenseVisibility"
-                            />
-                        </div>
-
-                        <TreeTable :value="expenseTableData" class="report-table">
-                            <Column field="name" header="Name" :expander="true" />
-                            <Column field="description" header="Description" />
-                            <Column
-                                v-if="expenseVisible"
-                                v-for="currency in currencies"
-                                :key="currency"
-                                :header="currency"
-                                class="amount-column"
-                            >
-                                <template #body="slotProps">
-                                    <div
-                                        v-if="
-                                            slotProps.node.data.values &&
-                                            slotProps.node.data.values[currency]
-                                        "
-                                    >
-                                        <div>
-                                            {{
-                                                formatAmount(
-                                                    slotProps.node.data.values[currency].amount
-                                                )
-                                            }}
-                                        </div>
-                                    </div>
-                                    <span v-else class="empty-value">-</span>
-                                </template>
-                            </Column>
-                        </TreeTable>
+                    <div>
+                        <label>To:</label>
+                        <DatePicker
+                            v-model="endDate"
+                            :showIcon="true"
+                            :showButtonBar="true"
+                            dateFormat="dd/mm/y"
+                            placeholder="End date"
+                            @date-select="refetch"
+                        />
                     </div>
                 </div>
-            </template>
-        </SidebarContent>
+            </div>
+
+            <!-- Income Section -->
+            <div class="report-section">
+                <div class="section-header">
+                    <h2 class="report-title">Income</h2>
+                    <Button
+                        :icon="
+                            Object.keys(expandedIncomeKeys).length > 0
+                                ? 'pi pi-minus'
+                                : 'pi pi-plus'
+                        "
+                        :label="
+                            Object.keys(expandedIncomeKeys).length > 0
+                                ? 'Collapse All'
+                                : 'Expand All'
+                        "
+                        class="p-button-sm p-button-text"
+                        @click="toggleIncomeVisibility"
+                    />
+                </div>
+
+                <TreeTable
+                    :value="incomeTableData"
+                    v-model:expandedKeys="expandedIncomeKeys"
+                    class="report-table"
+                >
+                    <Column field="name" header="Name" :expander="true" />
+                    <Column field="description" header="Description" />
+                    <Column
+                        v-for="currency in currencies"
+                        :key="currency"
+                        :header="currency"
+                        class="amount-column"
+                    >
+                        <template #body="slotProps">
+                            <div
+                                v-if="
+                                    slotProps.node.data.values &&
+                                    slotProps.node.data.values[currency]
+                                "
+                            >
+                                {{ formatAmount(slotProps.node.data.values[currency].amount) }}
+                            </div>
+                            <span v-else class="empty-value">-</span>
+                        </template>
+                    </Column>
+                </TreeTable>
+            </div>
+
+            <!-- Expense Section -->
+            <div class="report-section">
+                <div class="section-header">
+                    <h2 class="report-title">Expenses</h2>
+                    <Button
+                        :icon="
+                            Object.keys(expandedExpenseKeys).length > 0
+                                ? 'pi pi-minus'
+                                : 'pi pi-plus'
+                        "
+                        :label="
+                            Object.keys(expandedExpenseKeys).length > 0
+                                ? 'Collapse All'
+                                : 'Expand All'
+                        "
+                        class="p-button-sm p-button-text"
+                        @click="toggleExpenseVisibility"
+                    />
+                </div>
+
+                <TreeTable
+                    :value="expenseTableData"
+                    v-model:expandedKeys="expandedExpenseKeys"
+                    class="report-table"
+                >
+                    <Column field="name" header="Name" :expander="true" />
+                    <Column field="description" header="Description" />
+                    <Column
+                        v-for="currency in currencies"
+                        :key="currency"
+                        :header="currency"
+                        class="amount-column"
+                    >
+                        <template #body="slotProps">
+                            <div
+                                v-if="
+                                    slotProps.node.data.values &&
+                                    slotProps.node.data.values[currency]
+                                "
+                            >
+                                {{ formatAmount(slotProps.node.data.values[currency].amount) }}
+                            </div>
+                            <span v-else class="empty-value">-</span>
+                        </template>
+                    </Column>
+                </TreeTable>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -287,5 +301,8 @@ onMounted(() => fetchReportData())
 .report-title {
     color: var(--c-surface-700);
     margin: 0;
+}
+.empty-value {
+    color: #999;
 }
 </style>
