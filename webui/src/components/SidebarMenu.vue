@@ -7,7 +7,6 @@
                         <router-link
                             to="/"
                             class="flex items-center cursor-pointer px-4 py-3 hover:bg-gray-100"
-                            @click="uiStore.closeDrawer()"
                         >
                             <i class="pi pi-home mr-2"></i>
                             <span class="font-medium">Overview</span>
@@ -59,7 +58,6 @@
                                         <router-link
                                             :to="`/entries/${account.id}`"
                                             class="flex items-center cursor-pointer px-4 py-3 hover:bg-gray-100"
-                                            @click="uiStore.closeDrawer()"
                                         >
                                             <i
                                                 :class="getAccountIcon(account.type)"
@@ -101,7 +99,6 @@
                                 <router-link
                                     to="/reports"
                                     class="flex items-center cursor-pointer px-4 py-3 hover:bg-gray-100"
-                                    @click="uiStore.closeDrawer()"
                                 >
                                     <i class="pi pi-arrow-up-right mr-2"></i>
                                     <span class="font-medium">Expense & Income</span>
