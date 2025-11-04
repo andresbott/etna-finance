@@ -1,19 +1,20 @@
 package backup
 
 import (
+	"crypto/rand"
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/andresbott/etna/internal/accounting"
-	"github.com/andresbott/etna/internal/backup"
-	"github.com/davecgh/go-spew/spew"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/andresbott/etna/internal/accounting"
+	"github.com/andresbott/etna/internal/backup"
 )
 
 type Handler struct {
@@ -116,54 +117,6 @@ func (h *Handler) Download(id string) http.Handler {
 	})
 }
 
-func (h *Handler) Upload() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Limit the upload size (optional, e.g., 100MB)
-		r.Body = http.MaxBytesReader(w, r.Body, 100<<20) // 100 MB
-
-		if err := r.ParseMultipartForm(100 << 20); err != nil {
-			http.Error(w, fmt.Sprintf("failed to parse form: %v", err), http.StatusBadRequest)
-			return
-		}
-
-		file, handler, err := r.FormFile("file") // expects form field "file"
-		if err != nil {
-			http.Error(w, fmt.Sprintf("failed to get file: %v", err), http.StatusBadRequest)
-			return
-		}
-		defer file.Close()
-
-		// Only allow .zip files
-		if !strings.HasSuffix(strings.ToLower(handler.Filename), ".zip") {
-			http.Error(w, "only .zip files are allowed", http.StatusBadRequest)
-			return
-		}
-
-		absPath, err := filepath.Abs(h.Destination)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("failed to resolve destination: %v", err), http.StatusInternalServerError)
-			return
-		}
-
-		dstPath := filepath.Join(absPath, handler.Filename)
-		dstFile, err := os.Create(dstPath)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("failed to create file: %v", err), http.StatusInternalServerError)
-			return
-		}
-		defer dstFile.Close()
-
-		// Copy uploaded file to destination
-		if _, err := io.Copy(dstFile, file); err != nil {
-			http.Error(w, fmt.Sprintf("failed to save file: %v", err), http.StatusInternalServerError)
-			return
-		}
-
-		w.WriteHeader(http.StatusCreated)
-		fmt.Fprintf(w, "file uploaded successfully: %s", handler.Filename)
-	})
-}
-
 func (h *Handler) Delete(id string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		absPath, err := filepath.Abs(h.Destination)
@@ -171,7 +124,6 @@ func (h *Handler) Delete(id string) http.Handler {
 			http.Error(w, fmt.Sprintf("failed to resolve destination: %v", err), http.StatusInternalServerError)
 			return
 		}
-		spew.Dump(absPath)
 
 		files, err := os.ReadDir(absPath)
 		if err != nil {
@@ -189,8 +141,6 @@ func (h *Handler) Delete(id string) http.Handler {
 			}
 		}
 
-		spew.Dump(targetFile)
-
 		if targetFile == "" {
 			http.Error(w, fmt.Sprintf("file with id %s not found", id), http.StatusNotFound)
 			return
@@ -200,9 +150,7 @@ func (h *Handler) Delete(id string) http.Handler {
 			http.Error(w, fmt.Sprintf("failed to delete file: %v", err), http.StatusInternalServerError)
 			return
 		}
-
-		spew.Dump(targetFile)
-
+		w.WriteHeader(http.StatusOK)
 	})
 }
 
@@ -233,5 +181,119 @@ func (h *Handler) CreateBackup() http.Handler {
 			http.Error(w, fmt.Sprintf("failed to encode response: %v", err), http.StatusInternalServerError)
 			return
 		}
+	})
+}
+
+// generateRandomFilename creates a random filename with timestamp
+func generateRandomFilename() (string, error) {
+	b := make([]byte, 8)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("failed to generate random bytes: %w", err)
+	}
+	randomStr := hex.EncodeToString(b)
+	timestamp := time.Now().Format("2006-01-02_15-04-05")
+	return fmt.Sprintf("restore-%s-%s.zip", timestamp, randomStr), nil
+}
+
+// RestoreUpload handles uploading a backup file and restoring from it
+func (h *Handler) RestoreUpload() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Limit the upload size (100MB)
+		r.Body = http.MaxBytesReader(w, r.Body, 100<<20)
+
+		if err := r.ParseMultipartForm(100 << 20); err != nil {
+			http.Error(w, fmt.Sprintf("failed to parse form: %v", err), http.StatusBadRequest)
+			return
+		}
+
+		file, handler, err := r.FormFile("file")
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to get file: %v", err), http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+
+		// Only allow .zip files
+		if !strings.HasSuffix(strings.ToLower(handler.Filename), ".zip") {
+			http.Error(w, "only .zip files are allowed", http.StatusBadRequest)
+			return
+		}
+
+		absPath, err := filepath.Abs(h.Destination)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to resolve destination: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// Generate random filename
+		randomFilename, err := generateRandomFilename()
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to generate filename: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		dstPath := filepath.Join(absPath, randomFilename)
+		dstFile, err := os.Create(dstPath)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to create file: %v", err), http.StatusInternalServerError)
+			return
+		}
+		defer dstFile.Close()
+
+		// Copy uploaded file to destination
+		if _, err := io.Copy(dstFile, file); err != nil {
+			os.Remove(dstPath) // Clean up on error
+			http.Error(w, fmt.Sprintf("failed to save file: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// Close the file before attempting to restore from it
+		dstFile.Close()
+
+		// Attempt to restore from the uploaded file
+		if err := backup.Import(r.Context(), h.Store, dstPath); err != nil {
+			http.Error(w, fmt.Sprintf("failed to restore backup: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+	})
+}
+
+// RestoreFromExisting restores from an existing backup file by ID
+func (h *Handler) RestoreFromExisting(id string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		absPath, err := filepath.Abs(h.Destination)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to resolve destination: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		files, err := os.ReadDir(absPath)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to read directory: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		var targetFile string
+		for _, f := range files {
+			if !f.IsDir() && strings.HasSuffix(strings.ToLower(f.Name()), ".zip") && hashFilename(f.Name()) == id {
+				targetFile = filepath.Join(absPath, f.Name())
+				break
+			}
+		}
+
+		if targetFile == "" {
+			http.Error(w, fmt.Sprintf("backup file with id %s not found", id), http.StatusNotFound)
+			return
+		}
+
+		// Attempt to restore from the file
+		if err := backup.Import(r.Context(), h.Store, targetFile); err != nil {
+			http.Error(w, fmt.Sprintf("failed to restore backup: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
 	})
 }

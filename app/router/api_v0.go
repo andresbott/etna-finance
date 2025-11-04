@@ -369,9 +369,10 @@ func (h *MainAppHandler) backupApi(r *mux.Router) {
 		backupHndl.Download(itemId).ServeHTTP(w, r)
 		return
 	})
-	// TODO restore from uploaded file
-	r.Path(restorePath).Methods(http.MethodPost).Handler(backupHndl.CreateBackup())
+	// Restore from uploaded file
+	r.Path(restorePath).Methods(http.MethodPost).Handler(backupHndl.RestoreUpload())
 
+	// Restore from existing backup ID
 	r.Path(fmt.Sprintf("%s/{ID}", restorePath)).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		itemId, ok := vars["ID"]
@@ -383,7 +384,7 @@ func (h *MainAppHandler) backupApi(r *mux.Router) {
 			http.Error(w, "no id provided", http.StatusBadRequest)
 			return
 		}
-		// TODO restore from existing Id
+		backupHndl.RestoreFromExisting(itemId).ServeHTTP(w, r)
 	})
 
 }
