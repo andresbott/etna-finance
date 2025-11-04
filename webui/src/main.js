@@ -42,9 +42,13 @@ app.use(PrimeVue, {
 import { createPinia } from 'pinia'
 app.use(createPinia())
 
-// // initialize toast service
-// import ToastService from 'primevue/toastservice';
-// app.use(ToastService);
+// initialize toast service
+import ToastService from 'primevue/toastservice'
+app.use(ToastService)
+
+// initialize tooltip directive
+import Tooltip from 'primevue/tooltip'
+app.directive('tooltip', Tooltip)
 
 // add the app router
 import router from './router'

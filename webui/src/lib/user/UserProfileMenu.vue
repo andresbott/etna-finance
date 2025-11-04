@@ -38,11 +38,15 @@ const sections = [
             {
                 label: 'CSV Import Profiles',
                 icon: 'pi pi-file-import',
-                route: '/setup/csv-profiles',
-                disabled: true
+                route: '/setup/csv-profiles'
             },
             { label: 'Categories', icon: 'pi pi-tags', route: '/categories' },
-            { label: 'Account Setup', icon: 'pi pi-wallet', route: '/accounts' }
+            { label: 'Account Setup', icon: 'pi pi-wallet', route: '/accounts' },
+            {
+                label: 'Backup/Restore',
+                icon: 'pi pi-database',
+                route: '/backup-restore'
+            }
         ]
     }
 ]

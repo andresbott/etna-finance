@@ -42,6 +42,22 @@ const router = createRouter({
             component: () => import('@/views/categories/CategoriesView.vue')
         },
         {
+            path: '/backup-restore',
+            name: 'backup-restore',
+            meta: {
+                requiresAuth: true
+            },
+            component: () => import('@/views/BackupRestoreView.vue')
+        },
+        {
+            path: '/setup/csv-profiles',
+            name: 'csv-profiles',
+            meta: {
+                requiresAuth: true
+            },
+            component: () => import('@/views/CsvImportProfileView.vue')
+        },
+        {
             path: '/login',
             name: 'login',
             meta: {

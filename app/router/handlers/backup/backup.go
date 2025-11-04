@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"github.com/andresbott/etna/internal/accounting"
 	"github.com/andresbott/etna/internal/backup"
+	"github.com/davecgh/go-spew/spew"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -22,6 +24,7 @@ type Handler struct {
 type listPayload struct {
 	Id       string `json:"id"`
 	Filename string `json:"filename"`
+	Size     int64  `json:"size"`
 }
 type listResponse struct {
 	Files []listPayload `json:"files"`
@@ -44,9 +47,17 @@ func (h *Handler) List() http.Handler {
 		payloads := []listPayload{} // init empty for proper response
 		for _, f := range files {
 			if !f.IsDir() && strings.HasSuffix(strings.ToLower(f.Name()), ".zip") {
+				fullPath := filepath.Join(absPath, f.Name())
+				finfo, err := os.Stat(fullPath)
+				if err != nil {
+					http.Error(w, fmt.Sprintf("failed to read file: %v", err), http.StatusInternalServerError)
+					return
+				}
+
 				payloads = append(payloads, listPayload{
 					Id:       hashFilename(f.Name()),
 					Filename: f.Name(),
+					Size:     finfo.Size(),
 				})
 			}
 		}
@@ -105,6 +116,54 @@ func (h *Handler) Download(id string) http.Handler {
 	})
 }
 
+func (h *Handler) Upload() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Limit the upload size (optional, e.g., 100MB)
+		r.Body = http.MaxBytesReader(w, r.Body, 100<<20) // 100 MB
+
+		if err := r.ParseMultipartForm(100 << 20); err != nil {
+			http.Error(w, fmt.Sprintf("failed to parse form: %v", err), http.StatusBadRequest)
+			return
+		}
+
+		file, handler, err := r.FormFile("file") // expects form field "file"
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to get file: %v", err), http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+
+		// Only allow .zip files
+		if !strings.HasSuffix(strings.ToLower(handler.Filename), ".zip") {
+			http.Error(w, "only .zip files are allowed", http.StatusBadRequest)
+			return
+		}
+
+		absPath, err := filepath.Abs(h.Destination)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to resolve destination: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		dstPath := filepath.Join(absPath, handler.Filename)
+		dstFile, err := os.Create(dstPath)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to create file: %v", err), http.StatusInternalServerError)
+			return
+		}
+		defer dstFile.Close()
+
+		// Copy uploaded file to destination
+		if _, err := io.Copy(dstFile, file); err != nil {
+			http.Error(w, fmt.Sprintf("failed to save file: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusCreated)
+		fmt.Fprintf(w, "file uploaded successfully: %s", handler.Filename)
+	})
+}
+
 func (h *Handler) Delete(id string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		absPath, err := filepath.Abs(h.Destination)
@@ -112,6 +171,7 @@ func (h *Handler) Delete(id string) http.Handler {
 			http.Error(w, fmt.Sprintf("failed to resolve destination: %v", err), http.StatusInternalServerError)
 			return
 		}
+		spew.Dump(absPath)
 
 		files, err := os.ReadDir(absPath)
 		if err != nil {
@@ -129,6 +189,8 @@ func (h *Handler) Delete(id string) http.Handler {
 			}
 		}
 
+		spew.Dump(targetFile)
+
 		if targetFile == "" {
 			http.Error(w, fmt.Sprintf("file with id %s not found", id), http.StatusNotFound)
 			return
@@ -139,15 +201,8 @@ func (h *Handler) Delete(id string) http.Handler {
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		resp := map[string]any{
-			"deleted": true,
-			"id":      id,
-		}
-		if err := json.NewEncoder(w).Encode(resp); err != nil {
-			http.Error(w, fmt.Sprintf("failed to encode response: %v", err), http.StatusInternalServerError)
-			return
-		}
+		spew.Dump(targetFile)
+
 	})
 }
 

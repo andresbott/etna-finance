@@ -2,6 +2,7 @@ package router
 
 import (
 	"fmt"
+	"github.com/andresbott/etna/app/router/handlers/backup"
 	finHandler "github.com/andresbott/etna/app/router/handlers/finance"
 	"github.com/go-bumbu/userauth/authenticator"
 	"github.com/go-bumbu/userauth/handlers/sessionauth"
@@ -16,10 +17,11 @@ func (h *MainAppHandler) attachApiV0(r *mux.Router) error {
 	auth := authenticator.New(authHandlers, h.logger, nil, nil)
 
 	r.Use(auth.Middleware)
-	err := h.accountingAPI(r)
-	if err != nil {
-		return err
-	}
+
+	// attach api paths to api/v0
+	h.accountingAPI(r)
+	h.backupApi(r)
+
 	// send a 400 error on everything else on the API
 	r.PathPrefix("").HandlerFunc(StatusErrText(http.StatusBadRequest, "wrong api call"))
 
@@ -37,7 +39,7 @@ const finReport = "/fin/report"
 // I haven't put too much thought into it for now and I will change it in the future
 //
 //nolint:gocognit,gocyclo // the function is quite big and verbose but easy to follow
-func (h *MainAppHandler) accountingAPI(r *mux.Router) error {
+func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 
 	finHndlr := finHandler.Handler{Store: h.finStore}
 
@@ -326,7 +328,64 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) error {
 		finHndlr.AccountBalance(userData.UserId).ServeHTTP(w, r)
 	})
 
-	return nil
+}
+
+const backupPath = "/backup"
+const restorePath = "/restore"
+
+func (h *MainAppHandler) backupApi(r *mux.Router) {
+
+	backupHndl := backup.Handler{
+		Destination: h.backupDestination,
+		Store:       h.finStore,
+	}
+	r.Path(backupPath).Methods(http.MethodGet).Handler(backupHndl.List())
+	r.Path(backupPath).Methods(http.MethodPost).Handler(backupHndl.CreateBackup())
+	r.Path(fmt.Sprintf("%s/{ID}", backupPath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		itemId, ok := vars["ID"]
+		if !ok {
+			http.Error(w, "could not extract tag id from request context", http.StatusInternalServerError)
+			return
+		}
+		if itemId == "" {
+			http.Error(w, "no id provided", http.StatusBadRequest)
+			return
+		}
+		backupHndl.Delete(itemId).ServeHTTP(w, r)
+	})
+
+	r.Path(fmt.Sprintf("%s/{ID}", backupPath)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		itemId, ok := vars["ID"]
+		if !ok {
+			http.Error(w, "could not extract tag id from request context", http.StatusInternalServerError)
+			return
+		}
+		if itemId == "" {
+			http.Error(w, "no id provided", http.StatusBadRequest)
+			return
+		}
+		backupHndl.Download(itemId).ServeHTTP(w, r)
+		return
+	})
+	// TODO restore from uploaded file
+	r.Path(restorePath).Methods(http.MethodPost).Handler(backupHndl.CreateBackup())
+
+	r.Path(fmt.Sprintf("%s/{ID}", restorePath)).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		itemId, ok := vars["ID"]
+		if !ok {
+			http.Error(w, "could not extract tag id from request context", http.StatusInternalServerError)
+			return
+		}
+		if itemId == "" {
+			http.Error(w, "no id provided", http.StatusBadRequest)
+			return
+		}
+		// TODO restore from existing Id
+	})
+
 }
 
 // Extract the ID from the request url. based on gorilla url path vars
