@@ -40,7 +40,6 @@ onUnmounted(() => {
 .content {
     position: relative;
     display: flex;
-    overflow: hidden;
     height: 100%;
 }
 </style>

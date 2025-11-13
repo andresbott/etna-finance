@@ -8,7 +8,7 @@ import {
     CreateExpenseCategory,
     UpdateExpenseCategory,
     DeleteExpenseCategory
-} from '@/lib/api/Category'
+} from '@/lib/api/category'
 import type {
     CreateIncomeCategoryDTO,
     UpdateIncomeCategoryDTO,

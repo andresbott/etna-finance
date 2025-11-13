@@ -1,35 +1,35 @@
 <script setup>
 import { ResponsiveHorizontal } from '@go-bumbu/vue-layouts'
 import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
-import { onMounted, ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import Card from 'primevue/card'
 import Chart from 'primevue/chart'
 import { useAccounts } from '@/composables/useAccounts.js'
+import { useGetBalanceReport } from '@/composables/useGetBalanceReport'
 
 const { accounts } = useAccounts()
+const { mutate, data: balanceReport } = useGetBalanceReport()
 
-// Add your data fetching and state management here
-const loading = ref(false)
+const mergedData = computed(() => {
+    if (!balanceReport.value) return []
+    const accountsData = accounts.value
+        ? accounts.value
+              .map((account) => {
+                  const reportData = balanceReport.value?.accounts?.[account.id]
+                  if (!reportData) return null // skip if no matching report data
 
+                  return {
+                      ...account,
+                      reportData
+                  }
+              })
+              .filter(Boolean)
+        : []
+
+    return accountsData
+})
 const generateRandomData = (count) => {
     return Array.from({ length: count }, () => Math.floor(Math.random() * 10000))
-}
-
-const fetchReportData = async () => {
-    try {
-        const response = await fetch(
-            '/api/v0/fin/report/balance?accountIds=1,2&steps=30&startDate=2025-09-24&endDate=2025-10-29'
-        )
-
-        if (!response.ok) {
-            throw new Error('Network response was not ok')
-        }
-        const data = await response.json()
-
-        console.log('Fetched report data:', data)
-    } catch (error) {
-        console.error('Error fetching report data:', error)
-    }
 }
 
 const getRandomColor = () => {
@@ -49,11 +49,18 @@ const getRandomColor = () => {
 const chartLabels = ['January', 'February', 'March', 'April', 'May', 'June', 'July']
 
 const chartData = computed(() => ({
-    labels: chartLabels,
+    labels:
+        mergedData.value?.[0]?.reportData?.map((r) =>
+            new Date(r.Date).toLocaleDateString('en-GB', {
+                day: '2-digit',
+                month: 'short'
+            })
+        ) || [],
+
     datasets:
-        accounts.value?.map((account) => ({
+        mergedData.value?.map((account) => ({
             label: account.name,
-            data: generateRandomData(7),
+            data: account.reportData.map((r) => r.Sum),
             fill: false,
             borderColor: getRandomColor(),
             tension: 0.1
@@ -96,6 +103,25 @@ const chartOptions = ref({
                 padding: 20,
                 usePointStyle: true,
                 pointStyle: 'circle'
+            },
+            onClick: (e, legendItem, legend) => {
+                const chart = legend.chart
+                const datasetIndex = legendItem.datasetIndex
+                const meta = chart.getDatasetMeta(datasetIndex)
+
+                meta.hidden =
+                    meta.hidden === null ? !chart.data.datasets[datasetIndex].hidden : null
+
+                legendItem.fontStyle =
+                    legendItem.fontStyle === 'line-through' ? 'normal' : 'line-through'
+
+                if (meta.hidden) {
+                    console.log('Hiding dataset', datasetIndex)
+                } else {
+                    console.log('Showing dataset', datasetIndex)
+                }
+
+                chart.update()
             }
         }
     },
@@ -119,10 +145,6 @@ const chartOptions = ref({
     }
 })
 
-onMounted(() => {
-    // Initialize your data here
-    fetchReportData()
-})
 const leftSidebarCollapsed = ref(true)
 
 const getAccountTypeIcon = (type) => {
@@ -139,6 +161,14 @@ const getAccountTypeIcon = (type) => {
             return 'pi pi-wallet'
     }
 }
+
+onMounted(() => {
+    mutate({
+        accountIds: [4, 5],
+        steps: 30,
+        startDate: '2025-01-03'
+    })
+})
 </script>
 
 <template>
@@ -213,7 +243,7 @@ const getAccountTypeIcon = (type) => {
                         <template #content>
                             <div class="flex flex-column gap-2">
                                 <div
-                                    v-for="account in accounts"
+                                    v-for="account in mergedData"
                                     :key="account.id"
                                     class="flex justify-content-between align-items-center p-2 border-round"
                                     style="background: var(--surface-ground)"
@@ -223,8 +253,10 @@ const getAccountTypeIcon = (type) => {
                                         <span>{{ account.name }}</span>
                                     </div>
                                     <div class="flex align-items-center gap-2">
-                                        <span class="font-bold">{{ account.balance || 0 }}</span>
-                                        <span>{{ account.currency }}</span>
+                                        <span class="font-bold">{{
+                                            account.reportData.pop()['Sum'] || 0
+                                        }}</span>
+                                        <!-- <span>{{ account.accounts.currency }}</span> -->
                                     </div>
                                 </div>
                             </div>

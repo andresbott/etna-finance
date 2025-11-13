@@ -163,7 +163,6 @@ onMounted(() => fetchReportData())
                             :showButtonBar="true"
                             dateFormat="dd/mm/y"
                             placeholder="Start date"
-                            @date-select="refetch"
                         />
                     </div>
                     <div>
@@ -174,7 +173,6 @@ onMounted(() => fetchReportData())
                             :showButtonBar="true"
                             dateFormat="dd/mm/y"
                             placeholder="End date"
-                            @date-select="refetch"
                         />
                     </div>
                 </div>
