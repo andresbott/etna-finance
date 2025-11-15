@@ -1,19 +1,16 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { VerticalLayout, SidebarContent } from '@go-bumbu/vue-layouts'
-import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
 
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Button from 'primevue/button'
-import Tree from 'primevue/tree'
-import DatePicker from 'primevue/datepicker'
+import Card from 'primevue/card'
+import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import TransferDialog from './dialogs/TransferDialog.vue'
 import StockDialog from './dialogs/StockDialog.vue'
 import DeleteDialog from '@/components/common/confirmDialog.vue'
 
 import { useEntries } from '@/composables/useEntries.ts'
-import { useAccounts } from '@/composables/useAccounts.js'
 import IncomeExpenseDialog from '@/views/entries/dialogs/IncomeExpenseDialog.vue'
 import AddEntryMenu from '@/views/entries/AddEntryMenu.vue'
 import { useCategoryUtils } from '@/utils/categoryUtils'
@@ -24,21 +21,16 @@ const today = new Date()
 const startDate = ref(new Date(today.setDate(today.getDate() - 35)))
 const endDate = ref(new Date())
 
-// Account filtering state
-const selectedAccountIds = ref([])
-const selectedKeys = ref({}) // For Tree component selection
 const { entries, isLoading, deleteEntry, isDeleting, refetch } = useEntries(
     startDate,
-    endDate,
-    selectedAccountIds
+    endDate
 )
-const { accounts, isLoading: isAccountsLoading } = useAccounts()
 const { getCategoryName } = useCategoryUtils()
 const { getAccountCurrency, getAccountName } = useAccountUtils()
 
-const leftSidebarCollapsed = ref(true)
 const selectedEntry = ref(null)
 const isEditMode = ref(false)
+const isDuplicateMode = ref(false)
 
 /* --- Delete Dialog State --- */
 const deleteDialogVisible = ref(false)
@@ -53,102 +45,30 @@ const dialogs = {
     stock: ref(false)
 }
 
-/* --- Account Tree Data --- */
-const accountsTree = computed(() => {
-    if (!accounts.value) return []
-
-    return accounts.value.map((provider) => ({
-        key: `provider-${provider.id}`,
-        label: provider.name,
-        selectable: true,
-        children: provider.accounts.map((account) => ({
-            key: account.id.toString(),
-            label: `${account.name} (${account.currency})`,
-            data: {
-                id: account.id,
-                provider: provider.name,
-                account: account
-            }
-        }))
-    }))
-})
-
-// Keep all provider nodes expanded by default
-const expandedKeys = ref({})
-
-// Initialize expanded keys when accounts are loaded
-watch(
-    () => accounts.value,
-    (newAccounts) => {
-        if (newAccounts) {
-            const keys = {}
-            newAccounts.forEach((provider) => {
-                keys[`provider-${provider.id}`] = true
-            })
-            expandedKeys.value = keys
-        }
-    },
-    { immediate: true }
-)
-
-// Handle account selection change - convert selectionKeys to accountIds
-watch(
-    () => selectedKeys.value,
-    (newSelection) => {
-        if (!newSelection) {
-            selectedAccountIds.value = []
-            return
-        }
-
-        const ids = []
-        const providerIds = []
-
-        // Process selected keys
-        Object.keys(newSelection).forEach((key) => {
-            if (key.startsWith('provider-')) {
-                // Store provider ID for later processing
-                providerIds.push(key.replace('provider-', ''))
-            } else if (!isNaN(parseInt(key))) {
-                // Direct account selection
-                ids.push(parseInt(key))
-            }
-        })
-
-        // Add all accounts from selected providers
-        if (providerIds.length > 0 && accounts.value) {
-            accounts.value.forEach((provider) => {
-                if (providerIds.includes(provider.id.toString())) {
-                    provider.accounts.forEach((account) => {
-                        if (!ids.includes(account.id)) {
-                            ids.push(account.id)
-                        }
-                    })
-                }
-            })
-        }
-
-        selectedAccountIds.value = ids
-
-        // Trigger refetch when selection changes
-        if (ids.length > 0) {
-            refetch()
-        }
-    },
-    { deep: true }
-)
-
-// Clear selection handler
-const clearSelection = () => {
-    selectedKeys.value = {}
-    selectedAccountIds.value = []
-    refetch()
-}
-
 /* --- Entry Actions --- */
 const openEditEntryDialog = (entry) => {
     isEditMode.value = true
+    isDuplicateMode.value = false
     selectedEntry.value = entry
     console.log(entry)
+
+    if (entry.type === 'expense' || entry.type === 'income') {
+        // Use IncomeExpenseDialog for income and expense entries
+        dialogs.incomeExpense.value = true
+    } else if (entry.type === 'transfer') {
+        // Use TransferDialog for transfer entries
+        dialogs.transfer.value = true
+    } else if (entry.type === 'buystock' || entry.type === 'sellstock') {
+        // Use StockDialog for stock entries
+        dialogs.stock.value = true
+    }
+}
+
+const openDuplicateEntryDialog = (entry) => {
+    isEditMode.value = false // Not in edit mode, creating a new entry
+    isDuplicateMode.value = true
+    selectedEntry.value = entry
+    console.log('Duplicating entry:', entry)
 
     if (entry.type === 'expense' || entry.type === 'income') {
         // Use IncomeExpenseDialog for income and expense entries
@@ -198,97 +118,34 @@ const getRowClass = (data) => ({
 
 <template>
     <div class="main-app-content">
-        <SidebarContent :leftSidebarCollapsed="leftSidebarCollapsed" :rightSidebarCollapsed="true">
-            <template #left>
-                <div class="left-sidebar-content">
-                    <div class="filter-section">
-                        <div class="filter-header">
-                            <h3>Filter by Accounts</h3>
-                            <Button
-                                icon="pi pi-times"
-                                text
-                                size="small"
-                                @click="clearSelection"
-                                v-if="Object.keys(selectedKeys).length > 0"
-                                class="clear-button"
-                            />
-                        </div>
-
-                        <div class="tree-container">
-                            <Tree
-                                :value="accountsTree"
-                                v-model:selectionKeys="selectedKeys"
-                                :expandedKeys="expandedKeys"
-                                v-model:expandedKeys="expandedKeys"
-                                selectionMode="multiple"
-                                :loading="isAccountsLoading"
-                                class="w-full mb-3 account-tree"
-                            >
-                                <template #empty>
-                                    <div class="p-2" v-if="isAccountsLoading">
-                                        Loading accounts...
-                                    </div>
-                                    <div class="p-2" v-else>No accounts found</div>
-                                </template>
-                            </Tree>
-                        </div>
-
-                        <div class="filter-actions">
-                            <span class="selected-count" v-if="selectedAccountIds.length > 0">
-                                {{ selectedAccountIds.length }} account(s) selected
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            </template>
-
-            <template #default>
-                <div class="sidebar-controls">
-                    <Button
-                        icon="pi pi-chevron-left"
-                        @click="leftSidebarCollapsed = !leftSidebarCollapsed"
-                        :class="{ 'rotate-180': leftSidebarCollapsed }"
+        <div class="entries-content">
+            <div class="toolbar">
+                <div class="toolbar-spacer"></div>
+                <div class="date-filters">
+                    <DateRangePicker
+                        v-model:startDate="startDate"
+                        v-model:endDate="endDate"
+                        @change="refetch"
                     />
-                    <div class="date-filters">
-                        <div class="date-field">
-                            <label>From:</label>
-                            <DatePicker
-                                v-model="startDate"
-                                :showIcon="true"
-                                :showButtonBar="true"
-                                dateFormat="dd/mm/y"
-                                placeholder="Start date"
-                                @date-select="refetch"
-                            />
-                        </div>
-                        <div class="date-field">
-                            <label>To:</label>
-                            <DatePicker
-                                v-model="endDate"
-                                :showIcon="true"
-                                :showButtonBar="true"
-                                dateFormat="dd/mm/y"
-                                placeholder="End date"
-                                @date-select="refetch"
-                            />
-                        </div>
-                    </div>
-                    <div class="add-entry-menu">
-                        <AddEntryMenu />
-                    </div>
                 </div>
+                <div class="add-entry-menu">
+                    <AddEntryMenu />
+                </div>
+            </div>
 
-                <div class="entries-view">
-                    <DataTable
-                        :value="entries"
-                        :loading="isLoading"
-                        stripedRows
-                        paginator
-                        style="width: 100%"
-                        :rows="50"
-                        :rowsPerPageOptions="[50, 100, 200]"
-                        :rowClass="getRowClass"
-                    >
+            <div class="entries-view">
+                <Card>
+                    <template #content>
+                        <DataTable
+                            :value="entries"
+                            :loading="isLoading"
+                            stripedRows
+                            paginator
+                            style="width: 100%"
+                            :rows="50"
+                            :rowsPerPageOptions="[50, 100, 200]"
+                            :rowClass="getRowClass"
+                        >
                         <Column header="" style="width: 40px">
                             <template #body="{ data }">
                                 <i :class="getEntryTypeIcon(data.type)" style="font-size: 0.8rem" />
@@ -382,7 +239,7 @@ const getRowClass = (data) => ({
                             </template>
                         </Column>
 
-                        <Column header="Actions" style="width: 100px">
+                        <Column header="Actions" style="width: 150px">
                             <template #body="{ data }">
                                 <div class="actions">
                                     <Button
@@ -391,6 +248,15 @@ const getRowClass = (data) => ({
                                         rounded
                                         class="action-button"
                                         @click="openEditEntryDialog(data)"
+                                        v-tooltip.bottom="'Edit'"
+                                    />
+                                    <Button
+                                        icon="pi pi-copy"
+                                        text
+                                        rounded
+                                        class="action-button"
+                                        @click="openDuplicateEntryDialog(data)"
+                                        v-tooltip.bottom="'Duplicate'"
                                     />
                                     <Button
                                         icon="pi pi-trash"
@@ -400,14 +266,16 @@ const getRowClass = (data) => ({
                                         class="action-button"
                                         :loading="isDeleting"
                                         @click="openDeleteDialog(data)"
+                                        v-tooltip.bottom="'Delete'"
                                     />
                                 </div>
                             </template>
                         </Column>
                     </DataTable>
-                </div>
-            </template>
-        </SidebarContent>
+                    </template>
+                </Card>
+            </div>
+        </div>
     </div>
 
     <!-- Dialog Components -->
@@ -417,12 +285,13 @@ const getRowClass = (data) => ({
         :is-edit="isEditMode"
         :entry-type="selectedEntry?.type"
         :description="selectedEntry?.description"
-        :amount="selectedEntry?.Amount"
+        :amount="isDuplicateMode ? undefined : selectedEntry?.Amount"
         :account-id="selectedEntry?.accountId"
-        :stock-amount="selectedEntry?.targetStockAmount"
-        :date="selectedEntry?.date ? new Date(selectedEntry.date) : new Date()"
+        :stock-amount="isDuplicateMode ? undefined : selectedEntry?.targetStockAmount"
+        :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
         :entry-id="selectedEntry?.id"
         :category-id="selectedEntry?.category?.id"
+        :autofocus-amount="isDuplicateMode"
     />
 
     <TransferDialog
@@ -430,13 +299,14 @@ const getRowClass = (data) => ({
         :is-edit="isEditMode"
         :entry-id="selectedEntry?.id"
         :description="selectedEntry?.description"
-        :target-amount="selectedEntry?.targetAmount"
-        :origin-amount="selectedEntry?.originAmount"
-        :target-stock-amount="selectedEntry?.targetStockAmount"
-        :origin-stock-amount="selectedEntry?.originStockAmount"
-        :date="selectedEntry?.date ? new Date(selectedEntry.date) : new Date()"
+        :target-amount="isDuplicateMode ? undefined : selectedEntry?.targetAmount"
+        :origin-amount="isDuplicateMode ? undefined : selectedEntry?.originAmount"
+        :target-stock-amount="isDuplicateMode ? undefined : selectedEntry?.targetStockAmount"
+        :origin-stock-amount="isDuplicateMode ? undefined : selectedEntry?.originStockAmount"
+        :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
         :target-account-id="selectedEntry?.targetAccountId"
         :origin-account-id="selectedEntry?.originAccountId"
+        :autofocus-amount="isDuplicateMode"
     />
 
     <StockDialog
@@ -444,11 +314,12 @@ const getRowClass = (data) => ({
         :is-edit="isEditMode"
         :entry-id="selectedEntry?.id"
         :description="selectedEntry?.description"
-        :amount="selectedEntry?.targetAmount"
-        :stock-amount="selectedEntry?.targetStockAmount"
-        :date="selectedEntry?.date ? new Date(selectedEntry.date) : new Date()"
+        :amount="isDuplicateMode ? undefined : selectedEntry?.targetAmount"
+        :stock-amount="isDuplicateMode ? undefined : selectedEntry?.targetStockAmount"
+        :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
         :type="selectedEntry?.type"
         :target-account-id="selectedEntry?.targetAccountId"
+        :autofocus-amount="isDuplicateMode"
     />
 
     <!-- Delete Confirmation Dialog -->
@@ -461,49 +332,45 @@ const getRowClass = (data) => ({
 </template>
 
 <style scoped>
-.left-sidebar-content {
-    padding: 1rem;
-}
-
-.filter-section {
-    margin-bottom: 2rem;
-}
-
-.filter-header {
+.main-app-content {
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
+    height: 100%;
+}
+
+.entries-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+}
+
+.toolbar {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    margin-bottom: 0.5rem;
+    padding: 1rem;
+    background-color: var(--surface-ground);
+    border-bottom: 1px solid var(--surface-border);
 }
 
-.filter-header h3 {
-    margin: 0;
-    font-size: 1rem;
-    color: var(--text-color-secondary);
-}
-
-.tree-container {
-    border: 1px solid var(--surface-border);
-    border-radius: 6px;
-    background-color: var(--surface-card);
-    overflow-y: auto;
-}
-
-.filter-actions {
-    margin-top: 0.5rem;
-}
-
-.selected-count {
-    display: block;
-    font-size: 0.85rem;
-    color: var(--text-color-secondary);
-    margin-top: 0.5rem;
-    text-align: center;
-}
-
-.action-buttons {
+.date-filters {
     display: flex;
-    gap: 0.5rem;
+    gap: 1rem;
+    align-items: center;
+    justify-content: center;
+}
+
+.add-entry-menu {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.entries-view {
+    flex: 1;
+    overflow: auto;
+    padding: 1rem;
 }
 
 .actions {
@@ -523,55 +390,6 @@ const getRowClass = (data) => ({
 
 :deep(.p-datatable .p-datatable-tbody > tr:hover) {
     background-color: rgba(0, 0, 0, 0.1) !important;
-}
-
-:deep(.account-tree .p-tree-container) {
-    padding: 0.5rem;
-}
-
-:deep(.account-tree .p-treenode-content) {
-    padding: 0.3rem;
-}
-
-:deep(.account-tree .p-treenode-content:hover) {
-    background-color: var(--surface-hover);
-}
-
-.sidebar-controls {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.5rem;
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    background-color: var(--surface-ground);
-}
-
-.date-filters {
-    display: flex;
-    gap: 1rem;
-    align-items: center;
-}
-
-.date-field {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.date-field label {
-    white-space: nowrap;
-}
-
-.rotate-180 {
-    transform: rotate(180deg);
-}
-
-.add-entry-menu {
-    display: flex;
-    justify-content: center;
-    padding: 1rem;
 }
 
 .amount.expense {

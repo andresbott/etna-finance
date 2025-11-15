@@ -27,7 +27,24 @@ const props = defineProps({
     date: { type: Date, default: () => new Date() },
     targetAccountId: { type: Number, default: null },
     originAccountId: { type: Number, default: null },
-    visible: { type: Boolean, default: false }
+    visible: { type: Boolean, default: false },
+    autofocusAmount: { type: Boolean, default: false }
+})
+
+const originAmountInputRef = ref(null)
+
+// Watch for visibility and autofocusAmount to focus the origin amount field
+watch(() => [props.visible, props.autofocusAmount], ([visible, autofocus]) => {
+    if (visible && autofocus) {
+        // Use a longer delay to ensure dialog is fully ready
+        setTimeout(() => {
+            const inputElement = originAmountInputRef.value?.$el?.querySelector('input')
+            if (inputElement) {
+                inputElement.focus()
+                inputElement.select()
+            }
+        }, 180)
+    }
 })
 
 // Convert numeric accountId to {id: true} format for form validation
@@ -241,7 +258,8 @@ const emit = defineEmits(['update:visible'])
                     <!-- Description Field -->
                     <div>
                         <label for="description" class="form-label">Description</label>
-                        <InputText id="description" name="description" v-focus class="w-full" />
+                        <InputText id="description" name="description" class="w-full" v-if="autofocusAmount" />
+                        <InputText id="description" name="description" v-focus class="w-full" v-else />
                         <Message v-if="$form.description?.invalid" severity="error" size="small">
                             {{ $form.description.error?.message }}
                         </Message>
@@ -295,6 +313,7 @@ const emit = defineEmits(['update:visible'])
                         <div>
                             <label for="originAmount" class="form-label">Origin Amount</label>
                             <InputNumber
+                                ref="originAmountInputRef"
                                 id="originAmount"
                                 name="originAmount"
                                 :minFractionDigits="2"
