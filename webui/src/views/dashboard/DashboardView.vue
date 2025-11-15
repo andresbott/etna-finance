@@ -28,9 +28,6 @@ const mergedData = computed(() => {
 
     return accountsData
 })
-const generateRandomData = (count) => {
-    return Array.from({ length: count }, () => Math.floor(Math.random() * 10000))
-}
 
 const getRandomColor = () => {
     const colors = [
