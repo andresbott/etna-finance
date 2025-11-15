@@ -21,7 +21,7 @@ func TestFinanceHandler_IncomeExpenseReport(t *testing.T) {
 		{
 			name:       "successful request with date range",
 			userId:     tenant1,
-			query:      "?startDate=2025-01-01&end_date=2025-12-31",
+			query:      "?startDate=2025-01-01&endDate=2025-12-31",
 			expectCode: http.StatusOK,
 		},
 		//{ // not testable
@@ -45,7 +45,7 @@ func TestFinanceHandler_IncomeExpenseReport(t *testing.T) {
 		{
 			name:       "empty tenant",
 			userId:     "",
-			query:      "?startDate=2025-01-01&end_date=2025-12-31",
+			query:      "?startDate=2025-01-01&endDate=2025-12-31",
 			expecErr:   "unable to list entries: user not provided",
 			expectCode: http.StatusBadRequest,
 		},

@@ -2,8 +2,10 @@ package router
 
 import (
 	_ "embed"
+	"fmt"
 	handlrs "github.com/andresbott/etna/app/router/handlers"
 	"github.com/andresbott/etna/app/spa"
+	"github.com/andresbott/etna/internal/accounting"
 	"github.com/go-bumbu/http/middleware"
 	"github.com/go-bumbu/userauth"
 	"github.com/go-bumbu/userauth/handlers/sessionauth"
@@ -14,37 +16,49 @@ import (
 )
 
 type Cfg struct {
-	Db             *gorm.DB
-	SessionAuth    *sessionauth.Manager
-	UserMngr       userauth.LoginHandler
-	Logger         *slog.Logger
-	ProductionMode bool
+	Db                *gorm.DB
+	SessionAuth       *sessionauth.Manager
+	UserMngr          userauth.LoginHandler
+	Logger            *slog.Logger
+	BackupDestination string
+	ProductionMode    bool
 }
 
 // MainAppHandler is the entrypoint http handler for the whole application
 type MainAppHandler struct {
-	router         *mux.Router
-	db             *gorm.DB
-	SessionAuth    *sessionauth.Manager
-	userMngr       userauth.LoginHandler
-	logger         *slog.Logger
-	productionMode bool
+	router            *mux.Router
+	db                *gorm.DB
+	finStore          *accounting.Store
+	SessionAuth       *sessionauth.Manager
+	userMngr          userauth.LoginHandler
+	logger            *slog.Logger
+	backupDestination string
+	productionMode    bool
 }
 
 func (h *MainAppHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.router.ServeHTTP(w, r)
 }
 
+var financeStore *accounting.Store
+
 func New(cfg Cfg) (*MainAppHandler, error) {
 	r := mux.NewRouter()
 	app := MainAppHandler{
-		router:         r,
-		db:             cfg.Db,
-		SessionAuth:    cfg.SessionAuth,
-		userMngr:       cfg.UserMngr,
-		logger:         cfg.Logger,
-		productionMode: cfg.ProductionMode,
+		router:            r,
+		db:                cfg.Db,
+		SessionAuth:       cfg.SessionAuth,
+		userMngr:          cfg.UserMngr,
+		logger:            cfg.Logger,
+		backupDestination: cfg.BackupDestination,
+		productionMode:    cfg.ProductionMode,
 	}
+
+	fineStore, err := accounting.NewStore(cfg.Db)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create accounting Store :%v", err)
+	}
+	app.finStore = fineStore
 
 	prodMid := middleware.New(middleware.Cfg{
 		JsonErrors:  false,
@@ -57,7 +71,7 @@ func New(cfg Cfg) (*MainAppHandler, error) {
 	app.attachUserAuth(app.router.PathPrefix("/auth").Subrouter())
 
 	// add a handler for /api/v0, this includes authentication on tasks
-	err := app.attachApiV0(app.router.PathPrefix("/api/v0").Subrouter())
+	err = app.attachApiV0(app.router.PathPrefix("/api/v0").Subrouter())
 	if err != nil {
 		return nil, err
 	}

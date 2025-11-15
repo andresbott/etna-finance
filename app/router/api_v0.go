@@ -2,8 +2,8 @@ package router
 
 import (
 	"fmt"
+	"github.com/andresbott/etna/app/router/handlers/backup"
 	finHandler "github.com/andresbott/etna/app/router/handlers/finance"
-	"github.com/andresbott/etna/internal/accounting"
 	"github.com/go-bumbu/userauth/authenticator"
 	"github.com/go-bumbu/userauth/handlers/sessionauth"
 	"github.com/gorilla/mux"
@@ -17,10 +17,11 @@ func (h *MainAppHandler) attachApiV0(r *mux.Router) error {
 	auth := authenticator.New(authHandlers, h.logger, nil, nil)
 
 	r.Use(auth.Middleware)
-	err := h.accountingAPI(r)
-	if err != nil {
-		return err
-	}
+
+	// attach api paths to api/v0
+	h.accountingAPI(r)
+	h.backupApi(r)
+
 	// send a 400 error on everything else on the API
 	r.PathPrefix("").HandlerFunc(StatusErrText(http.StatusBadRequest, "wrong api call"))
 
@@ -38,14 +39,9 @@ const finReport = "/fin/report"
 // I haven't put too much thought into it for now and I will change it in the future
 //
 //nolint:gocognit,gocyclo // the function is quite big and verbose but easy to follow
-func (h *MainAppHandler) accountingAPI(r *mux.Router) error {
+func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 
-	fineStore, err := accounting.NewStore(h.db)
-	if err != nil {
-		return fmt.Errorf("unable to create tags Store :%v", err)
-	}
-
-	finHndlr := finHandler.Handler{Store: fineStore}
+	finHndlr := finHandler.Handler{Store: h.finStore}
 
 	// ==========================================================================
 	// Account Providers
@@ -148,7 +144,7 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) error {
 	// Entry Category
 	// ==========================================================================
 
-	catHandler := finHandler.CategoryHandler{Store: fineStore}
+	catHandler := finHandler.CategoryHandler{Store: h.finStore}
 
 	// list income categories
 	r.Path(finCategoryIncome).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -332,7 +328,65 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) error {
 		finHndlr.AccountBalance(userData.UserId).ServeHTTP(w, r)
 	})
 
-	return nil
+}
+
+const backupPath = "/backup"
+const restorePath = "/restore"
+
+func (h *MainAppHandler) backupApi(r *mux.Router) {
+
+	backupHndl := backup.Handler{
+		Destination: h.backupDestination,
+		Store:       h.finStore,
+	}
+	r.Path(backupPath).Methods(http.MethodGet).Handler(backupHndl.List())
+	r.Path(backupPath).Methods(http.MethodPost).Handler(backupHndl.CreateBackup())
+	r.Path(fmt.Sprintf("%s/{ID}", backupPath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		itemId, ok := vars["ID"]
+		if !ok {
+			http.Error(w, "could not extract tag id from request context", http.StatusInternalServerError)
+			return
+		}
+		if itemId == "" {
+			http.Error(w, "no id provided", http.StatusBadRequest)
+			return
+		}
+		backupHndl.Delete(itemId).ServeHTTP(w, r)
+	})
+
+	r.Path(fmt.Sprintf("%s/{ID}", backupPath)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		itemId, ok := vars["ID"]
+		if !ok {
+			http.Error(w, "could not extract tag id from request context", http.StatusInternalServerError)
+			return
+		}
+		if itemId == "" {
+			http.Error(w, "no id provided", http.StatusBadRequest)
+			return
+		}
+		backupHndl.Download(itemId).ServeHTTP(w, r)
+		return
+	})
+	// Restore from uploaded file
+	r.Path(restorePath).Methods(http.MethodPost).Handler(backupHndl.RestoreUpload())
+
+	// Restore from existing backup ID
+	r.Path(fmt.Sprintf("%s/{ID}", restorePath)).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		itemId, ok := vars["ID"]
+		if !ok {
+			http.Error(w, "could not extract tag id from request context", http.StatusInternalServerError)
+			return
+		}
+		if itemId == "" {
+			http.Error(w, "no id provided", http.StatusBadRequest)
+			return
+		}
+		backupHndl.RestoreFromExisting(itemId).ServeHTTP(w, r)
+	})
+
 }
 
 // Extract the ID from the request url. based on gorilla url path vars

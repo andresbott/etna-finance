@@ -1,4 +1,5 @@
 <script setup>
+
 import { onMounted, onUnmounted } from 'vue'
 import { VerticalLayout } from '@go-bumbu/vue-layouts'
 import Topbar from './views/topbar.vue'
@@ -6,6 +7,7 @@ import Footer from './views/parts/Footer.vue'
 import SidebarMenu from './components/SidebarMenu.vue'
 import { useUiStore } from '@/store/uiStore.js'
 import { useUserStore } from '@/lib/user/userstore.js'
+import Toast from 'primevue/toast'
 
 const uiStore = useUiStore()
 const user = useUserStore()
@@ -20,6 +22,7 @@ onUnmounted(() => {
 </script>
 
 <template>
+    <Toast />
     <VerticalLayout :center-content="false" :fullHeight="true">
         <template #header>
             <Topbar />

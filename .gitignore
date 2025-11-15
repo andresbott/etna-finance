@@ -19,6 +19,8 @@
 
 # build output
 dist/
+# application data
+data
 
 # SPA
 app/spa/files/ui/*

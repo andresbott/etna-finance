@@ -221,12 +221,13 @@ type Account struct {
 
 // dbAccount is the DB internal representation of an Account
 type dbAccount struct {
-	ID         uint `gorm:"primarykey"`
-	ProviderID uint `gorm:"index"`
-	Name       string
-	Type       AccountType
-	Currency   string
-	OwnerId    string `gorm:"index"`
+	ID          uint `gorm:"primarykey"`
+	ProviderID  uint `gorm:"index"`
+	Name        string
+	Description string
+	Type        AccountType
+	Currency    string
+	OwnerId     string `gorm:"index"`
 
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -239,6 +240,7 @@ func dbToAccount(in dbAccount) Account {
 		ID:                in.ID,
 		AccountProviderID: in.ProviderID,
 		Name:              in.Name,
+		Description:       in.Description,
 		Currency:          currency.MustParseISO(in.Currency),
 		Type:              in.Type,
 	}
@@ -261,11 +263,12 @@ func (store *Store) CreateAccount(ctx context.Context, item Account, tenant stri
 	}
 
 	payload := dbAccount{
-		OwnerId:    tenant, // ensure tenant is set by the signature
-		ProviderID: item.AccountProviderID,
-		Name:       item.Name,
-		Type:       item.Type,
-		Currency:   item.Currency.String(),
+		OwnerId:     tenant, // ensure tenant is set by the signature
+		ProviderID:  item.AccountProviderID,
+		Name:        item.Name,
+		Description: item.Description,
+		Type:        item.Type,
+		Currency:    item.Currency.String(),
 	}
 
 	d := store.db.WithContext(ctx).Create(&payload)
@@ -289,10 +292,11 @@ func (store *Store) GetAccount(ctx context.Context, Id uint, tenant string) (Acc
 }
 
 type AccountUpdatePayload struct {
-	Name       *string
-	Currency   *currency.Unit
-	ProviderID *uint
-	Type       AccountType
+	Name        *string
+	Description *string
+	Currency    *currency.Unit
+	ProviderID  *uint
+	Type        AccountType
 }
 
 func (store *Store) UpdateAccount(ctx context.Context, item AccountUpdatePayload, Id uint, tenant string) error {
@@ -303,6 +307,11 @@ func (store *Store) UpdateAccount(ctx context.Context, item AccountUpdatePayload
 	if item.Name != nil {
 		updateStruct.Name = *item.Name
 		selectedFields = append(selectedFields, "Name")
+	}
+
+	if item.Description != nil {
+		updateStruct.Name = *item.Description
+		selectedFields = append(selectedFields, "Description")
 	}
 
 	if item.Type != UnknownAccountType {
