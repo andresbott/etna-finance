@@ -241,6 +241,13 @@ onMounted(() => {
                     />
                 </div>
 
+                <Message severity="error" :closable="false" class="warning-message">
+                    <div class="warning-content">
+                        <i class="pi pi-exclamation-triangle"></i>
+                        <strong>This is a mock UI only.</strong> The CSV import feature is not yet available and no data will be saved.
+                    </div>
+                </Message>
+
                 <Card>
                     <template #content>
                         <DataTable
@@ -479,6 +486,29 @@ onMounted(() => {
 
 :deep(.p-card-content) {
     padding: 1.5rem;
+}
+
+.warning-message {
+    margin-bottom: 2rem;
+    
+    :deep(.p-message-wrapper) {
+        padding: 1rem 1.25rem;
+    }
+}
+
+.warning-content {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 1rem;
+
+    i {
+        font-size: 1.25rem;
+    }
+
+    strong {
+        margin-right: 0.25rem;
+    }
 }
 </style>
 
