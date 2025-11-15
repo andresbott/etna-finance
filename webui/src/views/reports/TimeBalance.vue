@@ -102,6 +102,9 @@ const getSurfaceColor = () => {
 const chartOptions = computed(() => ({
     maintainAspectRatio: false,
     aspectRatio: 0.6,
+    animation: {
+        duration: 500 // Fast animation in milliseconds (default is 1000)
+    },
     plugins: {
         legend: {
             position: 'bottom',

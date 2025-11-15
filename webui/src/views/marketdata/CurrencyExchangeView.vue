@@ -76,6 +76,9 @@ const chartData = computed(() => {
 
 const chartOptions = computed(() => ({
     maintainAspectRatio: false,
+    animation: {
+        duration: 500 // Fast animation in milliseconds (default is 1000)
+    },
     plugins: {
         legend: {
             labels: {
