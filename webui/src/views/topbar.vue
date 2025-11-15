@@ -1,9 +1,9 @@
 <script setup>
 import { HorizontalLayout as HL } from '@go-bumbu/vue-layouts'
 
-import UserProfile from '@/lib/user/UserProfile.vue'
 import { useUserStore } from '@/lib/user/userstore.js'
 import Button from 'primevue/button'
+import Avatar from 'primevue/avatar'
 import AppTitle from '@/views/parts/AppTitle.vue'
 import { useUiStore } from '@/store/uiStore.js'
 import Menubar from 'primevue/menubar'
@@ -31,6 +31,16 @@ const uiStore = useUiStore()
 const toggleSidebar = () => {
     uiStore.toggleDrawer()
 }
+
+const toggleSecondaryMenu = () => {
+    uiStore.toggleSecondaryDrawer()
+}
+
+// Register logout action
+user.registerLogoutAction(() => {
+    router.push({ path: '/', force: true })
+})
+
 </script>
 
 <template>
@@ -53,12 +63,21 @@ const toggleSidebar = () => {
         </template>
 
         <template #right>
-            <UserProfile v-if="user.isLoggedIn" />
+            <Avatar
+                v-if="user.isLoggedIn"
+                icon="pi pi-user"
+                class="mr-2 ml-2"
+                size="large"
+                @click="toggleSecondaryMenu"
+                style="background-color: #ece9fc; color: #2a1261; cursor: pointer"
+            />
             <router-link v-if="!user.isLoggedIn" to="/login" class="layout-topbar-logo">
                 <Button label="Login" icon="pi pi-sign-in" />
             </router-link>
         </template>
     </HL>
+
+
 </template>
 
 <style scoped lang="scss">
@@ -87,18 +106,18 @@ const toggleSidebar = () => {
     gap: 2rem;
 }
 
-:deep(.p-menubar .p-menuitem > .p-menuitem-link .p-menuitem-text),
-:deep(.p-menubar .p-menuitem > .p-menuitem-link) {
-    //color: white !important;
-}
-
-:deep(.p-menuitem-link) {
-    //padding: 0.5rem 0;
-}
-
 i {
     line-height: inherit;
 }
+
+//:deep(.p-menubar .p-menuitem > .p-menuitem-link .p-menuitem-text),
+//:deep(.p-menubar .p-menuitem > .p-menuitem-link) {
+//    color: white !important;
+//}
+
+//:deep(.p-menuitem-link) {
+//    padding: 0.5rem 0;
+//}
 
 //:deep(.p-menuitem-link:hover) {
 //    background: transparent;
