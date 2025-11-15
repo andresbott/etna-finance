@@ -83,9 +83,11 @@
 
 <script setup>
 import { ref, reactive, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useUiStore } from '@/store/uiStore.js'
 import { useAccounts } from '@/composables/useAccounts.js'
 
+const route = useRoute()
 const uiStore = useUiStore()
 const { accounts } = useAccounts()
 
@@ -98,6 +100,27 @@ watch(accounts, (newAccounts) => {
         newAccounts.forEach(provider => {
             if (!(provider.id in expandedProviders)) {
                 expandedProviders[provider.id] = false
+            }
+        })
+    }
+}, { immediate: true })
+
+// Watch route to auto-expand when viewing account entries
+watch(() => route.path, (newPath) => {
+    // Check if we're on an account entries page (/entries/:id)
+    const accountEntriesMatch = newPath.match(/^\/entries\/(\d+)$/)
+    
+    if (accountEntriesMatch && accounts.value) {
+        const accountId = accountEntriesMatch[1]
+        
+        // Expand "By Account" section
+        isMyAccountsExpanded.value = true
+        
+        // Find which provider contains this account and expand it
+        accounts.value.forEach(provider => {
+            const hasAccount = provider.accounts.some(account => String(account.id) === accountId)
+            if (hasAccount) {
+                expandedProviders[provider.id] = true
             }
         })
     }

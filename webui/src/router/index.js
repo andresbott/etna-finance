@@ -43,7 +43,7 @@ const router = createRouter({
             meta: {
                 requiresAuth: true
             },
-            component: () => import('@/views/entries/EntriesView.vue')
+            component: () => import('@/views/entries/AccountEntriesView.vue')
         },
         {
             path: '/reports/income-expense',
