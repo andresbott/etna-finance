@@ -19,7 +19,7 @@ const router = createRouter({
             meta: {
                 requiresAuth: true
             },
-            component: () => import('@/views/dashboard/DashboardView.vue')
+            component: () => import('@/views/reports/DashboardView.vue')
         },
         {
             path: '/accounts',
@@ -51,7 +51,7 @@ const router = createRouter({
             meta: {
                 requiresAuth: true
             },
-            component: () => import('@/views/reports/ReportsView.vue')
+            component: () => import('@/views/reports/IncomeExpenseView.vue')
         },
         {
             path: '/reports',
