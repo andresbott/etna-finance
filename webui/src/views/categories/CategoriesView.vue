@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { VerticalLayout, Placeholder } from '@go-bumbu/vue-layouts'
+import { VerticalLayout } from '@go-bumbu/vue-layouts'
 import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
-import TopBar from '@/views/topbar.vue'
 import Column from 'primevue/column'
 import Button from 'primevue/button'
 import TabView from 'primevue/tabview'
@@ -224,131 +223,105 @@ const deleteCategory = () => {
 </script>
 
 <template>
-    <VerticalLayout :center-content="false" :fullHeight="true">
-        <template #header>
-            <TopBar />
-        </template>
-        <template #default>
-            <div class="main-app-content">
-                <h1>Categories</h1>
-                <TabView>
-                    <TabPanel header="Expense Categories" :value="1">
-                        <TreeTable :value="ExpenseTreeData" :expandedKeys="expandedExpenseKeys">
-                            <Column field="name" header="Name" expander></Column>
-                            <Column field="description" header="Description"></Column>
-                            <Column>
-                                <template #header>
-                                    <div class="actions-header">
-                                        <Button
-                                            label="Add new parent category"
-                                            icon="pi pi-plus"
-                                            @click="handleAddEditIncome(null, 'add', 'expense')"
-                                        />
-                                    </div>
-                                </template>
-                                <template #body="slotProps">
-                                    <div class="actions">
-                                        <Button
-                                            icon="pi pi-plus"
-                                            text
-                                            rounded
-                                            @click="
-                                                handleAddEditIncome(
-                                                    slotProps.node.data,
-                                                    'add',
-                                                    'expense'
-                                                )
-                                            "
-                                            class="action-button"
-                                        />
-                                        <Button
-                                            icon="pi pi-pencil"
-                                            text
-                                            rounded
-                                            @click="
-                                                handleAddEditIncome(
-                                                    slotProps.node.data,
-                                                    'edit',
-                                                    'expense'
-                                                )
-                                            "
-                                            class="action-button"
-                                        />
-                                        <Button
-                                            icon="pi pi-trash"
-                                            text
-                                            rounded
-                                            severity="danger"
-                                            @click="confirmDelete(slotProps.node.data, 'expense')"
-                                            class="action-button"
-                                        />
-                                    </div>
-                                </template>
-                            </Column>
-                        </TreeTable>
-                    </TabPanel>
-                    <TabPanel header="Income Categories" :value="2">
-                        <TreeTable :value="IncomeTreeData" :expandedKeys="expandedIncomeKeys">
-                            <Column field="name" header="Name" expander></Column>
-                            <Column field="description" header="Description"></Column>
-                            <Column>
-                                <template #header>
-                                    <div class="actions-header">
-                                        <Button
-                                            label="Add new parent category"
-                                            icon="pi pi-plus"
-                                            @click="handleAddEditIncome(null, 'add', 'income')"
-                                        />
-                                    </div>
-                                </template>
-                                <template #body="slotProps">
-                                    <div class="actions">
-                                        <Button
-                                            icon="pi pi-plus"
-                                            text
-                                            rounded
-                                            @click="
-                                                handleAddEditIncome(
-                                                    slotProps.node.data,
-                                                    'add',
-                                                    'income'
-                                                )
-                                            "
-                                            class="action-button"
-                                        />
-                                        <Button
-                                            icon="pi pi-pencil"
-                                            text
-                                            rounded
-                                            @click="
-                                                handleAddEditIncome(
-                                                    slotProps.node.data,
-                                                    'edit',
-                                                    'income'
-                                                )
-                                            "
-                                            class="action-button"
-                                        />
-                                        <Button
-                                            icon="pi pi-trash"
-                                            text
-                                            rounded
-                                            severity="danger"
-                                            @click="confirmDelete(slotProps.node.data, 'income')"
-                                            class="action-button"
-                                        />
-                                    </div>
-                                </template>
-                            </Column>
-                        </TreeTable>
-                    </TabPanel>
-                </TabView>
-            </div>
-        </template>
-        <template #footer>
-            <Placeholder :width="'100%'" :height="30" :color="12">Footer</Placeholder>
-        </template>
-    </VerticalLayout>
+    <div class="main-app-content">
+        <h1>Categories</h1>
+        <TabView>
+            <TabPanel header="Expense Categories" :value="1">
+                <TreeTable :value="ExpenseTreeData" :expandedKeys="expandedExpenseKeys">
+                    <Column field="name" header="Name" expander></Column>
+                    <Column field="description" header="Description"></Column>
+                    <Column>
+                        <template #header>
+                            <div class="actions-header">
+                                <Button
+                                    label="Add new parent category"
+                                    icon="pi pi-plus"
+                                    @click="handleAddEditIncome(null, 'add', 'expense')"
+                                />
+                            </div>
+                        </template>
+                        <template #body="slotProps">
+                            <div class="actions">
+                                <Button
+                                    icon="pi pi-plus"
+                                    text
+                                    rounded
+                                    @click="
+                                        handleAddEditIncome(slotProps.node.data, 'add', 'expense')
+                                    "
+                                    class="action-button"
+                                />
+                                <Button
+                                    icon="pi pi-pencil"
+                                    text
+                                    rounded
+                                    @click="
+                                        handleAddEditIncome(slotProps.node.data, 'edit', 'expense')
+                                    "
+                                    class="action-button"
+                                />
+                                <Button
+                                    icon="pi pi-trash"
+                                    text
+                                    rounded
+                                    severity="danger"
+                                    @click="confirmDelete(slotProps.node.data, 'expense')"
+                                    class="action-button"
+                                />
+                            </div>
+                        </template>
+                    </Column>
+                </TreeTable>
+            </TabPanel>
+            <TabPanel header="Income Categories" :value="2">
+                <TreeTable :value="IncomeTreeData" :expandedKeys="expandedIncomeKeys">
+                    <Column field="name" header="Name" expander></Column>
+                    <Column field="description" header="Description"></Column>
+                    <Column>
+                        <template #header>
+                            <div class="actions-header">
+                                <Button
+                                    label="Add new parent category"
+                                    icon="pi pi-plus"
+                                    @click="handleAddEditIncome(null, 'add', 'income')"
+                                />
+                            </div>
+                        </template>
+                        <template #body="slotProps">
+                            <div class="actions">
+                                <Button
+                                    icon="pi pi-plus"
+                                    text
+                                    rounded
+                                    @click="
+                                        handleAddEditIncome(slotProps.node.data, 'add', 'income')
+                                    "
+                                    class="action-button"
+                                />
+                                <Button
+                                    icon="pi pi-pencil"
+                                    text
+                                    rounded
+                                    @click="
+                                        handleAddEditIncome(slotProps.node.data, 'edit', 'income')
+                                    "
+                                    class="action-button"
+                                />
+                                <Button
+                                    icon="pi pi-trash"
+                                    text
+                                    rounded
+                                    severity="danger"
+                                    @click="confirmDelete(slotProps.node.data, 'income')"
+                                    class="action-button"
+                                />
+                            </div>
+                        </template>
+                    </Column>
+                </TreeTable>
+            </TabPanel>
+        </TabView>
+    </div>
 
     <CategoryDialog
         v-model:visible="categoryDialogVisible"
