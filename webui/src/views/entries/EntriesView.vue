@@ -25,7 +25,7 @@ const { entries, isLoading, deleteEntry, isDeleting, refetch } = useEntries(
     startDate,
     endDate
 )
-const { getCategoryName } = useCategoryUtils()
+const { getCategoryName, getCategoryPath } = useCategoryUtils()
 const { getAccountCurrency, getAccountName } = useAccountUtils()
 
 const selectedEntry = ref(null)
@@ -152,13 +152,15 @@ const getRowClass = (data) => ({
                             </template>
                         </Column>
 
-                        <Column field="description" header="Description" />
-                        <Column field="category" header="Category">
+                        <Column field="description" header="Description" class="description-column">
                             <template #body="{ data }">
-                                <div v-if="data.type === 'expense' || data.type === 'income'">
-                                    {{ getCategoryName(data?.categoryId, data.type) }}
-                                </div>
-                                <div v-else>-</div>
+                                <span 
+                                    v-if="data.type === 'expense' || data.type === 'income'"
+                                    v-tooltip.bottom="`Category: ${getCategoryPath(data?.categoryId, data.type)}`"
+                                >
+                                    {{ data.description }}
+                                </span>
+                                <span v-else>{{ data.description }}</span>
                             </template>
                         </Column>
 
@@ -187,7 +189,7 @@ const getRowClass = (data) => ({
                                 }}
                             </template>
                         </Column>
-                        <Column field="Amount" header="Amount">
+                        <Column field="Amount" header="Amount" bodyStyle="text-align: right" class="amount-column">
                             <template #body="{ data }">
                                 <div v-if="data.type === 'expense'" class="amount expense">
                                     -{{
@@ -214,7 +216,7 @@ const getRowClass = (data) => ({
                                             maximumFractionDigits: 2
                                         }) || '0.00'
                                     }}
-                                    {{ data.originAccountCurrency || '' }}
+                                    {{ getAccountCurrency(data.originAccountId) }}
                                     <i
                                         class="pi pi-arrow-right"
                                         style="font-size: 0.9rem; margin: 0 8px"
@@ -225,7 +227,7 @@ const getRowClass = (data) => ({
                                             maximumFractionDigits: 2
                                         })
                                     }}
-                                    {{ data.targetAccountCurrency || '' }}
+                                    {{ getAccountCurrency(data.targetAccountId) }}
                                 </div>
                                 <div v-else class="amount">
                                     {{
@@ -402,5 +404,9 @@ const getRowClass = (data) => ({
 
 .amount.transfer {
     color: var(--c-blue-600);
+}
+
+:deep(.amount-column .p-datatable-column-title) {
+    margin-left: auto;
 }
 </style>

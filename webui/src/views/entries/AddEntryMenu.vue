@@ -65,7 +65,7 @@ const selectedEntry = ref(null)
             optionValue="value"
             placeholder="Add Entry"
             @change="handleSelection"
-            class="add-entry-select"
+            class="add-entry-select button-style"
         >
             <template #value="slotProps">
                 <span v-if="slotProps.value">{{ slotProps.value }}</span>
@@ -136,7 +136,36 @@ const selectedEntry = ref(null)
 .placeholder-text {
     display: flex;
     align-items: center;
-    color: var(--primary-color);
     font-weight: 500;
+}
+
+/* Button-style select */
+:deep(.button-style) {
+    background: var(--c-primary-500);
+    border: 1px solid var(--c-primary-600);
+    color: var(--c-primary-50);
+    font-weight: 500;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+
+:deep(.button-style:not(.p-disabled):hover) {
+    background: var(--c-primary-600);
+    border-color: var(--c-primary-700);
+}
+
+:deep(.button-style:not(.p-disabled):active) {
+    background: var(--c-primary-700);
+    border-color: var(--c-primary-800);
+}
+
+:deep(.button-style:focus-visible) {
+    outline: var(--p-focus-ring-width) var(--p-focus-ring-style) var(--p-focus-ring-color);
+    outline-offset: var(--p-focus-ring-offset);
+}
+
+:deep(.button-style .p-select-label),
+:deep(.button-style .p-select-dropdown),
+:deep(.button-style .p-icon) {
+    color: var(--c-primary-50);
 }
 </style>
