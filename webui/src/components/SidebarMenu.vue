@@ -10,7 +10,7 @@
                     <li>
                         <router-link to="/entries" class="menu-item">
                             <i class="pi pi-list menu-icon"></i>
-                            <span class="menu-label">All</span>
+                            <span class="menu-label">All Transactions</span>
                         </router-link>
                     </li>
                     <li>
@@ -19,7 +19,7 @@
                             class="menu-item"
                         >
                             <i class="pi pi-wallet menu-icon"></i>
-                            <span class="menu-label">Accounts</span>
+                            <span class="menu-label">By Account</span>
                             <i 
                                 class="pi pi-chevron-down menu-toggle" 
                                 :class="{ 'rotate-180': isMyAccountsExpanded }"
@@ -137,8 +137,8 @@ const getAccountIcon = (type) => {
     position: relative;
     height: 100%;
     width: 300px;
-    background: var(--p-surface-0);
-    border-right: 1px solid var(--p-surface-border);
+    background: var(--c-primary-700);
+    border-right: 1px solid var(--c-primary-800);
     transition: transform 0.3s;
     overflow-y: auto;
     padding: 1rem 0;
@@ -164,7 +164,7 @@ const getAccountIcon = (type) => {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: var(--p-text-muted-color);
+    color: var(--c-primary-200);
     padding: 0.5rem 1.5rem;
     margin-bottom: 0.25rem;
 }
@@ -174,7 +174,7 @@ const getAccountIcon = (type) => {
     display: flex;
     align-items: center;
     padding: 0.75rem 1.5rem;
-    color: var(--p-text-color);
+    color: var(--c-primary-50);
     text-decoration: none;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -182,15 +182,15 @@ const getAccountIcon = (type) => {
 }
 
 .menu-item:hover {
-    background-color: var(--p-surface-hover);
-    color: var(--p-primary-color);
+    background-color: var(--c-primary-600);
+    color: var(--c-primary-50);
 }
 
 .menu-item.router-link-active {
-    background-color: var(--p-primary-50);
-    color: var(--p-primary-color);
+    background-color: var(--c-primary-500);
+    color: white;
     font-weight: 600;
-    border-left-color: var(--p-primary-color);
+    border-left-color: var(--c-primary-200);
 }
 
 /* Submenu Items */
@@ -204,6 +204,11 @@ const getAccountIcon = (type) => {
     margin: 0;
     overflow: hidden;
     transition: all 0.4s ease-in-out;
+    background-color: var(--c-primary-800);
+}
+
+.menu-submenu .menu-submenu {
+    background-color: var(--c-primary-900);
 }
 
 .menu-submenu .menu-submenu .submenu-item {
@@ -215,13 +220,13 @@ const getAccountIcon = (type) => {
     margin-right: 0.75rem;
     font-size: 1.125rem;
     line-height: 1 !important;
-    color: var(--p-text-secondary-color);
-    transition: color 0.2s ease;
+    color: var(--c-primary-100);
+    transition: all 0.2s ease;
 }
 
 .menu-item:hover .menu-icon,
 .menu-item.router-link-active .menu-icon {
-    color: var(--p-primary-color);
+    color: white;
 }
 
 .menu-label {
@@ -234,6 +239,7 @@ const getAccountIcon = (type) => {
     font-size: 0.875rem;
     transition: transform 0.3s ease;
     line-height: 1 !important;
+    color: var(--c-primary-100);
 }
 
 .rotate-180 {
