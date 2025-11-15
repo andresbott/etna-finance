@@ -15,16 +15,20 @@ import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
 
 <style>
 .footer {
-    background-color: var(--c-primary-600);
-    color: var(--c-primary-100);
+    background-color: #f5f5f5;
+    color: #525252;
+    border-top: 1px solid #e5e5e5;
 
     font-size: 80%;
     padding: 0.5rem;
 }
 .footer a {
-    color: var(--c-primary-100);
+    color: #525252;
     text-decoration: none;
     margin-right: 0.5rem;
+}
+.footer a:hover {
+    color: var(--c-primary-600);
 }
 .c-horizontal {
     grid-template-columns: 1fr 2fr 1fr;

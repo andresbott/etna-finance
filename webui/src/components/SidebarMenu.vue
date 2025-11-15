@@ -137,8 +137,8 @@ const getAccountIcon = (type) => {
     position: relative;
     height: 100%;
     width: 300px;
-    background: var(--c-primary-700);
-    border-right: 1px solid var(--c-primary-800);
+    background: var(--c-primary-500);
+    border-right: 1px solid var(--c-primary-600);
     transition: transform 0.3s;
     overflow-y: auto;
     padding: 1rem 0;
@@ -164,7 +164,7 @@ const getAccountIcon = (type) => {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: var(--c-primary-200);
+    color: var(--c-primary-50);
     padding: 0.5rem 1.5rem;
     margin-bottom: 0.25rem;
 }
@@ -174,7 +174,7 @@ const getAccountIcon = (type) => {
     display: flex;
     align-items: center;
     padding: 0.75rem 1.5rem;
-    color: var(--c-primary-50);
+    color: white;
     text-decoration: none;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -182,15 +182,15 @@ const getAccountIcon = (type) => {
 }
 
 .menu-item:hover {
-    background-color: var(--c-primary-600);
-    color: var(--c-primary-50);
+    background-color: var(--c-primary-400);
+    color: white;
 }
 
 .menu-item.router-link-active {
-    background-color: var(--c-primary-500);
-    color: white;
+    background-color: var(--c-primary-300);
+    color: var(--c-primary-900);
     font-weight: 600;
-    border-left-color: var(--c-primary-200);
+    border-left-color: var(--c-primary-50);
 }
 
 /* Submenu Items */
@@ -204,11 +204,11 @@ const getAccountIcon = (type) => {
     margin: 0;
     overflow: hidden;
     transition: all 0.4s ease-in-out;
-    background-color: var(--c-primary-800);
+    background-color: var(--c-primary-600);
 }
 
 .menu-submenu .menu-submenu {
-    background-color: var(--c-primary-900);
+    background-color: var(--c-primary-700);
 }
 
 .menu-submenu .menu-submenu .submenu-item {
@@ -220,13 +220,16 @@ const getAccountIcon = (type) => {
     margin-right: 0.75rem;
     font-size: 1.125rem;
     line-height: 1 !important;
-    color: var(--c-primary-100);
+    color: var(--c-primary-50);
     transition: all 0.2s ease;
 }
 
-.menu-item:hover .menu-icon,
-.menu-item.router-link-active .menu-icon {
+.menu-item:hover .menu-icon {
     color: white;
+}
+
+.menu-item.router-link-active .menu-icon {
+    color: var(--c-primary-900);
 }
 
 .menu-label {
@@ -239,7 +242,7 @@ const getAccountIcon = (type) => {
     font-size: 0.875rem;
     transition: transform 0.3s ease;
     line-height: 1 !important;
-    color: var(--c-primary-100);
+    color: var(--c-primary-50);
 }
 
 .rotate-180 {
