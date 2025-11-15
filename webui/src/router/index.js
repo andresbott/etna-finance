@@ -7,11 +7,15 @@ const router = createRouter({
     routes: [
         {
             path: '/', // Root path
-            redirect: '/start' // Redirect to start
+            redirect: '/reports/overview' // Redirect to overview
         },
         {
             path: '/start',
-            name: 'start',
+            redirect: '/reports/overview' // Redirect old start to new overview
+        },
+        {
+            path: '/reports/overview',
+            name: 'reports-overview',
             meta: {
                 requiresAuth: true
             },
@@ -34,12 +38,24 @@ const router = createRouter({
             component: () => import('@/views/entries/EntriesView.vue')
         },
         {
-            path: '/reports',
-            name: 'reports',
+            path: '/entries/:id',
+            name: 'entries-by-account',
+            meta: {
+                requiresAuth: true
+            },
+            component: () => import('@/views/entries/EntriesView.vue')
+        },
+        {
+            path: '/reports/income-expense',
+            name: 'reports-income-expense',
             meta: {
                 requiresAuth: true
             },
             component: () => import('@/views/reports/ReportsView.vue')
+        },
+        {
+            path: '/reports',
+            redirect: '/reports/income-expense' // Redirect old reports to new route
         },
         {
             path: '/categories',
@@ -99,7 +115,7 @@ router.beforeEach((to, from, next) => {
             }
         } else if (to.matched.some((record) => record.meta.hideFromAuth)) {
             if (user.isLoggedIn) {
-                next({ name: 'start' }) // hide logged-in users from hitting the login page
+                next({ name: 'reports-overview' }) // hide logged-in users from hitting the login page
             } else {
                 next()
             }
