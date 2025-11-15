@@ -14,8 +14,8 @@ const incomeTableData = ref([])
 const expenseTableData = ref([])
 const reportData = ref(null)
 
-const expandedIncomeKeys = ref({})
-const expandedExpenseKeys = ref({})
+const expandedIncomeKeys = ref({ total: true })
+const expandedExpenseKeys = ref({ total: true })
 
 const fetchReportData = async () => {
     try {
@@ -134,24 +134,70 @@ const calculateTotals = (nodes) => {
     return totals
 }
 
+const addTotalNode = (nodes) => {
+    if (!nodes || nodes.length === 0) return []
+    
+    const totals = calculateTotals(nodes)
+    const totalValues = {}
+    
+    Object.entries(totals).forEach(([currency, amount]) => {
+        totalValues[currency] = { amount }
+    })
+    
+    const totalNode = {
+        key: 'total',
+        data: {
+            name: 'Total',
+            description: '',
+            values: totalValues
+        },
+        children: nodes
+    }
+    
+    return [totalNode]
+}
+
+const incomeTableDataWithTotal = computed(() => addTotalNode(incomeTableData.value))
+const expenseTableDataWithTotal = computed(() => addTotalNode(expenseTableData.value))
+
 const incomeTotals = computed(() => calculateTotals(incomeTableData.value))
 const expenseTotals = computed(() => calculateTotals(expenseTableData.value))
 
 const toggleIncomeVisibility = () => {
-    if (Object.keys(expandedIncomeKeys.value).length > 0) {
-        expandedIncomeKeys.value = {}
+    const allKeys = expandAllNodes(incomeTableDataWithTotal.value)
+    const hasAllExpanded = Object.keys(expandedIncomeKeys.value).length === Object.keys(allKeys).length
+    
+    if (hasAllExpanded) {
+        // Collapse to default view (only Total expanded)
+        expandedIncomeKeys.value = { total: true }
     } else {
-        expandedIncomeKeys.value = expandAllNodes(incomeTableData.value)
+        // Expand all nodes
+        expandedIncomeKeys.value = allKeys
     }
 }
 
 const toggleExpenseVisibility = () => {
-    if (Object.keys(expandedExpenseKeys.value).length > 0) {
-        expandedExpenseKeys.value = {}
+    const allKeys = expandAllNodes(expenseTableDataWithTotal.value)
+    const hasAllExpanded = Object.keys(expandedExpenseKeys.value).length === Object.keys(allKeys).length
+    
+    if (hasAllExpanded) {
+        // Collapse to default view (only Total expanded)
+        expandedExpenseKeys.value = { total: true }
     } else {
-        expandedExpenseKeys.value = expandAllNodes(expenseTableData.value)
+        // Expand all nodes
+        expandedExpenseKeys.value = allKeys
     }
 }
+
+const isIncomeFullyExpanded = computed(() => {
+    const allKeys = expandAllNodes(incomeTableDataWithTotal.value)
+    return Object.keys(expandedIncomeKeys.value).length === Object.keys(allKeys).length
+})
+
+const isExpenseFullyExpanded = computed(() => {
+    const allKeys = expandAllNodes(expenseTableDataWithTotal.value)
+    return Object.keys(expandedExpenseKeys.value).length === Object.keys(allKeys).length
+})
 
 watch([startDate, endDate], () => {
     if (startDate.value && endDate.value) fetchReportData()
@@ -184,37 +230,15 @@ onMounted(() => fetchReportData())
                         <div class="section-header">
                             <h2 class="report-title">Income</h2>
                             <Button
-                                :icon="
-                                    Object.keys(expandedIncomeKeys).length > 0
-                                        ? 'pi pi-minus'
-                                        : 'pi pi-plus'
-                                "
-                                :label="
-                                    Object.keys(expandedIncomeKeys).length > 0
-                                        ? 'Collapse All'
-                                        : 'Expand All'
-                                "
+                                :icon="isIncomeFullyExpanded ? 'pi pi-minus' : 'pi pi-plus'"
+                                :label="isIncomeFullyExpanded ? 'Collapse' : 'Expand'"
                                 class="p-button-sm p-button-text"
                                 @click="toggleIncomeVisibility"
                             />
                         </div>
 
-                        <div class="totals-row">
-                            <div class="totals-cell name-cell">
-                                <strong>Total</strong>
-                            </div>
-                            <div class="totals-cell description-cell"></div>
-                            <div
-                                v-for="currency in currencies"
-                                :key="currency"
-                                class="totals-cell amount-cell"
-                            >
-                                <strong>{{ formatAmount(incomeTotals[currency] || 0) }} {{ currency }}</strong>
-                            </div>
-                        </div>
-
                         <TreeTable
-                            :value="incomeTableData"
+                            :value="incomeTableDataWithTotal"
                             v-model:expandedKeys="expandedIncomeKeys"
                             class="report-table"
                         >
@@ -246,37 +270,15 @@ onMounted(() => fetchReportData())
                         <div class="section-header">
                             <h2 class="report-title">Expenses</h2>
                             <Button
-                                :icon="
-                                    Object.keys(expandedExpenseKeys).length > 0
-                                        ? 'pi pi-minus'
-                                        : 'pi pi-plus'
-                                "
-                                :label="
-                                    Object.keys(expandedExpenseKeys).length > 0
-                                        ? 'Collapse All'
-                                        : 'Expand All'
-                                "
+                                :icon="isExpenseFullyExpanded ? 'pi pi-minus' : 'pi pi-plus'"
+                                :label="isExpenseFullyExpanded ? 'Collapse' : 'Expand'"
                                 class="p-button-sm p-button-text"
                                 @click="toggleExpenseVisibility"
                             />
                         </div>
 
-                        <div class="totals-row">
-                            <div class="totals-cell name-cell">
-                                <strong>Total</strong>
-                            </div>
-                            <div class="totals-cell description-cell"></div>
-                            <div
-                                v-for="currency in currencies"
-                                :key="currency"
-                                class="totals-cell amount-cell"
-                            >
-                                <strong>{{ formatAmount(expenseTotals[currency] || 0) }} {{ currency }}</strong>
-                            </div>
-                        </div>
-
                         <TreeTable
-                            :value="expenseTableData"
+                            :value="expenseTableDataWithTotal"
                             v-model:expandedKeys="expandedExpenseKeys"
                             class="report-table"
                         >
@@ -328,35 +330,6 @@ onMounted(() => fetchReportData())
 .report-title {
     color: var(--c-surface-700);
     margin: 0;
-}
-
-.totals-row {
-    display: flex;
-    align-items: center;
-    padding: 0.75rem 1rem;
-    background-color: var(--c-surface-50);
-    margin-bottom: 0.5rem;
-}
-
-.totals-cell {
-    padding: 0 0.5rem;
-}
-
-.name-cell {
-    flex: 0 0 250px;
-    min-width: 250px;
-}
-
-.description-cell {
-    flex: 1;
-    min-width: 200px;
-}
-
-.amount-cell {
-    flex: 0 0 150px;
-    min-width: 150px;
-    text-align: right;
-    color: var(--c-surface-700);
 }
 
 .empty-value {
