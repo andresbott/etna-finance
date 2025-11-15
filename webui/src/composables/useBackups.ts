@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
-import { GetBackupFiles, DeleteBackupFile, CreateBackup, RestoreBackup, DownloadBackupFile } from '@/lib/api/Backup'
+import { GetBackupFiles, DeleteBackupFile, CreateBackup, RestoreBackup, RestoreBackupFromExisting, DownloadBackupFile } from '@/lib/api/Backup'
 
 export function useBackups() {
     const queryClient = useQueryClient()
@@ -42,6 +42,15 @@ export function useBackups() {
         }
     })
 
+    // Mutation to restore from an existing backup by ID
+    const restoreBackupFromExistingMutation = useMutation({
+        mutationFn: (id: string) => RestoreBackupFromExisting(id),
+        onSuccess: () => {
+            // Optionally invalidate all queries since data is being restored
+            queryClient.invalidateQueries()
+        }
+    })
+
     return {
         // Query data
         backupFiles: backupFilesQuery.data,
@@ -55,12 +64,13 @@ export function useBackups() {
         deleteBackup: deleteBackupMutation.mutateAsync,
         downloadBackup: downloadBackupMutation.mutateAsync,
         restoreBackup: restoreBackupMutation.mutateAsync,
+        restoreBackupFromExisting: restoreBackupFromExistingMutation.mutateAsync,
 
         // Mutation states
         isCreating: createBackupMutation.isPending,
         isDeleting: deleteBackupMutation.isPending,
         isDownloading: downloadBackupMutation.isPending,
-        isRestoring: restoreBackupMutation.isPending
+        isRestoring: restoreBackupMutation.isPending || restoreBackupFromExistingMutation.isPending
     }
 }
 

@@ -43,10 +43,14 @@ export const CreateBackup = async (): Promise<void> => {
 export const RestoreBackup = async (file: File): Promise<void> => {
     const formData = new FormData()
     formData.append('file', file)
-    await apiClient.post('/backup/restore', formData, {
+    await apiClient.post('/restore', formData, {
         headers: {
             'Content-Type': 'multipart/form-data'
         }
     })
+}
+
+export const RestoreBackupFromExisting = async (id: string): Promise<void> => {
+    await apiClient.post(`/restore/${id}`)
 }
 

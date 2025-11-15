@@ -118,7 +118,7 @@ func writeMeta(zw *zipWriter, timestamp time.Time, tenants []string) error {
 }
 
 func writeAccountProviders(ctx context.Context, zw *zipWriter, store *accounting.Store, tenants []string) error {
-	var jsonData []accountProviderV1
+	jsonData := []accountProviderV1{}
 	for _, tenant := range tenants {
 		providers, err := store.ListAccountsProvider(ctx, tenant, false)
 		if err != nil {
@@ -138,7 +138,7 @@ func writeAccountProviders(ctx context.Context, zw *zipWriter, store *accounting
 }
 
 func writeAccounts(ctx context.Context, zw *zipWriter, store *accounting.Store, tenants []string) error {
-	var jsonData []accountV1
+	jsonData := []accountV1{}
 	for _, tenant := range tenants {
 		Accounts, err := store.ListAccounts(ctx, tenant)
 		if err != nil {
@@ -162,7 +162,7 @@ func writeAccounts(ctx context.Context, zw *zipWriter, store *accounting.Store, 
 
 func writeCategories(ctx context.Context, zw *zipWriter, store *accounting.Store, tenants []string) error {
 
-	var jsonData []categoryV1
+	jsonData := []categoryV1{}
 	for _, tenant := range tenants {
 		Incomes, err := store.ListDescendantCategories(ctx, 0, -1, accounting.IncomeCategory, tenant)
 		if err != nil {
@@ -177,11 +177,12 @@ func writeCategories(ctx context.Context, zw *zipWriter, store *accounting.Store
 				Tenant:      tenant,
 			})
 		}
-		err = zw.writeJsonFile(incomeCategoriesFile, jsonData)
-		if err != nil {
-			return err
-		}
 	}
+	err := zw.writeJsonFile(incomeCategoriesFile, jsonData)
+	if err != nil {
+		return err
+	}
+
 	jsonData = []categoryV1{}
 	for _, tenant := range tenants {
 		expenses, err := store.ListDescendantCategories(ctx, 0, -1, accounting.ExpenseCategory, tenant)
@@ -213,7 +214,7 @@ func dataFuture() time.Time {
 var entriesLimit = 100
 
 func writeTransactions(ctx context.Context, zw *zipWriter, store *accounting.Store, tenants []string) error {
-	var jsonData []TransactionV1
+	jsonData := []TransactionV1{}
 
 	for _, tenant := range tenants {
 		opts := accounting.ListOpts{

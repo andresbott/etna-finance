@@ -5,7 +5,6 @@ import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
 import TopBar from '@/views/topbar.vue'
 import Card from 'primevue/card'
 import Button from 'primevue/button'
-import FileUpload from 'primevue/fileupload'
 import Message from 'primevue/message'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
@@ -16,6 +15,8 @@ const successMessage = ref('')
 const errorMessage = ref('')
 const deleteDialogVisible = ref(false)
 const backupToDelete = ref(null)
+const restoreDialogVisible = ref(false)
+const backupToRestore = ref(null)
 
 // Use the composable
 const {
@@ -25,6 +26,7 @@ const {
     deleteBackup,
     downloadBackup,
     restoreBackup,
+    restoreBackupFromExisting,
     isCreating,
     isDeleting,
     isDownloading,
@@ -43,16 +45,27 @@ const handleBackup = async () => {
     }
 }
 
-const handleRestore = async (event) => {
+const fileInputRef = ref(null)
+
+const triggerFileUpload = () => {
+    fileInputRef.value?.click()
+}
+
+const handleFileSelected = async (event) => {
     successMessage.value = ''
     errorMessage.value = ''
     
+    const file = event.target.files?.[0]
+    if (!file) return
+    
     try {
-        const file = event.files[0]
         await restoreBackup(file)
-        successMessage.value = 'Data restored successfully!'
+        successMessage.value = 'Data restored successfully from uploaded backup!'
+        // Clear the input so the same file can be selected again
+        event.target.value = ''
     } catch (error) {
         errorMessage.value = 'Failed to restore data: ' + error.message
+        event.target.value = ''
     }
 }
 
@@ -79,6 +92,23 @@ const handleDownloadBackup = async (backup) => {
         successMessage.value = `Backup "${backup.filename}" downloaded successfully!`
     } catch (error) {
         errorMessage.value = 'Failed to download backup: ' + error.message
+    }
+}
+
+const openRestoreDialog = (backup) => {
+    backupToRestore.value = backup
+    restoreDialogVisible.value = true
+}
+
+const handleRestoreBackup = async () => {
+    successMessage.value = ''
+    errorMessage.value = ''
+    
+    try {
+        await restoreBackupFromExisting(backupToRestore.value.id)
+        successMessage.value = `Data restored successfully from "${backupToRestore.value.filename}"!`
+    } catch (error) {
+        errorMessage.value = 'Failed to restore backup: ' + error.message
     }
 }
 
@@ -128,15 +158,19 @@ const formatFileSize = (bytes) => {
                                 :loading="isCreating"
                                 :disabled="isRestoring"
                             />
-                            <FileUpload
-                                mode="basic"
-                                accept=".json,.zip"
-                                :maxFileSize="10000000"
-                                :auto="true"
-                                chooseLabel="Upload Backup"
-                                chooseIcon="pi pi-upload"
-                                @select="handleRestore"
+                            <Button
+                                label="Upload & Restore Backup"
+                                icon="pi pi-upload"
+                                @click="triggerFileUpload"
+                                :loading="isRestoring"
                                 :disabled="isCreating"
+                            />
+                            <input
+                                ref="fileInputRef"
+                                type="file"
+                                accept=".json,.zip"
+                                @change="handleFileSelected"
+                                style="display: none"
                             />
                         </div>
 
@@ -169,7 +203,7 @@ const formatFileSize = (bytes) => {
                                     </template>
                                 </Column>
                                 
-                                <Column header="Actions" :exportable="false" headerStyle="width: 150px; text-align: center" bodyStyle="text-align: center">
+                                <Column header="Actions" :exportable="false" headerStyle="width: 200px; text-align: center" bodyStyle="text-align: center">
                                     <template #body="{ data }">
                                         <Button
                                             icon="pi pi-download"
@@ -179,6 +213,16 @@ const formatFileSize = (bytes) => {
                                             :loading="isDownloading"
                                             @click="handleDownloadBackup(data)"
                                             v-tooltip.top="'Download backup'"
+                                            class="mr-2"
+                                        />
+                                        <Button
+                                            icon="pi pi-replay"
+                                            severity="success"
+                                            text
+                                            rounded
+                                            :loading="isRestoring"
+                                            @click="openRestoreDialog(data)"
+                                            v-tooltip.top="'Restore backup'"
                                             class="mr-2"
                                         />
                                         <Button
@@ -207,6 +251,15 @@ const formatFileSize = (bytes) => {
         title="Delete Backup"
         message="Are you sure you want to delete this backup file?"
         :onConfirm="handleDeleteBackup"
+    />
+
+    <!-- Restore Confirmation Dialog -->
+    <ConfirmDialog
+        v-model:visible="restoreDialogVisible"
+        :name="backupToRestore?.filename"
+        title="Restore Backup"
+        message="Are you sure you want to restore this backup? This will replace all current data."
+        :onConfirm="handleRestoreBackup"
     />
 </template>
 
