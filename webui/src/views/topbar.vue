@@ -49,7 +49,7 @@ user.registerLogoutAction(() => {
             <div class="pl-4 flex items-center">
                 <i
                     v-if="user.isLoggedIn"
-                    class="pi pi-bars text-2xl cursor-pointer text-gray-700"
+                    class="pi pi-bars text-2xl cursor-pointer hamburger-icon"
                     @click="toggleSidebar"
                 ></i>
                 <router-link to="/start" class="layout-topbar-logo">
@@ -69,7 +69,11 @@ user.registerLogoutAction(() => {
                 class="mr-2 ml-2"
                 size="large"
                 @click="toggleSecondaryMenu"
-                style="background-color: #ece9fc; color: #2a1261; cursor: pointer"
+                :style="{
+                    backgroundColor: 'var(--c-primary-200)',
+                    color: 'var(--c-primary-700)',
+                    cursor: 'pointer'
+                }"
             />
             <router-link v-if="!user.isLoggedIn" to="/login" class="layout-topbar-logo">
                 <Button label="Login" icon="pi pi-sign-in" />
@@ -108,6 +112,15 @@ user.registerLogoutAction(() => {
 
 i {
     line-height: inherit;
+}
+
+.hamburger-icon {
+    color: var(--c-primary-50);
+    transition: color 0.2s ease;
+}
+
+.hamburger-icon:hover {
+    color: var(--c-primary-100);
 }
 
 //:deep(.p-menubar .p-menuitem > .p-menuitem-link .p-menuitem-text),

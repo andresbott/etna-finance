@@ -64,7 +64,10 @@ const sections = [
                 <Avatar
                     icon="pi pi-user"
                     size="large"
-                    style="background-color: #ece9fc; color: #2a1261"
+                    :style="{
+                        backgroundColor: 'var(--c-primary-200)',
+                        color: 'var(--c-primary-700)'
+                    }"
                 />
                 <span class="username">{{ user.loggedInUser }}</span>
             </div>

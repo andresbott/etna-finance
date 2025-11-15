@@ -74,19 +74,28 @@ const pieChartData = ref({
     ]
 })
 
-const pieChartOptions = ref({
+// Get computed colors from CSS variables
+const getTextColor = () => {
+    return getComputedStyle(document.documentElement).getPropertyValue('--c-text-color').trim() || '#495057'
+}
+
+const getSurfaceColor = () => {
+    return getComputedStyle(document.documentElement).getPropertyValue('--c-surface-300').trim() || '#ebedef'
+}
+
+const pieChartOptions = computed(() => ({
     maintainAspectRatio: false,
     aspectRatio: 0.8,
     plugins: {
         legend: {
             labels: {
-                color: '#495057'
+                color: getTextColor()
             }
         }
     }
-})
+}))
 
-const chartOptions = ref({
+const chartOptions = computed(() => ({
     maintainAspectRatio: false,
     aspectRatio: 0.6,
     plugins: {
@@ -95,7 +104,7 @@ const chartOptions = ref({
             display: true,
             align: 'start',
             labels: {
-                color: '#495057',
+                color: getTextColor(),
                 boxWidth: 20,
                 padding: 20,
                 usePointStyle: true,
@@ -125,22 +134,22 @@ const chartOptions = ref({
     scales: {
         x: {
             ticks: {
-                color: '#495057'
+                color: getTextColor()
             },
             grid: {
-                color: '#ebedef'
+                color: getSurfaceColor()
             }
         },
         y: {
             ticks: {
-                color: '#495057'
+                color: getTextColor()
             },
             grid: {
-                color: '#ebedef'
+                color: getSurfaceColor()
             }
         }
     }
-})
+}))
 
 const leftSidebarCollapsed = ref(true)
 

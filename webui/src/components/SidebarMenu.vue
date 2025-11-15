@@ -204,11 +204,11 @@ const getAccountIcon = (type) => {
     margin: 0;
     overflow: hidden;
     transition: all 0.4s ease-in-out;
-    background-color: var(--c-primary-600);
+    background-color: var(--c-primary-500);
 }
 
 .menu-submenu .menu-submenu {
-    background-color: var(--c-primary-700);
+    background-color: var(--c-primary-600);
 }
 
 .menu-submenu .menu-submenu .submenu-item {

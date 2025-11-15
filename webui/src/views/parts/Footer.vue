@@ -15,15 +15,15 @@ import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
 
 <style>
 .footer {
-    background-color: #f5f5f5;
-    color: #525252;
-    border-top: 1px solid #e5e5e5;
+    background-color: var(--c-surface-100);
+    color: var(--c-text-color-secondary);
+    border-top: 1px solid var(--c-surface-200);
 
     font-size: 80%;
     padding: 0.5rem;
 }
 .footer a {
-    color: #525252;
+    color: var(--c-text-color-secondary);
     text-decoration: none;
     margin-right: 0.5rem;
 }

@@ -301,6 +301,6 @@ onMounted(() => fetchReportData())
     margin: 0;
 }
 .empty-value {
-    color: #999;
+    color: var(--c-text-color-secondary);
 }
 </style>

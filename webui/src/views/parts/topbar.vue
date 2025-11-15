@@ -36,7 +36,11 @@ user.registerLogoutAction(() => {
                 class="mr-2 ml-2"
                 size="large"
                 @click="toggleSecondaryMenu"
-                style="background-color: #ece9fc; color: #2a1261; cursor: pointer"
+                :style="{
+                    backgroundColor: 'var(--c-primary-200)',
+                    color: 'var(--c-primary-700)',
+                    cursor: 'pointer'
+                }"
             />
             <router-link v-if="!user.isLoggedIn" to="/login" class="layout-topbar-logo">
                 <Button label="Login" icon="pi pi-sign-in" />

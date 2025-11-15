@@ -575,14 +575,14 @@ const getRowClass = (data) => ({
 }
 
 .amount.expense {
-    color: #dc2626;
+    color: var(--c-red-600);
 }
 
 .amount.income {
-    color: #16a34a;
+    color: var(--c-green-600);
 }
 
 .amount.transfer {
-    color: #2563eb;
+    color: var(--c-blue-600);
 }
 </style>
