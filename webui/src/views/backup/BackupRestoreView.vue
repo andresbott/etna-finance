@@ -133,7 +133,7 @@ const formatFileSize = (bytes) => {
 <template>
     <VerticalLayout :center-content="false" :fullHeight="true">
         <template #header>
-            <TopBar />
+
         </template>
         <template #default>
             <div class="backup-restore-container">

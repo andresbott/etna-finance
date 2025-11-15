@@ -223,7 +223,7 @@ onMounted(() => {
 <template>
     <VerticalLayout :center-content="false" :fullHeight="true">
         <template #header>
-            <TopBar />
+
         </template>
         <template #default>
             <div class="csv-profile-container">
