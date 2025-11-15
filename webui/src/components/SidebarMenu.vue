@@ -75,6 +75,23 @@
                             <span class="menu-label">Income/Expense</span>
                         </router-link>
                     </li>
+
+                    <!-- MARKET DATA SECTION -->
+                    <li class="menu-section">
+                        <div class="menu-section-label">Market Data</div>
+                    </li>
+                    <li>
+                        <router-link to="/market-data/currency-exchange" class="menu-item">
+                            <i class="pi pi-dollar menu-icon"></i>
+                            <span class="menu-label">Currency Exchange</span>
+                        </router-link>
+                    </li>
+                    <li>
+                        <router-link to="/market-data/stock-market" class="menu-item">
+                            <i class="pi pi-chart-line menu-icon"></i>
+                            <span class="menu-label">Stock Market</span>
+                        </router-link>
+                    </li>
                 </ul>
             </div>
         </Transition>

@@ -256,6 +256,7 @@ onMounted(() => fetchReportData())
                                             slotProps.node.data.values &&
                                             slotProps.node.data.values[currency]
                                         "
+                                        :class="{ 'bold-total': slotProps.node.key === 'total' }"
                                     >
                                         {{ formatAmount(slotProps.node.data.values[currency].amount) }}
                                     </div>
@@ -296,6 +297,7 @@ onMounted(() => fetchReportData())
                                             slotProps.node.data.values &&
                                             slotProps.node.data.values[currency]
                                         "
+                                        :class="{ 'bold-total': slotProps.node.key === 'total' }"
                                     >
                                         {{ formatAmount(slotProps.node.data.values[currency].amount) }}
                                     </div>
@@ -334,5 +336,9 @@ onMounted(() => fetchReportData())
 
 .empty-value {
     color: var(--c-text-color-secondary);
+}
+
+.bold-total {
+    font-weight: bold;
 }
 </style>

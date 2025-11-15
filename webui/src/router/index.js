@@ -82,6 +82,30 @@ const router = createRouter({
             component: () => import('@/views/csvimport/CsvImportProfileView.vue')
         },
         {
+            path: '/market-data/currency-exchange',
+            name: 'currency-exchange',
+            meta: {
+                requiresAuth: true
+            },
+            component: () => import('@/views/marketdata/CurrencyExchangeView.vue')
+        },
+        {
+            path: '/market-data/stock-market',
+            name: 'stock-market',
+            meta: {
+                requiresAuth: true
+            },
+            component: () => import('@/views/marketdata/StockMarketView.vue')
+        },
+        {
+            path: '/settings',
+            name: 'settings',
+            meta: {
+                requiresAuth: true
+            },
+            component: () => import('@/views/settings/ConfigurationView.vue')
+        },
+        {
             path: '/login',
             name: 'login',
             meta: {

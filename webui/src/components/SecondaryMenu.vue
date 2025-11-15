@@ -25,7 +25,7 @@ const sections = [
     {
         title: 'Settings',
         items: [
-            { label: 'Configuration', icon: 'pi pi-cog', route: '/settings', disabled: true }
+            { label: 'Configuration', icon: 'pi pi-cog', route: '/settings' }
         ]
     },
     {
