@@ -164,7 +164,7 @@ const getAccountTypeIcon = (type) => {
 
 onMounted(() => {
     mutate({
-        accountIds: [4, 5],
+        accountIds: [2, 3],
         steps: 30,
         startDate: '2025-01-03'
     })
