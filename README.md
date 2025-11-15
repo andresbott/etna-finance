@@ -1,7 +1,13 @@
 # Etna
 Personal finance App
 
-![screen.jpg](zarf/screen.jpg)
+
+## Screenshots
+Account transaction list
+![screen1.jpg](zarf/screen1.jpg)
+
+Balance overview
+![screen2.jpg](zarf/screen2.jpg)
 
 ## About 
 Is an opinionated personal finance app to keep track of personal expenses and investment.
