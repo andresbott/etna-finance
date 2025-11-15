@@ -7,15 +7,19 @@ const router = createRouter({
     routes: [
         {
             path: '/', // Root path
-            redirect: '/start' // Redirect to start
+            redirect: '/reports/overview' // Redirect to overview
         },
         {
             path: '/start',
-            name: 'start',
+            redirect: '/reports/overview' // Redirect old start to new overview
+        },
+        {
+            path: '/reports/overview',
+            name: 'reports-overview',
             meta: {
                 requiresAuth: true
             },
-            component: () => import('@/views/dashboard/DashboardView.vue')
+            component: () => import('@/views/reports/DashboardView.vue')
         },
         {
             path: '/accounts',
@@ -34,12 +38,24 @@ const router = createRouter({
             component: () => import('@/views/entries/EntriesView.vue')
         },
         {
-            path: '/reports',
-            name: 'reports',
+            path: '/entries/:id',
+            name: 'entries-by-account',
             meta: {
                 requiresAuth: true
             },
-            component: () => import('@/views/reports/ReportsView.vue')
+            component: () => import('@/views/entries/AccountEntriesView.vue')
+        },
+        {
+            path: '/reports/income-expense',
+            name: 'reports-income-expense',
+            meta: {
+                requiresAuth: true
+            },
+            component: () => import('@/views/reports/IncomeExpenseView.vue')
+        },
+        {
+            path: '/reports',
+            redirect: '/reports/income-expense' // Redirect old reports to new route
         },
         {
             path: '/categories',
@@ -64,6 +80,30 @@ const router = createRouter({
                 requiresAuth: true
             },
             component: () => import('@/views/csvimport/CsvImportProfileView.vue')
+        },
+        {
+            path: '/market-data/currency-exchange',
+            name: 'currency-exchange',
+            meta: {
+                requiresAuth: true
+            },
+            component: () => import('@/views/marketdata/CurrencyExchangeView.vue')
+        },
+        {
+            path: '/market-data/stock-market',
+            name: 'stock-market',
+            meta: {
+                requiresAuth: true
+            },
+            component: () => import('@/views/marketdata/StockMarketView.vue')
+        },
+        {
+            path: '/settings',
+            name: 'settings',
+            meta: {
+                requiresAuth: true
+            },
+            component: () => import('@/views/settings/ConfigurationView.vue')
         },
         {
             path: '/login',
@@ -99,7 +139,7 @@ router.beforeEach((to, from, next) => {
             }
         } else if (to.matched.some((record) => record.meta.hideFromAuth)) {
             if (user.isLoggedIn) {
-                next({ name: 'start' }) // hide logged-in users from hitting the login page
+                next({ name: 'reports-overview' }) // hide logged-in users from hitting the login page
             } else {
                 next()
             }

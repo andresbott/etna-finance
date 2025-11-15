@@ -326,10 +326,6 @@ const formatFileSize = (bytes) => {
     font-size: 0.9rem;
 }
 
-:deep(.p-card) {
-    height: 100%;
-}
-
 :deep(.p-card-content) {
     padding-top: 0;
 }

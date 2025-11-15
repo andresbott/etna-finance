@@ -1,25 +1,161 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
+import { useRoute } from 'vue-router'
 
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import TransferDialog from './dialogs/TransferDialog.vue'
 import StockDialog from './dialogs/StockDialog.vue'
 import DeleteDialog from '@/components/common/confirmDialog.vue'
-import EntriesTable from './EntriesTable.vue'
+import AccountEntriesTable from './AccountEntriesTable.vue'
 
 import { useEntries } from '@/composables/useEntries.ts'
 import IncomeExpenseDialog from '@/views/entries/dialogs/IncomeExpenseDialog.vue'
 import AddEntryMenu from '@/views/entries/AddEntryMenu.vue'
+import { useAccountUtils } from '@/utils/accountUtils'
+import { useAccounts } from '@/composables/useAccounts'
+
+/* --- Route --- */
+const route = useRoute()
+const accountId = computed(() => route.params.id)
 
 /* --- Reactive State --- */
 const today = new Date()
 const startDate = ref(new Date(today.setDate(today.getDate() - 35)))
 const endDate = ref(new Date())
 
-const { entries, isLoading, deleteEntry, isDeleting, refetch } = useEntries(
+const { entries: allEntries, isLoading, deleteEntry, isDeleting, refetch } = useEntries(
     startDate,
     endDate
 )
+
+/* --- Accounts --- */
+const { accounts } = useAccounts()
+
+/* --- Account Name and Currency --- */
+const accountName = computed(() => {
+    if (!accountId.value) return 'Unknown Account'
+    if (!accounts?.value) return 'Loading...'
+    
+    // Find the account directly
+    for (const provider of accounts.value) {
+        if (provider.accounts) {
+            for (const account of provider.accounts) {
+                if (String(account.id) === String(accountId.value)) {
+                    return account.name
+                }
+            }
+        }
+    }
+    
+    return 'Unknown Account'
+})
+
+const accountCurrency = computed(() => {
+    if (!accountId.value) return ''
+    if (!accounts?.value) return ''
+    
+    // Find the account currency
+    for (const provider of accounts.value) {
+        if (provider.accounts) {
+            for (const account of provider.accounts) {
+                if (String(account.id) === String(accountId.value)) {
+                    return account.currency
+                }
+            }
+        }
+    }
+    
+    return ''
+})
+
+const accountTitle = computed(() => {
+    if (accountCurrency.value) {
+        return `${accountName.value} (${accountCurrency.value})`
+    }
+    return accountName.value
+})
+
+/* --- Filtered Entries --- */
+const entries = computed(() => {
+    if (!accountId.value || !allEntries.value) return []
+    
+    // Filter entries that belong to this account
+    const filtered = allEntries.value.filter(entry => {
+        // For income/expense entries, check accountId
+        if (entry.type === 'income' || entry.type === 'expense') {
+            return String(entry.accountId) === String(accountId.value)
+        }
+        // For transfers, check both origin and target accounts
+        if (entry.type === 'transfer') {
+            return String(entry.originAccountId) === String(accountId.value) || 
+                   String(entry.targetAccountId) === String(accountId.value)
+        }
+        // For stock operations, check targetAccountId
+        if (entry.type === 'buystock' || entry.type === 'sellstock') {
+            return String(entry.targetAccountId) === String(accountId.value)
+        }
+        return false
+    })
+    
+    // Calculate opening balance (balance at start of period)
+    // Get all entries before startDate to calculate this
+    const openingBalance = allEntries.value
+        .filter(entry => {
+            // Only include entries before startDate that belong to this account
+            const entryDate = new Date(entry.date)
+            const start = new Date(startDate.value)
+            
+            if (entryDate >= start) return false
+            
+            // Check if entry belongs to this account
+            if (entry.type === 'income' || entry.type === 'expense') {
+                return String(entry.accountId) === String(accountId.value)
+            }
+            if (entry.type === 'transfer') {
+                return String(entry.originAccountId) === String(accountId.value) || 
+                       String(entry.targetAccountId) === String(accountId.value)
+            }
+            if (entry.type === 'buystock' || entry.type === 'sellstock') {
+                return String(entry.targetAccountId) === String(accountId.value)
+            }
+            return false
+        })
+        .reduce((balance, entry) => {
+            let entryAmount = 0
+            
+            if (entry.type === 'expense') {
+                entryAmount = -(entry.Amount || 0)
+            } else if (entry.type === 'income') {
+                entryAmount = entry.Amount || 0
+            } else if (entry.type === 'transfer') {
+                if (String(entry.originAccountId) === String(accountId.value)) {
+                    entryAmount = -(entry.originAmount || 0)
+                } else if (String(entry.targetAccountId) === String(accountId.value)) {
+                    entryAmount = entry.targetAmount || 0
+                }
+            } else if (entry.type === 'buystock') {
+                entryAmount = -(entry.targetAmount || 0)
+            } else if (entry.type === 'sellstock') {
+                entryAmount = entry.targetAmount || 0
+            }
+            
+            return balance + entryAmount
+        }, 0)
+    
+    // Create opening balance entry
+    const openingBalanceEntry = {
+        id: 'opening-balance',
+        type: 'opening-balance',
+        description: 'Balance at beginning of period',
+        date: startDate.value,
+        Amount: openingBalance,
+        accountId: accountId.value,
+        isOpeningBalance: true
+    }
+    
+    // Return filtered entries followed by opening balance at the end (bottom in descending order)
+    return [...filtered, openingBalanceEntry]
+})
 
 const selectedEntry = ref(null)
 const isEditMode = ref(false)
@@ -93,7 +229,11 @@ const handleDeleteEntry = async () => {
     <div class="main-app-content">
         <div class="entries-content">
             <div class="toolbar">
-                <div class="toolbar-spacer"></div>
+                <div class="toolbar-left">
+                    <h2 class="account-title">
+                        {{ accountTitle }}
+                    </h2>
+                </div>
                 <div class="date-filters">
                     <DateRangePicker
                         v-model:startDate="startDate"
@@ -107,10 +247,11 @@ const handleDeleteEntry = async () => {
             </div>
 
             <div class="entries-view">
-                <EntriesTable
+                <AccountEntriesTable
                     :entries="entries"
                     :isLoading="isLoading"
                     :isDeleting="isDeleting"
+                    :accountId="accountId"
                     @edit="openEditEntryDialog"
                     @duplicate="openDuplicateEntryDialog"
                     @delete="openDeleteDialog"
@@ -120,7 +261,6 @@ const handleDeleteEntry = async () => {
     </div>
 
     <!-- Dialog Components -->
-    <!-- TODO: Pass the `category-id`  -->
     <IncomeExpenseDialog
         v-model:visible="dialogs.incomeExpense.value"
         :is-edit="isEditMode"
@@ -195,6 +335,18 @@ const handleDeleteEntry = async () => {
     border-bottom: 1px solid var(--surface-border);
 }
 
+.toolbar-left {
+    display: flex;
+    align-items: center;
+}
+
+.account-title {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--c-primary-700);
+}
+
 .date-filters {
     display: flex;
     gap: 1rem;
@@ -214,3 +366,4 @@ const handleDeleteEntry = async () => {
     padding: 1rem;
 }
 </style>
+

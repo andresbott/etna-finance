@@ -27,7 +27,7 @@ defineProps({
     gap: 0.5rem;
     font-family: Arial, sans-serif;
     font-size: 1rem;
-    color: #333;
+    color: var(--c-text-color);
 }
 
 .app-icon {

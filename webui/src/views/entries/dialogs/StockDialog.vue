@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
@@ -28,10 +28,27 @@ const props = defineProps({
     targetAccountId: { type: Number, default: null },
     originAccountId: { type: Number, default: null },
     categoryId: { type: Number, default: null },
-    visible: { type: Boolean, default: false }
+    visible: { type: Boolean, default: false },
+    autofocusAmount: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['update:visible'])
+
+const amountInputRef = ref(null)
+
+// Watch for visibility and autofocusAmount to focus the amount field
+watch(() => [props.visible, props.autofocusAmount], ([visible, autofocus]) => {
+    if (visible && autofocus) {
+        // Use a longer delay to ensure dialog is fully ready
+        setTimeout(() => {
+            const inputElement = amountInputRef.value?.$el?.querySelector('input')
+            if (inputElement) {
+                inputElement.focus()
+                inputElement.select()
+            }
+        }, 180)
+    }
+})
 
 const stockTypes = ref([
     { label: 'Buy Stock', value: 'buystock' },
@@ -116,13 +133,15 @@ const handleSubmit = async (e, form) => {
             :validateOnBlur="true"
             @submit="handleSubmit"
         >
-            <div v-focustrap class="flex flex-column gap-4">
-                <InputText name="description" placeholder="Description" />
+            <div class="flex flex-column gap-4">
+                <InputText name="description" placeholder="Description" v-if="autofocusAmount" />
+                <InputText name="description" placeholder="Description" v-focus v-else />
                 <Message v-if="$form.description?.invalid" severity="error" size="small">{{
                     $form.description.error?.message
                 }}</Message>
 
                 <InputNumber
+                    ref="amountInputRef"
                     name="amount"
                     placeholder="Amount"
                     :minFractionDigits="2"

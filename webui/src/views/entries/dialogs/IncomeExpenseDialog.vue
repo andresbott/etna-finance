@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, computed} from 'vue'
+import { ref, watch, computed, nextTick } from 'vue'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
 import { Form } from '@primevue/forms'
@@ -29,9 +29,26 @@ const props = defineProps({
 
     accountId: { type: Number, default: null },
     visible: { type: Boolean, default: false },
-    categoryId: { type: Number, default: 0 }
+    categoryId: { type: Number, default: 0 },
+    autofocusAmount: { type: Boolean, default: false }
 })
 const categoryId = ref(props.categoryId)
+
+const amountInputRef = ref(null)
+
+// Watch for visibility and autofocusAmount to focus the amount field
+watch(() => [props.visible, props.autofocusAmount], ([visible, autofocus]) => {
+    if (visible && autofocus) {
+        // Use multiple delays to ensure dialog is fully ready
+        setTimeout(() => {
+            const inputElement = amountInputRef.value?.$el?.querySelector('input')
+            if (inputElement) {
+                inputElement.focus()
+                inputElement.select()
+            }
+        }, 180)
+    }
+})
 
 console.log(props)
 
@@ -215,7 +232,8 @@ const emit = defineEmits(['update:visible'])
                 <!-- Description Field -->
                 <div>
                     <label for="description" class="form-label">Description</label>
-                    <InputText id="description" name="description" v-focus />
+                    <InputText id="description" name="description" v-if="autofocusAmount" />
+                    <InputText id="description" name="description" v-focus v-else />
                     <Message v-if="$form.description?.invalid" severity="error" size="small">
                         {{ $form.description.error?.message }}
                     </Message>
@@ -239,6 +257,7 @@ const emit = defineEmits(['update:visible'])
                 <div>
                     <label for="amount" class="form-label">Amount</label>
                     <InputNumber
+                        ref="amountInputRef"
                         id="amount"
                         name="amount"
                         :minFractionDigits="2"

@@ -12,6 +12,24 @@ import StyleClass from 'primevue/styleclass'
 
 const app = createApp(App)
 
+// Detect and apply system color scheme preference
+const applyTheme = () => {
+    const darkModeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    const htmlElement = document.documentElement
+    
+    if (darkModeMediaQuery.matches) {
+        htmlElement.classList.add('dark-mode')
+    } else {
+        htmlElement.classList.remove('dark-mode')
+    }
+}
+
+// Apply theme on initial load
+applyTheme()
+
+// Listen for changes in system color scheme
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme)
+
 // https://github.com/primefaces/primevue/issues/2397
 // allows to use <InputText v-model="value" v-focus /> to focus on an input item
 app.directive('focus', {
@@ -30,7 +48,7 @@ app.use(PrimeVue, {
         preset: CustomTheme,
         options: {
             prefix: 'c',
-            darkModeSelector: 'system',
+            darkModeSelector: '.dark-mode',
             cssLayer: false
         }
     },

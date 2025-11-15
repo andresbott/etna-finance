@@ -1,13 +1,11 @@
 <script setup>
 import { ref } from 'vue'
-import Button from 'primevue/button'
-import Menu from 'primevue/menu'
+import Select from 'primevue/select'
 import IncomeExpenseDialog from '@/views/entries/dialogs/IncomeExpenseDialog.vue'
 import StockDialog from './dialogs/StockDialog.vue'
 import TransferDialog from '@/views/entries/dialogs/TransferDialog.vue'
 
-/* Internal state for menu and dialog visibility */
-const menu = ref(null)
+/* Internal state for dialog visibility */
 const dialogs = ref({
     expense: false,
     income: false,
@@ -15,43 +13,41 @@ const dialogs = ref({
     stock: false
 })
 
-/* Toggle function to control menu visibility */
-const toggleMenu = (event) => {
-    menu.value.toggle(event)
+/* Selected value for dropdown */
+const selectedOption = ref(null)
+
+/* Open the respective dialog when a dropdown item is selected */
+const handleSelection = (event) => {
+    if (event.value) {
+        dialogs.value[event.value] = true
+        // Reset selection after opening dialog
+        setTimeout(() => {
+            selectedOption.value = null
+        }, 100)
+    }
 }
 
-/* Open the respective dialog when a menu item is clicked */
-const openDialog = (dialogType) => {
-    dialogs.value[dialogType] = true
-}
-
-/* Setup menu items with their corresponding dialog actions */
-const menuItems = ref([
+/* Setup dropdown options */
+const dropdownOptions = ref([
     {
         label: 'Add Expense',
-        icon: 'pi pi-minus',
-        command: () => openDialog('expense')
+        value: 'expense',
+        icon: 'pi pi-minus'
     },
     {
         label: 'Add Income',
-        icon: 'pi pi-plus',
-        command: () => openDialog('income')
+        value: 'income',
+        icon: 'pi pi-plus'
     },
     {
         label: 'Add Transfer',
-        icon: 'pi pi-arrow-right-arrow-left',
-        command: () => openDialog('transfer')
+        value: 'transfer',
+        icon: 'pi pi-arrow-right-arrow-left'
     },
     {
         label: 'Stock Operation',
-        icon: 'pi pi-chart-line',
-        command: () => openDialog('stock')
-    },
-    { separator: true },
-    {
-        label: 'CSV import',
-        icon: 'pi pi-bolt',
-        command: () => openDialog('transfer') // This still points to transfer - keep as is?
+        value: 'stock',
+        icon: 'pi pi-chart-line'
     }
 ])
 
@@ -61,15 +57,30 @@ const selectedEntry = ref(null)
 
 <template>
     <div class="add-entry-menu">
-        <!-- Add Entry Menu Button -->
-        <Button
-            label=""
-            icon="pi pi-plus"
-            @click="toggleMenu"
-            aria-haspopup="true"
-            aria-controls="overlay_menu"
-        />
-        <Menu ref="menu" :model="menuItems" :popup="true" id="overlay_menu" />
+        <!-- Add Entry Dropdown -->
+        <Select
+            v-model="selectedOption"
+            :options="dropdownOptions"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Add Entry"
+            @change="handleSelection"
+            class="add-entry-select button-style"
+        >
+            <template #value="slotProps">
+                <span v-if="slotProps.value">{{ slotProps.value }}</span>
+                <span v-else class="placeholder-text">
+                    <i class="pi pi-plus" style="margin-right: 0.5rem;"></i>
+                    Add Entry
+                </span>
+            </template>
+            <template #option="slotProps">
+                <div class="flex align-items-center">
+                    <i :class="slotProps.option.icon" style="margin-right: 0.5rem;"></i>
+                    <span>{{ slotProps.option.label }}</span>
+                </div>
+            </template>
+        </Select>
 
         <!-- Expense Dialog -->
         <IncomeExpenseDialog
@@ -115,6 +126,46 @@ const selectedEntry = ref(null)
 .add-entry-menu {
     display: flex;
     justify-content: center;
-    padding: 1rem;
+    align-items: center;
+}
+
+.add-entry-select {
+    min-width: 180px;
+}
+
+.placeholder-text {
+    display: flex;
+    align-items: center;
+    font-weight: 500;
+}
+
+/* Button-style select */
+:deep(.button-style) {
+    background: var(--c-primary-500);
+    border: 1px solid var(--c-primary-600);
+    color: var(--c-primary-50);
+    font-weight: 500;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+
+:deep(.button-style:not(.p-disabled):hover) {
+    background: var(--c-primary-600);
+    border-color: var(--c-primary-700);
+}
+
+:deep(.button-style:not(.p-disabled):active) {
+    background: var(--c-primary-700);
+    border-color: var(--c-primary-800);
+}
+
+:deep(.button-style:focus-visible) {
+    outline: var(--p-focus-ring-width) var(--p-focus-ring-style) var(--p-focus-ring-color);
+    outline-offset: var(--p-focus-ring-offset);
+}
+
+:deep(.button-style .p-select-label),
+:deep(.button-style .p-select-dropdown),
+:deep(.button-style .p-icon) {
+    color: var(--c-primary-50);
 }
 </style>

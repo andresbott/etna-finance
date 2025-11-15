@@ -1,11 +1,25 @@
 <script setup>
 import { HorizontalLayout } from '@go-bumbu/vue-layouts'
 import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
-import UserProfile from '@/lib/user/UserProfile.vue'
 import { useUserStore } from '@/lib/user/userstore.js'
+import { useUiStore } from '@/store/uiStore.js'
 import Button from 'primevue/button'
+import Avatar from 'primevue/avatar'
+import { useRouter } from 'vue-router'
 
 const user = useUserStore()
+const uiStore = useUiStore()
+const router = useRouter()
+
+const toggleSecondaryMenu = () => {
+    uiStore.toggleSecondaryDrawer()
+}
+
+// Register logout action
+user.registerLogoutAction(() => {
+    router.push({ path: '/', force: true })
+})
+
 </script>
 
 <template>
@@ -16,10 +30,23 @@ const user = useUserStore()
 
         <!--        <InputText placeholder="Search" type="text" class="w-32 sm:w-auto" />-->
         <template v-slot:right>
-            <UserProfile v-if="user.isLoggedIn" />
+            <Avatar
+                v-if="user.isLoggedIn"
+                icon="pi pi-user"
+                class="mr-2 ml-2"
+                size="large"
+                @click="toggleSecondaryMenu"
+                :style="{
+                    backgroundColor: 'var(--c-primary-200)',
+                    color: 'var(--c-primary-700)',
+                    cursor: 'pointer'
+                }"
+            />
             <router-link v-if="!user.isLoggedIn" to="/login" class="layout-topbar-logo">
                 <Button label="Login" icon="pi pi-sign-in" />
             </router-link>
         </template>
     </HorizontalLayout>
+
+
 </template>
