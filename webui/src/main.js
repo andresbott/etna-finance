@@ -8,6 +8,7 @@ import 'primeicons/primeicons.css'
 import '@/assets/style.scss'
 
 import PrimeVue from 'primevue/config'
+import StyleClass from 'primevue/styleclass'
 
 const app = createApp(App)
 
@@ -38,6 +39,8 @@ app.use(PrimeVue, {
     }
 })
 
+app.directive('styleclass', StyleClass)
+
 // pinia store
 import { createPinia } from 'pinia'
 app.use(createPinia())
@@ -52,6 +55,7 @@ app.use(router)
 
 // focus trap
 import FocusTrap from 'primevue/focustrap'
+import { Ripple } from 'primevue'
 app.directive('focustrap', FocusTrap)
 
 // vue query
