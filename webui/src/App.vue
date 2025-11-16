@@ -9,6 +9,7 @@ import SecondaryMenu from './components/SecondaryMenu.vue'
 import { useUiStore } from '@/store/uiStore.js'
 import { useUserStore } from '@/lib/user/userstore.js'
 import Toast from 'primevue/toast'
+// import { VueQueryDevtools } from '@tanstack/vue-query-devtools'
 
 const uiStore = useUiStore()
 const user = useUserStore()
@@ -39,7 +40,7 @@ onUnmounted(() => {
             <Footer />
         </template>
     </VerticalLayout>
-
+<!--    <VueQueryDevtools  />-->
 </template>
 
 <style lang="css">

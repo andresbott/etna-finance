@@ -83,8 +83,10 @@ const openDeleteDialog = (entry) => {
 const handleDeleteEntry = async () => {
     try {
         await deleteEntry(entryToDelete.value.id)
+        deleteDialogVisible.value = false
     } catch (error) {
         console.error('Failed to delete entry:', error)
+        // Keep dialog open on error so user knows something went wrong
     }
 }
 </script>

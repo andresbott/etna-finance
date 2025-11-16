@@ -5,3 +5,6 @@ users:
   - name: "admin"
     pw: "admin"
     enabled: true
+  - name: "test"
+    pw: "test"
+    enabled: true
