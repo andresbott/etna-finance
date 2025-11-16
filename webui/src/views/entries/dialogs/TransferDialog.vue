@@ -5,7 +5,7 @@ import Button from 'primevue/button'
 import { Form } from '@primevue/forms'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
-import { useEntries } from '@/composables/useEntries.js'
+import { useEntries } from '@/composables/useEntries.ts'
 import { useAccounts } from '@/composables/useAccounts.js'
 
 import AccountSelector from '@/components/AccountSelector.vue'
@@ -298,7 +298,7 @@ const emit = defineEmits(['update:visible'])
                                 v-model="formValues.originAccountId"
                                 name="originAccountId"
                                 @update:modelValue="handleOriginAccountSelection"
-                                :account-types="['cash', 'bank']"
+                                :account-types="['cash', 'checkin', 'bank', 'savings']"
                             />
                             <Message
                                 v-if="$form.originAccountId?.invalid"
@@ -346,7 +346,7 @@ const emit = defineEmits(['update:visible'])
                                 v-model="formValues.targetAccountId"
                                 name="targetAccountId"
                                 @update:modelValue="handleTargetAccountSelection"
-                                :account-types="['cash', 'bank']"
+                                :account-types="['cash', 'checkin', 'bank', 'savings']"
                             />
                             <Message
                                 v-if="$form.targetAccountId?.invalid"

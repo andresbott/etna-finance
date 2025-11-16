@@ -5,6 +5,20 @@ import IncomeExpenseDialog from '@/views/entries/dialogs/IncomeExpenseDialog.vue
 import StockDialog from './dialogs/StockDialog.vue'
 import TransferDialog from '@/views/entries/dialogs/TransferDialog.vue'
 
+/* Props for pre-populating account fields */
+const props = defineProps({
+    // Pre-populate account for income/expense
+    defaultAccountId: {
+        type: Number,
+        default: null
+    },
+    // Pre-populate origin account for transfers
+    defaultOriginAccountId: {
+        type: Number,
+        default: null
+    }
+})
+
 /* Internal state for dialog visibility */
 const dialogs = ref({
     expense: false,
@@ -87,6 +101,7 @@ const selectedEntry = ref(null)
             v-model:visible="dialogs.expense"
             :isEdit="false"
             entryType="expense"
+            :account-id="defaultAccountId"
             @update:visible="dialogs.expense = $event"
         />
 
@@ -95,12 +110,15 @@ const selectedEntry = ref(null)
             v-model:visible="dialogs.income"
             :isEdit="false"
             entryType="income"
+            :account-id="defaultAccountId"
             @update:visible="dialogs.income = $event"
         />
 
+        <!-- Transfer Dialog -->
         <TransferDialog
             v-model:visible="dialogs.transfer"
             :isEdit="false"
+            :origin-account-id="defaultAccountId || defaultOriginAccountId"
             @update:visible="dialogs.transfer = $event"
         />
 

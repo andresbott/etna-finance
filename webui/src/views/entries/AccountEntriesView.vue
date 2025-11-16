@@ -219,8 +219,10 @@ const openDeleteDialog = (entry) => {
 const handleDeleteEntry = async () => {
     try {
         await deleteEntry(entryToDelete.value.id)
+        deleteDialogVisible.value = false
     } catch (error) {
         console.error('Failed to delete entry:', error)
+        // Keep dialog open on error so user knows something went wrong
     }
 }
 </script>
@@ -242,7 +244,10 @@ const handleDeleteEntry = async () => {
                     />
                 </div>
                 <div class="add-entry-menu">
-                    <AddEntryMenu />
+                    <AddEntryMenu 
+                        :default-account-id="Number(accountId)"
+                        :default-origin-account-id="Number(accountId)"
+                    />
                 </div>
             </div>
 

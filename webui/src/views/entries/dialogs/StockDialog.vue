@@ -10,7 +10,7 @@ import InputNumber from 'primevue/inputnumber'
 import Select from 'primevue/select'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
-import { useEntries } from '@/composables/useEntries.js'
+import { useEntries } from '@/composables/useEntries.ts'
 import { useAccounts } from '@/composables/useAccounts.js'
 import DatePicker from 'primevue/datepicker'
 

@@ -246,7 +246,7 @@ const emit = defineEmits(['update:visible'])
                         v-model="formValues.AccountId"
                         name="AccountId"
                         @update:modelValue="handleAccountSelection"
-                        :accountTypes="['cash', 'checkin']"
+                        :accountTypes="['cash', 'checkin', 'bank', 'savings']"
                     />
                     <Message v-if="$form.AccountId?.invalid" severity="error" size="small">
                         {{ $form.AccountId.error?.message }}

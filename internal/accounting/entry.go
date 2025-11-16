@@ -3,7 +3,6 @@ package accounting
 import (
 	"context"
 	"fmt"
-	"gorm.io/gorm"
 	"time"
 )
 
@@ -31,7 +30,6 @@ type dbEntry struct {
 	OwnerId   string `gorm:"index"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
-	DeletedAt gorm.DeletedAt `gorm:"index"`
 }
 
 type sumResult struct {

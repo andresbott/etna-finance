@@ -50,7 +50,8 @@ export function useEntries(
     const createEntryMutation = useMutation({
         mutationFn: (payload: CreateEntryDTO) => CreateEntry(payload),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: queryKey.value })
+            // Invalidate all entries queries, not just the specific date range
+            queryClient.invalidateQueries({ queryKey: ['entries'] })
         }
     })
 
@@ -58,7 +59,8 @@ export function useEntries(
     const updateEntryMutation = useMutation({
         mutationFn: (payload: UpdateEntryDTO) => UpdateEntry(payload),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: queryKey.value })
+            // Invalidate all entries queries, not just the specific date range
+            queryClient.invalidateQueries({ queryKey: ['entries'] })
         }
     })
 
@@ -66,7 +68,8 @@ export function useEntries(
     const deleteEntryMutation = useMutation({
         mutationFn: (id: string) => DeleteEntry(id),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: queryKey.value })
+            // Invalidate all entries queries, not just the specific date range
+            queryClient.invalidateQueries({ queryKey: ['entries'] })
         }
     })
 

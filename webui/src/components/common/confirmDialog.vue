@@ -26,7 +26,8 @@ const visible = defineModel('visible', { default: false })
 async function handleConfirm() {
     try {
         await props.onConfirm()
-        visible.value = false
+        // Don't auto-close - let the parent handle closing after successful operation
+        // visible.value = false
     } catch (error) {
         console.error('Failed to delete item:', error)
         // You might want to show an error message to the user here
