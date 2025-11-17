@@ -72,6 +72,7 @@ const resolver = ({ values }) => {
                             <i class="pi pi-user"></i>
                         </InputGroupAddon>
                         <InputText
+                            id="username"
                             name="username"
                             type="text"
                             autocomplete="username"
@@ -90,6 +91,7 @@ const resolver = ({ values }) => {
                             <i class="pi pi-lock"></i>
                         </InputGroupAddon>
                         <Password
+                            id="password"
                             name="password"
                             :feedback="false"
                             placeholder="Password"
@@ -114,7 +116,7 @@ const resolver = ({ values }) => {
                         >Wrong username or password</Message
                     >
 
-                    <Button type="submit" label="Log in" class="w-full" />
+                    <Button id="login-submit"  type="submit" label="Log in" class="w-full" />
                 </div>
             </Form>
         </template>

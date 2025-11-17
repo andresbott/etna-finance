@@ -14,6 +14,9 @@ it-test: ## run db IT tests
 	@cd internal/backup && go test -v --alldbs
 
 
+e2e-test: ## run end2end tests on an actually running instance
+	@E2E=true HEADLESS=false go test -v ./zarf/end2endTests
+
 lint: ## run go linter
 	# depends on https://github.com/golangci/golangci-lint
 	@golangci-lint run
