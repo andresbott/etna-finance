@@ -28,11 +28,11 @@ onUnmounted(() => {
     <SecondaryMenu v-if="user.isLoggedIn" />
     <VerticalLayout :center-content="false" :fullHeight="true">
         <template #header>
-            <Topbar />
+            <Topbar v-if="user.isLoggedIn" />
         </template>
         <template #default>
             <div class="content">
-                <SidebarMenu v-if="user.isLoggedIn" />
+                <SidebarMenu v-if="user.isLoggedIn" id="sidebar-menu" />
                 <router-view />
             </div>
         </template>

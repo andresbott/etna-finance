@@ -21,6 +21,9 @@ Auth:
       - Name: "admin"
         Pw: "admin"
         Enabled: true
+      - Name: "test"
+        Pw: "test"
+        Enabled: true
 
 
 Env:
