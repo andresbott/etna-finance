@@ -6,11 +6,7 @@ const config = {
     "../src/**/*.mdx",
     "../src/**/*.stories.@(js|jsx|mjs|ts|tsx)"
   ],
-  "addons": [
-    "@chromatic-com/storybook",
-    "@storybook/addon-a11y",
-    // "@storybook/addon-docs"
-  ],
+  "addons": ["@storybook/addon-a11y", "@storybook/addon-vitest"],
   "framework": "@storybook/vue3-vite"
 };
 export default config;

@@ -24,6 +24,26 @@ storybook: ## run storybook dev server
 build: ## build a production release
 	@npm run build
 
+##@ Testing
+
+test: ## run all tests (unit + storybook)
+	@npm test
+
+test-unit: ## run unit tests only
+	@npm run test:unit
+
+test-storybook: ## run storybook tests only
+	@npm run test:storybook
+
+test-watch: ## run tests in watch mode
+	@npm run test:watch
+
+test-ui: ## open vitest UI
+	@npm run test:ui
+
+test-coverage: ## run tests with coverage report
+	@npm run test:coverage
+
 dependencies: ## check unused dependencies
 	@npx npm-check
 

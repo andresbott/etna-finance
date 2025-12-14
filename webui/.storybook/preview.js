@@ -4,6 +4,7 @@ import CustomTheme from '../src/theme.js'
 import { createPinia } from 'pinia'
 import FocusTrap from 'primevue/focustrap'
 import { createRouter, createMemoryHistory } from 'vue-router'
+import { VueQueryPlugin, QueryClient } from '@tanstack/vue-query'
 
 import 'primeflex/primeflex.css'
 import 'primeicons/primeicons.css'
@@ -19,13 +20,29 @@ const mockRouter = createRouter({
   ]
 })
 
-// Setup PrimeVue, Pinia, Router, and directives for all stories
+// Create a query client for Vue Query
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: false,
+      staleTime: Infinity, // Keep data fresh indefinitely in stories
+    },
+  },
+})
+
+// Setup PrimeVue, Pinia, Router, Vue Query, and directives for all stories
 setup((app) => {
   // Install Pinia for state management
   app.use(createPinia())
   
   // Install router
   app.use(mockRouter)
+  
+  // Install Vue Query
+  app.use(VueQueryPlugin, {
+    queryClient
+  })
   
   // Install PrimeVue with theme
   app.use(PrimeVue, {
@@ -45,6 +62,9 @@ setup((app) => {
   // Register directives needed by components
   app.directive('focustrap', FocusTrap)
 })
+
+// Export queryClient so it can be accessed in stories
+export { queryClient }
 
 /** @type { import('@storybook/vue3-vite').Preview } */
 const preview = {
