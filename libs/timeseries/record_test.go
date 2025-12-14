@@ -147,7 +147,7 @@ func TestUpdateRecord(t *testing.T) {
 			name:       "want error on zero id",
 			targetID:   ptr(uint(0)),
 			seriesName: "shiba_price",
-			wantErr:    "record ID is required for update",
+			wantErr:    "record id is required for update",
 		},
 		{
 			name:       "want error on non-existing record",

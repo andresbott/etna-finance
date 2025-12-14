@@ -260,7 +260,7 @@ func (h *Handler) RestoreUpload() http.Handler {
 	})
 }
 
-// RestoreFromExisting restores from an existing backup file by ID
+// RestoreFromExisting restores from an existing backup file by id
 func (h *Handler) RestoreFromExisting(id string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		absPath, err := filepath.Abs(h.Destination)

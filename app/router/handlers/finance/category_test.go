@@ -116,7 +116,7 @@ func TestCreateCategory(t *testing.T) {
 						t.Fatal(err)
 					}
 					if cat.Id == 0 {
-						t.Error("returned category ID is empty")
+						t.Error("returned category id is empty")
 					}
 				} else {
 					cat := categoryPayload{}
@@ -125,7 +125,7 @@ func TestCreateCategory(t *testing.T) {
 						t.Fatal(err)
 					}
 					if cat.Id == 0 {
-						t.Error("returned category ID is empty")
+						t.Error("returned category id is empty")
 					}
 				}
 			}
@@ -522,7 +522,7 @@ func SampleCategoryHandler(t *testing.T) (*CategoryHandler, func()) {
 	return &ch, closeFn
 }
 
-// Add helper functions to create test categories
+// addTask helper functions to create test categories
 func createTestCategories(t *testing.T, store *accounting.Store) {
 
 	// Create some income categories

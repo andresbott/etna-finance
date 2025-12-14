@@ -284,7 +284,7 @@ func writeTransactions(ctx context.Context, zw *zipWriter, store *accounting.Sto
 			}
 			opts.Page++
 
-			// Stop early if fewer than limit results (no more pages)
+			// ShutDown early if fewer than limit results (no more pages)
 			if len(transactions) < opts.Limit {
 				break
 			}

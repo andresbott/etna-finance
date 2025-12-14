@@ -47,7 +47,7 @@ func main() {
 		if err != nil {
 			slog.Error(fmt.Sprintf("Failed to create provider: %v", err))
 		}
-		slog.Info(fmt.Sprintf("✅ Provider '%s' created successfully with ID: %d", provider.Name, providerID))
+		slog.Info(fmt.Sprintf("✅ Provider '%s' created successfully with id: %d", provider.Name, providerID))
 		Accounts[i].ID = providerID
 
 		for j, acc := range provider.Accounts {
@@ -93,7 +93,7 @@ func main() {
 		if err != nil {
 			slog.Error(fmt.Sprintf("Failed to create entry '%s': %v", entry.Description, err))
 		} else {
-			slog.Info(fmt.Sprintf("✅ Entry '%s' created with ID: %d", entry.Description, entryID))
+			slog.Info(fmt.Sprintf("✅ Entry '%s' created with id: %d", entry.Description, entryID))
 		}
 	}
 

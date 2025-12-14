@@ -56,7 +56,7 @@ func TestCreateAccountProvider(t *testing.T) {
 						}
 
 						if id == 0 {
-							t.Errorf("expected valid account ID, but got 0")
+							t.Errorf("expected valid account id, but got 0")
 						}
 
 						got, err := store.GetAccountProvider(ctx, id, tc.tenant)
@@ -64,7 +64,7 @@ func TestCreateAccountProvider(t *testing.T) {
 							t.Fatalf("expected account to be found, but got error: %v", err)
 						}
 
-						if diff := cmp.Diff(got, tc.input, cmpopts.IgnoreFields(AccountProvider{}, "ID", "Accounts")); diff != "" {
+						if diff := cmp.Diff(got, tc.input, cmpopts.IgnoreFields(AccountProvider{}, "id", "Accounts")); diff != "" {
 							t.Errorf("unexpected result (-want +got):\n%s", diff)
 						}
 
@@ -123,7 +123,7 @@ func TestGetAccountProvider(t *testing.T) {
 							t.Fatalf("unexpected error: %v", err)
 						}
 
-						if diff := cmp.Diff(got, tc.want, cmpopts.IgnoreFields(AccountProvider{}, "ID")); diff != "" {
+						if diff := cmp.Diff(got, tc.want, cmpopts.IgnoreFields(AccountProvider{}, "id")); diff != "" {
 							t.Errorf("unexpected result (-want +got):\n%s", diff)
 						}
 					}
@@ -265,7 +265,7 @@ func TestUpdateAccountProvider(t *testing.T) {
 							t.Fatalf("expected account provider to be found, but got error: %v", err)
 						}
 
-						if diff := cmp.Diff(got, tc.want, cmpopts.IgnoreFields(AccountProvider{}, "ID")); diff != "" {
+						if diff := cmp.Diff(got, tc.want, cmpopts.IgnoreFields(AccountProvider{}, "id")); diff != "" {
 							t.Errorf("unexpected result (-want +got):\n%s", diff)
 						}
 					}
@@ -336,7 +336,7 @@ func TestListAccountsProvider(t *testing.T) {
 						if err != nil {
 							t.Fatalf("unexpected error: %v", err)
 						}
-						if diff := cmp.Diff(got, tc.want, cmpopts.IgnoreFields(AccountProvider{}, "ID"), cmpopts.IgnoreFields(Account{}, "ID", "Currency")); diff != "" {
+						if diff := cmp.Diff(got, tc.want, cmpopts.IgnoreFields(AccountProvider{}, "id"), cmpopts.IgnoreFields(Account{}, "id", "Currency")); diff != "" {
 							t.Errorf("unexpected result (-want +got):\n%s", diff)
 						}
 					}
@@ -371,10 +371,10 @@ func TestCreateAccount(t *testing.T) {
 					wantErr: "name cannot be empty",
 				},
 				{
-					name:    "want error on empty Provider ID",
+					name:    "want error on empty Provider id",
 					tenant:  tenant1,
 					input:   Account{Name: "sss", Currency: currency.USD},
-					wantErr: "account provider ID cannot be empty",
+					wantErr: "account provider id cannot be empty",
 				},
 				{
 					name:    "want error on empty currency",
@@ -410,7 +410,7 @@ func TestCreateAccount(t *testing.T) {
 						}
 
 						if id == 0 {
-							t.Errorf("expected valid account ID, but got 0")
+							t.Errorf("expected valid account id, but got 0")
 						}
 
 						got, err := store.GetAccount(ctx, id, tc.tenant)
@@ -418,7 +418,7 @@ func TestCreateAccount(t *testing.T) {
 							t.Fatalf("expected account to be found, but got error: %v", err)
 						}
 
-						if diff := cmp.Diff(got, tc.input, cmpopts.IgnoreFields(Account{}, "ID", "Currency")); diff != "" {
+						if diff := cmp.Diff(got, tc.input, cmpopts.IgnoreFields(Account{}, "id", "Currency")); diff != "" {
 							t.Errorf("unexpected result (-want +got):\n%s", diff)
 						}
 						// verify currency
@@ -482,7 +482,7 @@ func TestGetAccount(t *testing.T) {
 							t.Fatalf("unexpected error: %v", err)
 						}
 
-						if diff := cmp.Diff(got, tc.want, cmpopts.IgnoreFields(Account{}, "ID", "Currency")); diff != "" {
+						if diff := cmp.Diff(got, tc.want, cmpopts.IgnoreFields(Account{}, "id", "Currency")); diff != "" {
 							t.Errorf("unexpected result (-want +got):\n%s", diff)
 						}
 						// verify currency
@@ -657,7 +657,7 @@ func TestUpdateAccount(t *testing.T) {
 							t.Fatalf("expected account to be found, but got error: %v", err)
 						}
 
-						if diff := cmp.Diff(got, tc.want, cmpopts.IgnoreFields(Account{}, "ID", "Currency")); diff != "" {
+						if diff := cmp.Diff(got, tc.want, cmpopts.IgnoreFields(Account{}, "id", "Currency")); diff != "" {
 							t.Errorf("unexpected result (-want +got):\n%s", diff)
 						}
 						// verify currency
@@ -720,7 +720,7 @@ func TestListAccounts(t *testing.T) {
 							t.Fatalf("unexpected error: %v", err)
 						}
 
-						if diff := cmp.Diff(got, tc.want, cmpopts.IgnoreFields(Account{}, "ID", "Currency")); diff != "" {
+						if diff := cmp.Diff(got, tc.want, cmpopts.IgnoreFields(Account{}, "id", "Currency")); diff != "" {
 							t.Errorf("unexpected result (-want +got):\n%s", diff)
 						}
 					}

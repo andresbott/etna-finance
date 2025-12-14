@@ -51,7 +51,7 @@ type RecordUpdate struct {
 // UpdateRecord updates an existing record
 func (ts *Registry) UpdateRecord(Id uint, in RecordUpdate) error {
 	if Id == 0 {
-		return fmt.Errorf("record ID is required for update")
+		return fmt.Errorf("record id is required for update")
 	}
 
 	var rec dbRecord
@@ -99,10 +99,10 @@ func (ts *Registry) ListRecords(name string) ([]Record, error) {
 	return out, nil
 }
 
-// DeleteRecord removes a record by its ID
+// DeleteRecord removes a record by its id
 func (ts *Registry) DeleteRecord(id uint) error {
 	if id == 0 {
-		return fmt.Errorf("record ID cannot be zero")
+		return fmt.Errorf("record id cannot be zero")
 	}
 	return ts.db.Delete(&dbRecord{}, id).Error
 }

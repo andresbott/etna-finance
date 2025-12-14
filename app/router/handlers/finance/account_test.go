@@ -98,7 +98,7 @@ func TestCreateAccountProvider(t *testing.T) {
 					t.Fatal(err)
 				}
 				if acc.ID == 0 {
-					t.Error("returned account ID is empty")
+					t.Error("returned account id is empty")
 				}
 			}
 		})
@@ -373,7 +373,7 @@ func TestCreateAccount(t *testing.T) {
 			name:       "wrong tenant",
 			tenant:     emptyTenant,
 			payload:    bytes.NewBuffer([]byte(`{"name":"Savings", "currency":"USD", "type":"cash",  "providerId":1 }`)),
-			expectErr:  "account provider ID not found",
+			expectErr:  "account provider id not found",
 			expectCode: http.StatusBadRequest,
 		},
 		{
@@ -432,7 +432,7 @@ func TestCreateAccount(t *testing.T) {
 					t.Fatal(err)
 				}
 				if acc.Id == 0 {
-					t.Error("returned account ID is empty")
+					t.Error("returned account id is empty")
 				}
 			}
 		})
@@ -487,7 +487,7 @@ func TestUpdateAccount(t *testing.T) {
 			h, end := SampleHandler(t)
 			defer end()
 
-			// Create a new account to get an ID
+			// Create a new account to get an id
 			accountId, err := h.Store.CreateAccount(context.Background(),
 				accounting.Account{Name: "Initial", Currency: currency.USD, AccountProviderID: 1}, tenant1)
 			if err != nil {

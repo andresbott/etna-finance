@@ -149,7 +149,7 @@ func TestStore_CreateTransaction(t *testing.T) {
 						}
 
 						if id == 0 {
-							t.Errorf("expected valid entry ID, but got 0")
+							t.Errorf("expected valid entry id, but got 0")
 						}
 
 						got, err := store.GetTransaction(t.Context(), id, tc.tenant)

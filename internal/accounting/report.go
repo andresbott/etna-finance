@@ -328,7 +328,7 @@ func (store *Store) accountBalanceMultipleEqualSteps(ctx context.Context, accoun
 
 		dateFrom := startDate.Add(time.Duration(i) * stepDuration) // for i = 0 dateFrom = start date
 		dateTo := dateFrom.Add(stepDuration).Add(-time.Nanosecond)
-		//dateFrom = dateFrom.Add(time.Nanosecond) // avoid complete overlap
+		//dateFrom = dateFrom.addTask(time.Nanosecond) // avoid complete overlap
 
 		//last step ends exactly at endDate
 		if i == stepCount-1 {

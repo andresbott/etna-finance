@@ -44,7 +44,7 @@ func TestMain(m *testing.M) {
 	}
 	nav = br
 
-	// Run all tests
+	// StartBg all tests
 	exitCode := m.Run()
 
 	// --- Global teardown ---

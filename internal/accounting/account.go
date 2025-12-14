@@ -254,12 +254,12 @@ func (store *Store) CreateAccount(ctx context.Context, item Account, tenant stri
 		return 0, ErrValidation("currency cannot be empty")
 	}
 	if item.AccountProviderID == 0 {
-		return 0, ErrValidation("account provider ID cannot be empty")
+		return 0, ErrValidation("account provider id cannot be empty")
 	}
 	// validate that the account provider tenant is also account tenant
 	_, err := store.GetAccountProvider(ctx, item.AccountProviderID, tenant)
 	if err != nil && errors.Is(err, ErrAccountProviderNotFound) {
-		return 0, ErrValidation("account provider ID not found")
+		return 0, ErrValidation("account provider id not found")
 	}
 
 	payload := dbAccount{

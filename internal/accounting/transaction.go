@@ -96,7 +96,7 @@ func (store *Store) CreateTransaction(ctx context.Context, input Transaction, te
 
 func (store *Store) CreateIncome(ctx context.Context, item Income, tenant string) (uint, error) {
 	if item.AccountID == 0 {
-		return 0, ErrValidation("account ID is required")
+		return 0, ErrValidation("account id is required")
 	}
 
 	acc, err := store.GetAccount(ctx, item.AccountID, tenant)
@@ -148,7 +148,7 @@ func (store *Store) CreateIncome(ctx context.Context, item Income, tenant string
 
 func (store *Store) CreateExpense(ctx context.Context, item Expense, tenant string) (uint, error) {
 	if item.AccountID == 0 {
-		return 0, ErrValidation("account ID is required")
+		return 0, ErrValidation("account id is required")
 	}
 	acc, err := store.GetAccount(ctx, item.AccountID, tenant)
 	if err != nil {
@@ -265,7 +265,7 @@ func validateTransaction(tx dbTransaction) error {
 			return NewValidationErr("amount cannot be zero")
 		}
 		if entry.AccountID == 0 {
-			return NewValidationErr("account ID cannot be zero")
+			return NewValidationErr("account id cannot be zero")
 		}
 	}
 	return nil
