@@ -18,6 +18,9 @@ type-check: ## check correct types
 run: ## run the local dev
 	@npm run dev
 
+storybook: ## run storybook dev server
+	@npm run storybook
+
 build: ## build a production release
 	@npm run build
 
