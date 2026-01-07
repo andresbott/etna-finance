@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gorm.io/gorm"
 	"slices"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type TxType int
@@ -718,11 +719,10 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 type ListOpts struct {
 	StartDate time.Time
 	EndDate   time.Time
-	//AccountIds []int
-	//categoryIds []int
-	Types []TxType
-	Limit int
-	Page  int
+	AccountId []int
+	Types     []TxType
+	Limit     int
+	Page      int
 }
 
 const MaxSearchResults = 300
@@ -730,22 +730,6 @@ const DefaultSearchResults = 30
 
 // ListTransactions returns an unsorted list of transactions matching the filter criteria
 func (store *Store) ListTransactions(ctx context.Context, opts ListOpts, tenant string) ([]Transaction, error) {
-
-	// TODO add unit test to verify category id is part of the payload
-
-	// code sample using preload, left in case of debugging
-	//var payload dbTransaction
-	//q1 := store.db.WithContext(ctx).Preload("Entries").Where("id = ? AND owner_id = ?", 1, tenant).First(&payload)
-	//if q1.Error != nil {
-	//	if errors.Is(q1.Error, gorm.ErrRecordNotFound) {
-	//		return nil, ErrTransactionNotFound
-	//	} else {
-	//		return nil, q1.Error
-	//	}
-	//}
-	//spew.Dump(payload)
-
-	// =====
 
 	db := store.db.WithContext(ctx).Table("db_transactions")
 
@@ -755,6 +739,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts, tenant 
         db_transactions.description,
         db_transactions.type,
 		db_entries.category_id,
+		db_entries.account_id,
 
         -- income
         CAST(MAX(CASE WHEN db_entries.entry_type = 1 THEN db_entries.account_id END) AS INTEGER) AS income_account_id,
@@ -777,8 +762,14 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts, tenant 
 	db = db.Where("db_entries.owner_id = ? AND db_transactions.owner_id = ? ", tenant, tenant)
 	// Filter by date range
 	db = db.Where("db_transactions.date BETWEEN ? AND ?", opts.StartDate, opts.EndDate)
+	// filter by type
 	if len(opts.Types) > 0 {
 		db = db.Where("db_transactions.type IN (?)", opts.Types)
+	}
+	// filter by accounts
+	if len(opts.AccountId) > 0 {
+		db = db.Where("EXISTS (   SELECT 1  FROM db_entries AS e WHERE e.transaction_id = db_transactions.id"+
+			" AND e.account_id IN (?)   )", opts.AccountId)
 	}
 
 	db = db.Group("db_transactions.id, db_transactions.date, db_transactions.description, db_transactions.type")
@@ -817,6 +808,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts, tenant 
 
 	var target []intermediate
 	q := db.Scan(&target)
+	//q := db.Scan(&debugtarget)
 	if q.Error != nil {
 		if errors.Is(q.Error, gorm.ErrRecordNotFound) {
 			return nil, ErrTransactionNotFound
@@ -831,7 +823,6 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts, tenant 
 	for _, item := range target {
 		switch item.Type {
 		case IncomeTransaction:
-
 			tx := Income{
 				Id:          item.TransactionId,
 				Description: item.Description,
