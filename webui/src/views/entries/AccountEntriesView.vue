@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
@@ -13,6 +13,7 @@ import IncomeExpenseDialog from '@/views/entries/dialogs/IncomeExpenseDialog.vue
 import AddEntryMenu from '@/views/entries/AddEntryMenu.vue'
 import { useAccountUtils } from '@/utils/accountUtils'
 import { useAccounts } from '@/composables/useAccounts'
+import { useBalance } from '@/composables/useGetBalanceReport'
 
 /* --- Route --- */
 const route = useRoute()
@@ -30,6 +31,11 @@ const { entries: allEntries, isLoading, deleteEntry, isDeleting, refetch } = use
 
 /* --- Accounts --- */
 const { accounts } = useAccounts()
+
+/* --- Balance API --- */
+const { accountBalance } = useBalance()
+const openingBalance = ref(0)
+const isLoadingBalance = ref(false)
 
 /* --- Account Name and Currency --- */
 const accountName = computed(() => {
@@ -97,58 +103,13 @@ const entries = computed(() => {
         return false
     })
     
-    // Calculate opening balance (balance at start of period)
-    // Get all entries before startDate to calculate this
-    const openingBalance = allEntries.value
-        .filter(entry => {
-            // Only include entries before startDate that belong to this account
-            const entryDate = new Date(entry.date)
-            const start = new Date(startDate.value)
-            
-            if (entryDate >= start) return false
-            
-            // Check if entry belongs to this account
-            if (entry.type === 'income' || entry.type === 'expense') {
-                return String(entry.accountId) === String(accountId.value)
-            }
-            if (entry.type === 'transfer') {
-                return String(entry.originAccountId) === String(accountId.value) || 
-                       String(entry.targetAccountId) === String(accountId.value)
-            }
-            if (entry.type === 'buystock' || entry.type === 'sellstock') {
-                return String(entry.targetAccountId) === String(accountId.value)
-            }
-            return false
-        })
-        .reduce((balance, entry) => {
-            let entryAmount = 0
-            
-            if (entry.type === 'expense') {
-                entryAmount = -(entry.Amount || 0)
-            } else if (entry.type === 'income') {
-                entryAmount = entry.Amount || 0
-            } else if (entry.type === 'transfer') {
-                if (String(entry.originAccountId) === String(accountId.value)) {
-                    entryAmount = -(entry.originAmount || 0)
-                } else if (String(entry.targetAccountId) === String(accountId.value)) {
-                    entryAmount = entry.targetAmount || 0
-                }
-            } else if (entry.type === 'buystock') {
-                entryAmount = -(entry.targetAmount || 0)
-            } else if (entry.type === 'sellstock') {
-                entryAmount = entry.targetAmount || 0
-            }
-            
-            return balance + entryAmount
-        }, 0)
-    
-    // Create opening balance entry
+    // Create opening balance entry using the API-fetched balance
     const openingBalanceEntry = {
         id: 'opening-balance',
         type: 'opening-balance',
         description: 'Balance at beginning of period',
         date: startDate.value,
-        Amount: openingBalance,
+        Amount: openingBalance.value,
         accountId: accountId.value,
         isOpeningBalance: true
     }
@@ -156,6 +117,33 @@ const entries = computed(() => {
     // Return filtered entries followed by opening balance at the end (bottom in descending order)
     return [...filtered, openingBalanceEntry]
 })
+
+// Watch for changes in accountId or startDate to fetch the opening balance
+watch(
+    [accountId, startDate],
+    async ([newAccountId, newStartDate]) => {
+        if (!newAccountId || !newStartDate) {
+            openingBalance.value = 0
+            return
+        }
+        
+        try {
+            isLoadingBalance.value = true
+            const dateStr = new Date(newStartDate).toISOString().split('T')[0]
+            const balance = await accountBalance.mutateAsync({
+                accountId: Number(newAccountId),
+                date: dateStr
+            })
+            openingBalance.value = balance || 0
+        } catch (error) {
+            console.error('Failed to fetch opening balance:', error)
+            openingBalance.value = 0
+        } finally {
+            isLoadingBalance.value = false
+        }
+    },
+    { immediate: true }
+)
 
 const selectedEntry = ref(null)
 const isEditMode = ref(false)

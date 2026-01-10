@@ -3,11 +3,12 @@ import { computed, watch } from 'vue'
 import Card from 'primevue/card'
 import Chart from 'primevue/chart'
 import { useAccounts } from '@/composables/useAccounts.js'
-import { useGetBalanceReport } from '@/composables/useGetBalanceReport'
+import { useBalance } from '@/composables/useGetBalanceReport'
 import { formatAmount } from '@/utils/currency'
 
 const { accounts } = useAccounts()
-const { mutate, data: balanceReport } = useGetBalanceReport()
+const { balanceReport: balanceReportMutation } = useBalance()
+const { mutate, data: balanceReport } = balanceReportMutation
 
 // Gather all accounts from all providers
 const allAccounts = computed(() => {

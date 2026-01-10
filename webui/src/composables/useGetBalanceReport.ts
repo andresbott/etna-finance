@@ -1,8 +1,8 @@
 import { useMutation } from '@tanstack/vue-query'
-import { getBalanceReport } from '@/lib/api/report'
+import { getBalanceReport, getAccountBalance } from '@/lib/api/report'
 
-export const useGetBalanceReport = () => {
-    return useMutation({
+export const useBalance = () => {
+    const balanceReport = useMutation({
         mutationFn: ({
             accountIds,
             steps,
@@ -13,4 +13,22 @@ export const useGetBalanceReport = () => {
             startDate: string
         }) => getBalanceReport(accountIds, steps, startDate)
     })
+
+    const accountBalance = useMutation({
+        mutationFn: ({
+            accountId,
+            date
+        }: {
+            accountId: number
+            date: string
+        }) => getAccountBalance(accountId, date)
+    })
+
+    return {
+        balanceReport,
+        accountBalance
+    }
 }
+
+// Keep backward compatibility
+export const useGetBalanceReport = useBalance

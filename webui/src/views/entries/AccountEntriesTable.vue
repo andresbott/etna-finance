@@ -60,13 +60,22 @@ const getRowClass = (data) => ({
 const entriesWithBalance = computed(() => {
     if (!props.entries || props.entries.length === 0) return []
     
-    let balance = 0
+    // Find the opening balance entry to get the starting balance
+    const openingBalanceEntry = props.entries.find(entry => entry.type === 'opening-balance')
+    let balance = openingBalanceEntry?.Amount || 0
     
-    return props.entries.map(entry => {
+    // Create a copy and reverse to process in chronological order (oldest to newest)
+    const entriesReversed = [...props.entries].reverse()
+    
+    // Calculate running balance
+    const entriesWithBalanceReversed = entriesReversed.map(entry => {
         let entryAmount = 0
         
         // Calculate the amount that affects this account's balance
-        if (entry.type === 'expense') {
+        if (entry.type === 'opening-balance') {
+            // Opening balance is the starting point, no change needed
+            entryAmount = 0
+        } else if (entry.type === 'expense') {
             entryAmount = -(entry.Amount || 0)
         } else if (entry.type === 'income') {
             entryAmount = entry.Amount || 0
@@ -83,13 +92,19 @@ const entriesWithBalance = computed(() => {
             entryAmount = entry.targetAmount || 0
         }
         
-        balance += entryAmount
+        // For opening balance, don't add the amount (it's already the starting balance)
+        if (entry.type !== 'opening-balance') {
+            balance += entryAmount
+        }
         
         return {
             ...entry,
             balance: balance
         }
     })
+    
+    // Reverse back to show newest first
+    return entriesWithBalanceReversed.reverse()
 })
 
 /* --- Event Handlers --- */
@@ -158,7 +173,7 @@ const handleDelete = (entry) => {
                 <Column field="Amount" header="Amount" bodyStyle="text-align: right" class="amount-column">
                     <template #body="{ data }">
                         <div v-if="data.type === 'opening-balance'" class="amount opening-balance">
-                            <!-- Opening balance - no sign needed -->
+                            <!-- Opening balance amount is blank, since it's shown in Balance column -->
                         </div>
                         <div v-else-if="data.type === 'expense'" class="amount expense">
                             -{{
