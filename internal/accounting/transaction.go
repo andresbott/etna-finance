@@ -733,6 +733,9 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts, tenant 
 
 	db := store.db.WithContext(ctx).Table("db_transactions")
 
+	startDate := toDate(opts.StartDate)
+	endDate := endOfDay(opts.EndDate)
+
 	db = db.Select(`
         db_transactions.id AS transaction_id,
         db_transactions.date,
@@ -761,7 +764,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts, tenant 
 	// ensure proper owner
 	db = db.Where("db_entries.owner_id = ? AND db_transactions.owner_id = ? ", tenant, tenant)
 	// Filter by date range
-	db = db.Where("db_transactions.date BETWEEN ? AND ?", opts.StartDate, opts.EndDate)
+	db = db.Where("db_transactions.date BETWEEN ? AND ?", startDate, endDate)
 	// filter by type
 	if len(opts.Types) > 0 {
 		db = db.Where("db_transactions.type IN (?)", opts.Types)

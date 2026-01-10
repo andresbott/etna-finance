@@ -35,12 +35,12 @@ func (h *Handler) IncomeExpenseReport(userId string) http.Handler {
 		}
 
 		now := time.Now()
-		endDate, err := parseDate(r.URL.Query().Get("endDate"), now)
+		endDate, err := parseDateOrDefault(r.URL.Query().Get("endDate"), now)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to parse end date: %s", err), http.StatusBadRequest)
 			return
 		}
-		startDate, err := parseDate(r.URL.Query().Get("startDate"), endDate.AddDate(0, 0, -30))
+		startDate, err := parseDateOrDefault(r.URL.Query().Get("startDate"), endDate.AddDate(0, 0, -30))
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to parse start date: %s", err), http.StatusBadRequest)
 			return
@@ -109,24 +109,20 @@ func (h *Handler) IncomeExpenseReport(userId string) http.Handler {
 
 func getDateRange(startDateStr, endDateStr string, defaultStart, defaultEnd time.Time) (time.Time, time.Time, error) {
 
-	startDate, err := parseDate(startDateStr, defaultStart)
+	startDate, err := parseDateOrDefault(startDateStr, defaultStart)
 	if err != nil {
 		return time.Time{}, time.Time{}, fmt.Errorf("unable to parse start date: %w", err)
 	}
 
-	endDate, err := parseDate(endDateStr, defaultEnd)
+	endDate, err := parseDateOrDefault(endDateStr, defaultEnd)
 	if err != nil {
 		return time.Time{}, time.Time{}, fmt.Errorf("unable to parse end date: %w", err)
 	}
 
-	// set the endDate time to midnight of the next day
-	endDate = endDate.AddDate(0, 0, 1)
-	endDate = time.Date(endDate.Year(), endDate.Month(), endDate.Day(), 0, 0, 0, 0, endDate.Location())
-
 	return startDate, endDate, nil
 }
 
-func parseDate(dateStr string, defaultDate time.Time) (time.Time, error) {
+func parseDateOrDefault(dateStr string, defaultDate time.Time) (time.Time, error) {
 	date := defaultDate
 	if dateStr != "" {
 		var err error
@@ -155,13 +151,13 @@ func (h *Handler) AccountBalance(userId string) http.Handler {
 			return
 		}
 
-		startDate, err := parseDate(r.URL.Query().Get("startDate"), time.Time{})
+		startDate, err := parseDateOrDefault(r.URL.Query().Get("startDate"), time.Time{})
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to parse start date: %s", err), http.StatusBadRequest)
 			return
 		}
 		now := time.Now()
-		endDate, err := parseDate(r.URL.Query().Get("endDate"), now)
+		endDate, err := parseDateOrDefault(r.URL.Query().Get("endDate"), now)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to parse end date: %s", err), http.StatusBadRequest)
 			return

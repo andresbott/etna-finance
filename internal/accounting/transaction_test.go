@@ -976,7 +976,7 @@ func TestStore_ListTransactions(t *testing.T) {
 				Types:     []TxType{IncomeTransaction},
 			},
 			want: []Transaction{
-				listTransactionsSampleData[12], listTransactionsSampleData[9],
+				listTransactionsSampleData[4], listTransactionsSampleData[12], listTransactionsSampleData[9],
 			},
 		},
 		{
@@ -988,7 +988,7 @@ func TestStore_ListTransactions(t *testing.T) {
 				Types:     []TxType{IncomeTransaction, ExpenseTransaction},
 			},
 			want: []Transaction{
-				listTransactionsSampleData[13], listTransactionsSampleData[12],
+				listTransactionsSampleData[4], listTransactionsSampleData[13], listTransactionsSampleData[12],
 				listTransactionsSampleData[10], listTransactionsSampleData[9],
 			},
 		},
