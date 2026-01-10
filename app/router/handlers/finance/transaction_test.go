@@ -227,69 +227,76 @@ func TestFinanceHandler_DeleteTx(t *testing.T) {
 
 func TestFinanceHandler_ListTx(t *testing.T) {
 	tcs := []struct {
-		name       string
-		userId     string
-		query      string
-		expecErr   string
-		expectCode int
+		name             string
+		userId           string
+		query            string
+		expectErr        string
+		expectCode       int
+		expectItemsCount int
 	}{
 		{
-			name:       "successful request with date range",
-			userId:     "user123",
-			query:      "?startDate=2024-01-01&end_date=2024-12-31",
-			expectCode: http.StatusOK,
+			name:             "successful request with date range",
+			userId:           tenant1,
+			query:            "?startDate=2025-01-01&endDate=2025-01-05",
+			expectCode:       http.StatusOK,
+			expectItemsCount: 5,
 		},
 		{
-			name:       "successful request with default date range",
-			userId:     "user123",
-			query:      "",
-			expectCode: http.StatusOK,
+			name:             "successful request with default date range",
+			userId:           tenant1,
+			query:            "",
+			expectCode:       http.StatusOK,
+			expectItemsCount: 1,
 		},
 		{
-			name:       "successful request with only start date",
-			userId:     "user123",
-			query:      "?startDate=2024-01-01",
-			expectCode: http.StatusOK,
+			name:             "successful request with only start date",
+			userId:           tenant1,
+			query:            "?startDate=2025-01-16",
+			expectCode:       http.StatusOK,
+			expectItemsCount: 3,
 		},
 		{
-			name:       "successful request with only end date",
-			userId:     "user123",
-			query:      "?end_date=2024-12-31",
-			expectCode: http.StatusOK,
+			name:             "successful request with only end date",
+			userId:           tenant1,
+			query:            "?endDate=3026-01-03", // intentionally sing a date in the fare future
+			expectCode:       http.StatusOK,
+			expectItemsCount: 1,
 		},
 		{
 			name:       "empty tenant",
 			userId:     "",
-			query:      "?startDate=2024-01-01&end_date=2024-12-31",
-			expecErr:   "unable to list entries: user not provided",
+			query:      "?startDate=2025-01-01&endDate=2025-01-05",
+			expectErr:  "unable to list entries: user not provided",
 			expectCode: http.StatusBadRequest,
 		},
 		{
 			name:       "invalid start date format",
-			userId:     "user123",
-			query:      "?startDate=invalid&end_date=2024-12-31",
-			expecErr:   "unable to parse start date: parsing time \"invalid\" as \"2006-01-02\": cannot parse \"invalid\" as \"2006\"",
+			userId:     tenant1,
+			query:      "?startDate=invalid&endDate=2024-12-31",
+			expectErr:  "unable to parse start date: parsing time \"invalid\" as \"2006-01-02\": cannot parse \"invalid\" as \"2006\"",
 			expectCode: http.StatusBadRequest,
 		},
 		{
 			name:       "invalid end date format",
-			userId:     "user123",
+			userId:     tenant1,
 			query:      "?startDate=2024-01-01&endDate=invalid",
-			expecErr:   "unable to parse end date: parsing time \"invalid\" as \"2006-01-02\": cannot parse \"invalid\" as \"2006\"",
+			expectErr:  "unable to parse end date: parsing time \"invalid\" as \"2006-01-02\": cannot parse \"invalid\" as \"2006\"",
 			expectCode: http.StatusBadRequest,
 		},
-		//{
-		//	name:       "successful request with single accountId",
-		//	userId:     "user123",
-		//	query:      "?accountIds=1",
-		//	expectCode: http.StatusOK,
-		//},
-		//{
-		//	name:       "successful request with multiple accountIds",
-		//	userId:     "user123",
-		//	query:      "?accountIds=1&accountIds=2&accountIds=3",
-		//	expectCode: http.StatusOK,
-		//},
+		{
+			name:             "successful request with single accountId",
+			userId:           tenant1,
+			query:            "?startDate=2025-01-01&endDate=2025-01-05&accountIds=1",
+			expectCode:       http.StatusOK,
+			expectItemsCount: 3,
+		},
+		{
+			name:             "successful request with multiple accountIds",
+			userId:           tenant1,
+			query:            "?startDate=2025-01-01&endDate=2025-01-05&accountIds=1,2",
+			expectCode:       http.StatusOK,
+			expectItemsCount: 5,
+		},
 	}
 
 	for _, tc := range tcs {
@@ -302,7 +309,7 @@ func TestFinanceHandler_ListTx(t *testing.T) {
 			handler := h.ListTx(tc.userId)
 			handler.ServeHTTP(recorder, req)
 
-			if tc.expecErr != "" {
+			if tc.expectErr != "" {
 				if status := recorder.Code; status != tc.expectCode {
 					t.Errorf("handler returned wrong status code: got %v want %v", status, tc.expectCode)
 				}
@@ -311,8 +318,8 @@ func TestFinanceHandler_ListTx(t *testing.T) {
 					t.Fatal(err)
 				}
 				got := strings.TrimSuffix(string(respText), "\n")
-				if got != tc.expecErr {
-					t.Errorf("unexpected error message: got \"%s\" want \"%v\"", got, tc.expecErr)
+				if got != tc.expectErr {
+					t.Errorf("unexpected error message: got \"%s\" want \"%v\"", got, tc.expectErr)
 				}
 			} else {
 				if status := recorder.Code; status != tc.expectCode {
@@ -326,8 +333,8 @@ func TestFinanceHandler_ListTx(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if response.Items == nil {
-					t.Error("response items is nil")
+				if len(response.Items) != tc.expectItemsCount {
+					t.Errorf("unexpected items count: got %d, want %d", len(response.Items), tc.expectItemsCount)
 				}
 			}
 		})

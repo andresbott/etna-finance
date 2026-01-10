@@ -9,8 +9,10 @@ default: help
 test: ## run fast go tests
 	@go test ./... -cover
 
-it-tst: ## run the tests with all databases
-	@go test ./... -cover --alldbs
+it-test: ## run db IT tests
+	@cd internal/accounting && go test -v --alldbs
+	@cd internal/backup && go test -v --alldbs
+
 
 lint: ## run go linter
 	# depends on https://github.com/golangci/golangci-lint

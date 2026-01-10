@@ -767,6 +767,13 @@ func sampleData(t *testing.T, store *accounting.Store) {
 		}
 	}
 
+	// create an entry with time now for test purposes
+	entry := accounting.Expense{Description: "now1", Amount: 1, AccountID: 1, Date: time.Now()}
+	_, err = store.CreateTransaction(context.Background(), entry, tenant1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	for _, entry := range sampleEntries2 {
 		_, err = store.CreateTransaction(context.Background(), entry, tenant2)
 		if err != nil {

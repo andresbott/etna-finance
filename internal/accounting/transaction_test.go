@@ -1,13 +1,14 @@
 package accounting
 
 import (
+	"sort"
+	"testing"
+	"time"
+
 	"github.com/go-bumbu/testdbs"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"golang.org/x/text/currency"
-	"sort"
-	"testing"
-	"time"
 )
 
 func TestStore_CreateTransaction(t *testing.T) {
@@ -911,7 +912,7 @@ var listTransactionsSampleData = map[int]Transaction{
 	// used in date based filter test
 	4: Income{Description: "1", Date: getDateTime("2023-12-31 23:58:00"), Amount: 1, AccountID: 1},
 	5: Income{Description: "2", Date: getDateTime("2024-01-01 00:00:00"), Amount: 1, AccountID: 1},
-	6: Income{Description: "3", Date: getDateTime("2024-01-02 00:00:00"), Amount: 1, AccountID: 1},
+	6: Income{Description: "3", Date: getDateTime("2024-01-02 00:00:00"), Amount: 1, AccountID: 2},
 	7: Income{Description: "4", Date: getDateTime("2024-01-03 00:00:00"), Amount: 1, AccountID: 1},
 	8: Income{Description: "5", Date: getDateTime("2024-01-04 00:00:00"), Amount: 1, AccountID: 1},
 
@@ -921,18 +922,18 @@ var listTransactionsSampleData = map[int]Transaction{
 	11: Transfer{Description: "t1", Date: getDate("2023-01-03"), OriginAmount: 3.3, OriginAccountID: 1, TargetAmount: 4.4, TargetAccountID: 2},
 	12: Income{Description: "i2", Date: getDate("2023-01-04"), Amount: 1.1, AccountID: 1},
 	13: Expense{Description: "e2", Date: getDate("2023-01-05"), Amount: 2.2, AccountID: 1},
-	14: Transfer{Description: "t2", Date: getDate("2023-01-06"), OriginAmount: 3.3, OriginAccountID: 1, TargetAmount: 4.4, TargetAccountID: 2},
+	14: Transfer{Description: "t2", Date: getDate("2023-01-06"), OriginAmount: 3.3, OriginAccountID: 2, TargetAmount: 4.4, TargetAccountID: 1},
 
 	// used in pagination tests
-	20: Income{Description: "1", Date: getDateTime("2022-01-01 00:00:00"), Amount: 1, AccountID: 1},
-	21: Income{Description: "2", Date: getDateTime("2022-01-02 00:00:00"), Amount: 1, AccountID: 1},
-	22: Income{Description: "3", Date: getDateTime("2022-01-03 00:00:00"), Amount: 1, AccountID: 1},
-	23: Income{Description: "4", Date: getDateTime("2022-01-04 00:00:00"), Amount: 1, AccountID: 1},
-	24: Income{Description: "5", Date: getDateTime("2022-01-05 00:00:00"), Amount: 1, AccountID: 1},
-	25: Income{Description: "6", Date: getDateTime("2022-01-06 00:00:00"), Amount: 1, AccountID: 1},
-	26: Income{Description: "7", Date: getDateTime("2022-01-07 00:00:00"), Amount: 1, AccountID: 1},
-	27: Income{Description: "8", Date: getDateTime("2022-01-08 00:00:00"), Amount: 1, AccountID: 1},
-	28: Income{Description: "9", Date: getDateTime("2022-01-09 00:00:00"), Amount: 1, AccountID: 1},
+	20: Income{Description: "p1", Date: getDateTime("2022-01-01 00:00:00"), Amount: 1, AccountID: 1},
+	21: Income{Description: "p2", Date: getDateTime("2022-01-02 00:00:00"), Amount: 1, AccountID: 1},
+	22: Income{Description: "p3", Date: getDateTime("2022-01-03 00:00:00"), Amount: 1, AccountID: 1},
+	23: Income{Description: "p4", Date: getDateTime("2022-01-04 00:00:00"), Amount: 1, AccountID: 1},
+	24: Income{Description: "p5", Date: getDateTime("2022-01-05 00:00:00"), Amount: 1, AccountID: 2},
+	25: Income{Description: "p6", Date: getDateTime("2022-01-06 00:00:00"), Amount: 1, AccountID: 1},
+	26: Income{Description: "p7", Date: getDateTime("2022-01-07 00:00:00"), Amount: 1, AccountID: 1},
+	27: Income{Description: "p8", Date: getDateTime("2022-01-08 00:00:00"), Amount: 1, AccountID: 1},
+	28: Income{Description: "p9", Date: getDateTime("2022-01-09 00:00:00"), Amount: 1, AccountID: 3},
 }
 
 func TestStore_ListTransactions(t *testing.T) {
@@ -975,7 +976,7 @@ func TestStore_ListTransactions(t *testing.T) {
 				Types:     []TxType{IncomeTransaction},
 			},
 			want: []Transaction{
-				listTransactionsSampleData[12], listTransactionsSampleData[9],
+				listTransactionsSampleData[4], listTransactionsSampleData[12], listTransactionsSampleData[9],
 			},
 		},
 		{
@@ -987,7 +988,7 @@ func TestStore_ListTransactions(t *testing.T) {
 				Types:     []TxType{IncomeTransaction, ExpenseTransaction},
 			},
 			want: []Transaction{
-				listTransactionsSampleData[13], listTransactionsSampleData[12],
+				listTransactionsSampleData[4], listTransactionsSampleData[13], listTransactionsSampleData[12],
 				listTransactionsSampleData[10], listTransactionsSampleData[9],
 			},
 		},
@@ -1025,6 +1026,52 @@ func TestStore_ListTransactions(t *testing.T) {
 			},
 			want: []Transaction{
 				listTransactionsSampleData[21], listTransactionsSampleData[20],
+			},
+		},
+		{
+			name:   "limit the responses to several accounts",
+			tenant: tenant1,
+			opts: ListOpts{
+				StartDate: getDate("2022-01-01"),
+				EndDate:   getDate("2025-01-04"),
+				AccountId: []int{2, 3},
+				Types:     []TxType{IncomeTransaction, ExpenseTransaction},
+			},
+			want: []Transaction{
+				listTransactionsSampleData[6],
+				listTransactionsSampleData[28],
+				listTransactionsSampleData[24],
+			},
+		},
+		{
+			name:   "limit the responses to single account id and type transfer",
+			tenant: tenant1,
+			opts: ListOpts{
+				StartDate: getDate("2022-01-01"),
+				EndDate:   getDate("2025-01-04"),
+				AccountId: []int{2},
+				Types:     []TxType{TransferTransaction},
+			},
+			want: []Transaction{
+				listTransactionsSampleData[3],
+				listTransactionsSampleData[14],
+				listTransactionsSampleData[11],
+			},
+		},
+		{
+			name:   "limit the responses to single account id",
+			tenant: tenant1,
+			opts: ListOpts{
+				StartDate: getDate("2022-01-01"),
+				EndDate:   getDate("2025-01-04"),
+				AccountId: []int{2},
+			},
+			want: []Transaction{
+				listTransactionsSampleData[3],
+				listTransactionsSampleData[6],
+				listTransactionsSampleData[14],
+				listTransactionsSampleData[11],
+				listTransactionsSampleData[24],
 			},
 		},
 	}

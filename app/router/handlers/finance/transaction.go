@@ -252,12 +252,32 @@ func (h *Handler) ListTx(userId string) http.Handler {
 			}
 		}
 
+		// parse account ids
+
+		var accountIds []int
+		accountIdsQuery := r.URL.Query().Get("accountIds")
+		if accountIdsQuery != "" {
+			ids := strings.Split(accountIdsQuery, ",")
+			if len(ids) > 0 {
+				for _, id := range ids {
+					var idInt int
+					if _, err := fmt.Sscanf(id, "%d", &idInt); err != nil {
+						http.Error(w, "invalid account ID format", http.StatusBadRequest)
+						return
+					}
+					accountIds = append(accountIds, idInt)
+				}
+			}
+		}
+
 		opts := accounting.ListOpts{
 			StartDate: startDate,
 			EndDate:   endDate,
 			Limit:     limit,
+			AccountId: accountIds,
 			Page:      page,
 		}
+
 		entries, err := h.Store.ListTransactions(r.Context(), opts, userId)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to list entries: %s", err.Error()), http.StatusInternalServerError)
