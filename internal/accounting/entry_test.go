@@ -56,7 +56,7 @@ func TestSumEntries(t *testing.T) {
 			endDate:    getDate("2022-01-04"),
 			tenant:     tenant1,
 			entryTypes: []entryType{expenseEntry},
-			want:       sumResult{Sum: 900, Count: 3}, // 101, 102, 103
+			want:       sumResult{Sum: -900, Count: 3}, // 101, 102, 103
 		},
 		{
 			name:       "sum income with valid date range",
@@ -72,8 +72,8 @@ func TestSumEntries(t *testing.T) {
 			endDate:    getDate("2022-01-09"),
 			tenant:     tenant1,
 			entryTypes: []entryType{expenseEntry},
-			categoryID: []uint{8, 7},                   // expenses 2,6,7,8
-			want:       sumResult{Sum: 1000, Count: 2}, // 102, 106
+			categoryID: []uint{8, 7},                    // expenses 2,6,7,8
+			want:       sumResult{Sum: -1000, Count: 2}, // 102, 106
 		},
 		{
 			name:       "sum expenses by account ids",
@@ -82,7 +82,7 @@ func TestSumEntries(t *testing.T) {
 			tenant:     tenant1,
 			entryTypes: []entryType{expenseEntry},
 			accountID:  []uint{2, 3},
-			want:       sumResult{Sum: 500, Count: 2}, // 101, 102
+			want:       sumResult{Sum: -500, Count: 2}, // 101, 102
 		},
 		{
 			name:       "sum expenses by account and category ids",

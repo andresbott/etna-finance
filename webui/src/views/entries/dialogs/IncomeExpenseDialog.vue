@@ -15,7 +15,7 @@ import InputNumber from 'primevue/inputnumber'
 import DatePicker from 'primevue/datepicker'
 import CategorySelect from '@/components/common/categorySelect.vue'
 
-const { createEntry, updateEntry, isCreating, isUpdating } = useEntries()
+const { createEntry, updateEntry, isCreating, isUpdating } = useEntries({})
 const { accounts } = useAccounts()
 
 const props = defineProps({

@@ -32,3 +32,10 @@ export interface EntryFilters {
     endDate: Date
     accountIds?: string[]
 }
+
+export interface PaginatedEntriesResponse {
+    items: Entry[]
+    total: number
+    page: number
+    limit: number
+}

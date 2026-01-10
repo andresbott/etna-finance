@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"golang.org/x/text/currency"
+	"math"
 	"time"
 )
 
@@ -82,7 +83,7 @@ func (store *Store) getCategoryReport(ctx context.Context, startDate, endDate ti
 				}
 			}
 			values[curr] = CategoryReportValues{
-				Value: sum.Sum,
+				Value: math.Abs(sum.Sum),
 				Count: sum.Count,
 			}
 
@@ -116,7 +117,7 @@ func (store *Store) getCategoryReport(ctx context.Context, startDate, endDate ti
 			}
 		}
 		values[curr] = CategoryReportValues{
-			Value: sum.Sum,
+			Value: math.Abs(sum.Sum),
 			Count: sum.Count,
 		}
 	}

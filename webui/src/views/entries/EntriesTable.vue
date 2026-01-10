@@ -20,11 +20,23 @@ const props = defineProps({
     isDeleting: {
         type: Boolean,
         default: false
+    },
+    totalRecords: {
+        type: Number,
+        default: 0
+    },
+    rows: {
+        type: Number,
+        default: 25
+    },
+    first: {
+        type: Number,
+        default: 0
     }
 })
 
 /* --- Emits --- */
-const emit = defineEmits(['edit', 'duplicate', 'delete'])
+const emit = defineEmits(['edit', 'duplicate', 'delete', 'page'])
 
 /* --- Utils --- */
 const { getCategoryName, getCategoryPath } = useCategoryUtils()
@@ -62,6 +74,10 @@ const handleDuplicate = (entry) => {
 const handleDelete = (entry) => {
     emit('delete', entry)
 }
+
+const handlePage = (event) => {
+    emit('page', event)
+}
 </script>
 
 <template>
@@ -72,10 +88,14 @@ const handleDelete = (entry) => {
                 :loading="isLoading"
                 stripedRows
                 paginator
+                lazy
                 style="width: 100%"
-                :rows="50"
-                :rowsPerPageOptions="[50, 100, 200]"
+                :rows="rows"
+                :first="first"
+                :totalRecords="totalRecords"
+                :rowsPerPageOptions="[25, 50, 100]"
                 :rowClass="getRowClass"
+                @page="handlePage"
             >
                 <Column header="" style="width: 40px">
                     <template #body="{ data }">

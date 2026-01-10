@@ -1160,6 +1160,7 @@ func transactionSampleData(t *testing.T, store *Store, data map[int]Transaction)
 		{AccountProviderID: accProviderId, Name: "acc1", Currency: currency.EUR, Type: CashAccountType},
 		{AccountProviderID: accProviderId, Name: "acc2", Currency: currency.USD, Type: CashAccountType},
 		{AccountProviderID: accProviderId, Name: "acc3", Currency: currency.CHF, Type: CashAccountType},
+		{AccountProviderID: accProviderId, Name: "acc4", Currency: currency.CHF, Type: CashAccountType},
 	}
 	for _, acc := range Accs {
 		_, err = store.CreateAccount(t.Context(), acc, tenant1)

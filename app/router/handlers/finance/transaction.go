@@ -253,7 +253,6 @@ func (h *Handler) ListTx(userId string) http.Handler {
 		}
 
 		// parse account ids
-
 		var accountIds []int
 		accountIdsQuery := r.URL.Query().Get("accountIds")
 		if accountIdsQuery != "" {

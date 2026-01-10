@@ -14,7 +14,7 @@ import { useEntries } from '@/composables/useEntries.ts'
 import { useAccounts } from '@/composables/useAccounts.js'
 import DatePicker from 'primevue/datepicker'
 
-const { createEntry, updateEntry, isCreating, isUpdating } = useEntries()
+const { createEntry, updateEntry, isCreating, isUpdating } = useEntries({})
 const { accounts } = useAccounts()
 
 const props = defineProps({

@@ -11,7 +11,6 @@ import AccountEntriesTable from './AccountEntriesTable.vue'
 import { useEntries } from '@/composables/useEntries.ts'
 import IncomeExpenseDialog from '@/views/entries/dialogs/IncomeExpenseDialog.vue'
 import AddEntryMenu from '@/views/entries/AddEntryMenu.vue'
-import { useAccountUtils } from '@/utils/accountUtils'
 import { useAccounts } from '@/composables/useAccounts'
 import { useBalance } from '@/composables/useGetBalanceReport'
 
@@ -24,10 +23,39 @@ const today = new Date()
 const startDate = ref(new Date(today.setDate(today.getDate() - 35)))
 const endDate = ref(new Date())
 
-const { entries: allEntries, isLoading, deleteEntry, isDeleting, refetch } = useEntries(
+// Create accountIds array for the API query - filters entries server-side
+const accountIds = computed(() => accountId.value ? [String(accountId.value)] : [])
+
+/* --- Pagination State --- */
+const page = ref(1)
+const limit = ref(25)
+const first = ref(0) // First row index for DataTable
+
+const { entries: fetchedEntries, totalRecords, isLoading, isFetching, deleteEntry, isDeleting, refetch } = useEntries({
     startDate,
-    endDate
-)
+    endDate,
+    accountIds,
+    page,
+    limit
+})
+
+/* --- Computed pagination values for template --- */
+const paginationRows = computed(() => limit.value)
+const paginationFirst = computed(() => first.value)
+const paginationTotal = computed(() => (totalRecords.value || 0) + 1) // +1 for opening balance entry
+
+/* --- Pagination Handler --- */
+const handlePage = (event) => {
+    page.value = event.page + 1 // PrimeVue uses 0-based page, API uses 1-based
+    limit.value = event.rows
+    first.value = event.first
+}
+
+/* --- Reset pagination when date range or account changes --- */
+watch([startDate, endDate, accountId], () => {
+    page.value = 1
+    first.value = 0
+})
 
 /* --- Accounts --- */
 const { accounts } = useAccounts()
@@ -81,27 +109,9 @@ const accountTitle = computed(() => {
     return accountName.value
 })
 
-/* --- Filtered Entries --- */
+/* --- Entries with Opening Balance --- */
 const entries = computed(() => {
-    if (!accountId.value || !allEntries.value) return []
-    
-    // Filter entries that belong to this account
-    const filtered = allEntries.value.filter(entry => {
-        // For income/expense entries, check accountId
-        if (entry.type === 'income' || entry.type === 'expense') {
-            return String(entry.accountId) === String(accountId.value)
-        }
-        // For transfers, check both origin and target accounts
-        if (entry.type === 'transfer') {
-            return String(entry.originAccountId) === String(accountId.value) || 
-                   String(entry.targetAccountId) === String(accountId.value)
-        }
-        // For stock operations, check targetAccountId
-        if (entry.type === 'buystock' || entry.type === 'sellstock') {
-            return String(entry.targetAccountId) === String(accountId.value)
-        }
-        return false
-    })
+    if (!accountId.value || !fetchedEntries.value) return []
     
     // Create opening balance entry using the API-fetched balance
     const openingBalanceEntry = {
@@ -114,8 +124,8 @@ const entries = computed(() => {
         isOpeningBalance: true
     }
     
-    // Return filtered entries followed by opening balance at the end (bottom in descending order)
-    return [...filtered, openingBalanceEntry]
+    // Return fetched entries (already filtered by backend) followed by opening balance at the end
+    return [...fetchedEntries.value, openingBalanceEntry]
 })
 
 // Watch for changes in accountId or startDate to fetch the opening balance
@@ -242,12 +252,16 @@ const handleDeleteEntry = async () => {
             <div class="entries-view">
                 <AccountEntriesTable
                     :entries="entries"
-                    :isLoading="isLoading"
+                    :isLoading="isLoading || isFetching"
                     :isDeleting="isDeleting"
                     :accountId="accountId"
+                    :totalRecords="paginationTotal"
+                    :rows="paginationRows"
+                    :first="paginationFirst"
                     @edit="openEditEntryDialog"
                     @duplicate="openDuplicateEntryDialog"
                     @delete="openDeleteDialog"
+                    @page="handlePage"
                 />
             </div>
         </div>
