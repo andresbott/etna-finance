@@ -180,7 +180,7 @@ func initDataDir(path string) error {
 	info, err := os.Stat(absPath)
 	if os.IsNotExist(err) {
 		// Create the directory (and any missing parents)
-		if err := os.MkdirAll(absPath, 0755); err != nil {
+		if err := os.MkdirAll(absPath, 0750); err != nil {
 			return fmt.Errorf("failed to create directory: %w", err)
 		}
 	} else if err != nil {
@@ -193,7 +193,7 @@ func initDataDir(path string) error {
 	backupInfo, err := os.Stat(filepath.Join(absPath, backupsDir))
 	if os.IsNotExist(err) {
 		// Create the directory (and any missing parents)
-		if err := os.MkdirAll(filepath.Join(absPath, backupsDir), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Join(absPath, backupsDir), 0750); err != nil {
 			return fmt.Errorf("failed to create directory: %w", err)
 		}
 	} else if err != nil {

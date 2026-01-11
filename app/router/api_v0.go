@@ -367,7 +367,6 @@ func (h *MainAppHandler) backupApi(r *mux.Router) {
 			return
 		}
 		backupHndl.Download(itemId).ServeHTTP(w, r)
-		return
 	})
 	// Restore from uploaded file
 	r.Path(restorePath).Methods(http.MethodPost).Handler(backupHndl.RestoreUpload())

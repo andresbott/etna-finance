@@ -25,9 +25,9 @@ func TestHandler_List(t *testing.T) {
 	txtFile := filepath.Join(tempDir, "file3.txt")  // should be ignored
 
 	// Create fake files
-	os.WriteFile(zipFile1, []byte("dummy1"), 0644)
-	os.WriteFile(zipFile2, []byte("dummy2"), 0644)
-	os.WriteFile(txtFile, []byte("dummy3"), 0644)
+	_ = os.WriteFile(zipFile1, []byte("dummy1"), 0600)
+	_ = os.WriteFile(zipFile2, []byte("dummy2"), 0600)
+	_ = os.WriteFile(txtFile, []byte("dummy3"), 0600)
 
 	// Invalid directory for error case
 	invalidDir := "/path/does/not/exist"
@@ -108,8 +108,8 @@ func TestHandler_Delete(t *testing.T) {
 	zipFile := filepath.Join(tempDir, "file1.zip")
 	nonZipFile := filepath.Join(tempDir, "file2.txt")
 
-	os.WriteFile(zipFile, []byte("dummy"), 0644)
-	os.WriteFile(nonZipFile, []byte("dummy"), 0644)
+	_ = os.WriteFile(zipFile, []byte("dummy"), 0600)
+	_ = os.WriteFile(nonZipFile, []byte("dummy"), 0600)
 
 	validID := hashFilename("file1.zip")
 	invalidID := "nonexistent"
@@ -294,7 +294,7 @@ func TestHandler_Download(t *testing.T) {
 
 			fileName := "backup.zip"
 			filePath := filepath.Join(tempDir, fileName)
-			if err := os.WriteFile(filePath, []byte("test content"), 0644); err != nil {
+			if err := os.WriteFile(filePath, []byte("test content"), 0600); err != nil {
 				t.Fatalf("failed to create test file: %v", err)
 			}
 			fileID := hashFilename(tc.filename)
@@ -371,7 +371,7 @@ func TestHandler_RestoreUpload(t *testing.T) {
 				var content []byte
 				var err error
 				for _, path := range possiblePaths {
-					content, err = os.ReadFile(path)
+					content, err = os.ReadFile(path) //nolint:gosec // variable value is controlled
 					if err == nil {
 						break
 					}
@@ -518,7 +518,7 @@ func TestHandler_RestoreFromExisting(t *testing.T) {
 				var content []byte
 				var err error
 				for _, path := range possiblePaths {
-					content, err = os.ReadFile(path)
+					content, err = os.ReadFile(path) //nolint:gosec // variable value is controlled
 					if err == nil {
 						break
 					}
@@ -528,7 +528,7 @@ func TestHandler_RestoreFromExisting(t *testing.T) {
 				}
 				filename := "backup-existing.zip"
 				filePath := filepath.Join(dir, filename)
-				if err := os.WriteFile(filePath, content, 0644); err != nil {
+				if err := os.WriteFile(filePath, content, 0600); err != nil {
 					t.Fatalf("failed to create test file: %v", err)
 				}
 				return filename, hashFilename(filename)
@@ -574,7 +574,7 @@ func TestHandler_RestoreFromExisting(t *testing.T) {
 			setupFile: func(t *testing.T, dir string) (string, string) {
 				filename := "corrupt-backup.zip"
 				filePath := filepath.Join(dir, filename)
-				if err := os.WriteFile(filePath, []byte("not a valid zip"), 0644); err != nil {
+				if err := os.WriteFile(filePath, []byte("not a valid zip"), 0600); err != nil {
 					t.Fatalf("failed to create test file: %v", err)
 				}
 				return filename, hashFilename(filename)

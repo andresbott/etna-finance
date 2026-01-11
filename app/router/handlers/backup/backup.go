@@ -2,7 +2,7 @@ package backup
 
 import (
 	"crypto/rand"
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -75,7 +75,7 @@ func (h *Handler) List() http.Handler {
 
 // hashFilename generates a short, deterministic hash for a given filename.
 func hashFilename(name string) string {
-	sum := sha1.Sum([]byte(name))
+	sum := sha256.Sum256([]byte(name))
 	return hex.EncodeToString(sum[:8]) // short 8-byte hash for readability
 }
 
@@ -211,7 +211,11 @@ func (h *Handler) RestoreUpload() http.Handler {
 			http.Error(w, fmt.Sprintf("failed to get file: %v", err), http.StatusBadRequest)
 			return
 		}
-		defer file.Close()
+		defer func() {
+			if err := file.Close(); err != nil {
+				http.Error(w, fmt.Sprintf("failed to close file: %v", err), http.StatusInternalServerError)
+			}
+		}()
 
 		// Only allow .zip files
 		if !strings.HasSuffix(strings.ToLower(handler.Filename), ".zip") {
@@ -233,22 +237,32 @@ func (h *Handler) RestoreUpload() http.Handler {
 		}
 
 		dstPath := filepath.Join(absPath, randomFilename)
-		dstFile, err := os.Create(dstPath)
+		dstFile, err := os.Create(dstPath) //nolint:gosec // variable value is controlled
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed to create file: %v", err), http.StatusInternalServerError)
 			return
 		}
-		defer dstFile.Close()
+		defer func() {
+			if err := dstFile.Close(); err != nil {
+				http.Error(w, fmt.Sprintf("failed to close file: %v", err), http.StatusInternalServerError)
+			}
+		}()
 
 		// Copy uploaded file to destination
 		if _, err := io.Copy(dstFile, file); err != nil {
-			os.Remove(dstPath) // Clean up on error
+			remErr := os.Remove(dstPath) // Clean up on error
+			if remErr != nil {
+				http.Error(w, fmt.Sprintf("failed to save file because of: %v and failed to cleanup afterwards: %v", err, remErr), http.StatusInternalServerError)
+			}
 			http.Error(w, fmt.Sprintf("failed to save file: %v", err), http.StatusInternalServerError)
 			return
 		}
 
 		// Close the file before attempting to restore from it
-		dstFile.Close()
+		err = dstFile.Close()
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to close uploaded file: %v", err), http.StatusInternalServerError)
+		}
 
 		// Attempt to restore from the uploaded file
 		if err := backup.Import(r.Context(), h.Store, dstPath); err != nil {
