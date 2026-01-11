@@ -77,6 +77,7 @@ const openDeleteDialog = (backup) => {
 const handleDeleteBackup = async () => {
     try {
         await deleteBackup(backupToDelete.value.id)
+        deleteDialogVisible.value = false
         successMessage.value = `Backup "${backupToDelete.value.filename}" deleted successfully!`
     } catch (error) {
         errorMessage.value = 'Failed to delete backup: ' + error.message
@@ -106,6 +107,7 @@ const handleRestoreBackup = async () => {
     
     try {
         await restoreBackupFromExisting(backupToRestore.value.id)
+        restoreDialogVisible.value = false
         successMessage.value = `Data restored successfully from "${backupToRestore.value.filename}"!`
     } catch (error) {
         errorMessage.value = 'Failed to restore backup: ' + error.message

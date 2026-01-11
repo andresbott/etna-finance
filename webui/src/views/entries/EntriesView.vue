@@ -16,10 +16,35 @@ const today = new Date()
 const startDate = ref(new Date(today.setDate(today.getDate() - 35)))
 const endDate = ref(new Date())
 
-const { entries, isLoading, deleteEntry, isDeleting, refetch } = useEntries(
+/* --- Pagination State --- */
+const page = ref(1)
+const limit = ref(25)
+const first = ref(0) // First row index for DataTable
+
+const { entries, totalRecords, isLoading, isFetching, deleteEntry, isDeleting, refetch } = useEntries({
     startDate,
-    endDate
-)
+    endDate,
+    page,
+    limit
+})
+
+/* --- Computed pagination values for template --- */
+const paginationRows = computed(() => limit.value)
+const paginationFirst = computed(() => first.value)
+const paginationTotal = computed(() => totalRecords.value || 0)
+
+/* --- Pagination Handler --- */
+const handlePage = (event) => {
+    page.value = event.page + 1 // PrimeVue uses 0-based page, API uses 1-based
+    limit.value = event.rows
+    first.value = event.first
+}
+
+/* --- Reset pagination when date range changes --- */
+watch([startDate, endDate], () => {
+    page.value = 1
+    first.value = 0
+})
 
 const selectedEntry = ref(null)
 const isEditMode = ref(false)
@@ -83,8 +108,10 @@ const openDeleteDialog = (entry) => {
 const handleDeleteEntry = async () => {
     try {
         await deleteEntry(entryToDelete.value.id)
+        deleteDialogVisible.value = false
     } catch (error) {
         console.error('Failed to delete entry:', error)
+        // Keep dialog open on error so user knows something went wrong
     }
 }
 </script>
@@ -109,11 +136,15 @@ const handleDeleteEntry = async () => {
             <div class="entries-view">
                 <EntriesTable
                     :entries="entries"
-                    :isLoading="isLoading"
+                    :isLoading="isLoading || isFetching"
                     :isDeleting="isDeleting"
+                    :totalRecords="paginationTotal"
+                    :rows="paginationRows"
+                    :first="paginationFirst"
                     @edit="openEditEntryDialog"
                     @duplicate="openDuplicateEntryDialog"
                     @delete="openDeleteDialog"
+                    @page="handlePage"
                 />
             </div>
         </div>

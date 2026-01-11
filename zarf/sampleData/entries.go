@@ -62,7 +62,7 @@ func deltaTime(daysDelta int) time.Time {
 	return time.Now().AddDate(0, 0, daysDelta)
 }
 
-// findCategoryID searches for a category by name in the given category map and returns the category ID
+// findCategoryID searches for a category by name in the given category map and returns the category id
 func findCategoryID(categoryName string, categoryMap map[string]int) (uint, error) {
 	if id, exists := categoryMap[categoryName]; exists {
 		//nolint: gosec // only sample data

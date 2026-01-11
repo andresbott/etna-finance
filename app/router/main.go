@@ -40,8 +40,6 @@ func (h *MainAppHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.router.ServeHTTP(w, r)
 }
 
-var financeStore *accounting.Store
-
 func New(cfg Cfg) (*MainAppHandler, error) {
 	r := mux.NewRouter()
 	app := MainAppHandler{

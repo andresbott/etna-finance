@@ -6,14 +6,13 @@ import Card from 'primevue/card'
 import Button from 'primevue/button'
 import InputSwitch from 'primevue/inputswitch'
 import MultiSelect from 'primevue/multiselect'
+import Select from 'primevue/select'
 import Message from 'primevue/message'
 
 const leftSidebarCollapsed = ref(true)
 
 // Placeholder configuration sections
 const generalSettings = [
-    { label: 'Application Name', value: 'Etna Finance', icon: 'pi pi-tag' },
-    { label: 'Default Currency', value: 'CHF', icon: 'pi pi-dollar' },
     { label: 'Date Format', value: 'DD/MM/YYYY', icon: 'pi pi-calendar' },
     { label: 'Language', value: 'English', icon: 'pi pi-globe' }
 ]
@@ -32,12 +31,14 @@ const availableCurrencies = ref([
     { name: 'Brazilian Real', code: 'BRL' }
 ])
 
+// Currency settings
+const mainCurrency = ref('CHF')
+const allowMultipleCurrencies = ref(true)
 const selectedCurrencies = ref(['CHF', 'USD', 'EUR'])
 
 // Feature toggles
 const enableStockFunctions = ref(false)
 const enableMortgageFunctions = ref(false)
-const allowMultipleCurrencies = ref(true)
 </script>
 
 <template>
@@ -77,11 +78,67 @@ const allowMultipleCurrencies = ref(true)
                                         {{ setting.value }}
                                     </div>
                                 </div>
-                                
-                                <!-- Active Currencies MultiSelect -->
-                                <div class="setting-item setting-item-full">
-                                    <div class="setting-label mb-2">
+                            </div>
+                        </template>
+                    </Card>
+                </div>
+
+                <!-- Currencies -->
+                <div class="col-12">
+                    <Card>
+                        <template #title>
+                            <div class="flex align-items-center gap-2">
+                                <i class="pi pi-dollar"></i>
+                                <span>Currencies</span>
+                            </div>
+                        </template>
+                        <template #content>
+                            <div class="settings-list">
+                                <!-- Main Currency Selector -->
+                                <div class="setting-item setting-item-row">
+                                    <div class="setting-label">
+                                        <i class="pi pi-wallet mr-2"></i>
+                                        <span>Main Currency</span>
+                                    </div>
+                                    <div class="setting-input-inline">
+                                        <Select 
+                                            v-model="mainCurrency" 
+                                            :options="availableCurrencies" 
+                                            optionLabel="name" 
+                                            optionValue="code"
+                                            placeholder="Select main currency"
+                                            class="currency-select"
+                                        >
+                                            <template #value="slotProps">
+                                                <div v-if="slotProps.value" class="flex align-items-center gap-2">
+                                                    <span class="font-semibold">{{ slotProps.value }}</span>
+                                                </div>
+                                            </template>
+                                            <template #option="slotProps">
+                                                <div class="flex align-items-center gap-2">
+                                                    <span class="font-semibold">{{ slotProps.option.code }}</span>
+                                                    <span class="text-sm text-500">{{ slotProps.option.name }}</span>
+                                                </div>
+                                            </template>
+                                        </Select>
+                                    </div>
+                                </div>
+
+                                <!-- Multiple Currencies Toggle -->
+                                <div class="setting-item">
+                                    <div class="setting-label">
                                         <i class="pi pi-money-bill mr-2"></i>
+                                        <span>Allow Multiple Currencies</span>
+                                    </div>
+                                    <div class="setting-toggle">
+                                        <InputSwitch v-model="allowMultipleCurrencies" />
+                                    </div>
+                                </div>
+                                
+                                <!-- Active Currencies MultiSelect (shown when multiple currencies enabled) -->
+                                <div v-if="allowMultipleCurrencies" class="setting-item setting-item-full">
+                                    <div class="setting-label mb-2">
+                                        <i class="pi pi-list mr-2"></i>
                                         <span>Active Currencies</span>
                                     </div>
                                     <div class="setting-input">
@@ -135,15 +192,6 @@ const allowMultipleCurrencies = ref(true)
                                     </div>
                                     <div class="setting-toggle">
                                         <InputSwitch v-model="enableMortgageFunctions" />
-                                    </div>
-                                </div>
-                                <div class="setting-item">
-                                    <div class="setting-label">
-                                        <i class="pi pi-money-bill mr-2"></i>
-                                        <span>Allow Multiple Currencies</span>
-                                    </div>
-                                    <div class="setting-toggle">
-                                        <InputSwitch v-model="allowMultipleCurrencies" />
                                     </div>
                                 </div>
                             </div>
@@ -222,8 +270,21 @@ const allowMultipleCurrencies = ref(true)
     align-items: flex-start;
 }
 
+.setting-item-row {
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
 .setting-input {
     width: 100%;
+}
+
+.setting-input-inline {
+    flex-shrink: 0;
+}
+
+.currency-select {
+    min-width: 200px;
 }
 
 .currency-chip {

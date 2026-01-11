@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api/client'
-import type { Entry, CreateEntryDTO, UpdateEntryDTO } from '@/types/entry'
+import type { Entry, CreateEntryDTO, UpdateEntryDTO, PaginatedEntriesResponse } from '@/types/entry'
 
 /**
  * Helper function to format a Date object to YYYY-MM-DD string
@@ -13,17 +13,25 @@ export const formatDate = (date: Date): string => {
     return `${year}-${month}-${day}`
 }
 
+export interface GetEntriesOptions {
+    startDate: Date
+    endDate: Date
+    accountIds?: string[]
+    page?: number
+    limit?: number
+}
+
 /**
- * Fetches entries from the API with date range filtering and optional account filtering
+ * Fetches entries from the API with date range filtering, optional account filtering, and pagination
  */
-export const GetEntries = async (
-    startDate: Date,
-    endDate: Date,
-    accountIds: string[] = []
-): Promise<Entry[]> => {
+export const GetEntries = async (options: GetEntriesOptions): Promise<PaginatedEntriesResponse> => {
+    const { startDate, endDate, accountIds = [], page = 1, limit = 25 } = options
+
     const params = new URLSearchParams({
         startDate: formatDate(startDate),
-        endDate: formatDate(endDate)
+        endDate: formatDate(endDate),
+        page: String(page),
+        limit: String(limit)
     })
 
     // Add account IDs to params if provided
@@ -32,7 +40,24 @@ export const GetEntries = async (
     }
 
     const { data } = await apiClient.get(`/fin/entries?${params}`)
-    return data.items || []
+    
+    const items = data.items || []
+    
+    // Calculate total: check various common field names from API response
+    let total = data.total ?? data.totalCount ?? data.count ?? data.totalItems ?? data.total_count
+    
+    if (total === undefined || total === null) {
+        // Fallback: if we received a full page, assume there could be more
+        // This enables pagination controls even if backend doesn't return total
+        total = items.length >= limit ? (page * limit) + 1 : ((page - 1) * limit) + items.length
+    }
+    
+    return {
+        items,
+        total,
+        page: data.page ?? data.currentPage ?? page,
+        limit: data.limit ?? data.pageSize ?? data.perPage ?? limit
+    }
 }
 
 /**

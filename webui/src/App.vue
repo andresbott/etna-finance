@@ -9,6 +9,7 @@ import SecondaryMenu from './components/SecondaryMenu.vue'
 import { useUiStore } from '@/store/uiStore.js'
 import { useUserStore } from '@/lib/user/userstore.js'
 import Toast from 'primevue/toast'
+// import { VueQueryDevtools } from '@tanstack/vue-query-devtools'
 
 const uiStore = useUiStore()
 const user = useUserStore()
@@ -27,11 +28,11 @@ onUnmounted(() => {
     <SecondaryMenu v-if="user.isLoggedIn" />
     <VerticalLayout :center-content="false" :fullHeight="true">
         <template #header>
-            <Topbar />
+            <Topbar v-if="user.isLoggedIn" />
         </template>
         <template #default>
             <div class="content">
-                <SidebarMenu v-if="user.isLoggedIn" />
+                <SidebarMenu v-if="user.isLoggedIn" id="sidebar-menu" />
                 <router-view />
             </div>
         </template>
@@ -39,7 +40,7 @@ onUnmounted(() => {
             <Footer />
         </template>
     </VerticalLayout>
-
+<!--    <VueQueryDevtools  />-->
 </template>
 
 <style lang="css">

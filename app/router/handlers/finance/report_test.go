@@ -146,7 +146,7 @@ func TestFinanceHandler_AccountBalance(t *testing.T) {
 			query:      "?accountIds=1",
 			expectCode: http.StatusOK,
 			wantValue: map[uint][]float64{
-				1: {80},
+				1: {-80},
 			},
 		},
 		{
@@ -155,8 +155,8 @@ func TestFinanceHandler_AccountBalance(t *testing.T) {
 			query:      "?accountIds=1,2",
 			expectCode: http.StatusOK,
 			wantValue: map[uint][]float64{
-				1: {80},
-				2: {26},
+				1: {-80},
+				2: {-26},
 			},
 		},
 		{
@@ -165,8 +165,8 @@ func TestFinanceHandler_AccountBalance(t *testing.T) {
 			query:      "?accountIds=1,2&steps=3",
 			expectCode: http.StatusOK,
 			wantValue: map[uint][]float64{
-				1: {79, 79, 80},
-				2: {26, 26, 26},
+				1: {-79, -79, -80},
+				2: {-26, -26, -26},
 			},
 		},
 		{
@@ -175,8 +175,8 @@ func TestFinanceHandler_AccountBalance(t *testing.T) {
 			query:      "?accountIds=1,2&steps=5&endDate=2025-01-15",
 			expectCode: http.StatusOK,
 			wantValue: map[uint][]float64{
-				1: {39, 49, 59, 69, 79},
-				2: {26, 26, 26, 26, 26},
+				1: {-39, -49, -59, -69, -79},
+				2: {-26, -26, -26, -26, -26},
 			},
 		},
 
@@ -186,8 +186,8 @@ func TestFinanceHandler_AccountBalance(t *testing.T) {
 			query:      "?accountIds=1,2&steps=3&endDate=2025-01-15&startDate=2025-01-03",
 			expectCode: http.StatusOK,
 			wantValue: map[uint][]float64{
-				1: {3, 29, 79},
-				2: {3, 16, 26},
+				1: {-3, -29, -79},
+				2: {-3, -16, -26},
 			},
 		},
 		{

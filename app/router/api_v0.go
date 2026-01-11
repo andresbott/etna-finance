@@ -65,7 +65,7 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 		finHndlr.CreateAccountProvider(userData.UserId).ServeHTTP(w, r)
 	})
 
-	r.Path(fmt.Sprintf("%s/{ID}", finProviderPath)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Path(fmt.Sprintf("%s/{id}", finProviderPath)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userData, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read bookmark: %s", err.Error()), http.StatusInternalServerError)
@@ -81,7 +81,7 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 		finHndlr.UpdateAccountProvider(itemId, userData.UserId).ServeHTTP(w, r)
 	})
 
-	r.Path(fmt.Sprintf("%s/{ID}", finProviderPath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Path(fmt.Sprintf("%s/{id}", finProviderPath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userData, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read bookmark: %s", err.Error()), http.StatusInternalServerError)
@@ -109,7 +109,7 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 		finHndlr.CreateAccount(userData.UserId).ServeHTTP(w, r)
 	})
 
-	r.Path(fmt.Sprintf("%s/{ID}", finAccountPath)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Path(fmt.Sprintf("%s/{id}", finAccountPath)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userData, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read bookmark: %s", err.Error()), http.StatusInternalServerError)
@@ -125,7 +125,7 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 		finHndlr.UpdateAccount(itemId, userData.UserId).ServeHTTP(w, r)
 	})
 
-	r.Path(fmt.Sprintf("%s/{ID}", finAccountPath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Path(fmt.Sprintf("%s/{id}", finAccountPath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userData, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read bookmark: %s", err.Error()), http.StatusInternalServerError)
@@ -167,7 +167,7 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 	})
 
 	// Update income categories
-	r.Path(fmt.Sprintf("%s/{ID}", finCategoryIncome)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Path(fmt.Sprintf("%s/{id}", finCategoryIncome)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userData, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
@@ -184,7 +184,7 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 	// TODO Move exposed as API yet
 
 	// delete income category
-	r.Path(fmt.Sprintf("%s/{ID}", finCategoryIncome)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Path(fmt.Sprintf("%s/{id}", finCategoryIncome)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userData, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
@@ -220,7 +220,7 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 	})
 
 	// Update expense categories
-	r.Path(fmt.Sprintf("%s/{ID}", finCategoryExpense)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Path(fmt.Sprintf("%s/{id}", finCategoryExpense)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userData, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
@@ -237,7 +237,7 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 	// TODO Move exposed as API yet
 
 	// delete expense category
-	r.Path(fmt.Sprintf("%s/{ID}", finCategoryExpense)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Path(fmt.Sprintf("%s/{id}", finCategoryExpense)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userData, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
@@ -274,7 +274,7 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 		finHndlr.CreateTx(userData.UserId).ServeHTTP(w, r)
 	})
 
-	r.Path(fmt.Sprintf("%s/{ID}", finEntries)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Path(fmt.Sprintf("%s/{id}", finEntries)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userData, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
@@ -290,7 +290,7 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 		finHndlr.UpdateTx(itemId, userData.UserId).ServeHTTP(w, r)
 	})
 
-	r.Path(fmt.Sprintf("%s/{ID}", finEntries)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Path(fmt.Sprintf("%s/{id}", finEntries)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userData, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
@@ -341,9 +341,9 @@ func (h *MainAppHandler) backupApi(r *mux.Router) {
 	}
 	r.Path(backupPath).Methods(http.MethodGet).Handler(backupHndl.List())
 	r.Path(backupPath).Methods(http.MethodPost).Handler(backupHndl.CreateBackup())
-	r.Path(fmt.Sprintf("%s/{ID}", backupPath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Path(fmt.Sprintf("%s/{id}", backupPath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
-		itemId, ok := vars["ID"]
+		itemId, ok := vars["id"]
 		if !ok {
 			http.Error(w, "could not extract tag id from request context", http.StatusInternalServerError)
 			return
@@ -355,9 +355,9 @@ func (h *MainAppHandler) backupApi(r *mux.Router) {
 		backupHndl.Delete(itemId).ServeHTTP(w, r)
 	})
 
-	r.Path(fmt.Sprintf("%s/{ID}", backupPath)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Path(fmt.Sprintf("%s/{id}", backupPath)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
-		itemId, ok := vars["ID"]
+		itemId, ok := vars["id"]
 		if !ok {
 			http.Error(w, "could not extract tag id from request context", http.StatusInternalServerError)
 			return
@@ -367,15 +367,14 @@ func (h *MainAppHandler) backupApi(r *mux.Router) {
 			return
 		}
 		backupHndl.Download(itemId).ServeHTTP(w, r)
-		return
 	})
 	// Restore from uploaded file
 	r.Path(restorePath).Methods(http.MethodPost).Handler(backupHndl.RestoreUpload())
 
-	// Restore from existing backup ID
-	r.Path(fmt.Sprintf("%s/{ID}", restorePath)).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// Restore from existing backup id
+	r.Path(fmt.Sprintf("%s/{id}", restorePath)).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
-		itemId, ok := vars["ID"]
+		itemId, ok := vars["id"]
 		if !ok {
 			http.Error(w, "could not extract tag id from request context", http.StatusInternalServerError)
 			return
@@ -389,10 +388,10 @@ func (h *MainAppHandler) backupApi(r *mux.Router) {
 
 }
 
-// Extract the ID from the request url. based on gorilla url path vars
+// Extract the id from the request url. based on gorilla url path vars
 func getId(r *http.Request) (uint, *httpError) {
 	vars := mux.Vars(r)
-	tagId, ok := vars["ID"]
+	tagId, ok := vars["id"]
 	if !ok {
 		return 0, &httpError{
 			Error: "could not extract tag id from request context",

@@ -83,7 +83,7 @@ func TestFinanceHandler_CreateTx(t *testing.T) {
 					t.Fatal(err)
 				}
 				if entry.Id == 0 {
-					t.Error("returned entry ID is empty")
+					t.Error("returned entry id is empty")
 				}
 				_, err = h.Store.GetTransaction(t.Context(), entry.Id, tc.userId)
 				if err != nil {

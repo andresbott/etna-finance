@@ -15,7 +15,7 @@ import InputNumber from 'primevue/inputnumber'
 import DatePicker from 'primevue/datepicker'
 import CategorySelect from '@/components/common/categorySelect.vue'
 
-const { createEntry, updateEntry, isCreating, isUpdating } = useEntries()
+const { createEntry, updateEntry, isCreating, isUpdating } = useEntries({})
 const { accounts } = useAccounts()
 
 const props = defineProps({
@@ -246,7 +246,7 @@ const emit = defineEmits(['update:visible'])
                         v-model="formValues.AccountId"
                         name="AccountId"
                         @update:modelValue="handleAccountSelection"
-                        :accountTypes="['cash', 'checkin']"
+                        :accountTypes="['cash', 'checkin', 'bank', 'savings']"
                     />
                     <Message v-if="$form.AccountId?.invalid" severity="error" size="small">
                         {{ $form.AccountId.error?.message }}

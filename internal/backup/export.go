@@ -13,25 +13,6 @@ import (
 
 const timeFormat = "2006-01-02_15-04-05"
 
-func zipAbsPath(dest string) (string, error) {
-	absPath, err := checkDir(dest)
-	if err != nil {
-		return "", err
-	}
-	timestamp := time.Now()
-	filename := fmt.Sprintf("backup-%s.zip", timestamp.Format(timeFormat))
-	fullPath := filepath.Join(absPath, filename)
-	return fullPath, nil
-}
-
-func ExportToDir(ctx context.Context, store *accounting.Store, destination string) error {
-	absPath, err := zipAbsPath(destination)
-	if err != nil {
-		return err
-	}
-	return export(ctx, store, absPath)
-}
-
 func verifyZipPath(zipFile string) error {
 	if !strings.HasSuffix(strings.ToLower(zipFile), ".zip") {
 		return errors.New("invalid file extension: must be a .zip file")
@@ -284,35 +265,11 @@ func writeTransactions(ctx context.Context, zw *zipWriter, store *accounting.Sto
 			}
 			opts.Page++
 
-			// Stop early if fewer than limit results (no more pages)
+			// ShutDown early if fewer than limit results (no more pages)
 			if len(transactions) < opts.Limit {
 				break
 			}
 		}
 	}
-
 	return zw.writeJsonFile(transactionsFile, jsonData)
-}
-
-// checkDir validates that the given path is a directory
-// and returns its absolute path.
-func checkDir(path string) (string, error) {
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return "", fmt.Errorf("failed to get absolute path: %w", err)
-	}
-
-	info, err := os.Stat(absPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return "", fmt.Errorf("path does not exist: %s", absPath)
-		}
-		return "", fmt.Errorf("failed to stat path: %w", err)
-	}
-
-	if !info.IsDir() {
-		return "", fmt.Errorf("path is not a directory: %s", absPath)
-	}
-
-	return absPath, nil
 }

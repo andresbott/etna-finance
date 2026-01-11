@@ -26,7 +26,7 @@ type CategoryResponse struct {
 	Description string `json:"description"`
 }
 
-// createCategory posts a category to the API and returns the generated ID
+// createCategory posts a category to the API and returns the generated id
 func createCategory(baseURL string, categoryType string, category Category) (int, error) {
 	var url string
 
@@ -75,7 +75,7 @@ func createCategoriesRecursive(baseURL string, categoryType string, categories [
 	categoryIDs := make(map[string]int)
 
 	for _, category := range categories {
-		// Set parent ID if provided
+		// Set parent id if provided
 		if parentID > 0 {
 			category.ParentID = parentID
 		}
@@ -86,9 +86,9 @@ func createCategoriesRecursive(baseURL string, categoryType string, categories [
 			return nil, fmt.Errorf("failed to create category '%s': %v", category.Name, err)
 		}
 
-		// Store the ID with the category name as key
+		// Store the id with the category name as key
 		categoryIDs[category.Name] = categoryID
-		slog.Info(fmt.Sprintf("✅ %s category '%s' created with ID: %d", categoryType, category.Name, categoryID))
+		slog.Info(fmt.Sprintf("✅ %s category '%s' created with id: %d", categoryType, category.Name, categoryID))
 
 		// Recursively create children if they exist
 		if len(category.Children) > 0 {

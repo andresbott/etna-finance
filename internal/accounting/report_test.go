@@ -355,7 +355,7 @@ func TestAccountBalance(t *testing.T) {
 			endDate:   getDate("2022-01-31"),
 			tenant:    tenant1,
 			want: []AccountBalance{
-				{Date: getDate("2022-01-31"), Sum: 120, Count: 12},
+				{Date: getDate("2022-01-31"), Sum: -120, Count: 12},
 			},
 		},
 		{
@@ -365,7 +365,7 @@ func TestAccountBalance(t *testing.T) {
 			count:     1,
 			tenant:    tenant1,
 			want: []AccountBalance{
-				{Date: getDate("2022-01-31"), Sum: 120, Count: 12},
+				{Date: getDate("2022-01-31"), Sum: -120, Count: 12},
 			},
 		},
 		{
@@ -374,7 +374,7 @@ func TestAccountBalance(t *testing.T) {
 			endDate:   getDate("2023-01-31"),
 			tenant:    tenant1,
 			want: []AccountBalance{
-				{Date: getDate("2023-01-31"), Sum: 5, Count: 5},
+				{Date: getDate("2023-01-31"), Sum: -5, Count: 5},
 			},
 		},
 		{
@@ -392,7 +392,7 @@ func TestAccountBalance(t *testing.T) {
 			endDate:   getDate("2022-01-26"),
 			tenant:    tenant1,
 			want: []AccountBalance{
-				{Date: getDate("2022-01-26"), Sum: 70, Count: 7},
+				{Date: getDate("2022-01-26"), Sum: -70, Count: 7},
 			},
 		},
 		{
@@ -403,8 +403,8 @@ func TestAccountBalance(t *testing.T) {
 			count:     2,
 			tenant:    tenant1,
 			want: []AccountBalance{
-				{Date: getDate("2022-01-02"), Sum: 20, Count: 2},
-				{Date: getDate("2022-01-31"), Sum: 120, Count: 10},
+				{Date: getDate("2022-01-02"), Sum: -20, Count: 2},
+				{Date: getDate("2022-01-31"), Sum: -120, Count: 10},
 			},
 		},
 		{
@@ -415,9 +415,9 @@ func TestAccountBalance(t *testing.T) {
 			count:     3,
 			tenant:    tenant1,
 			want: []AccountBalance{
-				{Date: getDate("2022-01-02"), Sum: 20, Count: 2},
-				{Date: getDate("2022-01-16"), Sum: 40, Count: 2},
-				{Date: getDate("2022-01-31"), Sum: 120, Count: 8},
+				{Date: getDate("2022-01-02"), Sum: -20, Count: 2},
+				{Date: getDate("2022-01-16"), Sum: -40, Count: 2},
+				{Date: getDate("2022-01-31"), Sum: -120, Count: 8},
 			},
 		},
 		{
@@ -427,9 +427,9 @@ func TestAccountBalance(t *testing.T) {
 			count:     3,
 			tenant:    tenant1,
 			want: []AccountBalance{
-				{Date: getDate("2022-01-29"), Sum: 100, Count: 10},
-				{Date: getDate("2022-01-30"), Sum: 110, Count: 1},
-				{Date: getDate("2022-01-31"), Sum: 120, Count: 1},
+				{Date: getDate("2022-01-29"), Sum: -100, Count: 10},
+				{Date: getDate("2022-01-30"), Sum: -110, Count: 1},
+				{Date: getDate("2022-01-31"), Sum: -120, Count: 1},
 			},
 		},
 
@@ -441,11 +441,11 @@ func TestAccountBalance(t *testing.T) {
 			count:     5,
 			tenant:    tenant1,
 			want: []AccountBalance{
-				{Date: getDate("2022-01-02"), Sum: 20, Count: 2},
-				{Date: getDate("2022-01-09"), Sum: 40, Count: 2},
-				{Date: getDate("2022-01-16"), Sum: 40, Count: 0},
-				{Date: getDate("2022-01-23"), Sum: 40, Count: 0},
-				{Date: getDate("2022-01-31"), Sum: 120, Count: 8},
+				{Date: getDate("2022-01-02"), Sum: -20, Count: 2},
+				{Date: getDate("2022-01-09"), Sum: -40, Count: 2},
+				{Date: getDate("2022-01-16"), Sum: -40, Count: 0},
+				{Date: getDate("2022-01-23"), Sum: -40, Count: 0},
+				{Date: getDate("2022-01-31"), Sum: -120, Count: 8},
 			},
 		},
 		{
@@ -456,10 +456,28 @@ func TestAccountBalance(t *testing.T) {
 			count:     4,
 			tenant:    tenant1,
 			want: []AccountBalance{
-				{Date: getDate("2022-02-28"), Sum: 230, Count: 23},
-				{Date: getDate("2022-03-02"), Sum: 240, Count: 1},
-				{Date: getDate("2022-03-03"), Sum: 240, Count: 0},
-				{Date: getDate("2022-03-05"), Sum: 240, Count: 0},
+				{Date: getDate("2022-02-28"), Sum: -230, Count: 23},
+				{Date: getDate("2022-03-02"), Sum: -240, Count: 1},
+				{Date: getDate("2022-03-03"), Sum: -240, Count: 0},
+				{Date: getDate("2022-03-05"), Sum: -240, Count: 0},
+			},
+		},
+		{
+			name:      "ensure negative balance",
+			accountId: 3,
+			endDate:   getDate("2024-01-31"),
+			tenant:    tenant1,
+			want: []AccountBalance{
+				{Date: getDate("2024-01-31"), Sum: -90, Count: 2},
+			},
+		},
+		{
+			name:      "ensure positive balance",
+			accountId: 4,
+			endDate:   getDate("2024-01-31"),
+			tenant:    tenant1,
+			want: []AccountBalance{
+				{Date: getDate("2024-01-31"), Sum: 85, Count: 3},
 			},
 		},
 	}
@@ -535,4 +553,11 @@ var balanceSampleDataProgression = map[int]Transaction{
 	203: Income{Description: "e2", Date: getDateTime("2023-01-01 00:20:00"), Amount: 10, AccountID: 2},
 	204: Transfer{Description: "e2", Date: getDateTime("2023-01-02 00:20:00"), OriginAmount: 10, OriginAccountID: 2, TargetAmount: 10, TargetAccountID: 1},
 	205: Transfer{Description: "e2", Date: getDateTime("2023-01-02 00:20:00"), OriginAmount: 12, OriginAccountID: 1, TargetAmount: 15, TargetAccountID: 2},
+
+	301: Income{Description: "i1_acc3", Date: getDateTime("2024-01-01 00:20:00"), Amount: 10, AccountID: 3},
+	302: Expense{Description: "e1_acc3", Date: getDateTime("2024-01-02 00:00:00"), Amount: 100, AccountID: 3},
+
+	401: Income{Description: "i1_acc4", Date: getDateTime("2024-01-01 00:20:00"), Amount: 100, AccountID: 4},
+	402: Expense{Description: "e1_acc4", Date: getDateTime("2024-01-02 00:00:00"), Amount: 10, AccountID: 4},
+	403: Expense{Description: "e1_acc4", Date: getDateTime("2024-01-03 00:00:00"), Amount: 5, AccountID: 4},
 }

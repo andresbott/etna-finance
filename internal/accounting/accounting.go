@@ -54,7 +54,7 @@ func (v ErrValidation) Error() string {
 func (store *Store) ListTenants(ctx context.Context) ([]string, error) {
 	db := store.db.WithContext(ctx).Table("db_account_providers")
 
-	// Get distinct owner IDs
+	// getTask distinct owner IDs
 	var tenants []string
 	if err := db.
 		Select("DISTINCT(owner_id)").

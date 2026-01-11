@@ -149,7 +149,7 @@ func TestStore_CreateTransaction(t *testing.T) {
 						}
 
 						if id == 0 {
-							t.Errorf("expected valid entry ID, but got 0")
+							t.Errorf("expected valid entry id, but got 0")
 						}
 
 						got, err := store.GetTransaction(t.Context(), id, tc.tenant)
@@ -1160,6 +1160,7 @@ func transactionSampleData(t *testing.T, store *Store, data map[int]Transaction)
 		{AccountProviderID: accProviderId, Name: "acc1", Currency: currency.EUR, Type: CashAccountType},
 		{AccountProviderID: accProviderId, Name: "acc2", Currency: currency.USD, Type: CashAccountType},
 		{AccountProviderID: accProviderId, Name: "acc3", Currency: currency.CHF, Type: CashAccountType},
+		{AccountProviderID: accProviderId, Name: "acc4", Currency: currency.CHF, Type: CashAccountType},
 	}
 	for _, acc := range Accs {
 		_, err = store.CreateAccount(t.Context(), acc, tenant1)

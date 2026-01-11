@@ -56,7 +56,7 @@ func TestCreateAccountProvider(t *testing.T) {
 						}
 
 						if id == 0 {
-							t.Errorf("expected valid account ID, but got 0")
+							t.Errorf("expected valid account id, but got 0")
 						}
 
 						got, err := store.GetAccountProvider(ctx, id, tc.tenant)
@@ -371,10 +371,10 @@ func TestCreateAccount(t *testing.T) {
 					wantErr: "name cannot be empty",
 				},
 				{
-					name:    "want error on empty Provider ID",
+					name:    "want error on empty Provider id",
 					tenant:  tenant1,
 					input:   Account{Name: "sss", Currency: currency.USD},
-					wantErr: "account provider ID cannot be empty",
+					wantErr: "account provider id cannot be empty",
 				},
 				{
 					name:    "want error on empty currency",
@@ -410,7 +410,7 @@ func TestCreateAccount(t *testing.T) {
 						}
 
 						if id == 0 {
-							t.Errorf("expected valid account ID, but got 0")
+							t.Errorf("expected valid account id, but got 0")
 						}
 
 						got, err := store.GetAccount(ctx, id, tc.tenant)

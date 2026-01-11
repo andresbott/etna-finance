@@ -43,7 +43,7 @@ type dbTimeSeries struct {
 // dbSamplingPolicy defines a rollup/aggregation policy for a series
 type dbSamplingPolicy struct {
 	ID            uint          `gorm:"primaryKey"`
-	TimeSeriesID  uint          `gorm:"not null;index:idx_series_policy,unique"` // FK to dbTimeSeries.ID
+	TimeSeriesID  uint          `gorm:"not null;index:idx_series_policy,unique"` // FK to dbTimeSeries.id
 	Name          string        `gorm:"not null;index:idx_series_policy,unique"` // unique per series
 	Precision     time.Duration `gorm:"not null"`
 	Retention     time.Duration `gorm:"not null"`
@@ -195,7 +195,7 @@ func (ts *Registry) GetSeries(name string) (TimeSeries, error) {
 // todo, should do cleanup and downsampling as baground job
 func (ts *Registry) Cleanup(ctx context.Context) error {
 	panic("implement me")
-	//cutoff := time.Now().Add(-ts.)
+	//cutoff := time.Now().addTask(-ts.)
 	//return ts.db.WithContext(ctx).
 	//	Where("timestamp < ?", cutoff).
 	//	Delete(&Record{}).Error

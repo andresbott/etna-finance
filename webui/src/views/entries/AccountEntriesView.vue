@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
@@ -11,8 +11,8 @@ import AccountEntriesTable from './AccountEntriesTable.vue'
 import { useEntries } from '@/composables/useEntries.ts'
 import IncomeExpenseDialog from '@/views/entries/dialogs/IncomeExpenseDialog.vue'
 import AddEntryMenu from '@/views/entries/AddEntryMenu.vue'
-import { useAccountUtils } from '@/utils/accountUtils'
 import { useAccounts } from '@/composables/useAccounts'
+import { useBalance } from '@/composables/useGetBalanceReport'
 
 /* --- Route --- */
 const route = useRoute()
@@ -23,13 +23,47 @@ const today = new Date()
 const startDate = ref(new Date(today.setDate(today.getDate() - 35)))
 const endDate = ref(new Date())
 
-const { entries: allEntries, isLoading, deleteEntry, isDeleting, refetch } = useEntries(
+// Create accountIds array for the API query - filters entries server-side
+const accountIds = computed(() => accountId.value ? [String(accountId.value)] : [])
+
+/* --- Pagination State --- */
+const page = ref(1)
+const limit = ref(25)
+const first = ref(0) // First row index for DataTable
+
+const { entries: fetchedEntries, totalRecords, isLoading, isFetching, deleteEntry, isDeleting, refetch } = useEntries({
     startDate,
-    endDate
-)
+    endDate,
+    accountIds,
+    page,
+    limit
+})
+
+/* --- Computed pagination values for template --- */
+const paginationRows = computed(() => limit.value)
+const paginationFirst = computed(() => first.value)
+const paginationTotal = computed(() => (totalRecords.value || 0) + 1) // +1 for opening balance entry
+
+/* --- Pagination Handler --- */
+const handlePage = (event) => {
+    page.value = event.page + 1 // PrimeVue uses 0-based page, API uses 1-based
+    limit.value = event.rows
+    first.value = event.first
+}
+
+/* --- Reset pagination when date range or account changes --- */
+watch([startDate, endDate, accountId], () => {
+    page.value = 1
+    first.value = 0
+})
 
 /* --- Accounts --- */
 const { accounts } = useAccounts()
+
+/* --- Balance API --- */
+const { accountBalance } = useBalance()
+const openingBalance = ref(0)
+const isLoadingBalance = ref(false)
 
 /* --- Account Name and Currency --- */
 const accountName = computed(() => {
@@ -75,87 +109,51 @@ const accountTitle = computed(() => {
     return accountName.value
 })
 
-/* --- Filtered Entries --- */
+/* --- Entries with Opening Balance --- */
 const entries = computed(() => {
-    if (!accountId.value || !allEntries.value) return []
+    if (!accountId.value || !fetchedEntries.value) return []
     
-    // Filter entries that belong to this account
-    const filtered = allEntries.value.filter(entry => {
-        // For income/expense entries, check accountId
-        if (entry.type === 'income' || entry.type === 'expense') {
-            return String(entry.accountId) === String(accountId.value)
-        }
-        // For transfers, check both origin and target accounts
-        if (entry.type === 'transfer') {
-            return String(entry.originAccountId) === String(accountId.value) || 
-                   String(entry.targetAccountId) === String(accountId.value)
-        }
-        // For stock operations, check targetAccountId
-        if (entry.type === 'buystock' || entry.type === 'sellstock') {
-            return String(entry.targetAccountId) === String(accountId.value)
-        }
-        return false
-    })
-    
-    // Calculate opening balance (balance at start of period)
-    // Get all entries before startDate to calculate this
-    const openingBalance = allEntries.value
-        .filter(entry => {
-            // Only include entries before startDate that belong to this account
-            const entryDate = new Date(entry.date)
-            const start = new Date(startDate.value)
-            
-            if (entryDate >= start) return false
-            
-            // Check if entry belongs to this account
-            if (entry.type === 'income' || entry.type === 'expense') {
-                return String(entry.accountId) === String(accountId.value)
-            }
-            if (entry.type === 'transfer') {
-                return String(entry.originAccountId) === String(accountId.value) || 
-                       String(entry.targetAccountId) === String(accountId.value)
-            }
-            if (entry.type === 'buystock' || entry.type === 'sellstock') {
-                return String(entry.targetAccountId) === String(accountId.value)
-            }
-            return false
-        })
-        .reduce((balance, entry) => {
-            let entryAmount = 0
-            
-            if (entry.type === 'expense') {
-                entryAmount = -(entry.Amount || 0)
-            } else if (entry.type === 'income') {
-                entryAmount = entry.Amount || 0
-            } else if (entry.type === 'transfer') {
-                if (String(entry.originAccountId) === String(accountId.value)) {
-                    entryAmount = -(entry.originAmount || 0)
-                } else if (String(entry.targetAccountId) === String(accountId.value)) {
-                    entryAmount = entry.targetAmount || 0
-                }
-            } else if (entry.type === 'buystock') {
-                entryAmount = -(entry.targetAmount || 0)
-            } else if (entry.type === 'sellstock') {
-                entryAmount = entry.targetAmount || 0
-            }
-            
-            return balance + entryAmount
-        }, 0)
-    
-    // Create opening balance entry
+    // Create opening balance entry using the API-fetched balance
     const openingBalanceEntry = {
         id: 'opening-balance',
         type: 'opening-balance',
         description: 'Balance at beginning of period',
         date: startDate.value,
-        Amount: openingBalance,
+        Amount: openingBalance.value,
         accountId: accountId.value,
         isOpeningBalance: true
     }
     
-    // Return filtered entries followed by opening balance at the end (bottom in descending order)
-    return [...filtered, openingBalanceEntry]
+    // Return fetched entries (already filtered by backend) followed by opening balance at the end
+    return [...fetchedEntries.value, openingBalanceEntry]
 })
+
+// Watch for changes in accountId or startDate to fetch the opening balance
+watch(
+    [accountId, startDate],
+    async ([newAccountId, newStartDate]) => {
+        if (!newAccountId || !newStartDate) {
+            openingBalance.value = 0
+            return
+        }
+        
+        try {
+            isLoadingBalance.value = true
+            const dateStr = new Date(newStartDate).toISOString().split('T')[0]
+            const balance = await accountBalance.mutateAsync({
+                accountId: Number(newAccountId),
+                date: dateStr
+            })
+            openingBalance.value = balance || 0
+        } catch (error) {
+            console.error('Failed to fetch opening balance:', error)
+            openingBalance.value = 0
+        } finally {
+            isLoadingBalance.value = false
+        }
+    },
+    { immediate: true }
+)
 
 const selectedEntry = ref(null)
 const isEditMode = ref(false)
@@ -219,8 +217,10 @@ const openDeleteDialog = (entry) => {
 const handleDeleteEntry = async () => {
     try {
         await deleteEntry(entryToDelete.value.id)
+        deleteDialogVisible.value = false
     } catch (error) {
         console.error('Failed to delete entry:', error)
+        // Keep dialog open on error so user knows something went wrong
     }
 }
 </script>
@@ -242,19 +242,26 @@ const handleDeleteEntry = async () => {
                     />
                 </div>
                 <div class="add-entry-menu">
-                    <AddEntryMenu />
+                    <AddEntryMenu 
+                        :default-account-id="Number(accountId)"
+                        :default-origin-account-id="Number(accountId)"
+                    />
                 </div>
             </div>
 
             <div class="entries-view">
                 <AccountEntriesTable
                     :entries="entries"
-                    :isLoading="isLoading"
+                    :isLoading="isLoading || isFetching"
                     :isDeleting="isDeleting"
                     :accountId="accountId"
+                    :totalRecords="paginationTotal"
+                    :rows="paginationRows"
+                    :first="paginationFirst"
                     @edit="openEditEntryDialog"
                     @duplicate="openDuplicateEntryDialog"
                     @delete="openDeleteDialog"
+                    @page="handlePage"
                 />
             </div>
         </div>

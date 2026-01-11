@@ -3,7 +3,6 @@ package accounting
 import (
 	"context"
 	"fmt"
-	"gorm.io/gorm"
 	"time"
 )
 
@@ -31,7 +30,6 @@ type dbEntry struct {
 	OwnerId   string `gorm:"index"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
-	DeletedAt gorm.DeletedAt `gorm:"index"`
 }
 
 type sumResult struct {
@@ -55,7 +53,7 @@ func (store *Store) sumEntries(ctx context.Context, opts sumEntriesOpts) (sumRes
 	db := store.db.WithContext(ctx).Table("db_entries")
 
 	//db = db.Select("db_entries.*, db_transactions.date").
-	db = db.Select("ABS(SUM(amount)) as sum, COUNT(*) as count").
+	db = db.Select("SUM(amount) as sum, COUNT(*) as count").
 		Joins("JOIN db_transactions ON db_transactions.id = db_entries.transaction_id")
 
 	// ensure proper owner

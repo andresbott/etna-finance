@@ -1,7 +1,0 @@
-users:
-  - name: "demo"
-    pw: "demo"
-    enabled: true
-  - name: "admin"
-    pw: "admin"
-    enabled: true
