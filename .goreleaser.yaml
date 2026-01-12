@@ -22,10 +22,10 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
-      - -X github.com/go-bumbu/todo-app/app/metainfo.Version={{.Version}}
-      - -X github.com/go-bumbu/todo-app/app/metainfo.BuildTime={{.Date}}
-      - -X github.com/go-bumbu/todo-app/app/metainfo.ShaVer={{.Commit}}
-    binary: bumbu-todo
+      - -X github.com/andresbott/etna/app/metainfo.Version={{.Version}}
+      - -X github.com/andresbott/etna/app/metainfo.BuildTime={{.Date}}
+      - -X github.com/andresbott/etna/app/metainfo.ShaVer={{.Commit}}
+    binary: etna
     env:
       - >-
         {{- if eq .Arch "arm64" }}CC=aarch64-linux-gnu-gcc{{- end }}
@@ -46,52 +46,35 @@ builds:
       - v4
     ldflags:
       - -s -w
-      - -X github.com/go-bumbu/todo-app/app/metainfo.Version={{.Version}}
-      - -X github.com/go-bumbu/todo-app/app/metainfo.BuildTime={{.Date}}
-      - -X github.com/go-bumbu/todo-app/app/metainfo.ShaVer={{.Commit}}
+      - -X github.com/andresbott/etna/app/metainfo.Version={{.Version}}
+      - -X github.com/andresbott/etna/app/metainfo.BuildTime={{.Date}}
+      - -X github.com/andresbott/etna/app/metainfo.ShaVer={{.Commit}}
     flags:
       - -trimpath
-    binary: bumbu-todo
-
-  # =====================================================================================
-  # MacOs builds:
-  # =====================================================================================
-  - id: darwin
-    goos:
-      - darwin
-    goarch:
-      - amd64
-      - arm64
-    ldflags:
-      - -s -w
-      - -X github.com/go-bumbu/todo-app/app/metainfo.Version={{.Version}}
-      - -X github.com/go-bumbu/todo-app/app/metainfo.BuildTime={{.Date}}
-      - -X github.com/go-bumbu/todo-app/app/metainfo.ShaVer={{.Commit}}
-    flags:
-      - -trimpath
-    binary: bumbu-todo
-
+    binary: etna
 
 archives:
-  - format: tar.gz
+  - formats: [zip]
     # this name template makes the OS and Arch compatible with the results of uname.
     name_template: >-
-      bumbu-todo
+      etna-finance_
       {{- title .Os  }}_
       {{- if eq .Arch "amd64" }}x86_64_{{ .Amd64 }}
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
-    # use zip for windows archives
-    format_overrides:
-      - goos: windows
-        format: zip
+    files:
+      - LICENSE
+      - README.md
+      - src: zarf/sample-config.yaml
+        dst: config.yaml
+
 
 # see full detail: https://goreleaser.com/customization/nfpm/
 nfpms:
   -
-    id: bumbu-todo
-    package_name: bumbu-todo
+    id: etna-finance
+    package_name: etna-finance
 
     maintainer: "Andres Bott <contact@andresbott.com>"
     homepage: https://github.com/go-bumbu/todo-app
@@ -100,6 +83,15 @@ nfpms:
       license: LGPL3
     formats:
       - deb
+
+    contents:
+      # Basic file that applies to all packagers
+      - src: zarf/sample-config.yaml
+        dst: /etc/etna-finance/config.yaml
+      - src: README.md
+        dst: /usr/share/doc/etna-finance/README.md
+      - src: LICENSE
+        dst: /usr/share/doc/etna-finance/LICENSE
 
     # Version Prerelease.
     # Default is extracted from `version` if it is semver compatible.
@@ -120,7 +112,3 @@ changelog:
       - '^docs:'
       - '^test:'
 
-# The lines beneath this are called `modelines`. See `:help modeline`
-# Feel free to remove those if you don't want/use them.
-# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
-# vim: set ts=2 sw=2 tw=0 fo=cnqoj
