@@ -6,8 +6,9 @@ Observability:
   Port: 9090
   BindIp: "localhost"
 
+DataDir: "./data"
+
 Auth:
-  SessionPath:  "zarf/appData/session"
   ## TODO => modify the startup so that it reads/generates the strings and stores it in the DB
   HashKey:      "He4wazahwo6oer0iuNg6chah1Phoh4Eimo7ku0boom8ia8joichieVei8aeNga2o"
   BlockKey:     "ma6eiTeChie6moh3mei5nohth2uqu7ah"

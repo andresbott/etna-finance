@@ -2,10 +2,11 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/go-bumbu/config"
-	"github.com/gorilla/securecookie"
 	"path/filepath"
 	"strconv"
+
+	"github.com/go-bumbu/config"
+	"github.com/gorilla/securecookie"
 )
 
 type AppCfg struct {
@@ -35,7 +36,6 @@ func (c serverCfg) Addr() string {
 }
 
 type authConfig struct {
-	SessionPath   string
 	HashKeyBytes  []byte
 	BlockKeyBytes []byte
 	HashKey       string
@@ -65,9 +65,8 @@ var defaultCfg = AppCfg{
 		Port:   9090,
 	},
 	Auth: authConfig{
-		SessionPath: "", // location where the sessions are stored
-		HashKey:     "", // cookie store encryption key
-		BlockKey:    "", // cookie value encryption
+		HashKey:  "", // cookie store encryption key
+		BlockKey: "", // cookie value encryption
 		UserStore: userStore{
 			StoreType: "static",
 			Users: []User{

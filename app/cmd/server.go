@@ -2,12 +2,14 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/andresbott/etna/app/router"
-	handlers "github.com/andresbott/etna/app/router/handlers"
+
 	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/andresbott/etna/app/router"
+	handlers "github.com/andresbott/etna/app/router/handlers"
 
 	"github.com/glebarez/sqlite"
 	"github.com/go-bumbu/http/server"
@@ -21,6 +23,8 @@ import (
 )
 
 const dbFile = "carbon.db"
+const sessionsDir = "sessions"
+const backupsDir = "backup"
 
 func serverCmd() *cobra.Command {
 	var configFile = "./config.yaml"
@@ -86,7 +90,7 @@ func runServer(configFile string) error {
 	}
 
 	//store, _ := sessionauth.NewFsStore("", securecookie.GenerateRandomKey(64), securecookie.GenerateRandomKey(32))
-	store, _ := sessionauth.NewFsStore(cfg.Auth.SessionPath, cfg.Auth.HashKeyBytes, cfg.Auth.BlockKeyBytes)
+	store, _ := sessionauth.NewFsStore(filepath.Join(cfg.DataDir, sessionsDir), cfg.Auth.HashKeyBytes, cfg.Auth.BlockKeyBytes)
 	// create an instance of session auth
 	sessionAuth, _ := sessionauth.New(sessionauth.Cfg{
 		Store:         store,
@@ -169,8 +173,6 @@ func getUserStore(cfg AppCfg, l *slog.Logger) (userauth.UserGetter, error) {
 	return userGet, nil
 }
 
-const backupsDir = "backup"
-
 func initDataDir(path string) error {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
@@ -200,6 +202,19 @@ func initDataDir(path string) error {
 		return fmt.Errorf("failed to stat path: %w", err)
 	} else if !backupInfo.IsDir() {
 		return fmt.Errorf("backup path is not a directory: %s", absPath)
+	}
+
+	// create sessions dir
+	sessionsDirInfo, err := os.Stat(filepath.Join(absPath, sessionsDir))
+	if os.IsNotExist(err) {
+		// Create the directory (and any missing parents)
+		if err := os.MkdirAll(filepath.Join(absPath, sessionsDir), 0750); err != nil {
+			return fmt.Errorf("failed to create directory: %w", err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("failed to stat path: %w", err)
+	} else if !sessionsDirInfo.IsDir() {
+		return fmt.Errorf("sessions path is not a directory: %s", absPath)
 	}
 
 	return nil
