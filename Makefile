@@ -98,9 +98,27 @@ docker-build: docker-base ## build a snapshot release within docker
 	@docker build ./ -t bumbu-todo-build:${COMMIT_SHA_SHORT} -f zarf/Docker/build.Dockerfile
 	@./zarf/Docker/dockerCP.sh bumbu-todo-build:${COMMIT_SHA_SHORT} /project/dist/ ${PWD_DIR}
 
-.PHONY: check-git-clean
-check-git-clean: # check if git repo is clen
-	@git diff --quiet
+
+#==========================================================================================
+##@ Release
+#==========================================================================================
+
+#check_env: # check for needed envs
+#ifndef GITHUB_TOKEN
+#	$(error GITHUB_TOKEN is undefined, create one with repo permissions here: https://github.com/settings/tokens/new?scopes=repo,write:packages)
+#endif
+#	@[ "${version}" ] || ( echo ">> version is not set, usage: make release version=\"v1.2.3\" "; exit 1 )
+#
+#release: clean check_env check-branch check-git-clean docker-test ## release a new version
+#	@git diff --quiet || ( echo 'git is in dirty state' ; exit 1 )
+#	@[ "${version}" ] || ( echo ">> version is not set, usage: make release version=\"v1.2.3\" "; exit 1 )
+#	@git tag -d $(version) || true
+#	@git tag -a $(version) -m "Release version: $(version)"
+#	@git push --delete origin $(version) || true
+#	@git push origin $(version) || true
+#	@GITHUB_TOKEN=${GITHUB_TOKEN} docker build -t etna-finace:${COMMIT_SHA_SHORT} --secret id=GITHUB_TOKEN ./ -f zarf/Docker/release.Dockerfile
+#	@ echo "using goreleaser config in zarf/.goreleaser-all.yaml"
+#	@./zarf/Docker/dockerCP.sh bumbu-todo-release:${COMMIT_SHA_SHORT} /project/dist/ ${PWD_DIR}
 
 .PHONY: check-branch
 check-branch:
@@ -110,26 +128,18 @@ check-branch:
 		exit 1; \
 	fi
 
-#==========================================================================================
-##@ Release
-#==========================================================================================
+.PHONY: check-git-clean
+check-git-clean: # check if git repo is clen
+	@git diff --quiet
 
-check_env: # check for needed envs
-ifndef GITHUB_TOKEN
-	$(error GITHUB_TOKEN is undefined, create one with repo permissions here: https://github.com/settings/tokens/new?scopes=repo,write:packages)
-endif
-	@[ "${version}" ] || ( echo ">> version is not set, usage: make release version=\"v1.2.3\" "; exit 1 )
-
-release: clean check_env check-branch check-git-clean docker-test ## release a new version
-	@git diff --quiet || ( echo 'git is in dirty state' ; exit 1 )
+#tag: check-git-clean check-branch ## create a git tag to publish a new release
+tag:  ## create a git tag to publish a new release
 	@[ "${version}" ] || ( echo ">> version is not set, usage: make release version=\"v1.2.3\" "; exit 1 )
 	@git tag -d $(version) || true
 	@git tag -a $(version) -m "Release version: $(version)"
 	@git push --delete origin $(version) || true
 	@git push origin $(version) || true
-	@GITHUB_TOKEN=${GITHUB_TOKEN} docker build -t bumbu-todo-release:${COMMIT_SHA_SHORT} --secret id=GITHUB_TOKEN ./ -f zarf/Docker/release.Dockerfile
-	@ echo "using goreleaser config in zarf/.goreleaser-all.yaml"
-	@./zarf/Docker/dockerCP.sh bumbu-todo-release:${COMMIT_SHA_SHORT} /project/dist/ ${PWD_DIR}
+
 
 clean: ## clean build env
 	@rm -rf dist

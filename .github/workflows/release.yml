@@ -1,0 +1,51 @@
+name: Release
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+      - 'v*.*.*-*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: 1
+
+    steps:
+      # Checkout code
+      - uses: actions/checkout@v4
+
+      # Setup Go
+      - name: Setup Go 1.24.2
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.2'
+          cache: true
+
+      # Setup Node.js for webui
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # Build frontend in webui
+      - name: Install NPM dependencies
+        working-directory: webui
+        run: npm ci
+
+      - name: build frontend
+        run: make package-ui
+
+      # Install Goreleaser
+      - name: Install Goreleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          version: latest
+          install: true
+
+      # Run Goreleaser
+      - name: Run Goreleaser
+        run: goreleaser --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
