@@ -53,25 +53,6 @@ builds:
       - -trimpath
     binary: etna
 
-  # =====================================================================================
-  # MacOs builds:
-  # =====================================================================================
-  - id: darwin
-    goos:
-      - darwin
-    goarch:
-      - amd64
-      - arm64
-    ldflags:
-      - -s -w
-      - -X github.com/andresbott/etna/app/metainfo.Version={{.Version}}
-      - -X github.com/andresbott/etna/app/metainfo.BuildTime={{.Date}}
-      - -X github.com/andresbott/etna/app/metainfo.ShaVer={{.Commit}}
-    flags:
-      - -trimpath
-    binary: etna
-
-
 archives:
   - formats: [tar.gz]
     # this name template makes the OS and Arch compatible with the results of uname.
