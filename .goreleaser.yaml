@@ -22,10 +22,10 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
-      - -X github.com/go-bumbu/todo-app/app/metainfo.Version={{.Version}}
-      - -X github.com/go-bumbu/todo-app/app/metainfo.BuildTime={{.Date}}
-      - -X github.com/go-bumbu/todo-app/app/metainfo.ShaVer={{.Commit}}
-    binary: bumbu-todo
+      - -X github.com/andresbott/etna/app/metainfo.Version={{.Version}}
+      - -X github.com/andresbott/etna/app/metainfo.BuildTime={{.Date}}
+      - -X github.com/andresbott/etna/app/metainfo.ShaVer={{.Commit}}
+    binary: etna
     env:
       - >-
         {{- if eq .Arch "arm64" }}CC=aarch64-linux-gnu-gcc{{- end }}
@@ -46,12 +46,12 @@ builds:
       - v4
     ldflags:
       - -s -w
-      - -X github.com/go-bumbu/todo-app/app/metainfo.Version={{.Version}}
-      - -X github.com/go-bumbu/todo-app/app/metainfo.BuildTime={{.Date}}
-      - -X github.com/go-bumbu/todo-app/app/metainfo.ShaVer={{.Commit}}
+      - -X github.com/andresbott/etna/app/metainfo.Version={{.Version}}
+      - -X github.com/andresbott/etna/app/metainfo.BuildTime={{.Date}}
+      - -X github.com/andresbott/etna/app/metainfo.ShaVer={{.Commit}}
     flags:
       - -trimpath
-    binary: bumbu-todo
+    binary: etna
 
   # =====================================================================================
   # MacOs builds:
@@ -64,19 +64,19 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/go-bumbu/todo-app/app/metainfo.Version={{.Version}}
-      - -X github.com/go-bumbu/todo-app/app/metainfo.BuildTime={{.Date}}
-      - -X github.com/go-bumbu/todo-app/app/metainfo.ShaVer={{.Commit}}
+      - -X github.com/andresbott/etna/app/metainfo.Version={{.Version}}
+      - -X github.com/andresbott/etna/app/metainfo.BuildTime={{.Date}}
+      - -X github.com/andresbott/etna/app/metainfo.ShaVer={{.Commit}}
     flags:
       - -trimpath
-    binary: bumbu-todo
+    binary: etna
 
 
 archives:
-  - format: tar.gz
+  - formats: [tar.gz]
     # this name template makes the OS and Arch compatible with the results of uname.
     name_template: >-
-      bumbu-todo
+      etna
       {{- title .Os  }}_
       {{- if eq .Arch "amd64" }}x86_64_{{ .Amd64 }}
       {{- else if eq .Arch "386" }}i386
@@ -85,13 +85,13 @@ archives:
     # use zip for windows archives
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [ zip ]
 
 # see full detail: https://goreleaser.com/customization/nfpm/
 nfpms:
   -
-    id: bumbu-todo
-    package_name: bumbu-todo
+    id: etna
+    package_name: etna
 
     maintainer: "Andres Bott <contact@andresbott.com>"
     homepage: https://github.com/go-bumbu/todo-app
