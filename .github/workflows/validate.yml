@@ -16,7 +16,7 @@ jobs:
       # Install go-licence-detector
       - name: Install go-licence-detector
         run: |
-          go install github.com/elastic/go-licence-detector@latest
+          go install go.elastic.co/go-licence-detector@v0.10.0
 
       - name: verify code
         run: make verify
