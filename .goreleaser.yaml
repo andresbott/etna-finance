@@ -64,8 +64,8 @@ archives:
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
     files:
-      - source: zarf/sample-config.yaml
-        destination: config.yaml
+      - src: zarf/sample-config.yaml
+        dst: config.yaml
 
 
 
