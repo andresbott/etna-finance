@@ -30,6 +30,12 @@ jobs:
           cache: 'npm'
           cache-dependency-path: webui/package-lock.json
 
+      # Setup cross arch compiler
+      - name: Install cross-compiler for aarch64
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu          
+
       # Build frontend in webui
       - name: Install NPM dependencies
         working-directory: webui

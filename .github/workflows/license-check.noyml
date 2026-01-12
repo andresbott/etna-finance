@@ -1,10 +1,10 @@
 name: License check
-#on:
-#  push:
-#    branches:
-#      - main
-#      - master
-#  pull_request:
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
 
 jobs:
   license-check:
