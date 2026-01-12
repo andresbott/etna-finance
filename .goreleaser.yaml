@@ -14,9 +14,9 @@ builds:
       - amd64
       - arm64
     goamd64:
-#      - v1
-#      - v2
-#      - v3
+      - v1
+      - v2
+      - v3
       - v4
     flags:
       - -trimpath
@@ -31,27 +31,27 @@ builds:
         {{- if eq .Arch "arm64" }}CC=aarch64-linux-gnu-gcc{{- end }}
         {{- if eq .Arch "arm" }}CC=arm-linux-gnueabi-gcc{{- end }}    
 
-#  # =====================================================================================
-#  # Windows build
-#  # =====================================================================================
-#  - id: windows
-#    goos:
-#      - windows
-#    goarch:
-#      - amd64
-#      - arm64
-#    goamd64:
-#      - v2
-#      - v3
-#      - v4
-#    ldflags:
-#      - -s -w
-#      - -X github.com/andresbott/etna/app/metainfo.Version={{.Version}}
-#      - -X github.com/andresbott/etna/app/metainfo.BuildTime={{.Date}}
-#      - -X github.com/andresbott/etna/app/metainfo.ShaVer={{.Commit}}
-#    flags:
-#      - -trimpath
-#    binary: etna
+  # =====================================================================================
+  # Windows build
+  # =====================================================================================
+  - id: windows
+    goos:
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    goamd64:
+      - v2
+      - v3
+      - v4
+    ldflags:
+      - -s -w
+      - -X github.com/andresbott/etna/app/metainfo.Version={{.Version}}
+      - -X github.com/andresbott/etna/app/metainfo.BuildTime={{.Date}}
+      - -X github.com/andresbott/etna/app/metainfo.ShaVer={{.Commit}}
+    flags:
+      - -trimpath
+    binary: etna
 
 archives:
   - formats: [zip]
@@ -64,16 +64,17 @@ archives:
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
     files:
+      - LICENSE
+      - README.md
       - src: zarf/sample-config.yaml
         dst: config.yaml
-
 
 
 # see full detail: https://goreleaser.com/customization/nfpm/
 nfpms:
   -
-    id: etna
-    package_name: etna
+    id: etna-finance
+    package_name: etna-finance
 
     maintainer: "Andres Bott <contact@andresbott.com>"
     homepage: https://github.com/go-bumbu/todo-app
@@ -82,6 +83,15 @@ nfpms:
       license: LGPL3
     formats:
       - deb
+
+    contents:
+      # Basic file that applies to all packagers
+      - src: zarf/sample-config.yaml
+        dst: /etc/etna-finance/config.yaml
+      - src: README.md
+        dst: /usr/share/doc/etna-finance/README.md
+      - src: LICENSE
+        dst: /usr/share/doc/etna-finance/LICENSE
 
     # Version Prerelease.
     # Default is extracted from `version` if it is semver compatible.
@@ -102,7 +112,3 @@ changelog:
       - '^docs:'
       - '^test:'
 
-# The lines beneath this are called `modelines`. See `:help modeline`
-# Feel free to remove those if you don't want/use them.
-# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
-# vim: set ts=2 sw=2 tw=0 fo=cnqoj
