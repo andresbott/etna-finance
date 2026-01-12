@@ -14,9 +14,9 @@ builds:
       - amd64
       - arm64
     goamd64:
-      - v1
-      - v2
-      - v3
+#      - v1
+#      - v2
+#      - v3
       - v4
     flags:
       - -trimpath
@@ -31,42 +31,43 @@ builds:
         {{- if eq .Arch "arm64" }}CC=aarch64-linux-gnu-gcc{{- end }}
         {{- if eq .Arch "arm" }}CC=arm-linux-gnueabi-gcc{{- end }}    
 
-  # =====================================================================================
-  # Windows build
-  # =====================================================================================
-  - id: windows
-    goos:
-      - windows
-    goarch:
-      - amd64
-      - arm64
-    goamd64:
-      - v2
-      - v3
-      - v4
-    ldflags:
-      - -s -w
-      - -X github.com/andresbott/etna/app/metainfo.Version={{.Version}}
-      - -X github.com/andresbott/etna/app/metainfo.BuildTime={{.Date}}
-      - -X github.com/andresbott/etna/app/metainfo.ShaVer={{.Commit}}
-    flags:
-      - -trimpath
-    binary: etna
+#  # =====================================================================================
+#  # Windows build
+#  # =====================================================================================
+#  - id: windows
+#    goos:
+#      - windows
+#    goarch:
+#      - amd64
+#      - arm64
+#    goamd64:
+#      - v2
+#      - v3
+#      - v4
+#    ldflags:
+#      - -s -w
+#      - -X github.com/andresbott/etna/app/metainfo.Version={{.Version}}
+#      - -X github.com/andresbott/etna/app/metainfo.BuildTime={{.Date}}
+#      - -X github.com/andresbott/etna/app/metainfo.ShaVer={{.Commit}}
+#    flags:
+#      - -trimpath
+#    binary: etna
 
 archives:
-  - formats: [tar.gz]
+  - formats: [zip]
     # this name template makes the OS and Arch compatible with the results of uname.
     name_template: >-
-      etna
+      etna-finance_
       {{- title .Os  }}_
       {{- if eq .Arch "amd64" }}x86_64_{{ .Amd64 }}
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
-    # use zip for windows archives
-    format_overrides:
-      - goos: windows
-        formats: [ zip ]
+    files:
+      - source: zarf/sample-config.yaml
+        destination: config.yaml
+
+
 
 # see full detail: https://goreleaser.com/customization/nfpm/
 nfpms:
