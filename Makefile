@@ -132,8 +132,7 @@ check-branch:
 check-git-clean: # check if git repo is clen
 	@git diff --quiet
 
-#tag: check-git-clean check-branch ## create a git tag to publish a new release
-tag:  ## create a git tag to publish a new release
+tag: check-git-clean check-branch ## create a git tag to publish a new release
 	@[ "${version}" ] || ( echo ">> version is not set, usage: make release version=\"v1.2.3\" "; exit 1 )
 	@git tag -d $(version) || true
 	@git tag -a $(version) -m "Release version: $(version)"
