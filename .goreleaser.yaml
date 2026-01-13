@@ -25,7 +25,7 @@ builds:
       - -X github.com/andresbott/etna/app/metainfo.Version={{.Version}}
       - -X github.com/andresbott/etna/app/metainfo.BuildTime={{.Date}}
       - -X github.com/andresbott/etna/app/metainfo.ShaVer={{.Commit}}
-    binary: etna
+    binary: etna-finance
     env:
       - >-
         {{- if eq .Arch "arm64" }}CC=aarch64-linux-gnu-gcc{{- end }}
@@ -51,7 +51,7 @@ builds:
       - -X github.com/andresbott/etna/app/metainfo.ShaVer={{.Commit}}
     flags:
       - -trimpath
-    binary: etna
+    binary: etna-finance
 
 archives:
   - formats: [zip]
@@ -66,7 +66,7 @@ archives:
     files:
       - LICENSE
       - README.md
-      - src: zarf/sample-config.yaml
+      - src: zarf/pkg/sample-config.yaml
         dst: config.yaml
 
 
@@ -86,12 +86,19 @@ nfpms:
 
     contents:
       # Basic file that applies to all packagers
-      - src: zarf/sample-config.yaml
+      - src: zarf/pkg/deb-config.yaml
         dst: /etc/etna-finance/config.yaml
       - src: README.md
         dst: /usr/share/doc/etna-finance/README.md
       - src: LICENSE
         dst: /usr/share/doc/etna-finance/LICENSE
+      # systemd service file
+      - src: zarf/pkg/systemd.service
+        dst: /lib/systemd/system/etna-finance.service
+    scripts:
+      preinstall: zarf/pkg/preinstall.sh
+      postinstall: zarf/pkg/postinstall.sh
+      postremove: zarf/pkg/postremove.sh
 
     # Version Prerelease.
     # Default is extracted from `version` if it is semver compatible.

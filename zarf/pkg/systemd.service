@@ -1,0 +1,16 @@
+[Unit]
+Description=etna-finance
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/etna-finance start -c /etc/etna-finance/config.yaml
+WorkingDirectory=/usr/share/etna-finance
+Restart=on-failure
+RestartSec=5
+User=etna-finance
+Group=etna-finance
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
