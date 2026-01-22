@@ -1,6 +1,7 @@
 [Unit]
 Description=etna-finance
-After=network.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
@@ -10,7 +11,13 @@ Restart=on-failure
 RestartSec=5
 User=etna-finance
 Group=etna-finance
+
+# Security settings
 NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/usr/share/etna-finance
 
 [Install]
 WantedBy=multi-user.target
