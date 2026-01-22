@@ -104,7 +104,7 @@ func (store *Store) CreateIncome(ctx context.Context, item Income, tenant string
 		return 0, fmt.Errorf("error creating income: %w", err)
 	}
 	allowedAccountTypes := []AccountType{
-		CashAccountType, CheckinAccountType,
+		CashAccountType, CheckinAccountType, SavingsAccountType,
 	}
 	if !slices.Contains(allowedAccountTypes, acc.Type) {
 		return 0, NewValidationErr(fmt.Sprintf("incompatible account type %s for income transaction", acc.Type.String()))
@@ -155,7 +155,7 @@ func (store *Store) CreateExpense(ctx context.Context, item Expense, tenant stri
 		return 0, fmt.Errorf("error creating expense: %w", err)
 	}
 	allowedAccountTypes := []AccountType{
-		CashAccountType, CheckinAccountType,
+		CashAccountType, CheckinAccountType, SavingsAccountType,
 	}
 	if !slices.Contains(allowedAccountTypes, acc.Type) {
 		return 0, NewValidationErr(fmt.Sprintf("incompatible account type %s for expense transaction", acc.Type.String()))
@@ -209,7 +209,7 @@ func (store *Store) CreateTransfer(ctx context.Context, item Transfer, tenant st
 	}
 
 	allowedAccountTypes := []AccountType{
-		CashAccountType, CheckinAccountType,
+		CashAccountType, CheckinAccountType, SavingsAccountType,
 	}
 	if !slices.Contains(allowedAccountTypes, originAcc.Type) {
 		return 0, NewValidationErr(fmt.Sprintf("incompatible account type %s for transfer transaction", originAcc.Type.String()))
@@ -508,7 +508,7 @@ func (store *Store) updateIncomeExpense(ctx context.Context, params updateIncome
 		}
 
 		allowedAccountTypes := []AccountType{
-			CashAccountType, CheckinAccountType,
+			CashAccountType, CheckinAccountType, SavingsAccountType,
 		}
 		if !slices.Contains(allowedAccountTypes, acc.Type) {
 			return NewValidationErr(fmt.Sprintf("incompatible account type '%s' for transaction", acc.Type.String()))
@@ -648,7 +648,7 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 	}
 
 	allowedAccountTypes := []AccountType{
-		CashAccountType, CheckinAccountType,
+		CashAccountType, CheckinAccountType, SavingsAccountType,
 	}
 
 	if input.TargetAccountID != nil {
