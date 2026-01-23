@@ -102,6 +102,24 @@ const accountCurrency = computed(() => {
     return ''
 })
 
+const accountType = computed(() => {
+    if (!accountId.value) return null
+    if (!accounts?.value) return null
+    
+    // Find the account type
+    for (const provider of accounts.value) {
+        if (provider.accounts) {
+            for (const account of provider.accounts) {
+                if (String(account.id) === String(accountId.value)) {
+                    return account.type
+                }
+            }
+        }
+    }
+    
+    return null
+})
+
 const accountTitle = computed(() => {
     if (accountCurrency.value) {
         return `${accountName.value} (${accountCurrency.value})`
@@ -245,6 +263,7 @@ const handleDeleteEntry = async () => {
                     <AddEntryMenu 
                         :default-account-id="Number(accountId)"
                         :default-origin-account-id="Number(accountId)"
+                        :account-type="accountType"
                     />
                 </div>
             </div>

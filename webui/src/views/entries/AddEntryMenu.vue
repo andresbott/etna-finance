@@ -1,9 +1,10 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import Select from 'primevue/select'
 import IncomeExpenseDialog from '@/views/entries/dialogs/IncomeExpenseDialog.vue'
 import StockDialog from './dialogs/StockDialog.vue'
 import TransferDialog from '@/views/entries/dialogs/TransferDialog.vue'
+import { getAllowedOperations } from '@/types/account'
 
 /* Props for pre-populating account fields */
 const props = defineProps({
@@ -15,6 +16,12 @@ const props = defineProps({
     // Pre-populate origin account for transfers
     defaultOriginAccountId: {
         type: Number,
+        default: null
+    },
+    // Account type for filtering allowed operations
+    // When null/undefined, all operations are shown (e.g., "All Transactions" view)
+    accountType: {
+        type: String,
         default: null
     }
 })
@@ -41,8 +48,8 @@ const handleSelection = (event) => {
     }
 }
 
-/* Setup dropdown options */
-const dropdownOptions = ref([
+/* All available dropdown options */
+const allDropdownOptions = [
     {
         label: 'Add Expense',
         value: 'expense',
@@ -63,7 +70,13 @@ const dropdownOptions = ref([
         value: 'stock',
         icon: 'pi pi-chart-line'
     }
-])
+]
+
+/* Filtered dropdown options based on account type */
+const dropdownOptions = computed(() => {
+    const allowedOps = getAllowedOperations(props.accountType)
+    return allDropdownOptions.filter(option => allowedOps.includes(option.value))
+})
 
 // Define selectedEntry for the stock dialog
 const selectedEntry = ref(null)

@@ -58,12 +58,19 @@ const getFormattedAccountId = (accountId) => {
     return { [accountId]: true }
 }
 
+// Strip time from date for date-only display
+const getDateOnly = (date) => {
+    if (!date) return new Date(new Date().setHours(0, 0, 0, 0))
+    const d = new Date(date)
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate())
+}
+
 const formValues = ref({
     description: props.description,
     amount: props.amount,
     AccountId: getFormattedAccountId(props.accountId),
     stockAmount: props.stockAmount,
-    date: props.date
+    date: getDateOnly(props.date)
 })
 
 // Watch props to update form values when editing
@@ -73,7 +80,7 @@ watch(props, (newProps) => {
         amount: newProps.amount,
         AccountId: getFormattedAccountId(newProps.accountId),
         stockAmount: newProps.stockAmount,
-        date: newProps.date
+        date: getDateOnly(newProps.date)
     }
 })
 
@@ -219,6 +226,7 @@ const emit = defineEmits(['update:visible'])
         :draggable="false"
         modal
         :header="dialogTitle"
+        class="entry-dialog"
     >
         <Form
             v-slot="$form"
@@ -236,20 +244,6 @@ const emit = defineEmits(['update:visible'])
                     <InputText id="description" name="description" v-focus v-else />
                     <Message v-if="$form.description?.invalid" severity="error" size="small">
                         {{ $form.description.error?.message }}
-                    </Message>
-                </div>
-
-                <!-- Account field -->
-                <div>
-                    <label for="AccountId" class="form-label">Account</label>
-                    <AccountSelector
-                        v-model="formValues.AccountId"
-                        name="AccountId"
-                        @update:modelValue="handleAccountSelection"
-                        :accountTypes="['cash', 'checkin', 'bank', 'savings']"
-                    />
-                    <Message v-if="$form.AccountId?.invalid" severity="error" size="small">
-                        {{ $form.AccountId.error?.message }}
                     </Message>
                 </div>
 
@@ -288,12 +282,28 @@ const emit = defineEmits(['update:visible'])
                     <DatePicker
                         id="date"
                         name="date"
+                        v-model="formValues.date"
                         :showIcon="true"
+                        iconDisplay="input"
                         dateFormat="dd/mm/yy"
                         :showButtonBar="true"
                     />
                     <Message v-if="$form.date?.invalid" severity="error" size="small">
                         {{ $form.date.error?.message }}
+                    </Message>
+                </div>
+
+                <!-- Account field -->
+                <div>
+                    <label for="AccountId" class="form-label">Account</label>
+                    <AccountSelector
+                        v-model="formValues.AccountId"
+                        name="AccountId"
+                        @update:modelValue="handleAccountSelection"
+                        :accountTypes="['cash', 'checkin', 'bank', 'savings']"
+                    />
+                    <Message v-if="$form.AccountId?.invalid" severity="error" size="small">
+                        {{ $form.AccountId.error?.message }}
                     </Message>
                 </div>
 
@@ -318,9 +328,3 @@ const emit = defineEmits(['update:visible'])
         </Form>
     </Dialog>
 </template>
-<style>
-.form-label {
-    display: block;
-    font-weight: 500;
-}
-</style>

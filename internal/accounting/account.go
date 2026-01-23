@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
+
 	"golang.org/x/text/currency"
 	"gorm.io/gorm"
-	"time"
 )
 
 // =======================================================================================
@@ -19,6 +20,7 @@ type AccountProvider struct {
 	ID          uint
 	Name        string
 	Description string
+	Icon        string
 	Accounts    []Account
 }
 
@@ -31,6 +33,7 @@ type dbAccountProvider struct {
 
 	Name        string
 	Description string
+	Icon        string
 	Accounts    []dbAccount `gorm:"foreignKey:ProviderID;"` // has many
 }
 
@@ -43,6 +46,7 @@ func (store *Store) CreateAccountProvider(ctx context.Context, item AccountProvi
 		OwnerId:     tenant, // ensure tenant is set by the signature
 		Name:        item.Name,
 		Description: item.Description,
+		Icon:        item.Icon,
 	}
 
 	d := store.db.WithContext(ctx).Create(&payload)
@@ -69,6 +73,7 @@ func (store *Store) GetAccountProvider(ctx context.Context, Id uint, tenant stri
 type AccountProviderUpdatePayload struct {
 	Name        *string
 	Description *string
+	Icon        *string
 }
 
 func (store *Store) UpdateAccountProvider(item AccountProviderUpdatePayload, Id uint, tenant string) error {
@@ -82,6 +87,10 @@ func (store *Store) UpdateAccountProvider(item AccountProviderUpdatePayload, Id 
 	if item.Description != nil {
 		updateStruct.Description = *item.Description
 		selectedFields = append(selectedFields, "Description")
+	}
+	if item.Icon != nil {
+		updateStruct.Icon = *item.Icon
+		selectedFields = append(selectedFields, "Icon")
 	}
 	if len(selectedFields) == 0 {
 		return ErrNoChanges
@@ -170,6 +179,7 @@ func dbToAccountProvider(in dbAccountProvider) AccountProvider {
 		ID:          in.ID,
 		Name:        in.Name,
 		Description: in.Description,
+		Icon:        in.Icon,
 		Accounts:    accounts,
 	}
 }
@@ -215,6 +225,7 @@ type Account struct {
 	AccountProviderID uint
 	Name              string
 	Description       string
+	Icon              string
 	Currency          currency.Unit
 	Type              AccountType
 }
@@ -225,6 +236,7 @@ type dbAccount struct {
 	ProviderID  uint `gorm:"index"`
 	Name        string
 	Description string
+	Icon        string
 	Type        AccountType
 	Currency    string
 	OwnerId     string `gorm:"index"`
@@ -241,6 +253,7 @@ func dbToAccount(in dbAccount) Account {
 		AccountProviderID: in.ProviderID,
 		Name:              in.Name,
 		Description:       in.Description,
+		Icon:              in.Icon,
 		Currency:          currency.MustParseISO(in.Currency),
 		Type:              in.Type,
 	}
@@ -267,6 +280,7 @@ func (store *Store) CreateAccount(ctx context.Context, item Account, tenant stri
 		ProviderID:  item.AccountProviderID,
 		Name:        item.Name,
 		Description: item.Description,
+		Icon:        item.Icon,
 		Type:        item.Type,
 		Currency:    item.Currency.String(),
 	}
@@ -294,6 +308,7 @@ func (store *Store) GetAccount(ctx context.Context, Id uint, tenant string) (Acc
 type AccountUpdatePayload struct {
 	Name        *string
 	Description *string
+	Icon        *string
 	Currency    *currency.Unit
 	ProviderID  *uint
 	Type        AccountType
@@ -310,8 +325,13 @@ func (store *Store) UpdateAccount(ctx context.Context, item AccountUpdatePayload
 	}
 
 	if item.Description != nil {
-		updateStruct.Name = *item.Description
+		updateStruct.Description = *item.Description
 		selectedFields = append(selectedFields, "Description")
+	}
+
+	if item.Icon != nil {
+		updateStruct.Icon = *item.Icon
+		selectedFields = append(selectedFields, "Icon")
 	}
 
 	if item.Type != UnknownAccountType {

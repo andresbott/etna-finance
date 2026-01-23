@@ -9,6 +9,7 @@ import Select from 'primevue/select'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
 import { useAccounts } from '@/composables/useAccounts.js'
+import IconSelect from '@/components/common/IconSelect.vue'
 
 const { createAccount, updateAccount, isCreating, isUpdating } = useAccounts()
 
@@ -18,6 +19,7 @@ const props = defineProps({
     name: { type: String, default: '' },
     currency: { type: String, default: 'CHF' },
     type: { type: String, default: 'cash' },
+    icon: { type: String, default: 'pi-wallet' },
     visible: { type: Boolean, default: false },
     providerId: { type: Number, required: true }
 })
@@ -26,6 +28,9 @@ const emit = defineEmits(['update:visible'])
 
 const currencies = ref(['CHF', 'USD', 'EUR'])
 const accountTypes = ref(['cash', 'checkin','savings','investment'])
+
+// Separate ref for icon since it's not managed by the Form
+const selectedIcon = ref(props.icon)
 
 const formValues = ref({
     name: props.name,
@@ -36,6 +41,7 @@ const formValues = ref({
 // Watch props to update form values when editing
 watch(props, (newProps) => {
     formValues.value = { ...newProps }
+    selectedIcon.value = newProps.icon || 'pi-wallet'
 })
 
 const resolver = ref(
@@ -52,6 +58,7 @@ const onFormSubmit = async (e) => {
     if (e.valid) {
         const formData = {
             ...e.values,
+            icon: selectedIcon.value,
             accountId: props.accountId,
             providerId: props.providerId
         }
@@ -63,6 +70,7 @@ const onFormSubmit = async (e) => {
                     name: formData.name,
                     currency: formData.currency,
                     type: formData.type,
+                    icon: formData.icon,
                     providerId: formData.providerId
                 })
                 emit('update:visible', false)
@@ -76,6 +84,7 @@ const onFormSubmit = async (e) => {
                     name: formData.name,
                     currency: formData.currency,
                     type: formData.type,
+                    icon: formData.icon,
                     providerId: formData.providerId
                 })
                 emit('update:visible', false)
@@ -96,6 +105,7 @@ const onFormSubmit = async (e) => {
             :draggable="false"
             modal
             :header="isEdit ? 'Edit Account' : 'Add New Account'"
+            class="entry-dialog"
         >
             <Form
                 v-slot="$form"
@@ -136,6 +146,10 @@ const onFormSubmit = async (e) => {
                             $form.type.error?.message
                         }}</Message>
                     </div>
+                    <div>
+                        <label for="icon" class="form-label">Icon</label>
+                        <IconSelect v-model="selectedIcon" />
+                    </div>
 
                     <div class="flex justify-content-end gap-3">
                         <Button
@@ -157,9 +171,3 @@ const onFormSubmit = async (e) => {
         </Dialog>
     </div>
 </template>
-<style>
-.form-label {
-    display: block;
-    font-weight: 500;
-}
-</style>

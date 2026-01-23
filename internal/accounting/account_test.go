@@ -2,12 +2,13 @@ package accounting
 
 import (
 	"context"
+	"testing"
+	"time"
+
 	"github.com/go-bumbu/testdbs"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"golang.org/x/text/currency"
-	"testing"
-	"time"
 )
 
 func TestCreateAccountProvider(t *testing.T) {
@@ -23,6 +24,11 @@ func TestCreateAccountProvider(t *testing.T) {
 					name:   "create valid account provider",
 					tenant: tenant1,
 					input:  AccountProvider{Name: "provider1", Description: "test provider"},
+				},
+				{
+					name:   "create account provider with icon",
+					tenant: tenant1,
+					input:  AccountProvider{Name: "provider_with_icon", Description: "test provider", Icon: "bank-icon"},
 				},
 				{
 					name:    "want error on empty name",
@@ -212,14 +218,21 @@ func TestUpdateAccountProvider(t *testing.T) {
 					updateTenant:  tenant1,
 					updateID:      1,
 					updatePayload: AccountProviderUpdatePayload{Name: ptr("Updated Name")},
-					want:          AccountProvider{Name: "Updated Name", Description: "provider1", Accounts: []Account{}},
+					want:          AccountProvider{Name: "Updated Name", Description: "provider1", Icon: "bank", Accounts: []Account{}},
 				},
 				{
 					name:          "update description",
 					updateTenant:  tenant1,
 					updateID:      2,
 					updatePayload: AccountProviderUpdatePayload{Description: ptr("Updated description")},
-					want:          AccountProvider{Name: "provider2", Description: "Updated description", Accounts: []Account{}},
+					want:          AccountProvider{Name: "provider2", Description: "Updated description", Icon: "wallet", Accounts: []Account{}},
+				},
+				{
+					name:          "update icon",
+					updateTenant:  tenant1,
+					updateID:      3,
+					updatePayload: AccountProviderUpdatePayload{Icon: ptr("new-icon")},
+					want:          AccountProvider{Name: "provider3", Description: "provider3", Icon: "new-icon", Accounts: []Account{}},
 				},
 				{
 					name:          "error when updating non-existent account",
@@ -295,16 +308,16 @@ func TestListAccountsProvider(t *testing.T) {
 					preload:     true,
 					checkTenant: tenant1,
 					want: []AccountProvider{
-						{Name: "provider1", Description: "provider1", Accounts: []Account{
-							{ID: 1, Name: "acc1", Currency: currency.EUR, Type: CashAccountType, AccountProviderID: 1},
-							{ID: 3, Name: "acc3", Currency: currency.EUR, Type: CashAccountType, AccountProviderID: 1},
-							{ID: 4, Name: "acc4", Currency: currency.EUR, Type: UnknownAccountType, AccountProviderID: 1},
-							{ID: 5, Name: "acc5", Currency: currency.EUR, Type: InvestmentAccountType, AccountProviderID: 1},
+						{Name: "provider1", Description: "provider1", Icon: "bank", Accounts: []Account{
+							{ID: 1, Name: "acc1", Icon: "euro", Currency: currency.EUR, Type: CashAccountType, AccountProviderID: 1},
+							{ID: 3, Name: "acc3", Icon: "", Currency: currency.EUR, Type: CashAccountType, AccountProviderID: 1},
+							{ID: 4, Name: "acc4", Icon: "savings", Currency: currency.EUR, Type: UnknownAccountType, AccountProviderID: 1},
+							{ID: 5, Name: "acc5", Icon: "chart", Currency: currency.EUR, Type: InvestmentAccountType, AccountProviderID: 1},
 						}},
-						{Name: "provider2", Description: "provider2", Accounts: []Account{
-							{ID: 2, Name: "acc2", Currency: currency.USD, Type: CashAccountType, AccountProviderID: 2},
+						{Name: "provider2", Description: "provider2", Icon: "wallet", Accounts: []Account{
+							{ID: 2, Name: "acc2", Icon: "dollar", Currency: currency.USD, Type: CashAccountType, AccountProviderID: 2},
 						}},
-						{Name: "provider3", Description: "provider3", Accounts: []Account{}}, // 3 does not have accounts
+						{Name: "provider3", Description: "provider3", Icon: "", Accounts: []Account{}}, // 3 does not have accounts
 					},
 				},
 				{
@@ -363,6 +376,11 @@ func TestCreateAccount(t *testing.T) {
 					name:   "create valid account",
 					tenant: tenant1,
 					input:  Account{Name: "Main", Currency: currency.USD, Type: InvestmentAccountType, AccountProviderID: 1},
+				},
+				{
+					name:   "create account with icon",
+					tenant: tenant1,
+					input:  Account{Name: "Main with Icon", Icon: "wallet-icon", Currency: currency.USD, Type: InvestmentAccountType, AccountProviderID: 1},
 				},
 				{
 					name:    "want error on empty name",
@@ -588,28 +606,35 @@ func TestUpdateAccount(t *testing.T) {
 					updateID:      1,
 					updateTenant:  tenant1,
 					updatePayload: AccountUpdatePayload{Name: ptr("Updated Name")},
-					want:          Account{ID: 1, Name: "Updated Name", Currency: currency.EUR, Type: CashAccountType, AccountProviderID: 1},
+					want:          Account{ID: 1, Name: "Updated Name", Icon: "euro", Currency: currency.EUR, Type: CashAccountType, AccountProviderID: 1},
 				},
 				{
 					name:          "update currency",
 					updateID:      2,
 					updateTenant:  tenant1,
 					updatePayload: AccountUpdatePayload{Currency: &currency.EUR},
-					want:          Account{ID: 2, Name: "acc2", Currency: currency.EUR, Type: CashAccountType, AccountProviderID: 2},
+					want:          Account{ID: 2, Name: "acc2", Icon: "dollar", Currency: currency.EUR, Type: CashAccountType, AccountProviderID: 2},
 				},
 				{
 					name:          "update Type",
 					updateID:      3,
 					updateTenant:  tenant1,
 					updatePayload: AccountUpdatePayload{Type: InvestmentAccountType},
-					want:          Account{ID: 3, Name: "acc3", Currency: currency.EUR, Type: InvestmentAccountType, AccountProviderID: 1},
+					want:          Account{ID: 3, Name: "acc3", Icon: "", Currency: currency.EUR, Type: InvestmentAccountType, AccountProviderID: 1},
 				},
 				{
 					name:          "update Provider Id",
 					updateID:      4,
 					updateTenant:  tenant1,
 					updatePayload: AccountUpdatePayload{ProviderID: ptr(uint(2))},
-					want:          Account{ID: 4, Name: "acc4", Currency: currency.EUR, Type: 0, AccountProviderID: 2},
+					want:          Account{ID: 4, Name: "acc4", Icon: "savings", Currency: currency.EUR, Type: 0, AccountProviderID: 2},
+				},
+				{
+					name:          "update icon",
+					updateID:      5,
+					updateTenant:  tenant1,
+					updatePayload: AccountUpdatePayload{Icon: ptr("new-chart-icon")},
+					want:          Account{ID: 5, Name: "acc5", Icon: "new-chart-icon", Currency: currency.CHF, Type: InvestmentAccountType, AccountProviderID: 1},
 				},
 				{
 					name:          "error when updating non-existent account",
@@ -731,22 +756,22 @@ func TestListAccounts(t *testing.T) {
 }
 
 var sampleAccountProviders = []AccountProvider{
-	{Name: "provider1", Description: "provider1", Accounts: []Account{}},           // 1
-	{Name: "provider2", Description: "provider2", Accounts: []Account{}},           // 2
-	{Name: "provider3", Description: "provider3", Accounts: []Account{}},           // 3 does not have accounts
-	{Name: "provider4_tenant2", Description: "provider4t2", Accounts: []Account{}}, // 3 does not have accounts
+	{Name: "provider1", Description: "provider1", Icon: "bank", Accounts: []Account{}},             // 1
+	{Name: "provider2", Description: "provider2", Icon: "wallet", Accounts: []Account{}},           // 2
+	{Name: "provider3", Description: "provider3", Icon: "", Accounts: []Account{}},                 // 3 does not have accounts
+	{Name: "provider4_tenant2", Description: "provider4t2", Icon: "credit", Accounts: []Account{}}, // 4 tenant2
 }
 
 var sampleAccounts = []Account{
-	{ID: 1, Name: "acc1", Currency: currency.EUR, Type: CashAccountType, AccountProviderID: 1},
-	{ID: 2, Name: "acc2", Currency: currency.USD, Type: CashAccountType, AccountProviderID: 2},
-	{ID: 3, Name: "acc3", Currency: currency.EUR, Type: CashAccountType, AccountProviderID: 1},
-	{ID: 4, Name: "acc4", Currency: currency.EUR, Type: UnknownAccountType, AccountProviderID: 1},
-	{ID: 5, Name: "acc5", Currency: currency.CHF, Type: InvestmentAccountType, AccountProviderID: 1},
+	{ID: 1, Name: "acc1", Icon: "euro", Currency: currency.EUR, Type: CashAccountType, AccountProviderID: 1},
+	{ID: 2, Name: "acc2", Icon: "dollar", Currency: currency.USD, Type: CashAccountType, AccountProviderID: 2},
+	{ID: 3, Name: "acc3", Icon: "", Currency: currency.EUR, Type: CashAccountType, AccountProviderID: 1},
+	{ID: 4, Name: "acc4", Icon: "savings", Currency: currency.EUR, Type: UnknownAccountType, AccountProviderID: 1},
+	{ID: 5, Name: "acc5", Icon: "chart", Currency: currency.CHF, Type: InvestmentAccountType, AccountProviderID: 1},
 }
 
 var sampleAccounts2 = []Account{
-	{ID: 6, Name: "acc1tenant2", Currency: currency.EUR, Type: 0, AccountProviderID: 4},
+	{ID: 6, Name: "acc1tenant2", Icon: "foreign", Currency: currency.EUR, Type: 0, AccountProviderID: 4},
 }
 
 func accountSampleData(t *testing.T, store *Store) {

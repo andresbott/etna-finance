@@ -82,7 +82,7 @@ const selectedCategoryDisplay = computed(() => {
 
 <template>
     <div class="field">
-        <label for="category-parent">Parent Category</label>
+        <label for="category-parent">Category</label>
         <TreeSelect
             id="category-parent"
             :options="categoryTreeData"

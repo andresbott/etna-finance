@@ -83,3 +83,34 @@ a {
     margin: 0 auto;
     padding: 0 20px;
 }
+
+/* Form label styles */
+.form-label {
+    display: block;
+    font-weight: 500;
+}
+
+/* Entry Dialog Styles - consistent responsive dialogs */
+.entry-dialog {
+    width: 90vw;
+    max-width: 500px;
+    
+    &.entry-dialog--wide {
+        max-width: 700px;
+    }
+    
+    /* Make all form inputs full width within dialogs */
+    .p-inputtext,
+    .p-inputnumber,
+    .p-datepicker,
+    .p-select,
+    .p-treeselect,
+    .p-dropdown {
+        width: 100%;
+    }
+    
+    /* Ensure InputNumber's internal input takes full width */
+    .p-inputnumber-input {
+        width: 100%;
+    }
+}
