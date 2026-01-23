@@ -53,7 +53,18 @@ const getFormattedAccountId = (accountId) => {
     return { [accountId]: true }
 }
 
+// Strip time from date for date-only display
+const getDateOnly = (date) => {
+    if (!date) return new Date(new Date().setHours(0, 0, 0, 0))
+    const d = new Date(date)
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate())
+}
+
 const formValues = ref({
+    description: props.description,
+    date: getDateOnly(props.date),
+    targetAmount: props.targetAmount,
+    originAmount: props.originAmount,
     targetAccountId: getFormattedAccountId(props.targetAccountId),
     originAccountId: getFormattedAccountId(props.originAccountId)
 })
@@ -61,7 +72,10 @@ const formValues = ref({
 // Watch props to update form values when editing
 watch(props, (newProps) => {
     formValues.value = {
-        ...newProps,
+        description: newProps.description,
+        date: getDateOnly(newProps.date),
+        targetAmount: newProps.targetAmount,
+        originAmount: newProps.originAmount,
         targetAccountId: getFormattedAccountId(newProps.targetAccountId),
         originAccountId: getFormattedAccountId(newProps.originAccountId)
     }
@@ -271,7 +285,9 @@ const emit = defineEmits(['update:visible'])
                         <DatePicker
                             id="date"
                             name="date"
+                            v-model="formValues.date"
                             :showIcon="true"
+                            iconDisplay="input"
                             dateFormat="dd/mm/yy"
                             class="w-full"
                             :showButtonBar="true"
