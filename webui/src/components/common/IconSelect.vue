@@ -372,9 +372,11 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue'])
 
 const popoverRef = ref(null)
+const triggerRef = ref(null)
 const searchInputRef = ref(null)
 const searchQuery = ref('')
 const isOpen = ref(false)
+const popoverWidth = ref('360px')
 
 // Find current icon name for display
 const currentIconName = computed(() => {
@@ -396,6 +398,9 @@ const toggleDropdown = (event) => {
 const onPopoverShow = () => {
     isOpen.value = true
     searchQuery.value = ''
+    if (triggerRef.value) {
+        popoverWidth.value = `${triggerRef.value.offsetWidth}px`
+    }
     nextTick(() => {
         searchInputRef.value?.$el?.focus()
     })
@@ -415,14 +420,15 @@ const selectIcon = (icon) => {
     <div class="icon-select">
         <!-- Trigger Button -->
         <button 
+            ref="triggerRef"
             type="button" 
-            class="icon-select-trigger p-inputtext"
+            class="icon-select-trigger p-inputtext flex align-items-center gap-3 w-full cursor-pointer text-left"
             :class="{ 'icon-select-trigger--open': isOpen }"
             @click="toggleDropdown"
         >
-            <i :class="modelValue" class="selected-icon"></i>
-            <span class="selected-name">{{ currentIconName }}</span>
-            <i class="pi pi-chevron-down trigger-arrow" :class="{ 'trigger-arrow--open': isOpen }"></i>
+            <i :class="modelValue" class="text-xl text-primary flex-shrink-0"></i>
+            <span class="flex-1 capitalize">{{ currentIconName }}</span>
+            <i class="pi pi-chevron-down text-xs opacity-60 flex-shrink-0" :class="{ 'rotate-180': isOpen }" style="transition: transform 0.2s"></i>
         </button>
 
         <!-- Icon Picker Dropdown -->
@@ -430,11 +436,11 @@ const selectIcon = (icon) => {
             ref="popoverRef"
             @show="onPopoverShow"
             @hide="onPopoverHide"
-            class="icon-picker-popover"
+            class="icon-select-popover"
         >
-            <div class="icon-picker-content">
+            <div class="icon-picker-content" :style="{ width: popoverWidth }">
                 <!-- Search Input -->
-                <div class="icon-search">
+                <div class="p-3 pb-4">
                     <IconField>
                         <InputIcon class="pi pi-search" />
                         <InputText 
@@ -457,162 +463,63 @@ const selectIcon = (icon) => {
                         @click="selectIcon(icon)"
                         :title="icon.name"
                     >
-                        <i :class="icon.class" class="icon-preview"></i>
+                        <i :class="icon.class" class="text-2xl"></i>
                     </button>
                 </div>
 
                 <!-- No Results -->
-                <div v-if="filteredIcons.length === 0" class="no-results">
-                    <i class="pi pi-search"></i>
-                    <p>No icons found for "{{ searchQuery }}"</p>
+                <div v-if="filteredIcons.length === 0" class="flex flex-column align-items-center justify-content-center p-4 text-color-secondary">
+                    <i class="pi pi-search text-4xl mb-3 opacity-50"></i>
+                    <p class="m-0">No icons found for "{{ searchQuery }}"</p>
                 </div>
             </div>
         </Popover>
     </div>
 </template>
 
-<style scoped>
-.icon-select {
-    width: 100%;
-    position: relative;
-}
-
-/* Trigger inherits from p-inputtext, we just add flexbox layout */
+<style>
 .icon-select-trigger {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    width: 100%;
-    cursor: pointer;
-    text-align: left;
     line-height: 1.5rem;
 }
 
-.selected-icon {
-    font-size: 1.25rem;
-    color: var(--c-primary-color);
-    flex-shrink: 0;
-}
-
-.selected-name {
-    flex: 1;
-    text-align: left;
-    text-transform: capitalize;
-}
-
-.trigger-arrow {
-    font-size: 0.75rem;
-    opacity: 0.6;
-    transition: transform 0.2s;
-    flex-shrink: 0;
-}
-
-.trigger-arrow--open {
-    transform: rotate(180deg);
-}
-
-/* Popover panel - inherit PrimeVue popover styling */
-:deep(.p-popover) {
+.icon-select-popover.p-popover,
+.icon-select-popover .p-popover-content {
     padding: 0;
 }
 
-:deep(.p-popover-content) {
-    padding: 0;
-}
-
-/* Popover Content Styles */
-.icon-picker-content {
-    width: 360px;
+.icon-select-popover .icon-picker-content {
+    min-width: 280px;
     max-width: calc(100vw - 2rem);
 }
 
-.icon-search {
-    padding: 0.75rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid var(--c-content-border-color);
-}
-
-.icons-grid {
+.icon-select-popover .icons-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
-    gap: var(--c-inputtext-padding-x);
+    gap: 0.5rem;
     max-height: 300px;
-    overflow-y: scroll;
-    overflow-x: hidden;
-    padding: 1rem 0.75rem 0.75rem 0.75rem;
-    scrollbar-width: thin;
-    scrollbar-color: var(--c-surface-400) var(--c-surface-100);
+    overflow-y: auto;
+    padding: 1rem;
 }
 
-.icons-grid::-webkit-scrollbar {
-    width: 8px;
-}
-
-.icons-grid::-webkit-scrollbar-track {
-    background: var(--c-surface-100);
-    border-radius: var(--c-border-radius);
-}
-
-.icons-grid::-webkit-scrollbar-thumb {
-    background: var(--c-surface-400);
-    border-radius: var(--c-border-radius);
-}
-
-.icons-grid::-webkit-scrollbar-thumb:hover {
-    background: var(--c-surface-500);
-}
-
-.icon-item {
+.icon-select-popover .icon-item {
     display: flex;
     align-items: center;
     justify-content: center;
     aspect-ratio: 1;
-    padding: var(--c-inputtext-padding-y);
     background: transparent;
     border: 1px solid transparent;
-    border-radius: var(--c-listbox-option-border-radius);
+    border-radius: var(--c-border-radius);
     cursor: pointer;
-    transition: background var(--c-listbox-transition-duration), color var(--c-listbox-transition-duration), border-color var(--c-listbox-transition-duration);
-    color: var(--c-listbox-option-color);
+    color: var(--c-text-color);
 }
 
-.icon-item:hover {
-    background: var(--c-listbox-option-focus-background);
-    color: var(--c-listbox-option-focus-color);
+.icon-select-popover .icon-item:hover {
+    background: var(--c-surface-100);
 }
 
-.icon-item--selected {
-    background: var(--c-listbox-option-selected-background);
-    color: var(--c-listbox-option-selected-color);
-    border-color: var(--c-listbox-option-selected-color);
-}
-
-.icon-item--selected:hover {
-    background: var(--c-listbox-option-selected-focus-background);
-    color: var(--c-listbox-option-selected-focus-color);
-    border-color: var(--c-listbox-option-selected-focus-color);
-}
-
-.icon-preview {
-    font-size: 1.5rem;
-}
-
-.no-results {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: var(--c-overlay-popover-padding);
-    color: var(--c-text-muted-color);
-}
-
-.no-results i {
-    font-size: 2rem;
-    margin-bottom: var(--c-inputtext-padding-x);
-    opacity: 0.5;
-}
-
-.no-results p {
-    margin: 0;
+.icon-select-popover .icon-item--selected {
+    background: var(--c-highlight-background);
+    color: var(--c-highlight-color);
+    border-color: var(--c-highlight-color);
 }
 </style>
