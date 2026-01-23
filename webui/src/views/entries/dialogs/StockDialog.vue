@@ -124,6 +124,7 @@ const handleSubmit = async (e, form) => {
         :draggable="false"
         modal
         :header="isEdit ? 'Edit Stock Operation' : 'Add New Stock Operation'"
+        class="entry-dialog"
     >
         <Form
             v-slot="$form"

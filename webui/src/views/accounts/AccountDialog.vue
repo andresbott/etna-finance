@@ -96,6 +96,7 @@ const onFormSubmit = async (e) => {
             :draggable="false"
             modal
             :header="isEdit ? 'Edit Account' : 'Add New Account'"
+            class="entry-dialog"
         >
             <Form
                 v-slot="$form"
@@ -157,9 +158,3 @@ const onFormSubmit = async (e) => {
         </Dialog>
     </div>
 </template>
-<style>
-.form-label {
-    display: block;
-    font-weight: 500;
-}
-</style>

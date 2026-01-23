@@ -226,6 +226,7 @@ const emit = defineEmits(['update:visible'])
         :draggable="false"
         modal
         :header="dialogTitle"
+        class="entry-dialog"
     >
         <Form
             v-slot="$form"
@@ -243,20 +244,6 @@ const emit = defineEmits(['update:visible'])
                     <InputText id="description" name="description" v-focus v-else />
                     <Message v-if="$form.description?.invalid" severity="error" size="small">
                         {{ $form.description.error?.message }}
-                    </Message>
-                </div>
-
-                <!-- Account field -->
-                <div>
-                    <label for="AccountId" class="form-label">Account</label>
-                    <AccountSelector
-                        v-model="formValues.AccountId"
-                        name="AccountId"
-                        @update:modelValue="handleAccountSelection"
-                        :accountTypes="['cash', 'checkin', 'bank', 'savings']"
-                    />
-                    <Message v-if="$form.AccountId?.invalid" severity="error" size="small">
-                        {{ $form.AccountId.error?.message }}
                     </Message>
                 </div>
 
@@ -306,6 +293,20 @@ const emit = defineEmits(['update:visible'])
                     </Message>
                 </div>
 
+                <!-- Account field -->
+                <div>
+                    <label for="AccountId" class="form-label">Account</label>
+                    <AccountSelector
+                        v-model="formValues.AccountId"
+                        name="AccountId"
+                        @update:modelValue="handleAccountSelection"
+                        :accountTypes="['cash', 'checkin', 'bank', 'savings']"
+                    />
+                    <Message v-if="$form.AccountId?.invalid" severity="error" size="small">
+                        {{ $form.AccountId.error?.message }}
+                    </Message>
+                </div>
+
                 <CategorySelect v-model="categoryId" :type="entryType" />
 
                 <div class="flex justify-content-end gap-3">
@@ -327,9 +328,3 @@ const emit = defineEmits(['update:visible'])
         </Form>
     </Dialog>
 </template>
-<style>
-.form-label {
-    display: block;
-    font-weight: 500;
-}
-</style>

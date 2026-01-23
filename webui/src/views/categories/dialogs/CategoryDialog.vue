@@ -92,23 +92,23 @@ const showParentSelector = computed(() => {
         modal
         :header="dialogHeaderTitle"
         :draggable="false"
+        class="entry-dialog"
         @update:visible="emit('update:visible', $event)"
         @hide="cancel"
     >
         <div>
             <!-- Name -->
             <div class="field">
-                <label for="category-name">Name</label>
-                <InputText id="category-name" v-model="localCategory.name" class="w-full" />
+                <label for="category-name" class="form-label">Name</label>
+                <InputText id="category-name" v-model="localCategory.name" />
             </div>
 
             <!-- Description -->
             <div class="field">
-                <label for="category-description">Description</label>
+                <label for="category-description" class="form-label">Description</label>
                 <InputText
                     id="category-description"
                     v-model="localCategory.description"
-                    class="w-full"
                 />
             </div>
 

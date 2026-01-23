@@ -256,7 +256,7 @@ const emit = defineEmits(['update:visible'])
         :draggable="false"
         modal
         :header="dialogTitle"
-        :style="{ width: '700px' }"
+        class="entry-dialog entry-dialog--wide"
     >
         <Form
             v-slot="$form"
@@ -272,8 +272,8 @@ const emit = defineEmits(['update:visible'])
                     <!-- Description Field -->
                     <div>
                         <label for="description" class="form-label">Description</label>
-                        <InputText id="description" name="description" class="w-full" v-if="autofocusAmount" />
-                        <InputText id="description" name="description" v-focus class="w-full" v-else />
+                        <InputText id="description" name="description" v-if="autofocusAmount" />
+                        <InputText id="description" name="description" v-focus v-else />
                         <Message v-if="$form.description?.invalid" severity="error" size="small">
                             {{ $form.description.error?.message }}
                         </Message>
@@ -289,7 +289,6 @@ const emit = defineEmits(['update:visible'])
                             :showIcon="true"
                             iconDisplay="input"
                             dateFormat="dd/mm/yy"
-                            class="w-full"
                             :showButtonBar="true"
                         />
                         <Message v-if="$form.date?.invalid" severity="error" size="small">
@@ -334,7 +333,6 @@ const emit = defineEmits(['update:visible'])
                                 name="originAmount"
                                 :minFractionDigits="2"
                                 :maxFractionDigits="2"
-                                class="w-full"
                             />
                             <Message
                                 v-if="$form.originAmount?.invalid"
@@ -381,7 +379,6 @@ const emit = defineEmits(['update:visible'])
                                 name="targetAmount"
                                 :minFractionDigits="2"
                                 :maxFractionDigits="2"
-                                class="w-full"
                             />
                             <Message
                                 v-if="$form.targetAmount?.invalid"
@@ -414,9 +411,3 @@ const emit = defineEmits(['update:visible'])
         </Form>
     </Dialog>
 </template>
-<style>
-.form-label {
-    display: block;
-    font-weight: 500;
-}
-</style>
