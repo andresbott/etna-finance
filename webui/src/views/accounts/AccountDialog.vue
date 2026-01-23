@@ -19,7 +19,7 @@ const props = defineProps({
     name: { type: String, default: '' },
     currency: { type: String, default: 'CHF' },
     type: { type: String, default: 'cash' },
-    icon: { type: String, default: 'pi pi-wallet' },
+    icon: { type: String, default: 'pi-wallet' },
     visible: { type: Boolean, default: false },
     providerId: { type: Number, required: true }
 })
@@ -41,7 +41,7 @@ const formValues = ref({
 // Watch props to update form values when editing
 watch(props, (newProps) => {
     formValues.value = { ...newProps }
-    selectedIcon.value = newProps.icon || 'pi pi-wallet'
+    selectedIcon.value = newProps.icon || 'pi-wallet'
 })
 
 const resolver = ref(

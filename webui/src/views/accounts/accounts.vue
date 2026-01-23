@@ -41,7 +41,8 @@ const treeTableData = computed(() => {
         data: {
             id: provider.id,
             name: provider.name,
-            description: provider.description
+            description: provider.description,
+            icon: provider.icon || 'pi-building'
         },
         children:
             provider.accounts?.map((account) => ({
@@ -51,7 +52,7 @@ const treeTableData = computed(() => {
                     name: account.name,
                     type: account.type,
                     currency: account.currency,
-                    icon: account.icon || 'pi pi-wallet'
+                    icon: account.icon || 'pi-wallet'
                 }
             })) || []
     }))
@@ -80,7 +81,7 @@ const editProvider = (provider) => {
 const addAccountToProvider = (provider) => {
     selectedAccount.value = {
         providerId: provider.data.id,
-        icon: 'pi pi-wallet'
+        icon: 'pi-wallet'
     }
     isEdit.value = false
     accountDialogVisible.value = true
@@ -145,7 +146,14 @@ const handleDeleteProvider = async () => {
                         :expandedKeys="expandedKeys"
                         class="p-treetable-sm"
                     >
-                        <Column field="name" header="Name" expander />
+                        <Column field="name" header="Name" expander>
+                            <template #body="{ node }">
+                                <div class="flex align-items-center gap-2">
+                                    <i :class="['pi', node.data.icon]" class="text-color-secondary"></i>
+                                    <span>{{ node.data.name }}</span>
+                                </div>
+                            </template>
+                        </Column>
 
                         <Column field="description" header="Description">
                             <template #body="{ node }">
@@ -240,6 +248,7 @@ const handleDeleteProvider = async () => {
         :provider-id="selectedProvider?.id"
         :name="selectedProvider?.name"
         :description="selectedProvider?.description"
+        :icon="selectedProvider?.icon"
     />
 </template>
 

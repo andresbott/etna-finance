@@ -5,367 +5,119 @@ import InputText from 'primevue/inputtext'
 import IconField from 'primevue/iconfield'
 import InputIcon from 'primevue/inputicon'
 
-// Complete list of PrimeIcons
+// Complete list of PrimeIcons (just the icon names without 'pi-' prefix)
 const ALL_ICONS = [
     // Financial & Commerce
-    { name: 'wallet', class: 'pi pi-wallet' },
-    { name: 'money-bill', class: 'pi pi-money-bill' },
-    { name: 'credit-card', class: 'pi pi-credit-card' },
-    { name: 'dollar', class: 'pi pi-dollar' },
-    { name: 'euro', class: 'pi pi-euro' },
-    { name: 'pound', class: 'pi pi-pound' },
-    { name: 'indian-rupee', class: 'pi pi-indian-rupee' },
-    { name: 'turkish-lira', class: 'pi pi-turkish-lira' },
-    { name: 'bitcoin', class: 'pi pi-bitcoin' },
-    { name: 'ethereum', class: 'pi pi-ethereum' },
-    { name: 'percentage', class: 'pi pi-percentage' },
-    { name: 'calculator', class: 'pi pi-calculator' },
-    { name: 'receipt', class: 'pi pi-receipt' },
-    { name: 'shopping-cart', class: 'pi pi-shopping-cart' },
-    { name: 'shopping-bag', class: 'pi pi-shopping-bag' },
-    { name: 'cart-plus', class: 'pi pi-cart-plus' },
-    { name: 'cart-minus', class: 'pi pi-cart-minus' },
-    { name: 'cart-arrow-down', class: 'pi pi-cart-arrow-down' },
-    { name: 'shop', class: 'pi pi-shop' },
-    { name: 'gift', class: 'pi pi-gift' },
-    { name: 'ticket', class: 'pi pi-ticket' },
-    { name: 'paypal', class: 'pi pi-paypal' },
-    { name: 'amazon', class: 'pi pi-amazon' },
+    'wallet', 'money-bill', 'credit-card', 'dollar', 'euro', 'pound',
+    'indian-rupee', 'turkish-lira', 'bitcoin', 'ethereum', 'percentage',
+    'calculator', 'receipt', 'shopping-cart', 'shopping-bag', 'cart-plus',
+    'cart-minus', 'cart-arrow-down', 'shop', 'gift', 'ticket', 'paypal', 'amazon',
     
     // Buildings & Places
-    { name: 'building', class: 'pi pi-building' },
-    { name: 'building-columns', class: 'pi pi-building-columns' },
-    { name: 'warehouse', class: 'pi pi-warehouse' },
-    { name: 'home', class: 'pi pi-home' },
-    { name: 'map', class: 'pi pi-map' },
-    { name: 'map-marker', class: 'pi pi-map-marker' },
-    { name: 'globe', class: 'pi pi-globe' },
-    { name: 'compass', class: 'pi pi-compass' },
+    'building', 'building-columns', 'warehouse', 'home', 'map', 'map-marker',
+    'globe', 'compass',
     
     // Charts & Data
-    { name: 'chart-line', class: 'pi pi-chart-line' },
-    { name: 'chart-bar', class: 'pi pi-chart-bar' },
-    { name: 'chart-pie', class: 'pi pi-chart-pie' },
-    { name: 'chart-scatter', class: 'pi pi-chart-scatter' },
-    { name: 'gauge', class: 'pi pi-gauge' },
-    { name: 'wave-pulse', class: 'pi pi-wave-pulse' },
+    'chart-line', 'chart-bar', 'chart-pie', 'chart-scatter', 'gauge', 'wave-pulse',
     
     // People & Users
-    { name: 'user', class: 'pi pi-user' },
-    { name: 'users', class: 'pi pi-users' },
-    { name: 'user-plus', class: 'pi pi-user-plus' },
-    { name: 'user-minus', class: 'pi pi-user-minus' },
-    { name: 'user-edit', class: 'pi pi-user-edit' },
-    { name: 'id-card', class: 'pi pi-id-card' },
-    { name: 'address-book', class: 'pi pi-address-book' },
+    'user', 'users', 'user-plus', 'user-minus', 'user-edit', 'id-card', 'address-book',
     
     // Files & Folders
-    { name: 'file', class: 'pi pi-file' },
-    { name: 'file-o', class: 'pi pi-file-o' },
-    { name: 'file-plus', class: 'pi pi-file-plus' },
-    { name: 'file-check', class: 'pi pi-file-check' },
-    { name: 'file-edit', class: 'pi pi-file-edit' },
-    { name: 'file-excel', class: 'pi pi-file-excel' },
-    { name: 'file-pdf', class: 'pi pi-file-pdf' },
-    { name: 'file-word', class: 'pi pi-file-word' },
-    { name: 'file-import', class: 'pi pi-file-import' },
-    { name: 'file-export', class: 'pi pi-file-export' },
-    { name: 'file-arrow-up', class: 'pi pi-file-arrow-up' },
-    { name: 'folder', class: 'pi pi-folder' },
-    { name: 'folder-open', class: 'pi pi-folder-open' },
-    { name: 'folder-plus', class: 'pi pi-folder-plus' },
-    { name: 'clipboard', class: 'pi pi-clipboard' },
-    { name: 'copy', class: 'pi pi-copy' },
-    { name: 'clone', class: 'pi pi-clone' },
+    'file', 'file-o', 'file-plus', 'file-check', 'file-edit', 'file-excel',
+    'file-pdf', 'file-word', 'file-import', 'file-export', 'file-arrow-up',
+    'folder', 'folder-open', 'folder-plus', 'clipboard', 'copy', 'clone',
     
     // Communication
-    { name: 'envelope', class: 'pi pi-envelope' },
-    { name: 'inbox', class: 'pi pi-inbox' },
-    { name: 'send', class: 'pi pi-send' },
-    { name: 'comment', class: 'pi pi-comment' },
-    { name: 'comments', class: 'pi pi-comments' },
-    { name: 'phone', class: 'pi pi-phone' },
-    { name: 'bell', class: 'pi pi-bell' },
-    { name: 'bell-slash', class: 'pi pi-bell-slash' },
-    { name: 'megaphone', class: 'pi pi-megaphone' },
-    { name: 'microphone', class: 'pi pi-microphone' },
+    'envelope', 'inbox', 'send', 'comment', 'comments', 'phone', 'bell',
+    'bell-slash', 'megaphone', 'microphone',
     
     // Objects & Things
-    { name: 'box', class: 'pi pi-box' },
-    { name: 'briefcase', class: 'pi pi-briefcase' },
-    { name: 'key', class: 'pi pi-key' },
-    { name: 'lock', class: 'pi pi-lock' },
-    { name: 'lock-open', class: 'pi pi-lock-open' },
-    { name: 'unlock', class: 'pi pi-unlock' },
-    { name: 'shield', class: 'pi pi-shield' },
-    { name: 'verified', class: 'pi pi-verified' },
-    { name: 'crown', class: 'pi pi-crown' },
-    { name: 'trophy', class: 'pi pi-trophy' },
-    { name: 'graduation-cap', class: 'pi pi-graduation-cap' },
-    { name: 'lightbulb', class: 'pi pi-lightbulb' },
-    { name: 'book', class: 'pi pi-book' },
-    { name: 'paperclip', class: 'pi pi-paperclip' },
-    { name: 'pencil', class: 'pi pi-pencil' },
-    { name: 'pen-to-square', class: 'pi pi-pen-to-square' },
-    { name: 'eraser', class: 'pi pi-eraser' },
-    { name: 'hammer', class: 'pi pi-hammer' },
-    { name: 'wrench', class: 'pi pi-wrench' },
-    { name: 'palette', class: 'pi pi-palette' },
-    { name: 'camera', class: 'pi pi-camera' },
-    { name: 'image', class: 'pi pi-image' },
-    { name: 'images', class: 'pi pi-images' },
-    { name: 'video', class: 'pi pi-video' },
-    { name: 'headphones', class: 'pi pi-headphones' },
+    'box', 'briefcase', 'key', 'lock', 'lock-open', 'unlock', 'shield',
+    'verified', 'crown', 'trophy', 'graduation-cap', 'lightbulb', 'book',
+    'paperclip', 'pencil', 'pen-to-square', 'eraser', 'hammer', 'wrench',
+    'palette', 'camera', 'image', 'images', 'video', 'headphones',
     
     // Transportation
-    { name: 'car', class: 'pi pi-car' },
-    { name: 'truck', class: 'pi pi-truck' },
+    'car', 'truck',
     
     // Technology
-    { name: 'desktop', class: 'pi pi-desktop' },
-    { name: 'mobile', class: 'pi pi-mobile' },
-    { name: 'tablet', class: 'pi pi-tablet' },
-    { name: 'server', class: 'pi pi-server' },
-    { name: 'database', class: 'pi pi-database' },
-    { name: 'cloud', class: 'pi pi-cloud' },
-    { name: 'cloud-upload', class: 'pi pi-cloud-upload' },
-    { name: 'cloud-download', class: 'pi pi-cloud-download' },
-    { name: 'wifi', class: 'pi pi-wifi' },
-    { name: 'qrcode', class: 'pi pi-qrcode' },
-    { name: 'barcode', class: 'pi pi-barcode' },
-    { name: 'microchip', class: 'pi pi-microchip' },
-    { name: 'microchip-ai', class: 'pi pi-microchip-ai' },
-    { name: 'code', class: 'pi pi-code' },
-    { name: 'link', class: 'pi pi-link' },
-    { name: 'sitemap', class: 'pi pi-sitemap' },
+    'desktop', 'mobile', 'tablet', 'server', 'database', 'cloud',
+    'cloud-upload', 'cloud-download', 'wifi', 'qrcode', 'barcode',
+    'microchip', 'microchip-ai', 'code', 'link', 'sitemap',
     
     // Time & Calendar
-    { name: 'calendar', class: 'pi pi-calendar' },
-    { name: 'calendar-plus', class: 'pi pi-calendar-plus' },
-    { name: 'calendar-minus', class: 'pi pi-calendar-minus' },
-    { name: 'calendar-times', class: 'pi pi-calendar-times' },
-    { name: 'calendar-clock', class: 'pi pi-calendar-clock' },
-    { name: 'clock', class: 'pi pi-clock' },
-    { name: 'stopwatch', class: 'pi pi-stopwatch' },
-    { name: 'hourglass', class: 'pi pi-hourglass' },
-    { name: 'history', class: 'pi pi-history' },
+    'calendar', 'calendar-plus', 'calendar-minus', 'calendar-times',
+    'calendar-clock', 'clock', 'stopwatch', 'hourglass', 'history',
     
     // Tags & Labels
-    { name: 'tag', class: 'pi pi-tag' },
-    { name: 'tags', class: 'pi pi-tags' },
-    { name: 'bookmark', class: 'pi pi-bookmark' },
-    { name: 'bookmark-fill', class: 'pi pi-bookmark-fill' },
-    { name: 'hashtag', class: 'pi pi-hashtag' },
-    { name: 'thumbtack', class: 'pi pi-thumbtack' },
-    { name: 'flag', class: 'pi pi-flag' },
-    { name: 'flag-fill', class: 'pi pi-flag-fill' },
+    'tag', 'tags', 'bookmark', 'bookmark-fill', 'hashtag', 'thumbtack',
+    'flag', 'flag-fill',
     
     // Actions & Controls
-    { name: 'cog', class: 'pi pi-cog' },
-    { name: 'sliders-h', class: 'pi pi-sliders-h' },
-    { name: 'sliders-v', class: 'pi pi-sliders-v' },
-    { name: 'filter', class: 'pi pi-filter' },
-    { name: 'filter-fill', class: 'pi pi-filter-fill' },
-    { name: 'filter-slash', class: 'pi pi-filter-slash' },
-    { name: 'search', class: 'pi pi-search' },
-    { name: 'search-plus', class: 'pi pi-search-plus' },
-    { name: 'search-minus', class: 'pi pi-search-minus' },
-    { name: 'sync', class: 'pi pi-sync' },
-    { name: 'refresh', class: 'pi pi-refresh' },
-    { name: 'replay', class: 'pi pi-replay' },
-    { name: 'undo', class: 'pi pi-undo' },
-    { name: 'save', class: 'pi pi-save' },
-    { name: 'print', class: 'pi pi-print' },
-    { name: 'upload', class: 'pi pi-upload' },
-    { name: 'download', class: 'pi pi-download' },
-    { name: 'trash', class: 'pi pi-trash' },
-    { name: 'delete-left', class: 'pi pi-delete-left' },
-    { name: 'power-off', class: 'pi pi-power-off' },
-    { name: 'sign-in', class: 'pi pi-sign-in' },
-    { name: 'sign-out', class: 'pi pi-sign-out' },
-    { name: 'external-link', class: 'pi pi-external-link' },
-    { name: 'expand', class: 'pi pi-expand' },
-    { name: 'window-maximize', class: 'pi pi-window-maximize' },
-    { name: 'window-minimize', class: 'pi pi-window-minimize' },
-    { name: 'share-alt', class: 'pi pi-share-alt' },
-    { name: 'reply', class: 'pi pi-reply' },
-    { name: 'eject', class: 'pi pi-eject' },
+    'cog', 'sliders-h', 'sliders-v', 'filter', 'filter-fill', 'filter-slash',
+    'search', 'search-plus', 'search-minus', 'sync', 'refresh', 'replay',
+    'undo', 'save', 'print', 'upload', 'download', 'trash', 'delete-left',
+    'power-off', 'sign-in', 'sign-out', 'external-link', 'expand',
+    'window-maximize', 'window-minimize', 'share-alt', 'reply', 'eject',
     
     // Status & Feedback
-    { name: 'check', class: 'pi pi-check' },
-    { name: 'check-circle', class: 'pi pi-check-circle' },
-    { name: 'check-square', class: 'pi pi-check-square' },
-    { name: 'list-check', class: 'pi pi-list-check' },
-    { name: 'times', class: 'pi pi-times' },
-    { name: 'times-circle', class: 'pi pi-times-circle' },
-    { name: 'plus', class: 'pi pi-plus' },
-    { name: 'plus-circle', class: 'pi pi-plus-circle' },
-    { name: 'minus', class: 'pi pi-minus' },
-    { name: 'minus-circle', class: 'pi pi-minus-circle' },
-    { name: 'ban', class: 'pi pi-ban' },
-    { name: 'exclamation-circle', class: 'pi pi-exclamation-circle' },
-    { name: 'exclamation-triangle', class: 'pi pi-exclamation-triangle' },
-    { name: 'question', class: 'pi pi-question' },
-    { name: 'question-circle', class: 'pi pi-question-circle' },
-    { name: 'info', class: 'pi pi-info' },
-    { name: 'info-circle', class: 'pi pi-info-circle' },
-    { name: 'spinner', class: 'pi pi-spinner' },
-    { name: 'spinner-dotted', class: 'pi pi-spinner-dotted' },
+    'check', 'check-circle', 'check-square', 'list-check', 'times',
+    'times-circle', 'plus', 'plus-circle', 'minus', 'minus-circle', 'ban',
+    'exclamation-circle', 'exclamation-triangle', 'question', 'question-circle',
+    'info', 'info-circle', 'spinner', 'spinner-dotted',
     
     // Shapes & Symbols
-    { name: 'star', class: 'pi pi-star' },
-    { name: 'star-fill', class: 'pi pi-star-fill' },
-    { name: 'star-half', class: 'pi pi-star-half' },
-    { name: 'star-half-fill', class: 'pi pi-star-half-fill' },
-    { name: 'heart', class: 'pi pi-heart' },
-    { name: 'heart-fill', class: 'pi pi-heart-fill' },
-    { name: 'circle', class: 'pi pi-circle' },
-    { name: 'circle-fill', class: 'pi pi-circle-fill' },
-    { name: 'circle-on', class: 'pi pi-circle-on' },
-    { name: 'circle-off', class: 'pi pi-circle-off' },
-    { name: 'bolt', class: 'pi pi-bolt' },
-    { name: 'sparkles', class: 'pi pi-sparkles' },
-    { name: 'sun', class: 'pi pi-sun' },
-    { name: 'moon', class: 'pi pi-moon' },
-    { name: 'face-smile', class: 'pi pi-face-smile' },
-    { name: 'thumbs-up', class: 'pi pi-thumbs-up' },
-    { name: 'thumbs-up-fill', class: 'pi pi-thumbs-up-fill' },
-    { name: 'thumbs-down', class: 'pi pi-thumbs-down' },
-    { name: 'thumbs-down-fill', class: 'pi pi-thumbs-down-fill' },
-    { name: 'bullseye', class: 'pi pi-bullseye' },
-    { name: 'at', class: 'pi pi-at' },
-    { name: 'asterisk', class: 'pi pi-asterisk' },
-    { name: 'equals', class: 'pi pi-equals' },
-    { name: 'prime', class: 'pi pi-prime' },
-    { name: 'venus', class: 'pi pi-venus' },
-    { name: 'mars', class: 'pi pi-mars' },
+    'star', 'star-fill', 'star-half', 'star-half-fill', 'heart', 'heart-fill',
+    'circle', 'circle-fill', 'circle-on', 'circle-off', 'bolt', 'sparkles',
+    'sun', 'moon', 'face-smile', 'thumbs-up', 'thumbs-up-fill', 'thumbs-down',
+    'thumbs-down-fill', 'bullseye', 'at', 'asterisk', 'equals', 'prime',
+    'venus', 'mars',
     
     // Arrows & Direction
-    { name: 'arrow-up', class: 'pi pi-arrow-up' },
-    { name: 'arrow-down', class: 'pi pi-arrow-down' },
-    { name: 'arrow-left', class: 'pi pi-arrow-left' },
-    { name: 'arrow-right', class: 'pi pi-arrow-right' },
-    { name: 'arrow-up-right', class: 'pi pi-arrow-up-right' },
-    { name: 'arrow-up-left', class: 'pi pi-arrow-up-left' },
-    { name: 'arrow-down-right', class: 'pi pi-arrow-down-right' },
-    { name: 'arrow-down-left', class: 'pi pi-arrow-down-left' },
-    { name: 'arrow-circle-up', class: 'pi pi-arrow-circle-up' },
-    { name: 'arrow-circle-down', class: 'pi pi-arrow-circle-down' },
-    { name: 'arrow-circle-left', class: 'pi pi-arrow-circle-left' },
-    { name: 'arrow-circle-right', class: 'pi pi-arrow-circle-right' },
-    { name: 'arrow-right-arrow-left', class: 'pi pi-arrow-right-arrow-left' },
-    { name: 'arrows-h', class: 'pi pi-arrows-h' },
-    { name: 'arrows-v', class: 'pi pi-arrows-v' },
-    { name: 'arrows-alt', class: 'pi pi-arrows-alt' },
-    { name: 'chevron-up', class: 'pi pi-chevron-up' },
-    { name: 'chevron-down', class: 'pi pi-chevron-down' },
-    { name: 'chevron-left', class: 'pi pi-chevron-left' },
-    { name: 'chevron-right', class: 'pi pi-chevron-right' },
-    { name: 'angle-up', class: 'pi pi-angle-up' },
-    { name: 'angle-down', class: 'pi pi-angle-down' },
-    { name: 'angle-left', class: 'pi pi-angle-left' },
-    { name: 'angle-right', class: 'pi pi-angle-right' },
-    { name: 'angle-double-up', class: 'pi pi-angle-double-up' },
-    { name: 'angle-double-down', class: 'pi pi-angle-double-down' },
-    { name: 'angle-double-left', class: 'pi pi-angle-double-left' },
-    { name: 'angle-double-right', class: 'pi pi-angle-double-right' },
-    { name: 'caret-up', class: 'pi pi-caret-up' },
-    { name: 'caret-down', class: 'pi pi-caret-down' },
-    { name: 'caret-left', class: 'pi pi-caret-left' },
-    { name: 'caret-right', class: 'pi pi-caret-right' },
-    { name: 'directions', class: 'pi pi-directions' },
-    { name: 'directions-alt', class: 'pi pi-directions-alt' },
+    'arrow-up', 'arrow-down', 'arrow-left', 'arrow-right', 'arrow-up-right',
+    'arrow-up-left', 'arrow-down-right', 'arrow-down-left', 'arrow-circle-up',
+    'arrow-circle-down', 'arrow-circle-left', 'arrow-circle-right',
+    'arrow-right-arrow-left', 'arrows-h', 'arrows-v', 'arrows-alt',
+    'chevron-up', 'chevron-down', 'chevron-left', 'chevron-right',
+    'angle-up', 'angle-down', 'angle-left', 'angle-right',
+    'angle-double-up', 'angle-double-down', 'angle-double-left', 'angle-double-right',
+    'caret-up', 'caret-down', 'caret-left', 'caret-right', 'directions', 'directions-alt',
     
     // Layout & UI
-    { name: 'bars', class: 'pi pi-bars' },
-    { name: 'list', class: 'pi pi-list' },
-    { name: 'th-large', class: 'pi pi-th-large' },
-    { name: 'table', class: 'pi pi-table' },
-    { name: 'objects-column', class: 'pi pi-objects-column' },
-    { name: 'ellipsis-h', class: 'pi pi-ellipsis-h' },
-    { name: 'ellipsis-v', class: 'pi pi-ellipsis-v' },
-    { name: 'align-left', class: 'pi pi-align-left' },
-    { name: 'align-center', class: 'pi pi-align-center' },
-    { name: 'align-right', class: 'pi pi-align-right' },
-    { name: 'align-justify', class: 'pi pi-align-justify' },
+    'bars', 'list', 'th-large', 'table', 'objects-column', 'ellipsis-h',
+    'ellipsis-v', 'align-left', 'align-center', 'align-right', 'align-justify',
     
     // Sorting
-    { name: 'sort', class: 'pi pi-sort' },
-    { name: 'sort-up', class: 'pi pi-sort-up' },
-    { name: 'sort-down', class: 'pi pi-sort-down' },
-    { name: 'sort-up-fill', class: 'pi pi-sort-up-fill' },
-    { name: 'sort-down-fill', class: 'pi pi-sort-down-fill' },
-    { name: 'sort-alt', class: 'pi pi-sort-alt' },
-    { name: 'sort-alt-slash', class: 'pi pi-sort-alt-slash' },
-    { name: 'sort-alpha-up', class: 'pi pi-sort-alpha-up' },
-    { name: 'sort-alpha-down', class: 'pi pi-sort-alpha-down' },
-    { name: 'sort-alpha-up-alt', class: 'pi pi-sort-alpha-up-alt' },
-    { name: 'sort-alpha-down-alt', class: 'pi pi-sort-alpha-down-alt' },
-    { name: 'sort-numeric-up', class: 'pi pi-sort-numeric-up' },
-    { name: 'sort-numeric-down', class: 'pi pi-sort-numeric-down' },
-    { name: 'sort-numeric-up-alt', class: 'pi pi-sort-numeric-up-alt' },
-    { name: 'sort-numeric-down-alt', class: 'pi pi-sort-numeric-down-alt' },
-    { name: 'sort-amount-up', class: 'pi pi-sort-amount-up' },
-    { name: 'sort-amount-down', class: 'pi pi-sort-amount-down' },
-    { name: 'sort-amount-up-alt', class: 'pi pi-sort-amount-up-alt' },
-    { name: 'sort-amount-down-alt', class: 'pi pi-sort-amount-down-alt' },
+    'sort', 'sort-up', 'sort-down', 'sort-up-fill', 'sort-down-fill',
+    'sort-alt', 'sort-alt-slash', 'sort-alpha-up', 'sort-alpha-down',
+    'sort-alpha-up-alt', 'sort-alpha-down-alt', 'sort-numeric-up',
+    'sort-numeric-down', 'sort-numeric-up-alt', 'sort-numeric-down-alt',
+    'sort-amount-up', 'sort-amount-down', 'sort-amount-up-alt', 'sort-amount-down-alt',
     
     // Media Controls
-    { name: 'play', class: 'pi pi-play' },
-    { name: 'play-circle', class: 'pi pi-play-circle' },
-    { name: 'pause', class: 'pi pi-pause' },
-    { name: 'pause-circle', class: 'pi pi-pause-circle' },
-    { name: 'stop', class: 'pi pi-stop' },
-    { name: 'stop-circle', class: 'pi pi-stop-circle' },
-    { name: 'forward', class: 'pi pi-forward' },
-    { name: 'backward', class: 'pi pi-backward' },
-    { name: 'fast-forward', class: 'pi pi-fast-forward' },
-    { name: 'fast-backward', class: 'pi pi-fast-backward' },
-    { name: 'step-forward', class: 'pi pi-step-forward' },
-    { name: 'step-backward', class: 'pi pi-step-backward' },
-    { name: 'step-forward-alt', class: 'pi pi-step-forward-alt' },
-    { name: 'step-backward-alt', class: 'pi pi-step-backward-alt' },
-    { name: 'volume-up', class: 'pi pi-volume-up' },
-    { name: 'volume-down', class: 'pi pi-volume-down' },
-    { name: 'volume-off', class: 'pi pi-volume-off' },
+    'play', 'play-circle', 'pause', 'pause-circle', 'stop', 'stop-circle',
+    'forward', 'backward', 'fast-forward', 'fast-backward', 'step-forward',
+    'step-backward', 'step-forward-alt', 'step-backward-alt', 'volume-up',
+    'volume-down', 'volume-off',
     
     // Viewing
-    { name: 'eye', class: 'pi pi-eye' },
-    { name: 'eye-slash', class: 'pi pi-eye-slash' },
+    'eye', 'eye-slash',
     
     // Social
-    { name: 'facebook', class: 'pi pi-facebook' },
-    { name: 'twitter', class: 'pi pi-twitter' },
-    { name: 'instagram', class: 'pi pi-instagram' },
-    { name: 'linkedin', class: 'pi pi-linkedin' },
-    { name: 'youtube', class: 'pi pi-youtube' },
-    { name: 'vimeo', class: 'pi pi-vimeo' },
-    { name: 'github', class: 'pi pi-github' },
-    { name: 'discord', class: 'pi pi-discord' },
-    { name: 'slack', class: 'pi pi-slack' },
-    { name: 'whatsapp', class: 'pi pi-whatsapp' },
-    { name: 'telegram', class: 'pi pi-telegram' },
-    { name: 'twitch', class: 'pi pi-twitch' },
-    { name: 'tiktok', class: 'pi pi-tiktok' },
-    { name: 'pinterest', class: 'pi pi-pinterest' },
-    { name: 'reddit', class: 'pi pi-reddit' },
-    { name: 'google', class: 'pi pi-google' },
-    { name: 'apple', class: 'pi pi-apple' },
-    { name: 'android', class: 'pi pi-android' },
-    { name: 'microsoft', class: 'pi pi-microsoft' },
+    'facebook', 'twitter', 'instagram', 'linkedin', 'youtube', 'vimeo',
+    'github', 'discord', 'slack', 'whatsapp', 'telegram', 'twitch',
+    'tiktok', 'pinterest', 'reddit', 'google', 'apple', 'android', 'microsoft',
     
     // Language
-    { name: 'language', class: 'pi pi-language' },
+    'language',
     
     // Chevron Circle
-    { name: 'chevron-circle-up', class: 'pi pi-chevron-circle-up' },
-    { name: 'chevron-circle-down', class: 'pi pi-chevron-circle-down' },
-    { name: 'chevron-circle-left', class: 'pi pi-chevron-circle-left' },
-    { name: 'chevron-circle-right', class: 'pi pi-chevron-circle-right' }
+    'chevron-circle-up', 'chevron-circle-down', 'chevron-circle-left', 'chevron-circle-right'
 ]
 
 const props = defineProps({
-    modelValue: { type: String, default: 'pi pi-wallet' },
+    modelValue: { type: String, default: 'pi-wallet' },
     placeholder: { type: String, default: 'Select Icon' }
 })
 
@@ -380,15 +132,14 @@ const popoverWidth = ref('360px')
 
 // Find current icon name for display
 const currentIconName = computed(() => {
-    const icon = ALL_ICONS.find(i => i.class === props.modelValue)
-    return icon ? icon.name : props.modelValue.replace('pi pi-', '')
+    return props.modelValue.replace('pi-', '')
 })
 
 // Filter icons based on search
 const filteredIcons = computed(() => {
     if (!searchQuery.value) return ALL_ICONS
     const query = searchQuery.value.toLowerCase()
-    return ALL_ICONS.filter(icon => icon.name.toLowerCase().includes(query))
+    return ALL_ICONS.filter(icon => icon.toLowerCase().includes(query))
 })
 
 const toggleDropdown = (event) => {
@@ -411,7 +162,7 @@ const onPopoverHide = () => {
 }
 
 const selectIcon = (icon) => {
-    emit('update:modelValue', icon.class)
+    emit('update:modelValue', `pi-${icon}`)
     popoverRef.value.hide()
 }
 </script>
@@ -426,7 +177,7 @@ const selectIcon = (icon) => {
             :class="{ 'icon-select-trigger--open': isOpen }"
             @click="toggleDropdown"
         >
-            <i :class="modelValue" class="text-xl text-primary flex-shrink-0"></i>
+            <i :class="['pi', modelValue]" class="text-xl text-primary flex-shrink-0"></i>
             <span class="flex-1 capitalize">{{ currentIconName }}</span>
             <i class="pi pi-chevron-down text-xs opacity-60 flex-shrink-0" :class="{ 'rotate-180': isOpen }" style="transition: transform 0.2s"></i>
         </button>
@@ -456,14 +207,14 @@ const selectIcon = (icon) => {
                 <div class="icons-grid">
                     <button
                         v-for="icon in filteredIcons"
-                        :key="icon.name"
+                        :key="icon"
                         type="button"
                         class="icon-item"
-                        :class="{ 'icon-item--selected': modelValue === icon.class }"
+                        :class="{ 'icon-item--selected': modelValue === `pi-${icon}` }"
                         @click="selectIcon(icon)"
-                        :title="icon.name"
+                        :title="icon"
                     >
-                        <i :class="icon.class" class="text-2xl"></i>
+                        <i :class="['pi', `pi-${icon}`]" class="text-2xl"></i>
                     </button>
                 </div>
 

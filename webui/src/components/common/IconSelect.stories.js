@@ -7,7 +7,7 @@ export default {
     argTypes: {
         modelValue: {
             control: 'text',
-            description: 'The selected icon class (e.g., "pi pi-wallet")'
+            description: 'The selected icon class (e.g., "pi-wallet")'
         },
         placeholder: {
             control: 'text',
@@ -18,35 +18,35 @@ export default {
 
 export const Default = {
     args: {
-        modelValue: 'pi pi-wallet',
+        modelValue: 'pi-wallet',
         placeholder: 'Select Icon'
     }
 }
 
 export const WithCreditCard = {
     args: {
-        modelValue: 'pi pi-credit-card',
+        modelValue: 'pi-credit-card',
         placeholder: 'Select Icon'
     }
 }
 
 export const WithChartLine = {
     args: {
-        modelValue: 'pi pi-chart-line',
+        modelValue: 'pi-chart-line',
         placeholder: 'Select Icon'
     }
 }
 
 export const WithBuilding = {
     args: {
-        modelValue: 'pi pi-building',
+        modelValue: 'pi-building',
         placeholder: 'Select Icon'
     }
 }
 
 export const WithMoneyBill = {
     args: {
-        modelValue: 'pi pi-money-bill',
+        modelValue: 'pi-money-bill',
         placeholder: 'Select Icon'
     }
 }

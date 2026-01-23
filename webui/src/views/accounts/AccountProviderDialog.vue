@@ -8,6 +8,7 @@ import Message from 'primevue/message'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
 import { useAccounts } from '@/composables/useAccounts.js'
+import IconSelect from '@/components/common/IconSelect.vue'
 
 const { createAccountProvider, updateAccountProvider, isCreating, isUpdating } = useAccounts()
 
@@ -16,10 +17,14 @@ const props = defineProps({
     providerId: { type: Number, default: null },
     name: { type: String, default: '' },
     description: { type: String, default: '' },
+    icon: { type: String, default: 'pi-building' },
     visible: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['update:visible'])
+
+// Separate ref for icon since it's not managed by the Form
+const selectedIcon = ref(props.icon)
 
 const formValues = ref({
     providerId: props.providerId,
@@ -30,6 +35,7 @@ const formValues = ref({
 // Watch props to update form values when editing
 watch(props, (newProps) => {
     formValues.value = { ...newProps }
+    selectedIcon.value = newProps.icon || 'pi-building'
 })
 
 const resolver = ref(
@@ -45,6 +51,7 @@ const onFormSubmit = async (e) => {
     if (e.valid) {
         const formData = {
             ...e.values,
+            icon: selectedIcon.value,
             providerId: props.providerId
         }
 
@@ -53,7 +60,8 @@ const onFormSubmit = async (e) => {
                 await updateAccountProvider({
                     id: formData.providerId,
                     name: formData.name,
-                    description: formData.description
+                    description: formData.description,
+                    icon: formData.icon
                 })
                 emit('update:visible', false)
             } catch (error) {
@@ -63,7 +71,8 @@ const onFormSubmit = async (e) => {
             try {
                 await createAccountProvider({
                     name: formData.name,
-                    description: formData.description
+                    description: formData.description,
+                    icon: formData.icon
                 })
                 emit('update:visible', false)
             } catch (error) {
@@ -93,7 +102,7 @@ const onFormSubmit = async (e) => {
         >
             <div v-focustrap class="flex flex-column gap-3">
                 <div>
-                    <label for="name" class="form-label">Description</label>
+                    <label for="name" class="form-label">Name</label>
                     <InputText name="name" placeholder="Provider Name" />
                     <Message v-if="$form.name?.invalid" severity="error" size="small">{{
                         $form.name.error?.message
@@ -105,6 +114,10 @@ const onFormSubmit = async (e) => {
                     <Message v-if="$form.description?.invalid" severity="error" size="small">{{
                         $form.description.error?.message
                     }}</Message>
+                </div>
+                <div>
+                    <label for="icon" class="form-label">Icon</label>
+                    <IconSelect v-model="selectedIcon" />
                 </div>
                 <div class="flex justify-content-end gap-2">
                     <Button
