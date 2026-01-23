@@ -50,7 +50,8 @@ const treeTableData = computed(() => {
                     id: account.id,
                     name: account.name,
                     type: account.type,
-                    currency: account.currency
+                    currency: account.currency,
+                    icon: account.icon || 'pi pi-wallet'
                 }
             })) || []
     }))
@@ -78,7 +79,8 @@ const editProvider = (provider) => {
 
 const addAccountToProvider = (provider) => {
     selectedAccount.value = {
-        providerId: provider.data.id
+        providerId: provider.data.id,
+        icon: 'pi pi-wallet'
     }
     isEdit.value = false
     accountDialogVisible.value = true
@@ -211,6 +213,7 @@ const handleDeleteProvider = async () => {
         :name="selectedAccount?.name"
         :currency="selectedAccount?.currency"
         :type="selectedAccount?.type"
+        :icon="selectedAccount?.icon"
     />
 
     <DeleteDialog
