@@ -36,6 +36,12 @@ func TestCreateAccountProvider(t *testing.T) {
 			expectCode: http.StatusOK,
 		},
 		{
+			name:       "successful request with icon",
+			userId:     "user123",
+			payload:    bytes.NewBuffer([]byte(`{ "name":"Savings", "icon":"bank-icon", "currency":"USD", "type":"cash"}`)),
+			expectCode: http.StatusOK,
+		},
+		{
 			name:       "empty tenant",
 			userId:     "",
 			payload:    bytes.NewBuffer([]byte(`{"name":"Savings", "currency":"USD", "type":"cash"}`)),
@@ -117,6 +123,12 @@ func TestUpdateAccountProvider(t *testing.T) {
 			name:       "successful request",
 			user:       tenant1,
 			payload:    bytes.NewBuffer([]byte(`{"name":"Savings","currency":"USD","type":"cash"}`)),
+			expectCode: http.StatusOK,
+		},
+		{
+			name:       "successful request with icon update",
+			user:       tenant1,
+			payload:    bytes.NewBuffer([]byte(`{"icon":"new-bank-icon"}`)),
 			expectCode: http.StatusOK,
 		},
 		{
@@ -268,16 +280,16 @@ func TestDeleteAccountProvider(t *testing.T) {
 func TestListAccountProvider(t *testing.T) {
 
 	tenant1Accounts := []accountProviderPayload{
-		{Id: 1, Name: "provider1", Description: "provider1", Accounts: []accountPayload{
-			{Id: 1, Name: "acc1", Currency: "EUR", Type: "cash"},
-			{Id: 3, Name: "acc3", Currency: "EUR", Type: "cash"},
-			{Id: 4, Name: "acc4", Currency: "EUR", Type: "cash"},
-			{Id: 5, Name: "acc5", Currency: "EUR", Type: "cash"},
+		{Id: 1, Name: "provider1", Description: "provider1", Icon: "bank", Accounts: []accountPayload{
+			{Id: 1, Name: "acc1", Icon: "euro", Currency: "EUR", Type: "cash"},
+			{Id: 3, Name: "acc3", Icon: "", Currency: "EUR", Type: "cash"},
+			{Id: 4, Name: "acc4", Icon: "savings", Currency: "EUR", Type: "cash"},
+			{Id: 5, Name: "acc5", Icon: "chart", Currency: "EUR", Type: "cash"},
 		}},
-		{Id: 2, Name: "provider2", Description: "provider2", Accounts: []accountPayload{
-			{Id: 2, Name: "acc2", Currency: "USD", Type: "cash"},
+		{Id: 2, Name: "provider2", Description: "provider2", Icon: "wallet", Accounts: []accountPayload{
+			{Id: 2, Name: "acc2", Icon: "dollar", Currency: "USD", Type: "cash"},
 		}},
-		{Id: 3, Name: "provider3", Description: "provider3", Accounts: []accountPayload{}},
+		{Id: 3, Name: "provider3", Description: "provider3", Icon: "", Accounts: []accountPayload{}},
 	}
 
 	tcs := []struct {
@@ -360,6 +372,12 @@ func TestCreateAccount(t *testing.T) {
 			name:       "successful request",
 			tenant:     tenant1,
 			payload:    bytes.NewBuffer([]byte(`{ "name":"Savings", "currency":"USD", "type":"cash", "providerId":1 }`)),
+			expectCode: http.StatusOK,
+		},
+		{
+			name:       "successful request with icon",
+			tenant:     tenant1,
+			payload:    bytes.NewBuffer([]byte(`{ "name":"Savings", "icon":"wallet-icon", "currency":"USD", "type":"cash", "providerId":1 }`)),
 			expectCode: http.StatusOK,
 		},
 		{
@@ -451,6 +469,12 @@ func TestUpdateAccount(t *testing.T) {
 			name:       "successful request",
 			user:       tenant1,
 			payload:    bytes.NewBuffer([]byte(`{"name":"Savings","currency":"USD","type":"cash"}`)),
+			expectCode: http.StatusOK,
+		},
+		{
+			name:       "successful request with icon update",
+			user:       tenant1,
+			payload:    bytes.NewBuffer([]byte(`{"icon":"new-wallet-icon"}`)),
 			expectCode: http.StatusOK,
 		},
 		{
@@ -640,21 +664,21 @@ func SampleHandler(t *testing.T) (*Handler, func()) {
 }
 
 var sampleAccountProviders = []accounting.AccountProvider{
-	{Name: "provider1", Description: "provider1", Accounts: []accounting.Account{}}, // 1
-	{Name: "provider2", Description: "provider2", Accounts: []accounting.Account{}}, // 2
-	{Name: "provider3", Description: "provider3", Accounts: []accounting.Account{}}, // 3 does not have accounts
+	{Name: "provider1", Description: "provider1", Icon: "bank", Accounts: []accounting.Account{}},   // 1
+	{Name: "provider2", Description: "provider2", Icon: "wallet", Accounts: []accounting.Account{}}, // 2
+	{Name: "provider3", Description: "provider3", Icon: "", Accounts: []accounting.Account{}},       // 3 does not have accounts
 }
 
 var sampleAccountProviders2 = []accounting.AccountProvider{
-	{Name: "provider4_tenant2", Description: "provider4t2", Accounts: []accounting.Account{}}, // 4
+	{Name: "provider4_tenant2", Description: "provider4t2", Icon: "credit", Accounts: []accounting.Account{}}, // 4
 }
 
 var sampleAccounts = []accounting.Account{
-	{ID: 1, Name: "acc1", Currency: currency.EUR, Type: accounting.CashAccountType, AccountProviderID: 1},
-	{ID: 2, Name: "acc2", Currency: currency.USD, Type: accounting.CashAccountType, AccountProviderID: 2},
-	{ID: 3, Name: "acc3", Currency: currency.EUR, Type: accounting.CashAccountType, AccountProviderID: 1},
-	{ID: 3, Name: "acc4", Currency: currency.EUR, Type: accounting.CashAccountType, AccountProviderID: 1},
-	{ID: 4, Name: "acc5", Currency: currency.EUR, Type: accounting.CashAccountType, AccountProviderID: 1},
+	{ID: 1, Name: "acc1", Icon: "euro", Currency: currency.EUR, Type: accounting.CashAccountType, AccountProviderID: 1},
+	{ID: 2, Name: "acc2", Icon: "dollar", Currency: currency.USD, Type: accounting.CashAccountType, AccountProviderID: 2},
+	{ID: 3, Name: "acc3", Icon: "", Currency: currency.EUR, Type: accounting.CashAccountType, AccountProviderID: 1},
+	{ID: 3, Name: "acc4", Icon: "savings", Currency: currency.EUR, Type: accounting.CashAccountType, AccountProviderID: 1},
+	{ID: 4, Name: "acc5", Icon: "chart", Currency: currency.EUR, Type: accounting.CashAccountType, AccountProviderID: 1},
 }
 
 var sampleEntries = []accounting.Transaction{
@@ -678,7 +702,7 @@ var sampleEntries = []accounting.Transaction{
 }
 
 var sampleAccounts2 = []accounting.Account{
-	{ID: 6, Name: "acc1tenant2", Currency: currency.EUR, Type: accounting.CashAccountType, AccountProviderID: 4},
+	{ID: 6, Name: "acc1tenant2", Icon: "foreign", Currency: currency.EUR, Type: accounting.CashAccountType, AccountProviderID: 4},
 }
 var sampleEntries2 = []accounting.Transaction{
 	accounting.Expense{Description: "t2e13", Amount: 10, AccountID: 6, Date: getTime("2025-01-13 00:00:00")},

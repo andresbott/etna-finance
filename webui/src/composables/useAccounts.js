@@ -35,13 +35,15 @@ const transformProviders = (data) =>
                 id: item.id,
                 name: item.name,
                 description: item.description,
+                icon: item.icon,
                 accounts: item.accounts.map(
                     (acc) =>
                         new Account({
                             id: acc.id,
                             name: acc.name,
                             currency: acc.currency,
-                            type: acc.type
+                            type: acc.type,
+                            icon: acc.icon
                         })
                 )
             })

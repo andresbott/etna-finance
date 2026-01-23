@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/andresbott/etna/internal/accounting"
 	"strings"
 
-	"golang.org/x/text/currency"
 	"net/http"
+
+	"github.com/andresbott/etna/internal/accounting"
+
+	"golang.org/x/text/currency"
 )
 
 type Handler struct {
@@ -19,6 +21,7 @@ type accountProviderPayload struct {
 	Id          uint             `json:"id"`
 	Name        string           `json:"name"`
 	Description string           `json:"description"`
+	Icon        string           `json:"icon"`
 	Accounts    []accountPayload `json:"accounts"`
 }
 
@@ -45,6 +48,7 @@ func (h *Handler) CreateAccountProvider(userId string) http.Handler {
 		account := accounting.AccountProvider{
 			Name:        payload.Name,
 			Description: payload.Description,
+			Icon:        payload.Icon,
 		}
 
 		accID, err := h.Store.CreateAccountProvider(r.Context(), account, userId)
@@ -73,6 +77,7 @@ func (h *Handler) CreateAccountProvider(userId string) http.Handler {
 type accountProviderUpdatePayload struct {
 	Name        *string `json:"name"`
 	Description *string `json:"description"`
+	Icon        *string `json:"icon"`
 }
 
 func (h *Handler) UpdateAccountProvider(Id uint, userId string) http.Handler {
@@ -96,7 +101,7 @@ func (h *Handler) UpdateAccountProvider(Id uint, userId string) http.Handler {
 		item := accounting.AccountProviderUpdatePayload{
 			Name:        payload.Name,
 			Description: payload.Description,
-			//Accounts    []Account
+			Icon:        payload.Icon,
 		}
 
 		err = h.Store.UpdateAccountProvider(item, Id, userId)
@@ -171,6 +176,7 @@ func (h *Handler) ListAccountProviders(userId string) http.Handler {
 				accounts[j] = accountPayload{
 					Id:       account.ID,
 					Name:     account.Name,
+					Icon:     account.Icon,
 					Currency: account.Currency.String(),
 					Type:     strings.ToLower(account.Type.String()),
 				}
@@ -180,6 +186,7 @@ func (h *Handler) ListAccountProviders(userId string) http.Handler {
 				Id:          b.ID,
 				Name:        b.Name,
 				Description: b.Description,
+				Icon:        b.Icon,
 				Accounts:    accounts,
 			}
 			outputItems[i] = provider
@@ -210,6 +217,7 @@ type accountPayload struct {
 	Id         uint   `json:"id"`
 	ProviderId uint   `json:"providerId,omitempty"`
 	Name       string `json:"name"`
+	Icon       string `json:"icon"`
 	Currency   string `json:"currency"`
 	Type       string `json:"type"` // enum of type
 }
@@ -234,6 +242,7 @@ func (h *Handler) CreateAccount(userId string) http.Handler {
 
 		account := accounting.Account{
 			Name:              payload.Name,
+			Icon:              payload.Icon,
 			AccountProviderID: payload.ProviderId,
 		}
 
@@ -265,6 +274,7 @@ func (h *Handler) CreateAccount(userId string) http.Handler {
 		responsePayload := accountPayload{
 			Id:       accID,
 			Name:     account.Name,
+			Icon:     account.Icon,
 			Currency: account.Currency.String(),
 			Type:     account.Type.String(),
 		}
@@ -283,6 +293,7 @@ func (h *Handler) CreateAccount(userId string) http.Handler {
 type accountUpdatePayload struct {
 	Id       uint    `json:"id"`
 	Name     *string `json:"name"`
+	Icon     *string `json:"icon"`
 	Currency *string `json:"currency"`
 	Type     string  `json:"type"`
 }
@@ -307,6 +318,10 @@ func (h *Handler) UpdateAccount(Id uint, userId string) http.Handler {
 
 		account := accounting.AccountUpdatePayload{
 			Name: payload.Name,
+		}
+
+		if payload.Icon != nil {
+			account.Icon = payload.Icon
 		}
 
 		if payload.Currency != nil {

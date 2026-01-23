@@ -9,7 +9,7 @@
                     </li>
                     <li>
                         <router-link to="/entries" class="menu-item">
-                            <i class="pi pi-list menu-icon"></i>
+                            <i class="pi pi-th-large menu-icon"></i>
                             <span class="menu-label">All Transactions</span>
                         </router-link>
                     </li>
@@ -18,7 +18,7 @@
                             @click="expandAllAccounts"
                             class="menu-item"
                         >
-                            <i class="pi pi-wallet menu-icon"></i>
+                            <i class="pi pi-filter menu-icon"></i>
                             <span class="menu-label">By Account</span>
                             <i 
                                 class="pi pi-chevron-down menu-toggle" 
@@ -32,7 +32,7 @@
                                     @click="toggleProvider(provider.id)"
                                     class="menu-item submenu-item"
                                 >
-                                    <i class="pi pi-building menu-icon"></i>
+                                    <i :class="['pi', provider.icon || 'pi-building', 'menu-icon']"></i>
                                     <span class="menu-label">{{ provider.name }}</span>
                                     <i
                                         v-if="provider.accounts.length > 0"
@@ -50,7 +50,7 @@
                                             :to="`/entries/${account.id}`"
                                             class="menu-item submenu-item"
                                         >
-                                            <i :class="getAccountIcon(account.type)" class="menu-icon"></i>
+                                            <i :class="['pi', account.icon || 'pi-wallet', 'menu-icon']"></i>
                                             <span class="menu-label">{{ account.name }}</span>
                                         </router-link>
                                     </li>
@@ -58,6 +58,8 @@
                             </li>
                         </ul>
                     </li>
+
+                    <li class="menu-spacer"></li>
 
                     <!-- REPORTS SECTION -->
                     <li class="menu-section">
@@ -75,6 +77,8 @@
                             <span class="menu-label">Income/Expense</span>
                         </router-link>
                     </li>
+
+                    <li class="menu-spacer"></li>
 
                     <!-- MARKET DATA SECTION -->
                     <li class="menu-section">
@@ -159,17 +163,6 @@ const expandAllAccounts = () => {
 const toggleProvider = (providerId) => {
     expandedProviders[providerId] = !expandedProviders[providerId]
 }
-
-const getAccountIcon = (type) => {
-    const icons = {
-        cash: 'pi pi-money-bill',
-        bank: 'pi pi-building',
-        investment: 'pi pi-chart-line',
-        credit: 'pi pi-credit-card',
-        savings: 'pi pi-piggy-bank'
-    }
-    return icons[type] || 'pi pi-wallet'
-}
 </script>
 
 <style scoped>
@@ -207,6 +200,13 @@ const getAccountIcon = (type) => {
     color: var(--c-primary-50);
     padding: 0.5rem 1.5rem;
     margin-bottom: 0.25rem;
+}
+
+/* Section Spacer */
+.menu-spacer {
+    height: 1px;
+    margin: 1rem 1.5rem;
+    background-color: var(--c-primary-400);
 }
 
 /* Menu Items */
