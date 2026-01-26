@@ -129,6 +129,13 @@ func (store *Store) MoveCategory(ctx context.Context, Id, newParentID uint, tena
 		return ErrCategoryConstraintViolation
 	}
 
+	// no-op if current parent is the new target
+	// implementing this explicit no-op to keep compatibility with clients that send all data
+	// instead of only updated fields, on update operations
+	if node.ParentId == newParent.NodeId {
+		return nil
+	}
+
 	err = store.categoryTree.Move(ctx, Id, newParentID, tenant)
 	return handleErr(err)
 }

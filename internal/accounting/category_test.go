@@ -40,7 +40,7 @@ func TestStore_CategorySmoke(t *testing.T) {
 						t.Fatalf("unexpected error: %v", err)
 					}
 
-					// verify that the id is mounted back
+					// verify that the id is propagated back
 					if cat1Id == 0 {
 						t.Fatalf("income category id should not be zero")
 					}
@@ -63,6 +63,12 @@ func TestStore_CategorySmoke(t *testing.T) {
 					// ===================================
 					//  move items
 					// ===================================
+					err = store.MoveCategory(ctx, cat1Id, cat2Id, tenant1)
+					if err != nil {
+						t.Fatalf("unexpected error: %v", err)
+					}
+
+					// expect NO error on moving to the same node it already is
 					err = store.MoveCategory(ctx, cat1Id, cat2Id, tenant1)
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
@@ -286,7 +292,7 @@ func TestGetCategory(t *testing.T) {
 			tenant: tenant1,
 			id:     5,
 			want: Category{Id: 5,
-				ParentId:     0, // 3 expected  TODO for now the node returns always 0 for, check https://github.com/go-bumbu/closure-tree/issues/10
+				ParentId:     3,
 				CategoryData: CategoryData{Name: "MSFT", Type: IncomeCategory}},
 		},
 		{
@@ -294,7 +300,7 @@ func TestGetCategory(t *testing.T) {
 			tenant: tenant1,
 			id:     8,
 			want: Category{Id: 8,
-				ParentId:     0, //7 expected  TODO for now the node returns always 0 for, check https://github.com/go-bumbu/closure-tree/issues/10
+				ParentId:     7,
 				CategoryData: CategoryData{Name: "Electricity", Type: ExpenseCategory}},
 		},
 	}

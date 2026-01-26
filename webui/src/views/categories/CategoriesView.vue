@@ -69,13 +69,14 @@ interface Category {
     description: string
     type?: string
     action?: string
+    icon?: string
 }
 
 /* --- Create and Edit Category--- */
 const categoryDialogVisible = ref(false)
-const categoryData = ref<Category>({ id: null, name: '', description: '', parentId: 0 })
+const categoryData = ref<Category>({ id: null, name: '', description: '', parentId: 0, icon: 'pi-tag' })
 const resetCategoryData = () => {
-    categoryData.value = { id: null, name: '', description: '', parentId: 0 }
+    categoryData.value = { id: null, name: '', description: '', parentId: 0, icon: 'pi-tag' }
 }
 
 // handle click Add/edit button click
@@ -94,6 +95,7 @@ const handleAddEditIncome = (item: Category | null, action: string, type: string
         categoryData.value.id = item.id
         categoryData.value.name = item.name
         categoryData.value.description = item.description
+        categoryData.value.icon = item.icon || 'pi-tag'
         categoryData.value.action = 'edit'
     }
     categoryData.value.type = type
@@ -109,7 +111,8 @@ const saveCategory = () => {
         const dto: CreateIncomeCategoryDTO = {
             name: categoryData.value.name,
             description: categoryData.value.description || undefined,
-            parentId: categoryData.value.parentId || undefined
+            parentId: categoryData.value.parentId || undefined,
+            icon: categoryData.value.icon || 'pi-tag'
         }
 
         if (categoryData.value.type === 'income') {
@@ -146,7 +149,8 @@ const saveCategory = () => {
         const dto: UpdateIncomeCategoryDTO = {
             name: categoryData.value.name,
             description: categoryData.value.description || undefined,
-            parentId: categoryData.value.parentId
+            parentId: categoryData.value.parentId,
+            icon: categoryData.value.icon || 'pi-tag'
         }
 
         if (categoryData.value.type === 'income') {
@@ -228,7 +232,14 @@ const deleteCategory = () => {
         <TabView>
             <TabPanel header="Expense Categories" :value="1">
                 <TreeTable :value="ExpenseTreeData" :expandedKeys="expandedExpenseKeys">
-                    <Column field="name" header="Name" expander></Column>
+                    <Column field="name" header="Name" expander>
+                        <template #body="slotProps">
+                            <span class="category-name">
+                                <i :class="['pi', slotProps.node.data.icon || 'pi-tag']"></i>
+                                {{ slotProps.node.data.name }}
+                            </span>
+                        </template>
+                    </Column>
                     <Column field="description" header="Description"></Column>
                     <Column>
                         <template #header>
@@ -275,7 +286,14 @@ const deleteCategory = () => {
             </TabPanel>
             <TabPanel header="Income Categories" :value="2">
                 <TreeTable :value="IncomeTreeData" :expandedKeys="expandedIncomeKeys">
-                    <Column field="name" header="Name" expander></Column>
+                    <Column field="name" header="Name" expander>
+                        <template #body="slotProps">
+                            <span class="category-name">
+                                <i :class="['pi', slotProps.node.data.icon || 'pi-tag']"></i>
+                                {{ slotProps.node.data.name }}
+                            </span>
+                        </template>
+                    </Column>
                     <Column field="description" header="Description"></Column>
                     <Column>
                         <template #header>
@@ -357,5 +375,11 @@ const deleteCategory = () => {
 
 .action-button {
     padding: 0.25rem;
+}
+
+.category-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 </style>
