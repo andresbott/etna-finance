@@ -71,7 +71,7 @@ const buildTree = (items) => {
     })
     const toNode = (item) => ({
         key: String(item.id),
-        data: { name: item.name, description: item.description, values: item.values },
+        data: { name: item.name, description: item.description, icon: item.icon, values: item.values },
         children: item.children?.map(toNode)
     })
     return roots.map(toNode)
@@ -242,7 +242,14 @@ onMounted(() => fetchReportData())
                             v-model:expandedKeys="expandedIncomeKeys"
                             class="report-table"
                         >
-                            <Column field="name" header="Name" :expander="true" />
+                            <Column field="name" header="Name" :expander="true">
+                                <template #body="slotProps">
+                                    <span class="category-name">
+                                        <i :class="['pi', slotProps.node.data.icon || 'pi-tag']"></i>
+                                        {{ slotProps.node.data.name }}
+                                    </span>
+                                </template>
+                            </Column>
                             <Column field="description" header="Description" />
                             <Column
                                 v-for="currency in currencies"
@@ -283,7 +290,14 @@ onMounted(() => fetchReportData())
                             v-model:expandedKeys="expandedExpenseKeys"
                             class="report-table"
                         >
-                            <Column field="name" header="Name" :expander="true" />
+                            <Column field="name" header="Name" :expander="true">
+                                <template #body="slotProps">
+                                    <span class="category-name">
+                                        <i :class="['pi', slotProps.node.data.icon || 'pi-tag']"></i>
+                                        {{ slotProps.node.data.name }}
+                                    </span>
+                                </template>
+                            </Column>
                             <Column field="description" header="Description" />
                             <Column
                                 v-for="currency in currencies"
@@ -340,5 +354,11 @@ onMounted(() => fetchReportData())
 
 .bold-total {
     font-weight: bold;
+}
+
+.category-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 </style>

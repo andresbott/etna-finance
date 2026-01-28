@@ -681,24 +681,31 @@ var sampleAccounts = []accounting.Account{
 	{ID: 4, Name: "acc5", Icon: "chart", Currency: currency.EUR, Type: accounting.CashAccountType, AccountProviderID: 1},
 }
 
+var sampleCategories = []accounting.CategoryData{
+	{Name: "Groceries", Icon: "pi-shopping-cart", Type: accounting.ExpenseCategory},  // 1
+	{Name: "Bills", Icon: "pi-file", Type: accounting.ExpenseCategory},               // 2
+	{Name: "Salary", Icon: "pi-wallet", Type: accounting.IncomeCategory},             // 3
+	{Name: "Investments", Icon: "pi-chart-line", Type: accounting.IncomeCategory},    // 4
+}
+
 var sampleEntries = []accounting.Transaction{
-	accounting.Expense{Description: "e1", Amount: 1, AccountID: 1, Date: getTime("2025-01-01 00:00:00")},
-	accounting.Expense{Description: "e2", Amount: 2, AccountID: 1, Date: getTime("2025-01-02 00:00:00")},
-	accounting.Expense{Description: "e3", Amount: 3, AccountID: 2, Date: getTime("2025-01-03 00:00:00")},
-	accounting.Expense{Description: "e4", Amount: 4, AccountID: 1, Date: getTime("2025-01-04 00:00:00")},
-	accounting.Expense{Description: "e5", Amount: 5, AccountID: 2, Date: getTime("2025-01-05 00:00:00")},
-	accounting.Expense{Description: "e6", Amount: 6, AccountID: 1, Date: getTime("2025-01-06 00:00:00")},
-	accounting.Expense{Description: "e7", Amount: 7, AccountID: 1, Date: getTime("2025-01-07 00:00:00")},
-	accounting.Expense{Description: "e8", Amount: 8, AccountID: 2, Date: getTime("2025-01-08 00:00:00")},
-	accounting.Expense{Description: "e9", Amount: 9, AccountID: 1, Date: getTime("2025-01-09 00:00:00")},
-	accounting.Expense{Description: "e10", Amount: 10, AccountID: 2, Date: getTime("2025-01-10 00:00:00")},
-	accounting.Expense{Description: "e11", Amount: 10, AccountID: 1, Date: getTime("2025-01-11 00:00:00")},
-	accounting.Expense{Description: "e12", Amount: 10, AccountID: 1, Date: getTime("2025-01-12 00:00:00")},
-	accounting.Expense{Description: "e13", Amount: 10, AccountID: 1, Date: getTime("2025-01-13 00:00:00")},
-	accounting.Expense{Description: "e14", Amount: 10, AccountID: 1, Date: getTime("2025-01-14 00:00:00")},
-	accounting.Expense{Description: "e14", Amount: 10, AccountID: 1, Date: getTime("2025-01-15 00:00:00")},
-	accounting.Expense{Description: "e15", Amount: 10, AccountID: 1, Date: getTime("2025-01-16 00:00:00")},
-	accounting.Income{Description: "i1", Amount: 10, AccountID: 1, Date: getTime("2025-01-17 00:00:00")},
+	accounting.Expense{Description: "e1", Amount: 1, AccountID: 1, CategoryID: 1, Date: getTime("2025-01-01 00:00:00")},
+	accounting.Expense{Description: "e2", Amount: 2, AccountID: 1, CategoryID: 1, Date: getTime("2025-01-02 00:00:00")},
+	accounting.Expense{Description: "e3", Amount: 3, AccountID: 2, CategoryID: 2, Date: getTime("2025-01-03 00:00:00")},
+	accounting.Expense{Description: "e4", Amount: 4, AccountID: 1, CategoryID: 1, Date: getTime("2025-01-04 00:00:00")},
+	accounting.Expense{Description: "e5", Amount: 5, AccountID: 2, CategoryID: 2, Date: getTime("2025-01-05 00:00:00")},
+	accounting.Expense{Description: "e6", Amount: 6, AccountID: 1, CategoryID: 1, Date: getTime("2025-01-06 00:00:00")},
+	accounting.Expense{Description: "e7", Amount: 7, AccountID: 1, CategoryID: 2, Date: getTime("2025-01-07 00:00:00")},
+	accounting.Expense{Description: "e8", Amount: 8, AccountID: 2, CategoryID: 1, Date: getTime("2025-01-08 00:00:00")},
+	accounting.Expense{Description: "e9", Amount: 9, AccountID: 1, CategoryID: 2, Date: getTime("2025-01-09 00:00:00")},
+	accounting.Expense{Description: "e10", Amount: 10, AccountID: 2, CategoryID: 1, Date: getTime("2025-01-10 00:00:00")},
+	accounting.Expense{Description: "e11", Amount: 10, AccountID: 1, CategoryID: 2, Date: getTime("2025-01-11 00:00:00")},
+	accounting.Expense{Description: "e12", Amount: 10, AccountID: 1, CategoryID: 1, Date: getTime("2025-01-12 00:00:00")},
+	accounting.Expense{Description: "e13", Amount: 10, AccountID: 1, CategoryID: 2, Date: getTime("2025-01-13 00:00:00")},
+	accounting.Expense{Description: "e14", Amount: 10, AccountID: 1, CategoryID: 1, Date: getTime("2025-01-14 00:00:00")},
+	accounting.Expense{Description: "e14", Amount: 10, AccountID: 1, CategoryID: 2, Date: getTime("2025-01-15 00:00:00")},
+	accounting.Expense{Description: "e15", Amount: 10, AccountID: 1, CategoryID: 1, Date: getTime("2025-01-16 00:00:00")},
+	accounting.Income{Description: "i1", Amount: 10, AccountID: 1, CategoryID: 3, Date: getTime("2025-01-17 00:00:00")},
 }
 
 var sampleAccounts2 = []accounting.Account{
@@ -777,6 +784,17 @@ func sampleData(t *testing.T, store *accounting.Store) {
 		_, err := store.CreateAccount(ctx, acc2, tenant2)
 		if err != nil {
 			t.Fatalf("error creating account 1: %v", err)
+		}
+	}
+
+	// =========================================
+	// create categories
+	// =========================================
+
+	for _, cat := range sampleCategories {
+		_, err = store.CreateCategory(ctx, cat, 0, tenant1)
+		if err != nil {
+			t.Fatalf("error creating category: %v", err)
 		}
 	}
 

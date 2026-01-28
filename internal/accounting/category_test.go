@@ -294,15 +294,15 @@ func TestGetCategory(t *testing.T) {
 			id:     5,
 			want: Category{Id: 5,
 				ParentId:     3,
-				CategoryData: CategoryData{Name: "MSFT", Type: IncomeCategory}},
+				CategoryData: CategoryData{Name: "MSFT", Icon: "pi-microsoft", Type: IncomeCategory}},
 		},
 		{
 			name:   "get a child expense",
 			tenant: tenant1,
-			id:     8,
-			want: Category{Id: 8,
-				ParentId:     7,
-				CategoryData: CategoryData{Name: "Electricity", Type: ExpenseCategory}},
+			id:     6,
+			want: Category{Id: 6,
+				ParentId:     2,
+				CategoryData: CategoryData{Name: "Groceries", Icon: "pi-shopping-cart", Type: ExpenseCategory}},
 		},
 	}
 
@@ -423,14 +423,14 @@ func TestGetCategoryChildren(t *testing.T) {
 }
 
 var sampleCategories = []Category{
-	{Id: 1, ParentId: 0, CategoryData: CategoryData{Name: "Salary", Type: IncomeCategory}},
-	{Id: 2, ParentId: 0, CategoryData: CategoryData{Name: "Home", Type: ExpenseCategory}},
-	{Id: 3, ParentId: 1, CategoryData: CategoryData{Name: "Stock benefits", Type: IncomeCategory}},
-	{Id: 4, ParentId: 3, CategoryData: CategoryData{Name: "Voo", Type: IncomeCategory}},
-	{Id: 5, ParentId: 3, CategoryData: CategoryData{Name: "MSFT", Type: IncomeCategory}},
-	{Id: 6, ParentId: 2, CategoryData: CategoryData{Name: "Groceries", Type: ExpenseCategory}},
-	{Id: 7, ParentId: 2, CategoryData: CategoryData{Name: "Bills", Type: ExpenseCategory}},
-	{Id: 8, ParentId: 7, CategoryData: CategoryData{Name: "Electricity", Type: ExpenseCategory}},
+	{Id: 1, ParentId: 0, CategoryData: CategoryData{Name: "Salary", Icon: "pi-wallet", Type: IncomeCategory}},
+	{Id: 2, ParentId: 0, CategoryData: CategoryData{Name: "Home", Icon: "pi-home", Type: ExpenseCategory}},
+	{Id: 3, ParentId: 1, CategoryData: CategoryData{Name: "Stock benefits", Icon: "pi-chart-line", Type: IncomeCategory}},
+	{Id: 4, ParentId: 3, CategoryData: CategoryData{Name: "Voo", Icon: "pi-dollar", Type: IncomeCategory}},
+	{Id: 5, ParentId: 3, CategoryData: CategoryData{Name: "MSFT", Icon: "pi-microsoft", Type: IncomeCategory}},
+	{Id: 6, ParentId: 2, CategoryData: CategoryData{Name: "Groceries", Icon: "pi-shopping-cart", Type: ExpenseCategory}},
+	{Id: 7, ParentId: 2, CategoryData: CategoryData{Name: "Bills", Icon: "pi-file", Type: ExpenseCategory}},
+	{Id: 8, ParentId: 7, CategoryData: CategoryData{Name: "Electricity", Icon: "pi-bolt", Type: ExpenseCategory}},
 }
 
 func categorySampleData(t *testing.T, store *Store, categories []Category) {

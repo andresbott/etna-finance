@@ -101,7 +101,7 @@ func TestFinanceHandler_IncomeExpenseReport(t *testing.T) {
 				}
 
 				if !hasData(response) {
-					t.Errorf("report did not contain any data")
+					t.Errorf("report did not contain any data or category icons")
 				}
 			}
 		})
@@ -109,26 +109,34 @@ func TestFinanceHandler_IncomeExpenseReport(t *testing.T) {
 }
 
 func hasData(report incomeExpenseResponse) bool {
+	hasValues := false
+	hasIcons := false
+
 	// Check incomes
 	for _, income := range report.Incomes {
+		if income.Icon != "" {
+			hasIcons = true
+		}
 		for _, val := range income.Values {
 			if val.Value != 0 {
-				return true
+				hasValues = true
 			}
 		}
 	}
 
 	// Check expenses
 	for _, expense := range report.Expenses {
+		if expense.Icon != "" {
+			hasIcons = true
+		}
 		for _, val := range expense.Values {
 			if val.Value != 0 {
-				return true
+				hasValues = true
 			}
 		}
 	}
 
-	// No non-zero values found
-	return false
+	return hasValues && hasIcons
 }
 
 func TestFinanceHandler_AccountBalance(t *testing.T) {
