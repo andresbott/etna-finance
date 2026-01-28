@@ -6,6 +6,7 @@ import Column from 'primevue/column'
 import { useAccounts } from '@/composables/useAccounts.js'
 import { useBalance } from '@/composables/useGetBalanceReport'
 import { formatAmount } from '@/utils/currency'
+import { getAccountTypeIcon } from '@/types/account'
 
 const { accounts: accountProviders } = useAccounts()
 const { balanceReport: balanceReportMutation } = useBalance()
@@ -82,21 +83,6 @@ const getLatestBalance = (account) => {
     return latestEntry?.Sum || 0
 }
 
-const getAccountTypeIcon = (type) => {
-    switch (type) {
-        case 'Cash':
-            return 'pi pi-money-bill'
-        case 'Bank':
-            return 'pi pi-credit-card'
-        case 'Investment':
-            return 'pi pi-chart-line'
-        case 'Credit':
-            return 'pi pi-credit-card'
-        default:
-            return 'pi pi-wallet'
-    }
-}
-
 // Fetch balance reports when accounts are loaded
 watch(
     allAccounts,
@@ -129,7 +115,7 @@ watch(
                 <Column field="type" header="Type" style="min-width: 200px">
                     <template #body="slotProps">
                         <div class="flex align-items-center gap-2">
-                            <i :class="getAccountTypeIcon(slotProps.data.type)"></i>
+                            <i :class="['pi', getAccountTypeIcon(slotProps.data.type)]"></i>
                             <span class="font-semibold">{{ slotProps.data.type }}</span>
                         </div>
                     </template>

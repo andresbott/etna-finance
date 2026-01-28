@@ -36,6 +36,7 @@ const accountsByProvider = computed(() => {
             return {
                 id: provider.id,
                 name: provider.name,
+                icon: provider.icon,
                 accounts: accountsWithBalances
             }
         })
@@ -93,7 +94,7 @@ watch(
                 >
                     <!-- Provider Header -->
                     <div class="flex align-items-center gap-2 pb-2" style="border-bottom: 1px solid rgba(0, 0, 0, 0.06)">
-                        <i class="pi pi-building text-primary"></i>
+                        <i :class="['pi', provider.icon || 'pi-building', 'text-primary']"></i>
                         <span class="font-bold text-lg">{{ provider.name }}</span>
                     </div>
                     
@@ -106,7 +107,7 @@ watch(
                             style="background: var(--surface-ground)"
                         >
                             <div class="flex align-items-center gap-2">
-                                <i class="pi pi-wallet"></i>
+                                <i :class="['pi', account.icon || 'pi-wallet']"></i>
                                 <span>{{ account.name }}</span>
                             </div>
                             <div class="flex align-items-center gap-2">

@@ -19,6 +19,24 @@ export const ACCOUNT_TYPES = {
 export type AccountType = typeof ACCOUNT_TYPES[keyof typeof ACCOUNT_TYPES]
 
 /**
+ * Icons for each account type (PrimeIcons class names without 'pi-' prefix)
+ */
+export const ACCOUNT_TYPE_ICONS: Record<AccountType, string> = {
+    [ACCOUNT_TYPES.CASH]: 'pi-money-bill',
+    [ACCOUNT_TYPES.CHECKING]: 'pi-credit-card',
+    [ACCOUNT_TYPES.SAVINGS]: 'pi-box',
+    [ACCOUNT_TYPES.INVESTMENT]: 'pi-chart-line',
+}
+
+/**
+ * Get the icon for an account type, with fallback to default wallet icon.
+ */
+export function getAccountTypeIcon(accountType: AccountType | string | null | undefined): string {
+    if (!accountType) return 'pi-wallet'
+    return ACCOUNT_TYPE_ICONS[accountType as AccountType] || 'pi-wallet'
+}
+
+/**
  * Entry operation types available in the system
  */
 export const ENTRY_OPERATIONS = {

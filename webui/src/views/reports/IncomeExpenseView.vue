@@ -26,9 +26,9 @@ const fetchReportData = async () => {
 
         reportData.value = await response
 
-        // Apply zero filtering before assigning
-        incomeTableData.value = filterZeroNodes(incomeNodes.value)
-        expenseTableData.value = filterZeroNodes(expenseNodes.value)
+        // Apply zero filtering and sorting before assigning
+        incomeTableData.value = sortNodesByValue(filterZeroNodes(incomeNodes.value))
+        expenseTableData.value = sortNodesByValue(filterZeroNodes(expenseNodes.value))
     } catch (error) {
         console.error('Error fetching report data:', error)
     }
@@ -99,6 +99,22 @@ const filterZeroNodes = (nodes) => {
     }
 
     return filterRecursive(nodes)
+}
+
+const getTotalValue = (node) => {
+    if (!node.data.values) return 0
+    return Object.values(node.data.values).reduce((sum, v) => sum + Math.abs(v.amount || 0), 0)
+}
+
+const sortNodesByValue = (nodes) => {
+    if (!nodes || nodes.length === 0) return []
+    
+    return [...nodes]
+        .map((node) => ({
+            ...node,
+            children: sortNodesByValue(node.children || [])
+        }))
+        .sort((a, b) => getTotalValue(b) - getTotalValue(a))
 }
 
 const incomeNodes = computed(() =>
@@ -204,10 +220,10 @@ watch([startDate, endDate], () => {
 })
 
 watch(incomeNodes, (newNodes) => {
-    incomeTableData.value = filterZeroNodes(newNodes)
+    incomeTableData.value = sortNodesByValue(filterZeroNodes(newNodes))
 })
 watch(expenseNodes, (newNodes) => {
-    expenseTableData.value = filterZeroNodes(newNodes)
+    expenseTableData.value = sortNodesByValue(filterZeroNodes(newNodes))
 })
 
 onMounted(() => fetchReportData())
