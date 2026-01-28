@@ -124,21 +124,29 @@ func (store *Store) MoveCategory(ctx context.Context, Id, newParentID uint, tena
 		return fmt.Errorf("unable to get parent category: %w", err)
 	}
 
-	newParent := dbCategory{}
-	err = store.categoryTree.GetNode(ctx, newParentID, tenant, &newParent)
-	if err != nil {
-		return fmt.Errorf("unable to get parent category: %w", err)
-	}
-
-	if node.Type != newParent.Type {
-		return ErrCategoryConstraintViolation
-	}
-
 	// no-op if current parent is the new target
 	// implementing this explicit no-op to keep compatibility with clients that send all data
 	// instead of only updated fields, on update operations
-	if node.ParentId == newParent.NodeId {
+	if node.ParentId == newParentID {
 		return nil
+	}
+
+	// Only validate parent type if moving to a non-root parent.
+	// Root (id=0) is a virtual node that doesn't exist in the tree,
+	// and top-level categories can be of any type.
+	if newParentID != 0 {
+		newParent := dbCategory{}
+		err = store.categoryTree.GetNode(ctx, newParentID, tenant, &newParent)
+		if err != nil {
+			if errors.Is(err, closuretree.ErrNodeNotFound) {
+				return fmt.Errorf("unable to get parent category: %w", ErrCategoryNotFound)
+			}
+			return fmt.Errorf("unable to get parent category: %w", err)
+		}
+
+		if node.Type != newParent.Type {
+			return ErrCategoryConstraintViolation
+		}
 	}
 
 	err = store.categoryTree.Move(ctx, Id, newParentID, tenant)
