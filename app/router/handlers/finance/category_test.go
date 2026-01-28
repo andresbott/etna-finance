@@ -3,17 +3,18 @@ package finance
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/andresbott/etna/internal/accounting"
-	"github.com/glebarez/sqlite"
-	"github.com/google/go-cmp/cmp"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/andresbott/etna/internal/accounting"
+	"github.com/glebarez/sqlite"
+	"github.com/google/go-cmp/cmp"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 func TestCreateCategory(t *testing.T) {
@@ -24,6 +25,7 @@ func TestCreateCategory(t *testing.T) {
 		payload      io.Reader
 		expectErr    string
 		expectCode   int
+		expectIcon   string
 	}{
 		{
 			name:         "successful income category request",
@@ -38,6 +40,22 @@ func TestCreateCategory(t *testing.T) {
 			categoryType: ExpenseCategoryType,
 			payload:      bytes.NewBuffer([]byte(`{"name":"Food"}`)),
 			expectCode:   http.StatusOK,
+		},
+		{
+			name:         "successful income category request with icon",
+			userId:       tenant1,
+			categoryType: IncomeCategoryType,
+			payload:      bytes.NewBuffer([]byte(`{"name":"Bonus","icon":"bonus-icon"}`)),
+			expectCode:   http.StatusOK,
+			expectIcon:   "bonus-icon",
+		},
+		{
+			name:         "successful expense category request with icon",
+			userId:       tenant1,
+			categoryType: ExpenseCategoryType,
+			payload:      bytes.NewBuffer([]byte(`{"name":"Entertainment","icon":"entertainment-icon"}`)),
+			expectCode:   http.StatusOK,
+			expectIcon:   "entertainment-icon",
 		},
 		{
 			name:         "assert create child category",
@@ -109,24 +127,16 @@ func TestCreateCategory(t *testing.T) {
 					return
 				}
 
-				if tc.categoryType == IncomeCategoryType {
-					cat := categoryPayload{}
-					err := json.NewDecoder(recorder.Body).Decode(&cat)
-					if err != nil {
-						t.Fatal(err)
-					}
-					if cat.Id == 0 {
-						t.Error("returned category id is empty")
-					}
-				} else {
-					cat := categoryPayload{}
-					err := json.NewDecoder(recorder.Body).Decode(&cat)
-					if err != nil {
-						t.Fatal(err)
-					}
-					if cat.Id == 0 {
-						t.Error("returned category id is empty")
-					}
+				cat := categoryPayload{}
+				err := json.NewDecoder(recorder.Body).Decode(&cat)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if cat.Id == 0 {
+					t.Error("returned category id is empty")
+				}
+				if tc.expectIcon != "" && cat.Icon != tc.expectIcon {
+					t.Errorf("returned icon mismatch: got %q want %q", cat.Icon, tc.expectIcon)
 				}
 			}
 		})
@@ -157,6 +167,22 @@ func TestUpdateCategory(t *testing.T) {
 			categoryType: ExpenseCategoryType,
 			categoryId:   3,
 			payload:      bytes.NewBuffer([]byte(`{"name":"Updated Expenses"}`)),
+			expectCode:   http.StatusOK,
+		},
+		{
+			name:         "successful income category update with icon",
+			userId:       tenant1,
+			categoryType: IncomeCategoryType,
+			categoryId:   1,
+			payload:      bytes.NewBuffer([]byte(`{"name":"Salary","icon":"salary-updated-icon"}`)),
+			expectCode:   http.StatusOK,
+		},
+		{
+			name:         "successful expense category update with icon",
+			userId:       tenant1,
+			categoryType: ExpenseCategoryType,
+			categoryId:   3,
+			payload:      bytes.NewBuffer([]byte(`{"name":"Food","icon":"food-updated-icon"}`)),
 			expectCode:   http.StatusOK,
 		},
 		{
@@ -425,7 +451,7 @@ func TestListCategory(t *testing.T) {
 			categoryType: ExpenseCategoryType,
 			parentId:     0,
 			expectCode:   http.StatusOK,
-			expectBody:   `{"items":[{"id":3,"name":"Food","description":"","icon":""},{"id":4,"name":"Transportation","description":"","icon":""},{"id":5,"parentId":3,"name":"Groceries","description":"","icon":""}]}`,
+			expectBody:   `{"items":[{"id":3,"name":"Food","description":"","icon":"food-icon"},{"id":4,"name":"Transportation","description":"","icon":"transport-icon"},{"id":5,"parentId":3,"name":"Groceries","description":"","icon":"groceries-icon"}]}`,
 		},
 		{
 			name:         "list child level expenses categories",
@@ -433,7 +459,7 @@ func TestListCategory(t *testing.T) {
 			categoryType: ExpenseCategoryType,
 			parentId:     3,
 			expectCode:   http.StatusOK,
-			expectBody:   `{"items":[{"id":5,"parentId":3,"name":"Groceries","description":"","icon":""}]}`,
+			expectBody:   `{"items":[{"id":5,"parentId":3,"name":"Groceries","description":"","icon":"groceries-icon"}]}`,
 		},
 		{
 			name:         "list top level income categories",
@@ -441,7 +467,7 @@ func TestListCategory(t *testing.T) {
 			categoryType: IncomeCategoryType,
 			parentId:     0,
 			expectCode:   http.StatusOK,
-			expectBody:   `{"items":[{"id":1,"name":"Salary","description":"","icon":""},{"id":2,"name":"Investments","description":"","icon":""}]}`,
+			expectBody:   `{"items":[{"id":1,"name":"Salary","description":"","icon":"salary-icon"},{"id":2,"name":"Investments","description":"","icon":"investments-icon"}]}`,
 		},
 		{
 			name:         "error on wrong category type",
@@ -525,34 +551,34 @@ func SampleCategoryHandler(t *testing.T) (*CategoryHandler, func()) {
 // addTask helper functions to create test categories
 func createTestCategories(t *testing.T, store *accounting.Store) {
 
-	// Create some income categories
-	incomeCategory1 := accounting.CategoryData{Name: "Salary", Type: accounting.IncomeCategory}
+	// Create some income categories with icons
+	incomeCategory1 := accounting.CategoryData{Name: "Salary", Icon: "salary-icon", Type: accounting.IncomeCategory}
 	_, err := store.CreateCategory(t.Context(), incomeCategory1, 0, tenant1)
 	if err != nil {
 		t.Fatalf("error creating income category: %v", err)
 	}
 
-	incomeCategory2 := accounting.CategoryData{Name: "Investments", Type: accounting.IncomeCategory}
+	incomeCategory2 := accounting.CategoryData{Name: "Investments", Icon: "investments-icon", Type: accounting.IncomeCategory}
 	_, err = store.CreateCategory(t.Context(), incomeCategory2, 0, tenant1)
 	if err != nil {
 		t.Fatalf("error creating income category: %v", err)
 	}
 
-	// Create some expense categories
-	expenseCategory1 := accounting.CategoryData{Name: "Food", Type: accounting.ExpenseCategory}
+	// Create some expense categories with icons
+	expenseCategory1 := accounting.CategoryData{Name: "Food", Icon: "food-icon", Type: accounting.ExpenseCategory}
 	expense1Id, err := store.CreateCategory(t.Context(), expenseCategory1, 0, tenant1)
 	if err != nil {
 		t.Fatalf("error creating expense category: %v", err)
 	}
 
-	expenseCategory2 := accounting.CategoryData{Name: "Transportation", Type: accounting.ExpenseCategory}
+	expenseCategory2 := accounting.CategoryData{Name: "Transportation", Icon: "transport-icon", Type: accounting.ExpenseCategory}
 	_, err = store.CreateCategory(t.Context(), expenseCategory2, 0, tenant1)
 	if err != nil {
 		t.Fatalf("error creating expense category: %v", err)
 	}
 
-	// Create a subcategory
-	expenseSubcategory := accounting.CategoryData{Name: "Groceries", Type: accounting.ExpenseCategory}
+	// Create a subcategory with icon
+	expenseSubcategory := accounting.CategoryData{Name: "Groceries", Icon: "groceries-icon", Type: accounting.ExpenseCategory}
 	_, err = store.CreateCategory(t.Context(), expenseSubcategory, expense1Id, tenant1)
 	if err != nil {
 		t.Fatalf("error creating expense subcategory: %v", err)
