@@ -18,6 +18,7 @@ type CategoryReportItem struct {
 	ParentId    uint
 	Name        string
 	Description string
+	Icon        string
 	Values      map[currency.Unit]CategoryReportValues
 }
 
@@ -94,6 +95,7 @@ func (store *Store) getCategoryReport(ctx context.Context, startDate, endDate ti
 			ParentId:    item.ParentId,
 			Name:        item.Name,
 			Description: item.Description,
+			Icon:        item.Icon,
 			Values:      values,
 		}
 		i++

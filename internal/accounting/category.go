@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	closuretree "github.com/go-bumbu/closure-tree"
 )
 
@@ -37,6 +38,7 @@ type dbCategory struct {
 	closuretree.Node
 	Name        string
 	Description string
+	Icon        string
 	Type        CategoryType
 	Children    []*dbCategory `gorm:"-"`
 }
@@ -44,6 +46,7 @@ type dbCategory struct {
 type CategoryData struct {
 	Name        string
 	Description string
+	Icon        string
 	Type        CategoryType
 }
 
@@ -69,6 +72,7 @@ func (store *Store) CreateCategory(ctx context.Context, cat CategoryData, parent
 		Node:        closuretree.Node{},
 		Name:        cat.Name,
 		Description: cat.Description,
+		Icon:        cat.Icon,
 		Type:        cat.Type,
 	}
 	err = store.categoryTree.Add(ctx, &payload, parent, tenant)
@@ -103,6 +107,7 @@ func (store *Store) UpdateCategory(ctx context.Context, Id uint, cat CategoryDat
 		Node:        closuretree.Node{},
 		Name:        cat.Name,
 		Description: cat.Description,
+		Icon:        cat.Icon,
 	}
 	err = store.categoryTree.Update(ctx, Id, &payload, tenant)
 	return handleErr(err)
@@ -119,14 +124,29 @@ func (store *Store) MoveCategory(ctx context.Context, Id, newParentID uint, tena
 		return fmt.Errorf("unable to get parent category: %w", err)
 	}
 
-	newParent := dbCategory{}
-	err = store.categoryTree.GetNode(ctx, newParentID, tenant, &newParent)
-	if err != nil {
-		return fmt.Errorf("unable to get parent category: %w", err)
+	// no-op if current parent is the new target
+	// implementing this explicit no-op to keep compatibility with clients that send all data
+	// instead of only updated fields, on update operations
+	if node.ParentId == newParentID {
+		return nil
 	}
 
-	if node.Type != newParent.Type {
-		return ErrCategoryConstraintViolation
+	// Only validate parent type if moving to a non-root parent.
+	// Root (id=0) is a virtual node that doesn't exist in the tree,
+	// and top-level categories can be of any type.
+	if newParentID != 0 {
+		newParent := dbCategory{}
+		err = store.categoryTree.GetNode(ctx, newParentID, tenant, &newParent)
+		if err != nil {
+			if errors.Is(err, closuretree.ErrNodeNotFound) {
+				return fmt.Errorf("unable to get parent category: %w", ErrCategoryNotFound)
+			}
+			return fmt.Errorf("unable to get parent category: %w", err)
+		}
+
+		if node.Type != newParent.Type {
+			return ErrCategoryConstraintViolation
+		}
 	}
 
 	err = store.categoryTree.Move(ctx, Id, newParentID, tenant)
@@ -144,6 +164,7 @@ func (store *Store) GetCategory(ctx context.Context, Id uint, tenant string) (Ca
 		CategoryData: CategoryData{
 			Name:        node.Name,
 			Description: node.Description,
+			Icon:        node.Icon,
 			Type:        node.Type,
 		},
 		Id:       node.NodeId,
@@ -181,6 +202,7 @@ func (store *Store) ListDescendantCategories(ctx context.Context, parent uint, d
 			CategoryData: CategoryData{
 				Name:        item.Name,
 				Description: item.Description,
+				Icon:        item.Icon,
 				Type:        item.Type,
 			},
 		}
@@ -246,6 +268,7 @@ func (store *Store) getCategoryChildren(ctx context.Context, catType CategoryTyp
 				CategoryData: CategoryData{
 					Name:        node.Name,
 					Description: node.Description,
+					Icon:        node.Icon,
 					Type:        node.Type,
 				},
 				Id:       node.Id,

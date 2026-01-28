@@ -26,9 +26,9 @@ const fetchReportData = async () => {
 
         reportData.value = await response
 
-        // Apply zero filtering before assigning
-        incomeTableData.value = filterZeroNodes(incomeNodes.value)
-        expenseTableData.value = filterZeroNodes(expenseNodes.value)
+        // Apply zero filtering and sorting before assigning
+        incomeTableData.value = sortNodesByValue(filterZeroNodes(incomeNodes.value))
+        expenseTableData.value = sortNodesByValue(filterZeroNodes(expenseNodes.value))
     } catch (error) {
         console.error('Error fetching report data:', error)
     }
@@ -71,7 +71,7 @@ const buildTree = (items) => {
     })
     const toNode = (item) => ({
         key: String(item.id),
-        data: { name: item.name, description: item.description, values: item.values },
+        data: { name: item.name, description: item.description, icon: item.icon, values: item.values },
         children: item.children?.map(toNode)
     })
     return roots.map(toNode)
@@ -99,6 +99,22 @@ const filterZeroNodes = (nodes) => {
     }
 
     return filterRecursive(nodes)
+}
+
+const getTotalValue = (node) => {
+    if (!node.data.values) return 0
+    return Object.values(node.data.values).reduce((sum, v) => sum + Math.abs(v.amount || 0), 0)
+}
+
+const sortNodesByValue = (nodes) => {
+    if (!nodes || nodes.length === 0) return []
+    
+    return [...nodes]
+        .map((node) => ({
+            ...node,
+            children: sortNodesByValue(node.children || [])
+        }))
+        .sort((a, b) => getTotalValue(b) - getTotalValue(a))
 }
 
 const incomeNodes = computed(() =>
@@ -204,10 +220,10 @@ watch([startDate, endDate], () => {
 })
 
 watch(incomeNodes, (newNodes) => {
-    incomeTableData.value = filterZeroNodes(newNodes)
+    incomeTableData.value = sortNodesByValue(filterZeroNodes(newNodes))
 })
 watch(expenseNodes, (newNodes) => {
-    expenseTableData.value = filterZeroNodes(newNodes)
+    expenseTableData.value = sortNodesByValue(filterZeroNodes(newNodes))
 })
 
 onMounted(() => fetchReportData())
@@ -242,7 +258,14 @@ onMounted(() => fetchReportData())
                             v-model:expandedKeys="expandedIncomeKeys"
                             class="report-table"
                         >
-                            <Column field="name" header="Name" :expander="true" />
+                            <Column field="name" header="Name" :expander="true">
+                                <template #body="slotProps">
+                                    <span class="category-name">
+                                        <i :class="['pi', slotProps.node.data.icon || 'pi-tag']"></i>
+                                        {{ slotProps.node.data.name }}
+                                    </span>
+                                </template>
+                            </Column>
                             <Column field="description" header="Description" />
                             <Column
                                 v-for="currency in currencies"
@@ -283,7 +306,14 @@ onMounted(() => fetchReportData())
                             v-model:expandedKeys="expandedExpenseKeys"
                             class="report-table"
                         >
-                            <Column field="name" header="Name" :expander="true" />
+                            <Column field="name" header="Name" :expander="true">
+                                <template #body="slotProps">
+                                    <span class="category-name">
+                                        <i :class="['pi', slotProps.node.data.icon || 'pi-tag']"></i>
+                                        {{ slotProps.node.data.name }}
+                                    </span>
+                                </template>
+                            </Column>
                             <Column field="description" header="Description" />
                             <Column
                                 v-for="currency in currencies"
@@ -340,5 +370,11 @@ onMounted(() => fetchReportData())
 
 .bold-total {
     font-weight: bold;
+}
+
+.category-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 </style>

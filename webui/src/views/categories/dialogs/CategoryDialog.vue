@@ -4,6 +4,7 @@ import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
 import CategorySelect from '@/components/common/categorySelect.vue'
+import IconSelect from '@/components/common/IconSelect.vue'
 
 const props = defineProps({
     visible: Boolean,
@@ -21,6 +22,7 @@ const localCategory = ref({
     parentId: 0,
     type: 'expense',
     action: null,
+    icon: 'pi-tag',
     ...props.categoryData
 })
 
@@ -35,6 +37,7 @@ watch(
                 parentId: 0,
                 type: 'expense',
                 action: null,
+                icon: 'pi-tag',
                 ...newVal
             }
         }
@@ -69,7 +72,8 @@ const reset = () => {
         description: '',
         parentId: 0,
         type: 'expense',
-        action: null
+        action: null,
+        icon: 'pi-tag'
     }
 
     emit('reset')
@@ -110,6 +114,12 @@ const showParentSelector = computed(() => {
                     id="category-description"
                     v-model="localCategory.description"
                 />
+            </div>
+
+            <!-- Icon -->
+            <div class="field">
+                <label for="category-icon" class="form-label">Icon</label>
+                <IconSelect v-model="localCategory.icon" />
             </div>
 
             <!-- Parent selector -->

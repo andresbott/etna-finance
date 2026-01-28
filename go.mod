@@ -5,7 +5,7 @@ go 1.24.2
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/glebarez/sqlite v1.11.0
-	github.com/go-bumbu/closure-tree v0.8.1
+	github.com/go-bumbu/closure-tree v0.8.2
 	github.com/go-bumbu/config v0.2.0
 	github.com/go-bumbu/http v0.3.0
 	github.com/go-bumbu/testdbs v0.2.3

@@ -20,6 +20,7 @@ type incomeExpenseEntry struct {
 	ParentId    uint                           `json:"ParentId"`
 	Name        string                         `json:"name"`
 	Description string                         `json:"description"`
+	Icon        string                         `json:"icon"`
 	Values      map[string]incomeExpenseValues `json:"values"`
 }
 type incomeExpenseValues struct {
@@ -74,6 +75,7 @@ func (h *Handler) IncomeExpenseReport(userId string) http.Handler {
 				ParentId:    income.ParentId,
 				Name:        income.Name,
 				Description: income.Description,
+				Icon:        income.Icon,
 				Values:      values,
 			}
 		}
@@ -91,6 +93,7 @@ func (h *Handler) IncomeExpenseReport(userId string) http.Handler {
 				ParentId:    expense.ParentId,
 				Name:        expense.Name,
 				Description: expense.Description,
+				Icon:        expense.Icon,
 				Values:      values,
 			}
 		}

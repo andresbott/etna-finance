@@ -1,12 +1,13 @@
 package accounting
 
 import (
-	"github.com/go-bumbu/testdbs"
-	"github.com/google/go-cmp/cmp"
-	"golang.org/x/text/currency"
 	"sort"
 	"testing"
 	"time"
+
+	"github.com/go-bumbu/testdbs"
+	"github.com/google/go-cmp/cmp"
+	"golang.org/x/text/currency"
 )
 
 func TestGetCategoryReport(t *testing.T) {
@@ -32,26 +33,26 @@ func TestGetCategoryReport(t *testing.T) {
 						},
 					},
 					{
-						Id: 4, ParentId: 3, Name: "Voo",
+						Id: 4, ParentId: 3, Name: "Voo", Icon: "pi-dollar",
 						Values: map[currency.Unit]CategoryReportValues{
 							currency.EUR: {Value: 1600, Count: 1}, currency.USD: {}, currency.CHF: {}},
 					},
 					{
-						Id: 3, ParentId: 1, Name: "Stock benefits",
+						Id: 3, ParentId: 1, Name: "Stock benefits", Icon: "pi-chart-line",
 						Values: map[currency.Unit]CategoryReportValues{
 							currency.EUR: {Value: 6700, Count: 5},
 							currency.USD: {Value: 3500, Count: 2}, currency.CHF: {},
 						},
 					},
 					{
-						Id: 1, ParentId: 0, Name: "Salary",
+						Id: 1, ParentId: 0, Name: "Salary", Icon: "pi-wallet",
 						Values: map[currency.Unit]CategoryReportValues{
 							currency.EUR: {Value: 9100, Count: 7},
 							currency.USD: {Value: 3500, Count: 2}, currency.CHF: {},
 						},
 					},
 					{
-						Id: 5, ParentId: 3, Name: "MSFT",
+						Id: 5, ParentId: 3, Name: "MSFT", Icon: "pi-microsoft",
 						Values: map[currency.Unit]CategoryReportValues{
 							currency.EUR: {Value: 1300, Count: 1},
 							currency.USD: {Value: 3500, Count: 2}, currency.CHF: {},
@@ -66,25 +67,25 @@ func TestGetCategoryReport(t *testing.T) {
 						},
 					},
 					{
-						Id: 2, ParentId: 0, Name: "Home",
+						Id: 2, ParentId: 0, Name: "Home", Icon: "pi-home",
 						Values: map[currency.Unit]CategoryReportValues{
 							currency.EUR: {Value: 4500, Count: 9}, currency.USD: {}, currency.CHF: {},
 						},
 					},
 					{
-						Id: 6, ParentId: 2, Name: "Groceries",
+						Id: 6, ParentId: 2, Name: "Groceries", Icon: "pi-shopping-cart",
 						Values: map[currency.Unit]CategoryReportValues{
 							currency.EUR: {Value: 600, Count: 2}, currency.USD: {}, currency.CHF: {},
 						},
 					},
 					{
-						Id: 8, ParentId: 7, Name: "Electricity",
+						Id: 8, ParentId: 7, Name: "Electricity", Icon: "pi-bolt",
 						Values: map[currency.Unit]CategoryReportValues{
 							currency.EUR: {Value: 1600, Count: 2}, currency.USD: {}, currency.CHF: {},
 						},
 					},
 					{
-						Id: 7, ParentId: 2, Name: "Bills",
+						Id: 7, ParentId: 2, Name: "Bills", Icon: "pi-file",
 						Values: map[currency.Unit]CategoryReportValues{
 							currency.EUR: {Value: 3200, Count: 5}, currency.USD: {}, currency.CHF: {},
 						},
@@ -106,25 +107,25 @@ func TestGetCategoryReport(t *testing.T) {
 						},
 					},
 					{
-						Id: 4, ParentId: 3, Name: "Voo",
+						Id: 4, ParentId: 3, Name: "Voo", Icon: "pi-dollar",
 						Values: map[currency.Unit]CategoryReportValues{
 							currency.EUR: {Value: 0, Count: 0}, currency.USD: {}, currency.CHF: {},
 						},
 					},
 					{
-						Id: 3, ParentId: 1, Name: "Stock benefits",
+						Id: 3, ParentId: 1, Name: "Stock benefits", Icon: "pi-chart-line",
 						Values: map[currency.Unit]CategoryReportValues{
 							currency.EUR: {Value: 2500, Count: 2}, currency.USD: {}, currency.CHF: {},
 						},
 					},
 					{
-						Id: 1, ParentId: 0, Name: "Salary",
+						Id: 1, ParentId: 0, Name: "Salary", Icon: "pi-wallet",
 						Values: map[currency.Unit]CategoryReportValues{
 							currency.EUR: {Value: 3900, Count: 3}, currency.USD: {}, currency.CHF: {},
 						},
 					},
 					{
-						Id: 5, ParentId: 3, Name: "MSFT",
+						Id: 5, ParentId: 3, Name: "MSFT", Icon: "pi-microsoft",
 						Values: map[currency.Unit]CategoryReportValues{
 							currency.EUR: {Value: 1300, Count: 1}, currency.USD: {}, currency.CHF: {},
 						},
@@ -138,25 +139,25 @@ func TestGetCategoryReport(t *testing.T) {
 						},
 					},
 					{
-						Id: 2, ParentId: 0, Name: "Home",
+						Id: 2, ParentId: 0, Name: "Home", Icon: "pi-home",
 						Values: map[currency.Unit]CategoryReportValues{
 							currency.EUR: {Value: 1200, Count: 3}, currency.USD: {}, currency.CHF: {},
 						},
 					},
 					{
-						Id: 6, ParentId: 2, Name: "Groceries",
+						Id: 6, ParentId: 2, Name: "Groceries", Icon: "pi-shopping-cart",
 						Values: map[currency.Unit]CategoryReportValues{
 							currency.EUR: {Value: 400, Count: 1}, currency.USD: {}, currency.CHF: {},
 						},
 					},
 					{
-						Id: 8, ParentId: 7, Name: "Electricity",
+						Id: 8, ParentId: 7, Name: "Electricity", Icon: "pi-bolt",
 						Values: map[currency.Unit]CategoryReportValues{
 							currency.EUR: {Value: 0, Count: 0}, currency.USD: {}, currency.CHF: {},
 						},
 					},
 					{
-						Id: 7, ParentId: 2, Name: "Bills",
+						Id: 7, ParentId: 2, Name: "Bills", Icon: "pi-file",
 						Values: map[currency.Unit]CategoryReportValues{
 							currency.EUR: {Value: 800, Count: 2}, currency.USD: {}, currency.CHF: {},
 						},
