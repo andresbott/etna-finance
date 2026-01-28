@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	closuretree "github.com/go-bumbu/closure-tree"
 )
 
@@ -37,6 +38,7 @@ type dbCategory struct {
 	closuretree.Node
 	Name        string
 	Description string
+	Icon        string
 	Type        CategoryType
 	Children    []*dbCategory `gorm:"-"`
 }
@@ -44,6 +46,7 @@ type dbCategory struct {
 type CategoryData struct {
 	Name        string
 	Description string
+	Icon        string
 	Type        CategoryType
 }
 
@@ -69,6 +72,7 @@ func (store *Store) CreateCategory(ctx context.Context, cat CategoryData, parent
 		Node:        closuretree.Node{},
 		Name:        cat.Name,
 		Description: cat.Description,
+		Icon:        cat.Icon,
 		Type:        cat.Type,
 	}
 	err = store.categoryTree.Add(ctx, &payload, parent, tenant)
@@ -103,6 +107,7 @@ func (store *Store) UpdateCategory(ctx context.Context, Id uint, cat CategoryDat
 		Node:        closuretree.Node{},
 		Name:        cat.Name,
 		Description: cat.Description,
+		Icon:        cat.Icon,
 	}
 	err = store.categoryTree.Update(ctx, Id, &payload, tenant)
 	return handleErr(err)
@@ -151,6 +156,7 @@ func (store *Store) GetCategory(ctx context.Context, Id uint, tenant string) (Ca
 		CategoryData: CategoryData{
 			Name:        node.Name,
 			Description: node.Description,
+			Icon:        node.Icon,
 			Type:        node.Type,
 		},
 		Id:       node.NodeId,
@@ -188,6 +194,7 @@ func (store *Store) ListDescendantCategories(ctx context.Context, parent uint, d
 			CategoryData: CategoryData{
 				Name:        item.Name,
 				Description: item.Description,
+				Icon:        item.Icon,
 				Type:        item.Type,
 			},
 		}
@@ -253,6 +260,7 @@ func (store *Store) getCategoryChildren(ctx context.Context, catType CategoryTyp
 				CategoryData: CategoryData{
 					Name:        node.Name,
 					Description: node.Description,
+					Icon:        node.Icon,
 					Type:        node.Type,
 				},
 				Id:       node.Id,

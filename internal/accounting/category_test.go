@@ -2,11 +2,12 @@ package accounting
 
 import (
 	"context"
+	"sort"
+	"testing"
+
 	"github.com/go-bumbu/testdbs"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"sort"
-	"testing"
 )
 
 // since almost all the logic is delegated to the closure-tree library

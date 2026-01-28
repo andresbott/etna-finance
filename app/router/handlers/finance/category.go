@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/andresbott/etna/internal/accounting"
 	"net/http"
+
+	"github.com/andresbott/etna/internal/accounting"
 )
 
 type CategoryHandler struct {
@@ -27,11 +28,13 @@ type categoryPayload struct {
 	ParentId    uint   `json:"parentId,omitempty"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
+	Icon        string `json:"icon"`
 }
 
 type categoryUpdatePayload struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
+	Icon        string `json:"icon"`
 	ParentId    *uint  `json:"parentId,omitempty"`
 }
 
@@ -78,6 +81,7 @@ func (h *CategoryHandler) createCategory(userId, categoryType string) http.Handl
 		data := accounting.CategoryData{
 			Name:        payload.Name,
 			Description: payload.Description,
+			Icon:        payload.Icon,
 		}
 		switch categoryType {
 		case IncomeCategoryType:
@@ -101,6 +105,7 @@ func (h *CategoryHandler) createCategory(userId, categoryType string) http.Handl
 			ParentId:    payload.ParentId,
 			Name:        data.Name,
 			Description: data.Description,
+			Icon:        data.Icon,
 		}
 
 		var respJson []byte
@@ -172,6 +177,7 @@ func updateCategory(ctx context.Context, Id uint, userId, categoryType string, p
 	data := accounting.CategoryData{
 		Name:        payload.Name,
 		Description: payload.Description,
+		Icon:        payload.Icon,
 	}
 
 	switch categoryType {
@@ -320,6 +326,7 @@ func (h *CategoryHandler) listCategory(Id uint, userId, categoryType string) htt
 					Id:          item.Id,
 					Name:        item.Name,
 					Description: item.Description,
+					Icon:        item.Icon,
 					ParentId:    item.ParentId,
 				}
 			}
@@ -336,6 +343,7 @@ func (h *CategoryHandler) listCategory(Id uint, userId, categoryType string) htt
 					Id:          item.Id,
 					Name:        item.Name,
 					Description: item.Description,
+					Icon:        item.Icon,
 					ParentId:    item.ParentId,
 				}
 			}

@@ -425,7 +425,7 @@ func TestListCategory(t *testing.T) {
 			categoryType: ExpenseCategoryType,
 			parentId:     0,
 			expectCode:   http.StatusOK,
-			expectBody:   `{"items":[{"id":3,"name":"Food","description":""},{"id":4,"name":"Transportation","description":""},{"id":5,"parentId":3,"name":"Groceries","description":""}]}`,
+			expectBody:   `{"items":[{"id":3,"name":"Food","description":"","icon":""},{"id":4,"name":"Transportation","description":"","icon":""},{"id":5,"parentId":3,"name":"Groceries","description":"","icon":""}]}`,
 		},
 		{
 			name:         "list child level expenses categories",
@@ -433,7 +433,7 @@ func TestListCategory(t *testing.T) {
 			categoryType: ExpenseCategoryType,
 			parentId:     3,
 			expectCode:   http.StatusOK,
-			expectBody:   `{"items":[{"id":5,"parentId":3,"name":"Groceries","description":""}]}`,
+			expectBody:   `{"items":[{"id":5,"parentId":3,"name":"Groceries","description":"","icon":""}]}`,
 		},
 		{
 			name:         "list top level income categories",
@@ -441,7 +441,7 @@ func TestListCategory(t *testing.T) {
 			categoryType: IncomeCategoryType,
 			parentId:     0,
 			expectCode:   http.StatusOK,
-			expectBody:   `{"items":[{"id":1,"name":"Salary","description":""},{"id":2,"name":"Investments","description":""}]}`,
+			expectBody:   `{"items":[{"id":1,"name":"Salary","description":"","icon":""},{"id":2,"name":"Investments","description":"","icon":""}]}`,
 		},
 		{
 			name:         "error on wrong category type",
