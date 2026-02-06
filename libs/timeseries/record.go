@@ -99,7 +99,7 @@ func (ts *Registry) ListRecords(name string) ([]Record, error) {
 	return out, nil
 }
 
-// DeleteRecord removes a record by its id
+// DeleteRecord removes a record by its id, does NOT return an error if the record does not exist
 func (ts *Registry) DeleteRecord(id uint) error {
 	if id == 0 {
 		return fmt.Errorf("record id cannot be zero")

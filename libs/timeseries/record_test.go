@@ -40,7 +40,7 @@ func TestIngestSeries(t *testing.T) {
 			wantErr: "timeseries time value cannot be zero",
 		},
 		{
-			name: "want error on missing series in db",
+			name: "want error on missing series in getDb",
 			input: Record{
 				Series: "unknown_series",
 				Time:   time.Now(),
@@ -89,7 +89,7 @@ func TestIngestSeries(t *testing.T) {
 						// Verify the record is in the DB
 						var got []dbRecord
 						if err := store.db.Find(&got).Error; err != nil {
-							t.Fatalf("failed to query db: %v", err)
+							t.Fatalf("failed to query getDb: %v", err)
 						}
 
 						if len(got) == 0 {

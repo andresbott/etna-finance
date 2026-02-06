@@ -44,6 +44,7 @@ func (ts *Registry) RecordAt(series string, t time.Time) (*Record, error) {
 	}, nil
 }
 
+// ValueAt is a wrapper function that only returns the value of a time series at a specific time
 func (ts *Registry) ValueAt(series string, t time.Time) (float64, error) {
 	r, err := ts.RecordAt(series, t)
 	if err != nil {

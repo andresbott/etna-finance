@@ -52,7 +52,7 @@ type dbSamplingPolicy struct {
 
 // samplingPolicyName used internally to generate a unique identifying name for sampling policies
 func samplingPolicyName(retention, precision time.Duration, aggrFn string) string {
-	return fmt.Sprintf("%s_%s_%s,", retention.String(), precision.String(), aggrFn)
+	return fmt.Sprintf("%s_%s_%s", retention.String(), precision.String(), aggrFn)
 }
 
 // RegisterSeries inserts or updates a series.
@@ -163,7 +163,6 @@ func (ts *Registry) ListSeries() ([]TimeSeries, error) {
 				AggregationFn: d.AggregationFn,
 			}
 		}
-
 		out.Sampling = down
 		result[i] = out
 	}
@@ -175,7 +174,9 @@ func (ts *Registry) ListSeries() ([]TimeSeries, error) {
 func (ts *Registry) GetSeries(name string) (TimeSeries, error) {
 	var series dbTimeSeries
 	err := ts.db.Preload("Sampling").Where("name = ?", name).First(&series).Error
-
+	if err != nil {
+		return TimeSeries{}, err
+	}
 	ret := TimeSeries{
 		Name: series.Name,
 	}
@@ -194,9 +195,12 @@ func (ts *Registry) GetSeries(name string) (TimeSeries, error) {
 // Cleanup removes old records beyond the retention period
 // todo, should do cleanup and downsampling as baground job
 func (ts *Registry) Cleanup(ctx context.Context) error {
-	panic("implement me")
-	//cutoff := time.Now().addTask(-ts.)
-	//return ts.db.WithContext(ctx).
+
+	ts.ListSeries()
+	cutoff := time.Now().addTask(-ts.)
+	//return ts.getDb.WithContext(ctx).
 	//	Where("timestamp < ?", cutoff).
 	//	Delete(&Record{}).Error
+
+	return nil
 }
