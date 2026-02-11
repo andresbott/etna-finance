@@ -3,8 +3,9 @@ package timeseries
 import (
 	"errors"
 	"fmt"
-	"gorm.io/gorm"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // RecordAt returns the latest record at or before the given time
@@ -28,7 +29,7 @@ func (ts *Registry) RecordAt(series string, t time.Time) (*Record, error) {
 	// Find the latest record at or before t
 	var r dbRecord
 	err := ts.db.
-		Where("series_id = ? AND time <= ?", s.ID, t).
+		Where("sampling_id = ? AND time <= ?", s.ID, t).
 		Order("time desc").
 		First(&r).Error
 	if err != nil {

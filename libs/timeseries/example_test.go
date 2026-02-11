@@ -22,7 +22,7 @@ func ExampleRegistry_e2e() {
 	// Register a time series with sampling policies
 	series := timeseries.TimeSeries{
 		Name: "btc_price",
-		Sampling: []timeseries.SamplingPolicy{
+		DownSampling: []timeseries.SamplingPolicy{
 			{
 				Precision:     time.Hour,
 				Retention:     7 * 24 * time.Hour, // 1 week

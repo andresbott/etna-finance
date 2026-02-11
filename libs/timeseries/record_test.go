@@ -1,12 +1,13 @@
 package timeseries
 
 import (
-	"github.com/go-bumbu/testdbs"
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"sort"
 	"testing"
 	"time"
+
+	"github.com/go-bumbu/testdbs"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
 func TestIngestSeries(t *testing.T) {
@@ -103,8 +104,8 @@ func TestIngestSeries(t *testing.T) {
 
 						last := got[0]
 
-						if last.SeriesId != existingSeries.ID {
-							t.Errorf("expected SeriesId=%d, got %d", existingSeries.ID, last.SeriesId)
+						if last.SamplingId != existingSeries.Retention.ID {
+							t.Errorf("expected SeriesId=%d, got %d", existingSeries.ID, last.SamplingId)
 						}
 
 						if last.Value != tc.input.Value {
@@ -119,103 +120,368 @@ func TestIngestSeries(t *testing.T) {
 }
 
 func TestUpdateRecord(t *testing.T) {
-	tcs := []struct {
-		name       string
-		targetID   *uint
-		update     RecordUpdate
-		wantErr    string
-		seriesName string
-		want       []Record
-	}{
-		{
-			name:       "update value only",
-			update:     RecordUpdate{Value: ptr(999.99)},
-			seriesName: "btc_price",
-			want: []Record{
-				{Series: "btc_price", Time: getDate("2022-01-07"), Value: 999.99},
+	t.Run("happy path", func(t *testing.T) {
+		tcs := []struct {
+			name       string
+			policyName string // which policy the record belongs to (main, 1h, 1d)
+			update     RecordUpdate
+			seriesName string
+			wantValue  float64 // expected value after update
+			wantTime   time.Time
+		}{
+			{
+				name:       "update value only in main policy",
+				policyName: "main",
+				update:     RecordUpdate{Value: ptr(999.99)},
+				seriesName: "btc_price",
+				wantValue:  999.99,
+				wantTime:   getDate("2022-01-07"),
 			},
-		},
-		{
-			name:       "update time only",
-			update:     RecordUpdate{Time: ptr(getDate("2022-01-08"))},
-			seriesName: "eth_price",
-			want: []Record{
-				{Series: "eth_price", Time: getDate("2022-01-08"), Value: 100.0},
+			{
+				name:       "update time only in main policy",
+				policyName: "main",
+				update:     RecordUpdate{Time: ptr(getDate("2022-01-08"))},
+				seriesName: "eth_price",
+				wantValue:  100.0,
+				wantTime:   getDate("2022-01-08"),
 			},
-		},
-		{
-			name:       "want error on zero id",
-			targetID:   ptr(uint(0)),
-			seriesName: "shiba_price",
-			wantErr:    "record id is required for update",
-		},
-		{
-			name:       "want error on non-existing record",
-			targetID:   ptr(uint(999)),
-			seriesName: "banana_price",
-			wantErr:    "record not found: record not found",
-		},
-	}
+			{
+				name:       "update value in 1h downsampling policy",
+				policyName: "1h",
+				update:     RecordUpdate{Value: ptr(555.55)},
+				seriesName: "sol_price",
+				wantValue:  555.55,
+				wantTime:   getDate("2022-01-07"),
+			},
+			{
+				name:       "update time in 1d downsampling policy",
+				policyName: "1d",
+				update:     RecordUpdate{Time: ptr(getDate("2022-01-10"))},
+				seriesName: "ada_price",
+				wantValue:  100.0,
+				wantTime:   getDate("2022-01-10"),
+			},
+		}
 
-	for _, db := range testdbs.DBs() {
-		t.Run(db.DbType(), func(t *testing.T) {
-			dbCon := db.ConnDbName("TestSeriesUpdateRecord")
-			store, err := NewRegistry(dbCon)
-			if err != nil {
-				t.Fatal(err)
-			}
+		for _, db := range testdbs.DBs() {
+			t.Run(db.DbType(), func(t *testing.T) {
+				dbCon := db.ConnDbName("TestUpdateRecord_happy")
+				store, err := NewRegistry(dbCon)
+				if err != nil {
+					t.Fatal(err)
+				}
 
-			for _, tc := range tcs {
-				t.Run(tc.name, func(t *testing.T) {
+				for _, tc := range tcs {
+					t.Run(tc.name, func(t *testing.T) {
+						series := dbTimeSeries{Name: tc.seriesName}
+						if err := store.db.Create(&series).Error; err != nil {
+							t.Fatalf("failed to create series: %v", err)
+						}
 
-					series := dbTimeSeries{Name: tc.seriesName}
-					if err := store.db.Create(&series).Error; err != nil {
-						t.Fatalf("failed to create series: %v", err)
-					}
+						// Create main policy
+						mainPolicy := dbSamplingPolicy{
+							TimeSeriesID:  series.ID,
+							Name:          "main",
+							Precision:     time.Minute,
+							Retention:     24 * time.Hour,
+							AggregationFn: "avg",
+						}
+						if err := store.db.Create(&mainPolicy).Error; err != nil {
+							t.Fatalf("failed to create main policy: %v", err)
+						}
 
-					r1 := dbRecord{
-						SeriesId: series.ID,
-						Time:     getDate("2022-01-07"),
-						Value:    100.0,
-					}
-					if err := store.db.Create(&r1).Error; err != nil {
-						t.Fatalf("failed to create record: %v", err)
-					}
+						series.Retention = mainPolicy
+						if err := store.db.Save(&series).Error; err != nil {
+							t.Fatalf("failed to update series: %v", err)
+						}
 
-					recordId := r1.Id
-					if tc.targetID != nil {
-						recordId = *tc.targetID
-					}
-					err := store.UpdateRecord(recordId, tc.update)
+						// Create the target policy for this test (might be main or downsampling)
+						var targetPolicy dbSamplingPolicy
+						if tc.policyName == "main" {
+							targetPolicy = mainPolicy
+						} else {
+							targetPolicy = dbSamplingPolicy{
+								TimeSeriesID:  series.ID,
+								Name:          tc.policyName,
+								Precision:     time.Minute,
+								Retention:     24 * time.Hour,
+								AggregationFn: "avg",
+							}
+							if err := store.db.Create(&targetPolicy).Error; err != nil {
+								t.Fatalf("failed to create %s policy: %v", tc.policyName, err)
+							}
+						}
 
-					// Error expectations
-					if tc.wantErr != "" {
+						// Create record in target policy
+						r1 := dbRecord{
+							SamplingId: targetPolicy.ID,
+							Time:       getDate("2022-01-07"),
+							Value:      100.0,
+						}
+						if err := store.db.Create(&r1).Error; err != nil {
+							t.Fatalf("failed to create record: %v", err)
+						}
+
+						// Update the record
+						err := store.UpdateRecord(r1.Id, tc.update)
+						if err != nil {
+							t.Fatalf("unexpected error: %v", err)
+						}
+
+						// Verify by reading the record directly from DB
+						var updated dbRecord
+						if err := store.db.First(&updated, r1.Id).Error; err != nil {
+							t.Fatalf("failed to read updated record: %v", err)
+						}
+
+						if updated.Value != tc.wantValue {
+							t.Errorf("expected value %v, got %v", tc.wantValue, updated.Value)
+						}
+						if !updated.Time.Equal(tc.wantTime) {
+							t.Errorf("expected time %v, got %v", tc.wantTime, updated.Time)
+						}
+					})
+				}
+			})
+		}
+	})
+
+	t.Run("error cases", func(t *testing.T) {
+		tcs := []struct {
+			name     string
+			targetID uint
+			update   RecordUpdate
+			wantErr  string
+		}{
+			{
+				name:     "error on zero id",
+				targetID: 0,
+				wantErr:  "record id is required for update",
+			},
+			{
+				name:     "error on non-existing record",
+				targetID: 999,
+				wantErr:  "record not found: record not found",
+			},
+		}
+
+		for _, db := range testdbs.DBs() {
+			t.Run(db.DbType(), func(t *testing.T) {
+				dbCon := db.ConnDbName("TestUpdateRecord_error")
+				store, err := NewRegistry(dbCon)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				for _, tc := range tcs {
+					t.Run(tc.name, func(t *testing.T) {
+						err := store.UpdateRecord(tc.targetID, tc.update)
+
 						if err == nil {
 							t.Fatalf("expected error %q, got none", tc.wantErr)
 						}
 						if diff := cmp.Diff(tc.wantErr, err.Error()); diff != "" {
 							t.Errorf("unexpected error (-want +got):\n%s", diff)
 						}
-					} else {
+					})
+				}
+			})
+		}
+	})
+}
+
+func TestListRecords(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		tcs := []struct {
+			name       string
+			SeriesName string
+			records    map[string][]Record // key is policy name (main, 1h, 1d), value is records for that policy
+			want       []Record            // expected output from ListRecords (returns main retention policy records)
+		}{
+			{
+				name:       "list multiple records from main retention",
+				SeriesName: "banana",
+				records: map[string][]Record{
+					"main": {
+						{Time: getDate("2022-01-01"), Value: 100.0},
+						{Time: getDate("2022-01-02"), Value: 200.0},
+						{Time: getDate("2022-01-03"), Value: 300.0},
+					},
+				},
+				want: []Record{
+					{Time: getDate("2022-01-01"), Value: 100.0},
+					{Time: getDate("2022-01-02"), Value: 200.0},
+					{Time: getDate("2022-01-03"), Value: 300.0},
+				},
+			},
+			{
+				name:       "list records with downsampling policies",
+				SeriesName: "banana",
+				records: map[string][]Record{
+					"main": {
+						{Time: getDate("2022-01-01"), Value: 100.0},
+						{Time: getDate("2022-01-02"), Value: 200.0},
+						{Time: getDate("2022-01-03"), Value: 300.0},
+						{Time: getDate("2022-01-04"), Value: 400.0},
+					},
+					"1h": {
+						{Time: getDate("2022-01-01"), Value: 150.0}, // hourly avg
+						{Time: getDate("2022-01-03"), Value: 350.0},
+					},
+					"1d": {
+						{Time: getDate("2022-01-01"), Value: 250.0}, // daily avg
+					},
+				},
+				want: []Record{
+					{Time: getDate("2022-01-01"), Value: 100.0},
+					{Time: getDate("2022-01-02"), Value: 200.0},
+					{Time: getDate("2022-01-03"), Value: 300.0},
+					{Time: getDate("2022-01-04"), Value: 400.0},
+				},
+			},
+			{
+				name:       "list single record",
+				SeriesName: "banana",
+				records: map[string][]Record{
+					"main": {
+						{Time: getDate("2022-01-05"), Value: 999.99},
+					},
+				},
+				want: []Record{
+					{Time: getDate("2022-01-05"), Value: 999.99},
+				},
+			},
+			{
+				name:       "list empty series",
+				SeriesName: "banana",
+				want:       []Record{},
+			},
+		}
+
+		for _, db := range testdbs.DBs() {
+			t.Run(db.DbType(), func(t *testing.T) {
+				for _, tc := range tcs {
+					t.Run(tc.name, func(t *testing.T) {
+						dbCon := db.ConnDbName("TestListRecords_" + tc.name)
+						store, err := NewRegistry(dbCon)
+						if err != nil {
+							t.Fatal(err)
+						}
+
+						series := dbTimeSeries{Name: tc.SeriesName}
+						if err := store.db.Create(&series).Error; err != nil {
+							t.Fatalf("failed to create series: %v", err)
+						}
+
+						var mainPolicy dbSamplingPolicy
+						policies := make(map[string]dbSamplingPolicy)
+
+						// Create all sampling policies (main + downsampling) and their records
+						for policyName, policyRecords := range tc.records {
+							policy := dbSamplingPolicy{
+								TimeSeriesID:  series.ID,
+								Name:          policyName,
+								Precision:     time.Minute,
+								Retention:     24 * time.Hour,
+								AggregationFn: "avg",
+							}
+							if err := store.db.Create(&policy).Error; err != nil {
+								t.Fatalf("failed to create %s policy: %v", policyName, err)
+							}
+							policies[policyName] = policy
+
+							if policyName == "main" {
+								mainPolicy = policy
+							}
+
+							// Create records for this policy
+							for _, rec := range policyRecords {
+								dbRec := dbRecord{
+									SamplingId: policy.ID,
+									Time:       rec.Time,
+									Value:      rec.Value,
+								}
+								if err := store.db.Create(&dbRec).Error; err != nil {
+									t.Fatalf("failed to create %s record: %v", policyName, err)
+								}
+							}
+						}
+
+						// Update series with retention policy
+						series.Retention = mainPolicy
+						if err := store.db.Save(&series).Error; err != nil {
+							t.Fatalf("failed to update series retention: %v", err)
+						}
+
+						// Execute ListRecords (returns records from main retention policy)
+						got, err := store.ListRecords(tc.SeriesName)
 						if err != nil {
 							t.Fatalf("unexpected error: %v", err)
 						}
 
-						// Verify with ListRecords
-						got, err := store.ListRecords(tc.seriesName)
-						if err != nil {
-							t.Fatalf("ListRecords failed: %v", err)
+						// Add series name to expected records for comparison
+						wantWithSeries := make([]Record, len(tc.want))
+						for i, rec := range tc.want {
+							wantWithSeries[i] = Record{
+								Series: tc.SeriesName,
+								Time:   rec.Time,
+								Value:  rec.Value,
+							}
 						}
 
-						if diff := cmp.Diff(tc.want, got,
-							cmpopts.IgnoreFields(Record{}, "Id"), // id may vary depending on DB
+						if diff := cmp.Diff(wantWithSeries, got,
+							cmpopts.IgnoreFields(Record{}, "Id"),
 							cmpopts.SortSlices(func(a, b Record) bool { return a.Time.Before(b.Time) }),
 						); diff != "" {
 							t.Errorf("unexpected result (-want +got):\n%s", diff)
 						}
-					}
-				})
-			}
-		})
-	}
+					})
+				}
+			})
+		}
+	})
+
+	t.Run("error cases", func(t *testing.T) {
+		tcs := []struct {
+			name       string
+			SeriesName string
+			wantErr    string
+		}{
+			{
+				name:       "error on empty name",
+				SeriesName: "",
+				wantErr:    "series name is required",
+			},
+			{
+				name:       "error on non-existing series",
+				SeriesName: "nonexistent",
+				wantErr:    "series not found: record not found",
+			},
+		}
+
+		for _, db := range testdbs.DBs() {
+			t.Run(db.DbType(), func(t *testing.T) {
+				for _, tc := range tcs {
+					t.Run(tc.name, func(t *testing.T) {
+						dbCon := db.ConnDbName("TestListRecords_error_" + tc.name)
+						store, err := NewRegistry(dbCon)
+						if err != nil {
+							t.Fatal(err)
+						}
+
+						// Execute ListRecords
+						_, err = store.ListRecords(tc.SeriesName)
+
+						// Verify error
+						if err == nil {
+							t.Fatalf("expected error %q, got none", tc.wantErr)
+						}
+						if diff := cmp.Diff(tc.wantErr, err.Error()); diff != "" {
+							t.Errorf("unexpected error (-want +got):\n%s", diff)
+						}
+					})
+				}
+			})
+		}
+	})
 }

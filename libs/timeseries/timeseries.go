@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gorm.io/gorm"
 	"time"
+
+	"github.com/davecgh/go-spew/spew"
+	"gorm.io/gorm"
 )
 
 type Registry struct {
@@ -29,15 +31,17 @@ type SamplingPolicy struct {
 
 // TimeSeries represents one time series configuration
 type TimeSeries struct {
-	Name     string
-	Sampling []SamplingPolicy
+	Name         string
+	Retention    SamplingPolicy   // main ingestion retention policy
+	DownSampling []SamplingPolicy // additional downsampling policies
 }
 
 // dbTimeSeries represents one time series configuration
 type dbTimeSeries struct {
-	ID       uint               `gorm:"primaryKey;autoIncrement"`
-	Name     string             `gorm:"uniqueIndex;not null"` // logical name, must be unique
-	Sampling []dbSamplingPolicy `gorm:"foreignKey:TimeSeriesID;constraint:OnDelete:CASCADE"`
+	ID           uint               `gorm:"primaryKey;autoIncrement"`
+	Name         string             `gorm:"uniqueIndex;not null"` // logical name, must be unique
+	Retention    dbSamplingPolicy   `gorm:"foreignKey:TimeSeriesID;constraint:OnDelete:CASCADE"`
+	DownSampling []dbSamplingPolicy `gorm:"foreignKey:TimeSeriesID;constraint:OnDelete:CASCADE"`
 }
 
 // dbSamplingPolicy defines a rollup/aggregation policy for a series
@@ -76,7 +80,7 @@ func (ts *Registry) RegisterSeries(series TimeSeries) error {
 		}
 		seen := make(map[string]bool)
 
-		if err := upsertPolicies(tx, existing.ID, existingMap, seen, series.Sampling); err != nil {
+		if err := upsertPolicies(tx, existing.ID, existingMap, seen, series.DownSampling); err != nil {
 			return err
 		}
 
@@ -145,7 +149,7 @@ func upsertPolicies(tx *gorm.DB, seriesID uint, existingMap map[string]dbSamplin
 // ListSeries returns all series with their downsampling policies
 func (ts *Registry) ListSeries() ([]TimeSeries, error) {
 	var dbSeries []dbTimeSeries
-	if err := ts.db.Preload("Sampling").Find(&dbSeries).Error; err != nil {
+	if err := ts.db.Preload("DownSampling").Find(&dbSeries).Error; err != nil {
 		return nil, err
 	}
 
@@ -155,52 +159,80 @@ func (ts *Registry) ListSeries() ([]TimeSeries, error) {
 			Name: s.Name,
 		}
 
-		down := make([]SamplingPolicy, len(s.Sampling))
-		for j, d := range s.Sampling {
+		down := make([]SamplingPolicy, len(s.DownSampling))
+		for j, d := range s.DownSampling {
 			down[j] = SamplingPolicy{
 				Precision:     d.Precision,
 				Retention:     d.Retention,
 				AggregationFn: d.AggregationFn,
 			}
 		}
-		out.Sampling = down
+		out.DownSampling = down
 		result[i] = out
 	}
 
 	return result, nil
 }
 
-// GetSeries loads a series with its Sampling policies preloaded
+// GetSeries loads a series with its DownSampling policies preloaded
 func (ts *Registry) GetSeries(name string) (TimeSeries, error) {
 	var series dbTimeSeries
-	err := ts.db.Preload("Sampling").Where("name = ?", name).First(&series).Error
+	err := ts.db.Preload("DownSampling").Where("name = ?", name).First(&series).Error
 	if err != nil {
 		return TimeSeries{}, err
 	}
 	ret := TimeSeries{
 		Name: series.Name,
 	}
-	sampling := make([]SamplingPolicy, len(series.Sampling))
-	for i, policy := range series.Sampling {
+	sampling := make([]SamplingPolicy, len(series.DownSampling))
+	for i, policy := range series.DownSampling {
 		sampling[i] = SamplingPolicy{
 			Precision:     policy.Precision,
 			Retention:     policy.Retention,
 			AggregationFn: policy.AggregationFn,
 		}
 	}
-	ret.Sampling = sampling
+	ret.DownSampling = sampling
 	return ret, err
 }
 
 // Cleanup removes old records beyond the retention period
-// todo, should do cleanup and downsampling as baground job
+// todo, should do cleanup and downsampling as background job
 func (ts *Registry) Cleanup(ctx context.Context) error {
 
-	ts.ListSeries()
-	cutoff := time.Now().addTask(-ts.)
+	series, err := ts.ListSeries()
+	if err != nil {
+		return fmt.Errorf("unable to clean time series: %w", err)
+	}
+
+	// sort series sampling by retention duration
+
+	// calculate new values by sampling down if not exits already
+
+	for _, item := range series {
+		err = ts.cleanOneSeries(ctx, item)
+	}
+
+	// sample down new data
+
+	spew.Dump(series)
+
+	//cutoff := time.Now().addTask(-ts.)
 	//return ts.getDb.WithContext(ctx).
 	//	Where("timestamp < ?", cutoff).
 	//	Delete(&Record{}).Error
+
+	return nil
+}
+
+// cleanOneSeries truncates all items in a single time series where the current time os newer than the retention
+func (ts *Registry) cleanOneSeries(ctx context.Context, series TimeSeries) error {
+
+	//policyName := samplingPolicyName(series.DownSampling)
+
+	// cutof := time.Now().Add(series.DownSampling[0].Retention * -1)
+
+	// delete all entries that are older than cut off on every sampling
 
 	return nil
 }

@@ -2,15 +2,16 @@ package timeseries
 
 import (
 	"fmt"
-	"github.com/davecgh/go-spew/spew"
-	"github.com/go-bumbu/testdbs"
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"os"
 	"sort"
 	"testing"
 	"testing/synctest"
 	"time"
+
+	"github.com/davecgh/go-spew/spew"
+	"github.com/go-bumbu/testdbs"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
 // TestMain modifies how test are run,
@@ -37,14 +38,14 @@ func TestRegisterSeries(t *testing.T) {
 					name: "create new series",
 					input: TimeSeries{
 						Name: "btc_price",
-						Sampling: []SamplingPolicy{
+						DownSampling: []SamplingPolicy{
 							{Precision: time.Hour, Retention: 7 * 24 * time.Hour, AggregationFn: "avg"},
 							{Precision: 24 * time.Hour, Retention: 30 * 24 * time.Hour, AggregationFn: "avg"},
 						},
 					},
 					expected: TimeSeries{
 						Name: "btc_price",
-						Sampling: []SamplingPolicy{
+						DownSampling: []SamplingPolicy{
 							{Precision: time.Hour, Retention: 7 * 24 * time.Hour, AggregationFn: "avg"},
 							{Precision: 24 * time.Hour, Retention: 30 * 24 * time.Hour, AggregationFn: "avg"},
 						},
@@ -54,21 +55,21 @@ func TestRegisterSeries(t *testing.T) {
 					name: "idempotent registration", // policies are not duplicated
 					initial: &TimeSeries{
 						Name: "btc_price",
-						Sampling: []SamplingPolicy{
+						DownSampling: []SamplingPolicy{
 							{Precision: time.Hour, Retention: 7 * 24 * time.Hour, AggregationFn: "avg"},
 							{Precision: 24 * time.Hour, Retention: 30 * 24 * time.Hour, AggregationFn: "avg"},
 						},
 					},
 					input: TimeSeries{
 						Name: "btc_price",
-						Sampling: []SamplingPolicy{
+						DownSampling: []SamplingPolicy{
 							{Precision: time.Hour, Retention: 7 * 24 * time.Hour, AggregationFn: "avg"},
 							{Precision: 24 * time.Hour, Retention: 30 * 24 * time.Hour, AggregationFn: "avg"},
 						},
 					},
 					expected: TimeSeries{
 						Name: "btc_price",
-						Sampling: []SamplingPolicy{
+						DownSampling: []SamplingPolicy{
 							{Precision: time.Hour, Retention: 7 * 24 * time.Hour, AggregationFn: "avg"},
 							{Precision: 24 * time.Hour, Retention: 30 * 24 * time.Hour, AggregationFn: "avg"},
 						},
@@ -78,19 +79,19 @@ func TestRegisterSeries(t *testing.T) {
 					name: "update retention and policy",
 					initial: &TimeSeries{
 						Name: "btc_price",
-						Sampling: []SamplingPolicy{
+						DownSampling: []SamplingPolicy{
 							{Precision: time.Hour, Retention: 7 * 24 * time.Hour, AggregationFn: "avg"},
 						},
 					},
 					input: TimeSeries{
 						Name: "btc_price",
-						Sampling: []SamplingPolicy{
+						DownSampling: []SamplingPolicy{
 							{Precision: time.Hour, Retention: 10 * 24 * time.Hour, AggregationFn: "avg"},
 						},
 					},
 					expected: TimeSeries{
 						Name: "btc_price",
-						Sampling: []SamplingPolicy{
+						DownSampling: []SamplingPolicy{
 							{Precision: time.Hour, Retention: 10 * 24 * time.Hour, AggregationFn: "avg"},
 						},
 					},
@@ -99,20 +100,20 @@ func TestRegisterSeries(t *testing.T) {
 					name: "delete policy",
 					initial: &TimeSeries{
 						Name: "btc_price",
-						Sampling: []SamplingPolicy{
+						DownSampling: []SamplingPolicy{
 							{Precision: time.Hour, Retention: 7 * 24 * time.Hour, AggregationFn: "avg"},
 							{Precision: 24 * time.Hour, Retention: 30 * 24 * time.Hour, AggregationFn: "avg"},
 						},
 					},
 					input: TimeSeries{
 						Name: "btc_price",
-						Sampling: []SamplingPolicy{
+						DownSampling: []SamplingPolicy{
 							{Precision: 24 * time.Hour, Retention: 30 * 24 * time.Hour, AggregationFn: "avg"},
 						},
 					},
 					expected: TimeSeries{
 						Name: "btc_price",
-						Sampling: []SamplingPolicy{
+						DownSampling: []SamplingPolicy{
 							{Precision: 24 * time.Hour, Retention: 30 * 24 * time.Hour, AggregationFn: "avg"},
 						},
 					},
@@ -139,12 +140,12 @@ func TestRegisterSeries(t *testing.T) {
 
 					got, err := store.GetSeries(tc.input.Name)
 					if err != nil {
-						t.Fatalf("getTimeSeries failed: %v", err)
+						t.Fatalf("GetSeries failed: %v", err)
 					}
 
 					//sort to have comparable results
-					sort.Slice(got.Sampling, func(i, j int) bool {
-						return got.Sampling[i].Precision < got.Sampling[j].Precision
+					sort.Slice(got.DownSampling, func(i, j int) bool {
+						return got.DownSampling[i].Precision < got.DownSampling[j].Precision
 					})
 
 					if diff := cmp.Diff(tc.expected, got); diff != "" {
@@ -168,14 +169,14 @@ func TestListSeries(t *testing.T) {
 			// Arrange: Create some sample data
 			s1 := TimeSeries{
 				Name: "btc_price",
-				Sampling: []SamplingPolicy{
+				DownSampling: []SamplingPolicy{
 					{Precision: time.Hour, Retention: 7 * 24 * time.Hour, AggregationFn: "avg"},
 					{Precision: 24 * time.Hour, Retention: 30 * 24 * time.Hour, AggregationFn: "avg"},
 				},
 			}
 			s2 := TimeSeries{
 				Name: "eth_price",
-				Sampling: []SamplingPolicy{
+				DownSampling: []SamplingPolicy{
 					{Precision: time.Hour, Retention: 14 * 24 * time.Hour, AggregationFn: "avg"},
 				},
 			}
@@ -194,8 +195,8 @@ func TestListSeries(t *testing.T) {
 
 			// Sort the policies for comparison (in case DB doesn't guarantee order)
 			//for i := range got {
-			//	sort.Slice(got[i].Sampling, func(a, b int) bool {
-			//		return got[i].Sampling[a].Name > got[i].Sampling[b].Name
+			//	sort.Slice(got[i].DownSampling, func(a, b int) bool {
+			//		return got[i].DownSampling[a].Name > got[i].DownSampling[b].Name
 			//	})
 			//}
 
@@ -228,7 +229,10 @@ func TestCleanupSeries(t *testing.T) {
 						{Time: getdatetime("2000-01-02 01:00:00"), Value: 11.50},
 						{Time: getdatetime("2000-01-03 01:00:00"), Value: 12.50},
 					},
-					progress: 30 * 24 * time.Hour,
+					progress: 30 * 24 * time.Hour, // 30 days
+					expected: []Record{
+						{Time: getdatetime("2000-01-03 01:00:00"), Value: 12.50},
+					},
 				},
 			}
 
@@ -246,7 +250,7 @@ func TestCleanupSeries(t *testing.T) {
 						seriesName := fmt.Sprintf("btc_price_%d", i)
 						series := TimeSeries{
 							Name: seriesName,
-							Sampling: []SamplingPolicy{
+							DownSampling: []SamplingPolicy{
 								// hour precision for 7 days
 								{Precision: time.Hour, Retention: 7 * 24 * time.Hour, AggregationFn: "avg"},
 								// day precision for 30 days
@@ -281,10 +285,9 @@ func TestCleanupSeries(t *testing.T) {
 						}
 						spew.Dump(got)
 
-						//
-						//if diff := cmp.Diff(tc.expected, got); diff != "" {
-						//	t.Errorf("unexpected series state (-want +got):\n%s", diff)
-						//}
+						if diff := cmp.Diff(tc.expected, got); diff != "" {
+							t.Errorf("unexpected series state (-want +got):\n%s", diff)
+						}
 					})
 				})
 			}

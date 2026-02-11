@@ -13,10 +13,10 @@ type Record struct {
 }
 
 type dbRecord struct {
-	Id       uint      `gorm:"primary_key"`
-	SeriesId uint      `gorm:"index"`
-	Time     time.Time `gorm:"index"`
-	Value    float64
+	Id         uint      `gorm:"primary_key"`
+	SamplingId uint      `gorm:"index"`
+	Time       time.Time `gorm:"index"`
+	Value      float64
 }
 
 // Ingest adds a new data point
@@ -36,9 +36,9 @@ func (ts *Registry) Ingest(in Record) error {
 	}
 
 	item := dbRecord{
-		SeriesId: s.ID,
-		Time:     in.Time,
-		Value:    in.Value,
+		SamplingId: s.Retention.ID,
+		Time:       in.Time,
+		Value:      in.Value,
 	}
 	return ts.db.Create(&item).Error
 }
@@ -77,12 +77,12 @@ func (ts *Registry) ListRecords(name string) ([]Record, error) {
 	}
 
 	var s dbTimeSeries
-	if err := ts.db.Where("name = ?", name).First(&s).Error; err != nil {
+	if err := ts.db.Preload("Retention").Where("name = ?", name).First(&s).Error; err != nil {
 		return nil, fmt.Errorf("series not found: %w", err)
 	}
 
 	var dbRecs []dbRecord
-	if err := ts.db.Where("series_id = ?", s.ID).Order("time ASC").Find(&dbRecs).Error; err != nil {
+	if err := ts.db.Where("sampling_id = ?", s.Retention.ID).Order("time ASC").Find(&dbRecs).Error; err != nil {
 		return nil, fmt.Errorf("failed to list records: %w", err)
 	}
 
