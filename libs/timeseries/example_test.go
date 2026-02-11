@@ -67,7 +67,7 @@ func ExampleRegistry_e2e() {
 	fmt.Printf("Ingested %d records\n", len(records))
 
 	// List all records for the series
-	allRecords, err := registry.ListRecords(seriesName)
+	allRecords, err := registry.ListRecords(seriesName, time.Time{}, time.Time{})
 	if err != nil {
 		fmt.Printf("failed to list records: %v\n", err)
 		return

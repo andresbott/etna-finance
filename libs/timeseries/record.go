@@ -70,8 +70,10 @@ func (ts *Registry) UpdateRecord(Id uint, in RecordUpdate) error {
 	return ts.db.Model(&rec).Updates(updates).Error
 }
 
-// ListRecords returns all records for a given series name
-func (ts *Registry) ListRecords(name string) ([]Record, error) {
+// ListRecords returns all records for a given series name from all sampling policies.
+// Optional start and end times can be provided to filter records by time range.
+// If start is zero, no lower bound is applied. If end is zero, no upper bound is applied.
+func (ts *Registry) ListRecords(name string, start, end time.Time) ([]Record, error) {
 	if name == "" {
 		return nil, fmt.Errorf("series name is required")
 	}
@@ -81,9 +83,25 @@ func (ts *Registry) ListRecords(name string) ([]Record, error) {
 		return nil, fmt.Errorf("series not found: %w", err)
 	}
 
+	// Collect all policy IDs for this series
+	policyIDs := make([]uint, len(s.Policies))
+	for i, policy := range s.Policies {
+		policyIDs[i] = policy.ID
+	}
+
+	// Query records from all policies
+	query := ts.db.Where("sampling_id IN ?", policyIDs)
+
+	// Apply time filters if provided
+	if !start.IsZero() {
+		query = query.Where("time >= ?", start)
+	}
+	if !end.IsZero() {
+		query = query.Where("time <= ?", end)
+	}
+
 	var dbRecs []dbRecord
-	// TODO, modify query to lost recors from multiple policies
-	if err := ts.db.Where("sampling_id = ?", s.mainPolicyID()).Order("time ASC").Find(&dbRecs).Error; err != nil {
+	if err := query.Order("time ASC").Find(&dbRecs).Error; err != nil {
 		return nil, fmt.Errorf("failed to list records: %w", err)
 	}
 

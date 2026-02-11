@@ -230,7 +230,12 @@ func TestCleanupSeries(t *testing.T) {
 						{Time: getdatetime("2000-01-03 01:00:00"), Value: 12.50},
 					},
 					progress: 30 * 24 * time.Hour, // 30 days
+					// ListRecords now returns records from all policies (main + downsampling)
+					// After cleanup, main policy retains the most recent data,
+					// and downsampling policies (1h for 7d, 1d for 30d) still have their data
 					expected: []Record{
+						{Time: getdatetime("2000-01-01 01:00:00"), Value: 10.50},
+						{Time: getdatetime("2000-01-02 01:00:00"), Value: 11.50},
 						{Time: getdatetime("2000-01-03 01:00:00"), Value: 12.50},
 					},
 				},
@@ -279,7 +284,7 @@ func TestCleanupSeries(t *testing.T) {
 							t.Fatalf("Cleanup failed: %v", err)
 						}
 
-						got, err := store.ListRecords(seriesName)
+						got, err := store.ListRecords(seriesName, time.Time{}, time.Time{})
 						if err != nil {
 							t.Fatalf("ListSeries failed: %v", err)
 						}

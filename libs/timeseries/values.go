@@ -19,17 +19,23 @@ func (ts *Registry) RecordAt(series string, t time.Time) (*Record, error) {
 
 	// Find the series
 	var s dbTimeSeries
-	if err := ts.db.Where("name = ?", series).First(&s).Error; err != nil {
+	if err := ts.db.Preload("Policies").Where("name = ?", series).First(&s).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("series not found")
 		}
 		return nil, fmt.Errorf("series not found: %w", err)
 	}
 
-	// Find the latest record at or before t
+	// Collect all policy IDs for this series
+	policyIDs := make([]uint, len(s.Policies))
+	for i, policy := range s.Policies {
+		policyIDs[i] = policy.ID
+	}
+
+	// Find the latest record at or before t from any policy
 	var r dbRecord
 	err := ts.db.
-		Where("sampling_id = ? AND time <= ?", s.ID, t).
+		Where("sampling_id IN ? AND time <= ?", policyIDs, t).
 		Order("time desc").
 		First(&r).Error
 	if err != nil {

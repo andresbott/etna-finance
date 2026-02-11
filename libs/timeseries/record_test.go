@@ -451,7 +451,9 @@ func TestListRecords(t *testing.T) {
 			name       string
 			SeriesName string
 			records    map[string][]Record // key is policy name (main, 1h, 1d), value is records for that policy
-			want       []Record            // expected output from ListRecords (returns main retention policy records)
+			start      time.Time
+			end        time.Time
+			want       []Record // expected output from ListRecords (returns main retention policy records)
 		}{
 			{
 				name:       "list multiple records from main retention",
@@ -463,6 +465,8 @@ func TestListRecords(t *testing.T) {
 						{Time: getDate("2022-01-03"), Value: 300.0},
 					},
 				},
+				start: time.Time{},
+				end:   time.Time{},
 				want: []Record{
 					{Time: getDate("2022-01-01"), Value: 100.0},
 					{Time: getDate("2022-01-02"), Value: 200.0},
@@ -487,11 +491,17 @@ func TestListRecords(t *testing.T) {
 						{Time: getDate("2022-01-01"), Value: 250.0}, // daily avg
 					},
 				},
+				start: time.Time{},
+				end:   time.Time{},
 				want: []Record{
-					{Time: getDate("2022-01-01"), Value: 100.0},
-					{Time: getDate("2022-01-02"), Value: 200.0},
-					{Time: getDate("2022-01-03"), Value: 300.0},
-					{Time: getDate("2022-01-04"), Value: 400.0},
+					// All records from all policies
+					{Time: getDate("2022-01-01"), Value: 100.0}, // main
+					{Time: getDate("2022-01-01"), Value: 150.0}, // 1h
+					{Time: getDate("2022-01-01"), Value: 250.0}, // 1d
+					{Time: getDate("2022-01-02"), Value: 200.0}, // main
+					{Time: getDate("2022-01-03"), Value: 300.0}, // main
+					{Time: getDate("2022-01-03"), Value: 350.0}, // 1h
+					{Time: getDate("2022-01-04"), Value: 400.0}, // main
 				},
 			},
 			{
@@ -502,6 +512,8 @@ func TestListRecords(t *testing.T) {
 						{Time: getDate("2022-01-05"), Value: 999.99},
 					},
 				},
+				start: time.Time{},
+				end:   time.Time{},
 				want: []Record{
 					{Time: getDate("2022-01-05"), Value: 999.99},
 				},
@@ -509,7 +521,100 @@ func TestListRecords(t *testing.T) {
 			{
 				name:       "list empty series",
 				SeriesName: "banana",
+				start:      time.Time{},
+				end:        time.Time{},
 				want:       []Record{},
+			},
+			{
+				name:       "filter with start time only",
+				SeriesName: "banana",
+				records: map[string][]Record{
+					"main": {
+						{Time: getDate("2022-01-01"), Value: 100.0},
+						{Time: getDate("2022-01-02"), Value: 200.0},
+						{Time: getDate("2022-01-03"), Value: 300.0},
+						{Time: getDate("2022-01-04"), Value: 400.0},
+					},
+				},
+				start: getDate("2022-01-02"),
+				end:   time.Time{},
+				want: []Record{
+					{Time: getDate("2022-01-02"), Value: 200.0},
+					{Time: getDate("2022-01-03"), Value: 300.0},
+					{Time: getDate("2022-01-04"), Value: 400.0},
+				},
+			},
+			{
+				name:       "filter with end time only",
+				SeriesName: "banana",
+				records: map[string][]Record{
+					"main": {
+						{Time: getDate("2022-01-01"), Value: 100.0},
+						{Time: getDate("2022-01-02"), Value: 200.0},
+						{Time: getDate("2022-01-03"), Value: 300.0},
+						{Time: getDate("2022-01-04"), Value: 400.0},
+					},
+				},
+				start: time.Time{},
+				end:   getDate("2022-01-03"),
+				want: []Record{
+					{Time: getDate("2022-01-01"), Value: 100.0},
+					{Time: getDate("2022-01-02"), Value: 200.0},
+					{Time: getDate("2022-01-03"), Value: 300.0},
+				},
+			},
+			{
+				name:       "filter with both start and end time",
+				SeriesName: "banana",
+				records: map[string][]Record{
+					"main": {
+						{Time: getDate("2022-01-01"), Value: 100.0},
+						{Time: getDate("2022-01-02"), Value: 200.0},
+						{Time: getDate("2022-01-03"), Value: 300.0},
+						{Time: getDate("2022-01-04"), Value: 400.0},
+					},
+				},
+				start: getDate("2022-01-02"),
+				end:   getDate("2022-01-03"),
+				want: []Record{
+					{Time: getDate("2022-01-02"), Value: 200.0},
+					{Time: getDate("2022-01-03"), Value: 300.0},
+				},
+			},
+			{
+				name:       "filter across multiple policies",
+				SeriesName: "banana",
+				records: map[string][]Record{
+					"main": {
+						{Time: getDate("2022-01-01"), Value: 100.0},
+						{Time: getDate("2022-01-02"), Value: 200.0},
+						{Time: getDate("2022-01-03"), Value: 300.0},
+					},
+					"1h": {
+						{Time: getDate("2022-01-01"), Value: 150.0},
+						{Time: getDate("2022-01-04"), Value: 450.0},
+					},
+				},
+				start: getDate("2022-01-02"),
+				end:   time.Time{},
+				want: []Record{
+					{Time: getDate("2022-01-02"), Value: 200.0},
+					{Time: getDate("2022-01-03"), Value: 300.0},
+					{Time: getDate("2022-01-04"), Value: 450.0},
+				},
+			},
+			{
+				name:       "filter returns empty when range has no matches",
+				SeriesName: "banana",
+				records: map[string][]Record{
+					"main": {
+						{Time: getDate("2022-01-01"), Value: 100.0},
+						{Time: getDate("2022-01-02"), Value: 200.0},
+					},
+				},
+				start: getDate("2022-01-05"),
+				end:   getDate("2022-01-10"),
+				want:  []Record{},
 			},
 		}
 
@@ -554,8 +659,8 @@ func TestListRecords(t *testing.T) {
 							}
 						}
 
-						// Execute ListRecords (returns records from main retention policy)
-						got, err := store.ListRecords(tc.SeriesName)
+						// Execute ListRecords
+						got, err := store.ListRecords(tc.SeriesName, tc.start, tc.end)
 						if err != nil {
 							t.Fatalf("unexpected error: %v", err)
 						}
@@ -611,7 +716,7 @@ func TestListRecords(t *testing.T) {
 						}
 
 						// Execute ListRecords
-						_, err = store.ListRecords(tc.SeriesName)
+						_, err = store.ListRecords(tc.SeriesName, time.Time{}, time.Time{})
 
 						// Verify error
 						if err == nil {
