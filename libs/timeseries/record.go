@@ -30,13 +30,13 @@ func (ts *Registry) Ingest(in Record) error {
 
 	// Ensure series exists (create if missing)
 	var s dbTimeSeries
-	err := ts.db.Where("name = ?", in.Series).First(&s).Error
+	err := ts.db.Preload("Policies").Where("name = ?", in.Series).First(&s).Error
 	if err != nil {
 		return fmt.Errorf("failed to lookup series: %w", err)
 	}
 
 	item := dbRecord{
-		SamplingId: s.Retention.ID,
+		SamplingId: s.mainPolicyID(),
 		Time:       in.Time,
 		Value:      in.Value,
 	}
@@ -77,12 +77,13 @@ func (ts *Registry) ListRecords(name string) ([]Record, error) {
 	}
 
 	var s dbTimeSeries
-	if err := ts.db.Preload("Retention").Where("name = ?", name).First(&s).Error; err != nil {
+	if err := ts.db.Preload("Policies").Where("name = ?", name).First(&s).Error; err != nil {
 		return nil, fmt.Errorf("series not found: %w", err)
 	}
 
 	var dbRecs []dbRecord
-	if err := ts.db.Where("sampling_id = ?", s.Retention.ID).Order("time ASC").Find(&dbRecs).Error; err != nil {
+	// TODO, modify query to lost recors from multiple policies
+	if err := ts.db.Where("sampling_id = ?", s.mainPolicyID()).Order("time ASC").Find(&dbRecs).Error; err != nil {
 		return nil, fmt.Errorf("failed to list records: %w", err)
 	}
 

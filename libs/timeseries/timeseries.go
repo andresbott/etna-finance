@@ -38,10 +38,18 @@ type TimeSeries struct {
 
 // dbTimeSeries represents one time series configuration
 type dbTimeSeries struct {
-	ID           uint               `gorm:"primaryKey;autoIncrement"`
-	Name         string             `gorm:"uniqueIndex;not null"` // logical name, must be unique
-	Retention    dbSamplingPolicy   `gorm:"foreignKey:TimeSeriesID;constraint:OnDelete:CASCADE"`
-	DownSampling []dbSamplingPolicy `gorm:"foreignKey:TimeSeriesID;constraint:OnDelete:CASCADE"`
+	ID       uint               `gorm:"primaryKey;autoIncrement"`
+	Name     string             `gorm:"uniqueIndex;not null"` // logical name, must be unique
+	Policies []dbSamplingPolicy `gorm:"foreignKey:TimeSeriesID;constraint:OnDelete:CASCADE"`
+}
+
+func (dbTs *dbTimeSeries) mainPolicyID() uint {
+	for _, p := range dbTs.Policies {
+		if p.Name == "main" {
+			return p.ID
+		}
+	}
+	return 0
 }
 
 // dbSamplingPolicy defines a rollup/aggregation policy for a series
@@ -58,6 +66,8 @@ type dbSamplingPolicy struct {
 func samplingPolicyName(retention, precision time.Duration, aggrFn string) string {
 	return fmt.Sprintf("%s_%s_%s", retention.String(), precision.String(), aggrFn)
 }
+
+const mainPolicyName = "main"
 
 // RegisterSeries inserts or updates a series.
 // If it exists, all DownSamplingPolicies are replaced.
@@ -76,10 +86,40 @@ func (ts *Registry) RegisterSeries(series TimeSeries) error {
 
 		existingMap := make(map[string]dbSamplingPolicy)
 		for _, p := range existingPolicies {
-			existingMap[samplingPolicyName(p.Retention, p.Precision, p.AggregationFn)] = p
+			existingMap[p.Name] = p
 		}
 		seen := make(map[string]bool)
 
+		// Handle main retention policy
+		seen[mainPolicyName] = true
+		mainPolicyData := series.Retention
+		if existingMain, ok := existingMap[mainPolicyName]; ok {
+			// Update existing main policy if changed
+			if existingMain.Precision != mainPolicyData.Precision ||
+				existingMain.Retention != mainPolicyData.Retention ||
+				existingMain.AggregationFn != mainPolicyData.AggregationFn {
+				existingMain.Precision = mainPolicyData.Precision
+				existingMain.Retention = mainPolicyData.Retention
+				existingMain.AggregationFn = mainPolicyData.AggregationFn
+				if err := tx.Save(&existingMain).Error; err != nil {
+					return fmt.Errorf("update main policy: %w", err)
+				}
+			}
+		} else {
+			// Create new main policy
+			mainPolicy := dbSamplingPolicy{
+				Name:          mainPolicyName,
+				TimeSeriesID:  existing.ID,
+				Precision:     mainPolicyData.Precision,
+				Retention:     mainPolicyData.Retention,
+				AggregationFn: mainPolicyData.AggregationFn,
+			}
+			if err := tx.Create(&mainPolicy).Error; err != nil {
+				return fmt.Errorf("create main policy: %w", err)
+			}
+		}
+
+		// Handle downsampling policies, main policy is not habdled here
 		if err := upsertPolicies(tx, existing.ID, existingMap, seen, series.DownSampling); err != nil {
 			return err
 		}
@@ -149,7 +189,7 @@ func upsertPolicies(tx *gorm.DB, seriesID uint, existingMap map[string]dbSamplin
 // ListSeries returns all series with their downsampling policies
 func (ts *Registry) ListSeries() ([]TimeSeries, error) {
 	var dbSeries []dbTimeSeries
-	if err := ts.db.Preload("DownSampling").Find(&dbSeries).Error; err != nil {
+	if err := ts.db.Preload("Policies").Find(&dbSeries).Error; err != nil {
 		return nil, err
 	}
 
@@ -159,15 +199,21 @@ func (ts *Registry) ListSeries() ([]TimeSeries, error) {
 			Name: s.Name,
 		}
 
-		down := make([]SamplingPolicy, len(s.DownSampling))
-		for j, d := range s.DownSampling {
-			down[j] = SamplingPolicy{
-				Precision:     d.Precision,
-				Retention:     d.Retention,
-				AggregationFn: d.AggregationFn,
+		// Separate main retention policy from downsampling policies
+		var downsampling []SamplingPolicy
+		for _, p := range s.Policies {
+			policy := SamplingPolicy{
+				Precision:     p.Precision,
+				Retention:     p.Retention,
+				AggregationFn: p.AggregationFn,
+			}
+			if p.Name == mainPolicyName {
+				out.Retention = policy
+			} else {
+				downsampling = append(downsampling, policy)
 			}
 		}
-		out.DownSampling = down
+		out.DownSampling = downsampling
 		result[i] = out
 	}
 
@@ -177,22 +223,29 @@ func (ts *Registry) ListSeries() ([]TimeSeries, error) {
 // GetSeries loads a series with its DownSampling policies preloaded
 func (ts *Registry) GetSeries(name string) (TimeSeries, error) {
 	var series dbTimeSeries
-	err := ts.db.Preload("DownSampling").Where("name = ?", name).First(&series).Error
+	err := ts.db.Preload("Policies").Where("name = ?", name).First(&series).Error
 	if err != nil {
 		return TimeSeries{}, err
 	}
 	ret := TimeSeries{
 		Name: series.Name,
 	}
-	sampling := make([]SamplingPolicy, len(series.DownSampling))
-	for i, policy := range series.DownSampling {
-		sampling[i] = SamplingPolicy{
-			Precision:     policy.Precision,
-			Retention:     policy.Retention,
-			AggregationFn: policy.AggregationFn,
+
+	// Separate main retention policy from downsampling policies
+	var downsampling []SamplingPolicy
+	for _, p := range series.Policies {
+		policy := SamplingPolicy{
+			Precision:     p.Precision,
+			Retention:     p.Retention,
+			AggregationFn: p.AggregationFn,
+		}
+		if p.Name == mainPolicyName {
+			ret.Retention = policy
+		} else {
+			downsampling = append(downsampling, policy)
 		}
 	}
-	ret.DownSampling = sampling
+	ret.DownSampling = downsampling
 	return ret, err
 }
 

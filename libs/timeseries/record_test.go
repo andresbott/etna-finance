@@ -66,6 +66,19 @@ func TestIngestSeries(t *testing.T) {
 				t.Fatalf("failed to create test series: %v", err)
 			}
 
+			// Create main retention policy for the series
+			mainPolicy := dbSamplingPolicy{
+				TimeSeriesID:  existingSeries.ID,
+				Name:          mainPolicyName,
+				Precision:     time.Minute,
+				Retention:     24 * time.Hour,
+				AggregationFn: "avg",
+			}
+			if err := store.db.Create(&mainPolicy).Error; err != nil {
+				t.Fatalf("failed to create main policy: %v", err)
+			}
+			existingSeries.Policies = []dbSamplingPolicy{mainPolicy}
+
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
@@ -104,8 +117,8 @@ func TestIngestSeries(t *testing.T) {
 
 						last := got[0]
 
-						if last.SamplingId != existingSeries.Retention.ID {
-							t.Errorf("expected SeriesId=%d, got %d", existingSeries.ID, last.SamplingId)
+						if last.SamplingId != existingSeries.mainPolicyID() {
+							t.Errorf("expected SamplingId=%d, got %d", existingSeries.mainPolicyID(), last.SamplingId)
 						}
 
 						if last.Value != tc.input.Value {
@@ -188,11 +201,6 @@ func TestUpdateRecord(t *testing.T) {
 						}
 						if err := store.db.Create(&mainPolicy).Error; err != nil {
 							t.Fatalf("failed to create main policy: %v", err)
-						}
-
-						series.Retention = mainPolicy
-						if err := store.db.Save(&series).Error; err != nil {
-							t.Fatalf("failed to update series: %v", err)
 						}
 
 						// Create the target policy for this test (might be main or downsampling)
@@ -290,6 +298,153 @@ func TestUpdateRecord(t *testing.T) {
 	})
 }
 
+func TestDeleteRecord(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		tcs := []struct {
+			name       string
+			policyName string // which policy the record belongs to (main, 1h, 1d)
+			seriesName string
+		}{
+			{
+				name:       "delete record from main policy",
+				policyName: "main",
+				seriesName: "btc_price",
+			},
+			{
+				name:       "delete record from 1h downsampling policy",
+				policyName: "1h",
+				seriesName: "eth_price",
+			},
+			{
+				name:       "delete record from 1d downsampling policy",
+				policyName: "1d",
+				seriesName: "sol_price",
+			},
+			{
+				name:       "delete non-existing record does not error",
+				policyName: "main",
+				seriesName: "ada_price",
+			},
+		}
+
+		for _, db := range testdbs.DBs() {
+			t.Run(db.DbType(), func(t *testing.T) {
+				dbCon := db.ConnDbName("TestDeleteRecord_happy")
+				store, err := NewRegistry(dbCon)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				for _, tc := range tcs {
+					t.Run(tc.name, func(t *testing.T) {
+						series := dbTimeSeries{Name: tc.seriesName}
+						if err := store.db.Create(&series).Error; err != nil {
+							t.Fatalf("failed to create series: %v", err)
+						}
+
+						// Create main policy
+						mainPolicy := dbSamplingPolicy{
+							TimeSeriesID:  series.ID,
+							Name:          "main",
+							Precision:     time.Minute,
+							Retention:     24 * time.Hour,
+							AggregationFn: "avg",
+						}
+						if err := store.db.Create(&mainPolicy).Error; err != nil {
+							t.Fatalf("failed to create main policy: %v", err)
+						}
+
+						// Create the target policy for this test
+						var targetPolicy dbSamplingPolicy
+						if tc.policyName == "main" {
+							targetPolicy = mainPolicy
+						} else {
+							targetPolicy = dbSamplingPolicy{
+								TimeSeriesID:  series.ID,
+								Name:          tc.policyName,
+								Precision:     time.Minute,
+								Retention:     24 * time.Hour,
+								AggregationFn: "avg",
+							}
+							if err := store.db.Create(&targetPolicy).Error; err != nil {
+								t.Fatalf("failed to create %s policy: %v", tc.policyName, err)
+							}
+						}
+
+						// Create record in target policy
+						r1 := dbRecord{
+							SamplingId: targetPolicy.ID,
+							Time:       getDate("2022-01-07"),
+							Value:      100.0,
+						}
+						if err := store.db.Create(&r1).Error; err != nil {
+							t.Fatalf("failed to create record: %v", err)
+						}
+
+						recordId := r1.Id
+						// For the "delete non-existing" test, use a non-existing ID
+						if tc.name == "delete non-existing record does not error" {
+							recordId = 999999
+						}
+
+						// Delete the record
+						err := store.DeleteRecord(recordId)
+						if err != nil {
+							t.Fatalf("unexpected error: %v", err)
+						}
+
+						// Verify record is deleted (only for existing records)
+						if tc.name != "delete non-existing record does not error" {
+							var deleted dbRecord
+							err := store.db.First(&deleted, r1.Id).Error
+							if err == nil {
+								t.Errorf("expected record to be deleted, but it still exists")
+							}
+						}
+					})
+				}
+			})
+		}
+	})
+
+	t.Run("error cases", func(t *testing.T) {
+		tcs := []struct {
+			name     string
+			recordID uint
+			wantErr  string
+		}{
+			{
+				name:     "error on zero id",
+				recordID: 0,
+				wantErr:  "record id cannot be zero",
+			},
+		}
+
+		for _, db := range testdbs.DBs() {
+			t.Run(db.DbType(), func(t *testing.T) {
+				dbCon := db.ConnDbName("TestDeleteRecord_error")
+				store, err := NewRegistry(dbCon)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				for _, tc := range tcs {
+					t.Run(tc.name, func(t *testing.T) {
+						err := store.DeleteRecord(tc.recordID)
+
+						if err == nil {
+							t.Fatalf("expected error %q, got none", tc.wantErr)
+						}
+						if diff := cmp.Diff(tc.wantErr, err.Error()); diff != "" {
+							t.Errorf("unexpected error (-want +got):\n%s", diff)
+						}
+					})
+				}
+			})
+		}
+	})
+}
+
 func TestListRecords(t *testing.T) {
 	t.Run("happy path", func(t *testing.T) {
 		tcs := []struct {
@@ -373,9 +528,6 @@ func TestListRecords(t *testing.T) {
 							t.Fatalf("failed to create series: %v", err)
 						}
 
-						var mainPolicy dbSamplingPolicy
-						policies := make(map[string]dbSamplingPolicy)
-
 						// Create all sampling policies (main + downsampling) and their records
 						for policyName, policyRecords := range tc.records {
 							policy := dbSamplingPolicy{
@@ -387,11 +539,6 @@ func TestListRecords(t *testing.T) {
 							}
 							if err := store.db.Create(&policy).Error; err != nil {
 								t.Fatalf("failed to create %s policy: %v", policyName, err)
-							}
-							policies[policyName] = policy
-
-							if policyName == "main" {
-								mainPolicy = policy
 							}
 
 							// Create records for this policy
@@ -405,12 +552,6 @@ func TestListRecords(t *testing.T) {
 									t.Fatalf("failed to create %s record: %v", policyName, err)
 								}
 							}
-						}
-
-						// Update series with retention policy
-						series.Retention = mainPolicy
-						if err := store.db.Save(&series).Error; err != nil {
-							t.Fatalf("failed to update series retention: %v", err)
 						}
 
 						// Execute ListRecords (returns records from main retention policy)

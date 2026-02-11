@@ -19,9 +19,16 @@ func ExampleRegistry_e2e() {
 		return
 	}
 
+	seriesName := "btc_price"
+
 	// Register a time series with sampling policies
 	series := timeseries.TimeSeries{
-		Name: "btc_price",
+		Name: seriesName,
+		Retention: timeseries.SamplingPolicy{
+			Precision:     time.Minute,
+			Retention:     24 * time.Hour, // 1 day for raw data
+			AggregationFn: "avg",
+		},
 		DownSampling: []timeseries.SamplingPolicy{
 			{
 				Precision:     time.Hour,
@@ -45,10 +52,10 @@ func ExampleRegistry_e2e() {
 	// Ingest some data points
 	baseTime := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	records := []timeseries.Record{
-		{Series: "btc_price", Time: baseTime, Value: 42000.0},
-		{Series: "btc_price", Time: baseTime.Add(24 * time.Hour), Value: 43500.0},
-		{Series: "btc_price", Time: baseTime.Add(48 * time.Hour), Value: 41000.0},
-		{Series: "btc_price", Time: baseTime.Add(72 * time.Hour), Value: 44000.0},
+		{Series: seriesName, Time: baseTime, Value: 42000.0},
+		{Series: seriesName, Time: baseTime.Add(24 * time.Hour), Value: 43500.0},
+		{Series: seriesName, Time: baseTime.Add(48 * time.Hour), Value: 41000.0},
+		{Series: seriesName, Time: baseTime.Add(72 * time.Hour), Value: 44000.0},
 	}
 
 	for _, r := range records {
@@ -60,7 +67,7 @@ func ExampleRegistry_e2e() {
 	fmt.Printf("Ingested %d records\n", len(records))
 
 	// List all records for the series
-	allRecords, err := registry.ListRecords("btc_price")
+	allRecords, err := registry.ListRecords(seriesName)
 	if err != nil {
 		fmt.Printf("failed to list records: %v\n", err)
 		return
@@ -69,7 +76,7 @@ func ExampleRegistry_e2e() {
 
 	// Query value at a specific point in time
 	queryTime := baseTime.Add(36 * time.Hour) // Between 2nd and 3rd record
-	value, err := registry.ValueAt("btc_price", queryTime)
+	value, err := registry.ValueAt(seriesName, queryTime)
 	if err != nil {
 		fmt.Printf("failed to get value: %v\n", err)
 		return
