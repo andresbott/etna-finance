@@ -1,7 +1,9 @@
 package accounting
 
 import (
+	"context"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -1120,6 +1122,10 @@ var ignoreUnexportedTxFields = []cmp.Option{
 	cmpopts.IgnoreUnexported(Income{}),
 	cmpopts.IgnoreUnexported(Expense{}),
 	cmpopts.IgnoreUnexported(Transfer{}),
+	cmpopts.IgnoreUnexported(StockBuy{}),
+	cmpopts.IgnoreUnexported(StockSell{}),
+	cmpopts.IgnoreUnexported(StockGrant{}),
+	cmpopts.IgnoreUnexported(StockTransfer{}),
 }
 var ignoreUnexportedAndIds = []cmp.Option{
 	cmpopts.IgnoreUnexported(Income{}),
@@ -1128,6 +1134,283 @@ var ignoreUnexportedAndIds = []cmp.Option{
 	cmpopts.IgnoreFields(Income{}, "Id"),
 	cmpopts.IgnoreFields(Expense{}, "Id"),
 	cmpopts.IgnoreFields(Transfer{}, "Id"),
+}
+
+func TestStore_CreateStockBuy_CreateStockSell(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := context.Background()
+			dbCon := db.ConnDbName("storeCreateStock")
+			store, err := NewStore(dbCon)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			providerID, err := store.CreateAccountProvider(ctx, AccountProvider{Name: "Broker"}, tenant1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			investmentAccountID, err := store.CreateAccount(ctx, Account{
+				AccountProviderID: providerID,
+				Name:              "Broker account",
+				Currency:          currency.USD,
+				Type:              InvestmentAccountType,
+			}, tenant1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cashAccountID, err := store.CreateAccount(ctx, Account{
+				AccountProviderID: providerID,
+				Name:              "Checking",
+				Currency:          currency.USD,
+				Type:              CheckinAccountType,
+			}, tenant1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			securityID, err := store.CreateSecurity(ctx, Security{
+				Symbol:   "AAPL",
+				Name:     "Apple Inc.",
+				Currency: currency.USD,
+			}, tenant1)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			buy := StockBuy{
+				Description:         "Buy AAPL",
+				Date:                getDate("2025-02-01"),
+				InvestmentAccountID: investmentAccountID,
+				CashAccountID:       cashAccountID,
+				SecurityID:          securityID,
+				Quantity:            10,
+				TotalAmount:         1500.0,
+			}
+			buyID, err := store.CreateStockBuy(ctx, buy, tenant1)
+			if err != nil {
+				t.Fatalf("CreateStockBuy: %v", err)
+			}
+			if buyID == 0 {
+				t.Fatal("expected non-zero transaction id")
+			}
+
+			gotBuy, err := store.GetTransaction(ctx, buyID, tenant1)
+			if err != nil {
+				t.Fatalf("GetTransaction(buy): %v", err)
+			}
+			gotStockBuy, ok := gotBuy.(StockBuy)
+			if !ok {
+				t.Fatalf("expected StockBuy, got %T", gotBuy)
+			}
+			if gotStockBuy.Quantity != buy.Quantity || gotStockBuy.TotalAmount != buy.TotalAmount {
+				t.Errorf("got StockBuy Quantity=%v TotalAmount=%v, want Quantity=%v TotalAmount=%v",
+					gotStockBuy.Quantity, gotStockBuy.TotalAmount, buy.Quantity, buy.TotalAmount)
+			}
+			if gotStockBuy.InvestmentAccountID != investmentAccountID || gotStockBuy.CashAccountID != cashAccountID {
+				t.Errorf("got StockBuy InvestmentAccountID=%v CashAccountID=%v, want %v %v",
+					gotStockBuy.InvestmentAccountID, gotStockBuy.CashAccountID, investmentAccountID, cashAccountID)
+			}
+
+			sell := StockSell{
+				Description:         "Sell AAPL",
+				Date:                getDate("2025-02-02"),
+				InvestmentAccountID: investmentAccountID,
+				CashAccountID:       cashAccountID,
+				SecurityID:          securityID,
+				Quantity:            3,
+				TotalAmount:         465.0,
+			}
+			sellID, err := store.CreateStockSell(ctx, sell, tenant1)
+			if err != nil {
+				t.Fatalf("CreateStockSell: %v", err)
+			}
+			if sellID == 0 {
+				t.Fatal("expected non-zero transaction id")
+			}
+
+			gotSell, err := store.GetTransaction(ctx, sellID, tenant1)
+			if err != nil {
+				t.Fatalf("GetTransaction(sell): %v", err)
+			}
+			gotStockSell, ok := gotSell.(StockSell)
+			if !ok {
+				t.Fatalf("expected StockSell, got %T", gotSell)
+			}
+			if gotStockSell.Quantity != sell.Quantity || gotStockSell.TotalAmount != sell.TotalAmount {
+				t.Errorf("got StockSell Quantity=%v TotalAmount=%v, want Quantity=%v TotalAmount=%v",
+					gotStockSell.Quantity, gotStockSell.TotalAmount, sell.Quantity, sell.TotalAmount)
+			}
+
+			list, err := store.ListTransactions(ctx, ListOpts{
+				StartDate: getDate("2025-02-01"),
+				EndDate:   getDate("2025-02-28"),
+				Types:     []TxType{StockBuyTransaction, StockSellTransaction},
+				Limit:     10,
+			}, tenant1)
+			if err != nil {
+				t.Fatalf("ListTransactions: %v", err)
+			}
+			if len(list) != 2 {
+				t.Errorf("ListTransactions: got %d stock transactions, want 2", len(list))
+			}
+		})
+	}
+}
+
+func TestStore_CreateStockGrant_CreateStockTransfer(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := context.Background()
+			dbCon := db.ConnDbName("storeCreateStockGrantTransfer")
+			store, err := NewStore(dbCon)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			providerID, err := store.CreateAccountProvider(ctx, AccountProvider{Name: "Broker"}, tenant1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			grantAccountID, err := store.CreateAccount(ctx, Account{
+				AccountProviderID: providerID,
+				Name:              "RSU Grants",
+				Currency:          currency.USD,
+				Type:              GrantAccountType,
+			}, tenant1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			investmentAccountID, err := store.CreateAccount(ctx, Account{
+				AccountProviderID: providerID,
+				Name:              "Broker vested",
+				Currency:          currency.USD,
+				Type:              InvestmentAccountType,
+			}, tenant1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			securityID, err := store.CreateSecurity(ctx, Security{
+				Symbol:   "RSU",
+				Name:     "Company RSU",
+				Currency: currency.USD,
+			}, tenant1)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			grant := StockGrant{
+				Description: "RSU grant",
+				Date:        getDate("2025-03-01"),
+				AccountID:   grantAccountID,
+				SecurityID:  securityID,
+				Quantity:    100,
+			}
+			grantID, err := store.CreateStockGrant(ctx, grant, tenant1)
+			if err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+			if grantID == 0 {
+				t.Fatal("expected non-zero transaction id")
+			}
+
+			gotGrant, err := store.GetTransaction(ctx, grantID, tenant1)
+			if err != nil {
+				t.Fatalf("GetTransaction(grant): %v", err)
+			}
+			gotStockGrant, ok := gotGrant.(StockGrant)
+			if !ok {
+				t.Fatalf("expected StockGrant, got %T", gotGrant)
+			}
+			if gotStockGrant.Quantity != grant.Quantity || gotStockGrant.AccountID != grant.AccountID {
+				t.Errorf("got StockGrant Quantity=%v AccountID=%v, want Quantity=%v AccountID=%v",
+					gotStockGrant.Quantity, gotStockGrant.AccountID, grant.Quantity, grant.AccountID)
+			}
+
+			transfer := StockTransfer{
+				Description:     "RSU vest to brokerage",
+				Date:            getDate("2025-03-15"),
+				SourceAccountID: grantAccountID,
+				TargetAccountID: investmentAccountID,
+				SecurityID:      securityID,
+				Quantity:        50,
+			}
+			transferID, err := store.CreateStockTransfer(ctx, transfer, tenant1)
+			if err != nil {
+				t.Fatalf("CreateStockTransfer: %v", err)
+			}
+			if transferID == 0 {
+				t.Fatal("expected non-zero transaction id")
+			}
+
+			gotTransfer, err := store.GetTransaction(ctx, transferID, tenant1)
+			if err != nil {
+				t.Fatalf("GetTransaction(transfer): %v", err)
+			}
+			gotStockTransfer, ok := gotTransfer.(StockTransfer)
+			if !ok {
+				t.Fatalf("expected StockTransfer, got %T", gotTransfer)
+			}
+			if gotStockTransfer.Quantity != transfer.Quantity || gotStockTransfer.SourceAccountID != transfer.SourceAccountID || gotStockTransfer.TargetAccountID != transfer.TargetAccountID {
+				t.Errorf("got StockTransfer Quantity=%v Source=%v Target=%v, want Quantity=%v Source=%v Target=%v",
+					gotStockTransfer.Quantity, gotStockTransfer.SourceAccountID, gotStockTransfer.TargetAccountID,
+					transfer.Quantity, transfer.SourceAccountID, transfer.TargetAccountID)
+			}
+
+			list, err := store.ListTransactions(ctx, ListOpts{
+				StartDate: getDate("2025-03-01"),
+				EndDate:   getDate("2025-03-31"),
+				Types:     []TxType{StockGrantTransaction, StockTransferTransaction},
+				Limit:     10,
+			}, tenant1)
+			if err != nil {
+				t.Fatalf("ListTransactions: %v", err)
+			}
+			if len(list) != 2 {
+				t.Errorf("ListTransactions: got %d grant/transfer transactions, want 2", len(list))
+			}
+		})
+	}
+}
+
+func TestStore_CreateStockBuy_validationErrors(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := context.Background()
+			dbCon := db.ConnDbName("storeCreateStockValidation")
+			store, err := NewStore(dbCon)
+			if err != nil {
+				t.Fatal(err)
+			}
+			providerID, _ := store.CreateAccountProvider(ctx, AccountProvider{Name: "p"}, tenant1)
+			accountID, _ := store.CreateAccount(ctx, Account{AccountProviderID: providerID, Name: "inv", Currency: currency.USD, Type: InvestmentAccountType}, tenant1)
+			securityID, _ := store.CreateSecurity(ctx, Security{Symbol: "X", Name: "X", Currency: currency.USD}, tenant1)
+
+			cashAccountID, _ := store.CreateAccount(ctx, Account{AccountProviderID: providerID, Name: "cash", Currency: currency.USD, Type: CashAccountType}, tenant1)
+
+			tcs := []struct {
+				name    string
+				input   StockBuy
+				wantErr string
+			}{
+				{"investment account must be Investment", StockBuy{Description: "x", Date: getDate("2025-01-01"), InvestmentAccountID: cashAccountID, CashAccountID: cashAccountID, SecurityID: securityID, Quantity: 1, TotalAmount: 1}, "Investment"},
+				{"cash account must be Cash/Checkin/Savings", StockBuy{Description: "x", Date: getDate("2025-01-01"), InvestmentAccountID: accountID, CashAccountID: accountID, SecurityID: securityID, Quantity: 1, TotalAmount: 1}, "Cash, Checkin or Savings"},
+				{"security not found", StockBuy{Description: "x", Date: getDate("2025-01-01"), InvestmentAccountID: accountID, CashAccountID: cashAccountID, SecurityID: 99999, Quantity: 1, TotalAmount: 1}, "security not found"},
+				{"quantity must be positive", StockBuy{Description: "x", Date: getDate("2025-01-01"), InvestmentAccountID: accountID, CashAccountID: cashAccountID, SecurityID: securityID, Quantity: 0, TotalAmount: 1}, "quantity must be positive"},
+				{"total amount must be positive", StockBuy{Description: "x", Date: getDate("2025-01-01"), InvestmentAccountID: accountID, CashAccountID: cashAccountID, SecurityID: securityID, Quantity: 1, TotalAmount: 0}, "total amount must be positive"},
+			}
+			for _, tc := range tcs {
+				t.Run(tc.name, func(t *testing.T) {
+					_, err := store.CreateStockBuy(ctx, tc.input, tenant1)
+					if err == nil {
+						t.Fatalf("expected error containing %q", tc.wantErr)
+					}
+					if err.Error() != tc.wantErr && !strings.Contains(err.Error(), tc.wantErr) {
+						t.Errorf("got error %v", err)
+					}
+				})
+			}
+		})
+	}
 }
 
 var sampleTransactions = map[int]Transaction{

@@ -202,7 +202,8 @@ const (
 	CashAccountType                   // e.g. wallet
 	CheckinAccountType                // where the salary goes
 	SavingsAccountType                // where you save money and get dividends
-	InvestmentAccountType             // stocks and others
+	InvestmentAccountType             // stocks and others (vested)
+	GrantAccountType                  // granted but not yet settled (e.g. unvested RSUs); can transfer to Investment
 )
 
 func (t AccountType) String() string {
@@ -215,6 +216,8 @@ func (t AccountType) String() string {
 		return "Savings"
 	case InvestmentAccountType:
 		return "Investment"
+	case GrantAccountType:
+		return "Grant"
 	default:
 		return "Unknown"
 	}

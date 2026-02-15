@@ -3,6 +3,7 @@ package accounting
 import (
 	"context"
 	"fmt"
+
 	closuretree "github.com/go-bumbu/closure-tree"
 	"gorm.io/gorm"
 )
@@ -27,7 +28,7 @@ func NewStore(db *gorm.DB) (*Store, error) {
 		return nil, fmt.Errorf("error parsing schema: %w", err)
 	}
 
-	err = db.AutoMigrate(&dbAccountProvider{}, &dbAccount{}, &dbTransaction{}, &dbEntry{})
+	err = db.AutoMigrate(&dbAccountProvider{}, &dbAccount{}, &dbTransaction{}, &dbEntry{}, &dbSecurity{})
 	if err != nil {
 		return nil, err
 	}
@@ -73,6 +74,7 @@ func (store *Store) WipeData(ctx context.Context) error {
 		"db_transactions",
 		"db_entries",
 		"db_categories",
+		"db_securities",
 	}
 
 	for _, table := range tables {

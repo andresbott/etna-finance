@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/andresbott/etna/internal/accounting"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/andresbott/etna/internal/accounting"
 )
 
 const timeFormat = "2006-01-02_15-04-05"
@@ -204,7 +205,10 @@ func writeTransactions(ctx context.Context, zw *zipWriter, store *accounting.Sto
 				accounting.ExpenseTransaction,
 				accounting.IncomeTransaction,
 				accounting.TransferTransaction,
-				accounting.StockTransaction,
+				accounting.StockBuyTransaction,
+				accounting.StockSellTransaction,
+				accounting.StockGrantTransaction,
+				accounting.StockTransferTransaction,
 				accounting.LoanTransaction,
 			},
 			Limit: entriesLimit,

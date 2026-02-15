@@ -14,6 +14,13 @@ const (
 	expenseEntry
 	transferInEntry
 	transferOutEntry
+	stockBuyEntry
+	stockSellEntry
+	stockCashOutEntry // cash leaving account on stock buy
+	stockCashInEntry  // cash entering account on stock sell
+	stockGrantEntry   // position increase without cash (vest, gift, grant, etc.)
+	stockTransferOutEntry
+	stockTransferInEntry
 )
 
 type dbEntry struct {
@@ -21,11 +28,12 @@ type dbEntry struct {
 	TransactionID uint `gorm:"not null;index"` // Foreign key
 	AccountID     uint `gorm:"not null;index"` // Foreign key
 	CategoryID    uint `gorm:"index"`          // Foreign key, only populated for income and expense
+	SecurityID    uint `gorm:"index"`          // Foreign key, only populated for stock buy/sell entries
 
-	Amount   float64 `gorm:"not null"` // Amount in account currency
-	Quantity float64 // -- for stock shares (nullable for cash-only entries)
+	Amount   float64 `gorm:"not null"` // Amount in account currency; for stock position entries (buy/sell) is 0; for stock cash entries signed (out negative, in positive)
+	Quantity float64 // for stock position entries: shares; unused for stock cash entries
 
-	EntryType entryType //income, expense, transferIn transferOut, stockbuy, stock sell
+	EntryType entryType
 
 	OwnerId   string `gorm:"index"`
 	CreatedAt time.Time

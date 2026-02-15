@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"golang.org/x/text/currency"
 	"math"
 	"time"
+
+	"golang.org/x/text/currency"
 )
 
 type CategoryReport struct {
@@ -167,7 +168,7 @@ type AccountBalance struct {
 }
 
 // entry types used when calling sum entries for balance purposes
-var balanceEntryTypes = []entryType{incomeEntry, expenseEntry, transferInEntry, transferOutEntry}
+var balanceEntryTypes = []entryType{incomeEntry, expenseEntry, transferInEntry, transferOutEntry, stockCashOutEntry, stockCashInEntry}
 
 // AccountBalanceSingle get the balance of a single account on a given point in time
 func (store *Store) AccountBalanceSingle(ctx context.Context, accountID uint, endDate time.Time, tenant string) (AccountBalance, error) {
