@@ -37,7 +37,8 @@ const sections = [
                 route: '/setup/csv-profiles'
             },
             { label: 'Categories', icon: 'pi pi-tags', route: '/categories' },
-            { label: 'Account Setup', icon: 'pi pi-wallet', route: '/accounts' }
+            { label: 'Account Setup', icon: 'pi pi-wallet', route: '/accounts' },
+            { label: 'Security Setup', icon: 'pi pi-chart-bar', route: '/securities' }
         ]
     },
     {

@@ -2,13 +2,14 @@ package router
 
 import (
 	"fmt"
+	"net/http"
+	"strconv"
+
 	"github.com/andresbott/etna/app/router/handlers/backup"
 	finHandler "github.com/andresbott/etna/app/router/handlers/finance"
 	"github.com/go-bumbu/userauth/authenticator"
 	"github.com/go-bumbu/userauth/handlers/sessionauth"
 	"github.com/gorilla/mux"
-	"net/http"
-	"strconv"
 )
 
 func (h *MainAppHandler) attachApiV0(r *mux.Router) error {
@@ -33,6 +34,7 @@ const finAccountPath = "/fin/account"
 const finEntries = "/fin/entries"
 const finCategoryIncome = "/fin/category/income"
 const finCategoryExpense = "/fin/category/expense"
+const finSecurityPath = "/fin/security"
 const finReport = "/fin/report"
 
 // this api surface is quite inconsistent, I know....
@@ -304,6 +306,70 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 		}
 
 		finHndlr.DeleteTx(itemId, userData.UserId).ServeHTTP(w, r)
+	})
+
+	// ==========================================================================
+	// Securities
+	// ==========================================================================
+
+	r.Path(finSecurityPath).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userData, err := sessionauth.CtxGetUserData(r)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		finHndlr.ListSecurities(userData.UserId).ServeHTTP(w, r)
+	})
+
+	r.Path(finSecurityPath).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userData, err := sessionauth.CtxGetUserData(r)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		finHndlr.CreateSecurity(userData.UserId).ServeHTTP(w, r)
+	})
+
+	r.Path(fmt.Sprintf("%s/{id}", finSecurityPath)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userData, err := sessionauth.CtxGetUserData(r)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		finHndlr.GetSecurity(itemId, userData.UserId).ServeHTTP(w, r)
+	})
+
+	r.Path(fmt.Sprintf("%s/{id}", finSecurityPath)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userData, err := sessionauth.CtxGetUserData(r)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		finHndlr.UpdateSecurity(itemId, userData.UserId).ServeHTTP(w, r)
+	})
+
+	r.Path(fmt.Sprintf("%s/{id}", finSecurityPath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userData, err := sessionauth.CtxGetUserData(r)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		finHndlr.DeleteSecurity(itemId, userData.UserId).ServeHTTP(w, r)
 	})
 
 	// ==========================================================================

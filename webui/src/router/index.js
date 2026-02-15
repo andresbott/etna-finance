@@ -66,6 +66,14 @@ const router = createRouter({
             component: () => import('@/views/categories/CategoriesView.vue')
         },
         {
+            path: '/securities',
+            name: 'securities',
+            meta: {
+                requiresAuth: true
+            },
+            component: () => import('@/views/securities/SecuritiesView.vue')
+        },
+        {
             path: '/backup-restore',
             name: 'backup-restore',
             meta: {

@@ -3,6 +3,25 @@
         <Transition name="slide-left">
             <div v-if="uiStore.isDrawerVisible" class="sidebar-panel">
                 <ul class="menu-list">
+                    <!-- REPORTS SECTION -->
+                    <li class="menu-section">
+                        <div class="menu-section-label">Reports</div>
+                    </li>
+                    <li>
+                        <router-link to="/reports/overview" class="menu-item">
+                            <i class="pi pi-home menu-icon"></i>
+                            <span class="menu-label">Overview</span>
+                        </router-link>
+                    </li>
+                    <li>
+                        <router-link to="/reports/income-expense" class="menu-item">
+                            <i class="pi pi-chart-line menu-icon"></i>
+                            <span class="menu-label">Income/Expense</span>
+                        </router-link>
+                    </li>
+
+                    <li class="menu-spacer"></li>
+
                     <!-- TRANSACTIONS SECTION -->
                     <li class="menu-section">
                         <div class="menu-section-label">Transactions</div>
@@ -57,25 +76,6 @@
                                 </ul>
                             </li>
                         </ul>
-                    </li>
-
-                    <li class="menu-spacer"></li>
-
-                    <!-- REPORTS SECTION -->
-                    <li class="menu-section">
-                        <div class="menu-section-label">Reports</div>
-                    </li>
-                    <li>
-                        <router-link to="/reports/overview" class="menu-item">
-                            <i class="pi pi-home menu-icon"></i>
-                            <span class="menu-label">Overview</span>
-                        </router-link>
-                    </li>
-                    <li>
-                        <router-link to="/reports/income-expense" class="menu-item">
-                            <i class="pi pi-chart-line menu-icon"></i>
-                            <span class="menu-label">Income/Expense</span>
-                        </router-link>
                     </li>
 
                     <li class="menu-spacer"></li>

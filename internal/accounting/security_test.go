@@ -2,6 +2,7 @@ package accounting
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/go-bumbu/testdbs"
@@ -203,6 +204,182 @@ func TestListSecurities(t *testing.T) {
 						if diff := cmp.Diff(symbols, tc.wantSymbols); diff != "" {
 							t.Errorf("unexpected symbols (-want +got):\n%s", diff)
 						}
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestUpdateSecurity(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := context.Background()
+			dbCon := db.ConnDbName("TestUpdateSecurity")
+			store, err := NewStore(dbCon)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			id, err := store.CreateSecurity(ctx, Security{Symbol: "OLD", Name: "Old Name", Currency: currency.USD}, tenant1)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			tcs := []struct {
+				name    string
+				id      uint
+				tenant  string
+				payload SecurityUpdatePayload
+				wantErr string
+				want    Security
+			}{
+				{
+					name:   "update name only",
+					id:     id,
+					tenant: tenant1,
+					payload: SecurityUpdatePayload{
+						Name: ptr("New Name"),
+					},
+					want: Security{ID: id, Symbol: "OLD", Name: "New Name", Currency: currency.USD},
+				},
+				{
+					name:   "update symbol and currency",
+					id:     id,
+					tenant: tenant1,
+					payload: SecurityUpdatePayload{
+						Symbol:   ptr("NEW"),
+						Currency: ptr("EUR"),
+					},
+					want: Security{ID: id, Symbol: "NEW", Name: "New Name", Currency: currency.EUR},
+				},
+				{
+					name:    "empty symbol rejected",
+					id:      id,
+					tenant:  tenant1,
+					payload: SecurityUpdatePayload{Symbol: ptr("")},
+					wantErr: "symbol cannot be empty",
+				},
+				{
+					name:    "empty currency rejected",
+					id:      id,
+					tenant:  tenant1,
+					payload: SecurityUpdatePayload{Currency: ptr("")},
+					wantErr: "currency cannot be empty",
+				},
+				{
+					name:    "no changes",
+					id:      id,
+					tenant:  tenant1,
+					payload: SecurityUpdatePayload{},
+					wantErr: ErrNoChanges.Error(),
+				},
+				{
+					name:    "not found wrong tenant",
+					id:      id,
+					tenant:  tenant2,
+					payload: SecurityUpdatePayload{Name: ptr("X")},
+					wantErr: ErrSecurityNotFound.Error(),
+				},
+				{
+					name:    "not found wrong id",
+					id:      99999,
+					tenant:  tenant1,
+					payload: SecurityUpdatePayload{Name: ptr("X")},
+					wantErr: ErrSecurityNotFound.Error(),
+				},
+			}
+
+			for _, tc := range tcs {
+				t.Run(tc.name, func(t *testing.T) {
+					err := store.UpdateSecurity(ctx, tc.id, tc.tenant, tc.payload)
+					if tc.wantErr != "" {
+						if err == nil {
+							t.Fatalf("expected error: %s, but got none", tc.wantErr)
+						}
+						if err.Error() != tc.wantErr {
+							t.Errorf("expected error: %s, got %v", tc.wantErr, err.Error())
+						}
+						return
+					}
+					if err != nil {
+						t.Fatalf("unexpected error: %v", err)
+					}
+					got, err := store.GetSecurity(ctx, tc.id, tc.tenant)
+					if err != nil {
+						t.Fatalf("get after update: %v", err)
+					}
+					if got.Symbol != tc.want.Symbol || got.Name != tc.want.Name || got.Currency.String() != tc.want.Currency.String() {
+						t.Errorf("got Symbol=%q Name=%q Currency=%q, want Symbol=%q Name=%q Currency=%q",
+							got.Symbol, got.Name, got.Currency.String(), tc.want.Symbol, tc.want.Name, tc.want.Currency.String())
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestDeleteSecurity(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := context.Background()
+			dbCon := db.ConnDbName("TestDeleteSecurity")
+			store, err := NewStore(dbCon)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			id, err := store.CreateSecurity(ctx, Security{Symbol: "DEL", Name: "To Delete", Currency: currency.USD}, tenant1)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			tcs := []struct {
+				name    string
+				id      uint
+				tenant  string
+				wantErr string
+			}{
+				{
+					name:   "delete existing",
+					id:     id,
+					tenant: tenant1,
+				},
+				{
+					name:    "delete again returns not found",
+					id:      id,
+					tenant:  tenant1,
+					wantErr: ErrSecurityNotFound.Error(),
+				},
+				{
+					name:    "delete wrong tenant",
+					id:      id,
+					tenant:  tenant2,
+					wantErr: ErrSecurityNotFound.Error(),
+				},
+			}
+
+			for _, tc := range tcs {
+				t.Run(tc.name, func(t *testing.T) {
+					err := store.DeleteSecurity(ctx, tc.id, tc.tenant)
+					if tc.wantErr != "" {
+						if err == nil {
+							t.Fatalf("expected error: %s, but got none", tc.wantErr)
+						}
+						if err.Error() != tc.wantErr {
+							t.Errorf("expected error: %s, got %v", tc.wantErr, err.Error())
+						}
+						return
+					}
+					if err != nil {
+						t.Fatalf("unexpected error: %v", err)
+					}
+					_, err = store.GetSecurity(ctx, tc.id, tc.tenant)
+					if err == nil {
+						t.Error("expected security to be deleted (get should fail)")
+					}
+					if !errors.Is(err, ErrSecurityNotFound) {
+						t.Errorf("expected ErrSecurityNotFound after delete, got %v", err)
 					}
 				})
 			}

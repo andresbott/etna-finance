@@ -88,3 +88,62 @@ func (store *Store) ListSecurities(ctx context.Context, tenant string) ([]Securi
 	}
 	return out, nil
 }
+
+// SecurityUpdatePayload holds optional fields for updating a security.
+type SecurityUpdatePayload struct {
+	Symbol   *string
+	Name     *string
+	Currency *string
+}
+
+func (store *Store) UpdateSecurity(ctx context.Context, id uint, tenant string, item SecurityUpdatePayload) error {
+	updateStruct := dbSecurity{}
+	var selectedFields []string
+
+	if item.Symbol != nil {
+		if *item.Symbol == "" {
+			return ErrValidation("symbol cannot be empty")
+		}
+		updateStruct.Symbol = *item.Symbol
+		selectedFields = append(selectedFields, "Symbol")
+	}
+	if item.Name != nil {
+		updateStruct.Name = *item.Name
+		selectedFields = append(selectedFields, "Name")
+	}
+	if item.Currency != nil {
+		if *item.Currency == "" {
+			return ErrValidation("currency cannot be empty")
+		}
+		updateStruct.Currency = *item.Currency
+		selectedFields = append(selectedFields, "Currency")
+	}
+	if len(selectedFields) == 0 {
+		return ErrNoChanges
+	}
+
+	res := store.db.WithContext(ctx).Model(&dbSecurity{}).
+		Where("id = ? AND owner_id = ?", id, tenant).
+		Select(selectedFields).
+		Updates(updateStruct)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrSecurityNotFound
+	}
+	return nil
+}
+
+func (store *Store) DeleteSecurity(ctx context.Context, id uint, tenant string) error {
+	res := store.db.WithContext(ctx).
+		Where("id = ? AND owner_id = ?", id, tenant).
+		Delete(&dbSecurity{})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrSecurityNotFound
+	}
+	return nil
+}

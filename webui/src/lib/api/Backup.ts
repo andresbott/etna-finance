@@ -53,4 +53,3 @@ export const RestoreBackup = async (file: File): Promise<void> => {
 export const RestoreBackupFromExisting = async (id: string): Promise<void> => {
     await apiClient.post(`/restore/${id}`)
 }
-
