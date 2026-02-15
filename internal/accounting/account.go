@@ -203,7 +203,7 @@ const (
 	CheckinAccountType                // where the salary goes
 	SavingsAccountType                // where you save money and get dividends
 	InvestmentAccountType             // stocks and others (vested)
-	GrantAccountType                  // granted but not yet settled (e.g. unvested RSUs); can transfer to Investment
+	UnvestedAccountType               // not yet accessible (e.g. unvested RSUs); can transfer to Investment
 )
 
 func (t AccountType) String() string {
@@ -216,10 +216,20 @@ func (t AccountType) String() string {
 		return "Savings"
 	case InvestmentAccountType:
 		return "Investment"
-	case GrantAccountType:
-		return "Grant"
+	case UnvestedAccountType:
+		return "Unvested"
 	default:
 		return "Unknown"
+	}
+}
+
+// RequiresCurrency returns true for account types that require a currency (all except Unknown).
+func (t AccountType) RequiresCurrency() bool {
+	switch t {
+	case CashAccountType, CheckinAccountType, SavingsAccountType, InvestmentAccountType, UnvestedAccountType:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -249,15 +259,19 @@ type dbAccount struct {
 	DeletedAt gorm.DeletedAt `gorm:"index"`
 }
 
-// dbToAccount is used internally to transform the db struct to public facing struct
+// dbToAccount is used internally to transform the db struct to public facing struct.
 func dbToAccount(in dbAccount) Account {
+	var cur currency.Unit
+	if in.Currency != "" {
+		cur = currency.MustParseISO(in.Currency)
+	}
 	return Account{
 		ID:                in.ID,
 		AccountProviderID: in.ProviderID,
 		Name:              in.Name,
 		Description:       in.Description,
 		Icon:              in.Icon,
-		Currency:          currency.MustParseISO(in.Currency),
+		Currency:          cur,
 		Type:              in.Type,
 	}
 }
@@ -266,7 +280,7 @@ func (store *Store) CreateAccount(ctx context.Context, item Account, tenant stri
 	if item.Name == "" {
 		return 0, ErrValidation("name cannot be empty")
 	}
-	if item.Currency == (currency.Unit{}) {
+	if item.Type.RequiresCurrency() && item.Currency == (currency.Unit{}) {
 		return 0, ErrValidation("currency cannot be empty")
 	}
 	if item.AccountProviderID == 0 {
@@ -278,6 +292,10 @@ func (store *Store) CreateAccount(ctx context.Context, item Account, tenant stri
 		return 0, ErrValidation("account provider id not found")
 	}
 
+	currencyStr := ""
+	if item.Type.RequiresCurrency() {
+		currencyStr = item.Currency.String()
+	}
 	payload := dbAccount{
 		OwnerId:     tenant, // ensure tenant is set by the signature
 		ProviderID:  item.AccountProviderID,
@@ -285,7 +303,7 @@ func (store *Store) CreateAccount(ctx context.Context, item Account, tenant stri
 		Description: item.Description,
 		Icon:        item.Icon,
 		Type:        item.Type,
-		Currency:    item.Currency.String(),
+		Currency:    currencyStr,
 	}
 
 	d := store.db.WithContext(ctx).Create(&payload)
@@ -318,6 +336,16 @@ type AccountUpdatePayload struct {
 }
 
 func (store *Store) UpdateAccount(ctx context.Context, item AccountUpdatePayload, Id uint, tenant string) error {
+	// Resolve target account type for currency rules: use payload type if set, else current account type
+	targetType := item.Type
+	if targetType == UnknownAccountType && item.Currency != nil {
+		current, err := store.GetAccount(ctx, Id, tenant)
+		if err != nil {
+			return err
+		}
+		targetType = current.Type
+	}
+
 	// Build a dbAccount struct with only the fields to update
 	updateStruct := dbAccount{}
 	var selectedFields []string
@@ -342,8 +370,11 @@ func (store *Store) UpdateAccount(ctx context.Context, item AccountUpdatePayload
 		selectedFields = append(selectedFields, "Type")
 	}
 
+	// Currency: required for Cash/Checkin/Savings/Investment/Unvested; store when provided
 	if item.Currency != nil {
-		updateStruct.Currency = item.Currency.String()
+		if targetType.RequiresCurrency() {
+			updateStruct.Currency = item.Currency.String()
+		}
 		selectedFields = append(selectedFields, "Currency")
 	}
 

@@ -1,7 +1,6 @@
 package accounting
 
 import (
-	"context"
 	"sort"
 	"testing"
 
@@ -31,7 +30,7 @@ func TestStore_CategorySmoke(t *testing.T) {
 						t.Fatal(err)
 					}
 
-					ctx := context.Background()
+					ctx := t.Context()
 					category := CategoryData{
 						Name: "test",
 						Type: categoryType,
@@ -392,7 +391,7 @@ func TestGetCategoryChildren(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
-					ctx := context.Background()
+					ctx := t.Context()
 
 					got, err := store.getCategoryChildren(ctx, tc.catType, tc.tenant)
 					if tc.wantErr != "" {

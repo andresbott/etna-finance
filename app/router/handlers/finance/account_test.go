@@ -2,16 +2,8 @@ package finance
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/andresbott/etna/internal/accounting"
-	"github.com/glebarez/sqlite"
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"golang.org/x/text/currency"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -19,6 +11,14 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/andresbott/etna/internal/accounting"
+	"github.com/glebarez/sqlite"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"golang.org/x/text/currency"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 func TestCreateAccountProvider(t *testing.T) {
@@ -268,7 +268,7 @@ func TestDeleteAccountProvider(t *testing.T) {
 					t.Errorf("handler returned wrong status code: got %v want %v", status, tc.expectCode)
 				}
 
-				_, err := h.Store.GetAccountProvider(context.Background(), tc.deleteID, tc.user)
+				_, err := h.Store.GetAccountProvider(t.Context(), tc.deleteID, tc.user)
 				if err == nil {
 					t.Fatalf("expected NotFoundErr, but account provider still exists")
 				}
@@ -381,6 +381,12 @@ func TestCreateAccount(t *testing.T) {
 			expectCode: http.StatusOK,
 		},
 		{
+			name:       "successful request with type unvested",
+			tenant:     tenant1,
+			payload:    bytes.NewBuffer([]byte(`{ "name":"RSU account", "type":"unvested", "currency":"USD", "providerId":1 }`)),
+			expectCode: http.StatusOK,
+		},
+		{
 			name:       "empty tenant",
 			tenant:     "",
 			payload:    bytes.NewBuffer([]byte(`{"name":"Savings", "currency":"USD", "type":"cash"}`)),
@@ -478,6 +484,12 @@ func TestUpdateAccount(t *testing.T) {
 			expectCode: http.StatusOK,
 		},
 		{
+			name:       "successful request with type unvested",
+			user:       tenant1,
+			payload:    bytes.NewBuffer([]byte(`{"type":"unvested"}`)),
+			expectCode: http.StatusOK,
+		},
+		{
 			name:       "missing user",
 			user:       "",
 			payload:    bytes.NewBuffer([]byte(`{"name":"Savings"}`)),
@@ -512,7 +524,7 @@ func TestUpdateAccount(t *testing.T) {
 			defer end()
 
 			// Create a new account to get an id
-			accountId, err := h.Store.CreateAccount(context.Background(),
+			accountId, err := h.Store.CreateAccount(t.Context(),
 				accounting.Account{Name: "Initial", Currency: currency.USD, AccountProviderID: 1}, tenant1)
 			if err != nil {
 				t.Fatal(err)
@@ -609,7 +621,7 @@ func TestDeleteAccount(t *testing.T) {
 					t.Errorf("handler returned wrong status code: got %v want %v", status, tc.expectCode)
 				}
 
-				_, err := h.Store.GetAccount(context.Background(), tc.deleteID, tc.user)
+				_, err := h.Store.GetAccount(t.Context(), tc.deleteID, tc.user)
 				if err == nil {
 					t.Fatalf("expected NotFoundErr, but got account")
 				}
@@ -682,10 +694,10 @@ var sampleAccounts = []accounting.Account{
 }
 
 var sampleCategories = []accounting.CategoryData{
-	{Name: "Groceries", Icon: "pi-shopping-cart", Type: accounting.ExpenseCategory},  // 1
-	{Name: "Bills", Icon: "pi-file", Type: accounting.ExpenseCategory},               // 2
-	{Name: "Salary", Icon: "pi-wallet", Type: accounting.IncomeCategory},             // 3
-	{Name: "Investments", Icon: "pi-chart-line", Type: accounting.IncomeCategory},    // 4
+	{Name: "Groceries", Icon: "pi-shopping-cart", Type: accounting.ExpenseCategory}, // 1
+	{Name: "Bills", Icon: "pi-file", Type: accounting.ExpenseCategory},              // 2
+	{Name: "Salary", Icon: "pi-wallet", Type: accounting.IncomeCategory},            // 3
+	{Name: "Investments", Icon: "pi-chart-line", Type: accounting.IncomeCategory},   // 4
 }
 
 var sampleEntries = []accounting.Transaction{
@@ -726,7 +738,7 @@ const (
 )
 
 func sampleData(t *testing.T, store *accounting.Store) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// =========================================
 	// create accounts providers
@@ -803,7 +815,7 @@ func sampleData(t *testing.T, store *accounting.Store) {
 	// =========================================
 
 	for _, entry := range sampleEntries {
-		_, err = store.CreateTransaction(context.Background(), entry, tenant1)
+		_, err = store.CreateTransaction(t.Context(), entry, tenant1)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -811,13 +823,13 @@ func sampleData(t *testing.T, store *accounting.Store) {
 
 	// create an entry with time now for test purposes
 	entry := accounting.Expense{Description: "now1", Amount: 1, AccountID: 1, Date: time.Now()}
-	_, err = store.CreateTransaction(context.Background(), entry, tenant1)
+	_, err = store.CreateTransaction(t.Context(), entry, tenant1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	for _, entry := range sampleEntries2 {
-		_, err = store.CreateTransaction(context.Background(), entry, tenant2)
+		_, err = store.CreateTransaction(t.Context(), entry, tenant2)
 		if err != nil {
 			t.Fatal(err)
 		}

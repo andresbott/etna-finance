@@ -173,11 +173,12 @@ func (h *Handler) ListAccountProviders(userId string) http.Handler {
 
 			accounts := make([]accountPayload, len(b.Accounts))
 			for j, account := range b.Accounts {
+				currencyStr := account.Currency.String()
 				accounts[j] = accountPayload{
 					Id:       account.ID,
 					Name:     account.Name,
 					Icon:     account.Icon,
-					Currency: account.Currency.String(),
+					Currency: currencyStr,
 					Type:     strings.ToLower(account.Type.String()),
 				}
 			}
@@ -240,25 +241,27 @@ func (h *Handler) CreateAccount(userId string) http.Handler {
 			return
 		}
 
-		account := accounting.Account{
-			Name:              payload.Name,
-			Icon:              payload.Icon,
-			AccountProviderID: payload.ProviderId,
-		}
-
-		cur, err := currency.ParseISO(payload.Currency)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("unable to parse currency: %s", err.Error()), http.StatusBadRequest)
-			return
-		}
-		account.Currency = cur
-
 		t := parseAccountType(payload.Type)
 		if t == accounting.UnknownAccountType {
 			http.Error(w, fmt.Sprintf("unable to parse account type: %s", payload.Type), http.StatusBadRequest)
 			return
 		}
-		account.Type = t
+
+		account := accounting.Account{
+			Name:              payload.Name,
+			Icon:              payload.Icon,
+			AccountProviderID: payload.ProviderId,
+			Type:              t,
+		}
+		if t.RequiresCurrency() {
+			cur, err := currency.ParseISO(payload.Currency)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("unable to parse currency: %s", err.Error()), http.StatusBadRequest)
+				return
+			}
+			account.Currency = cur
+		}
+		// Investment/Unvested: ignore any currency in the request
 
 		accID, err := h.Store.CreateAccount(r.Context(), account, userId)
 		if err != nil {
@@ -271,11 +274,15 @@ func (h *Handler) CreateAccount(userId string) http.Handler {
 			}
 		}
 
+		currencyStr := ""
+		if account.Type.RequiresCurrency() {
+			currencyStr = account.Currency.String()
+		}
 		responsePayload := accountPayload{
 			Id:       accID,
 			Name:     account.Name,
 			Icon:     account.Icon,
-			Currency: account.Currency.String(),
+			Currency: currencyStr,
 			Type:     account.Type.String(),
 		}
 
@@ -324,7 +331,20 @@ func (h *Handler) UpdateAccount(Id uint, userId string) http.Handler {
 			account.Icon = payload.Icon
 		}
 
-		if payload.Currency != nil {
+		// Resolve target type for currency: from payload or current account
+		targetType := accounting.UnknownAccountType
+		if payload.Type != "" {
+			targetType = parseAccountType(payload.Type)
+		}
+		if targetType == accounting.UnknownAccountType && payload.Currency != nil {
+			current, err := h.Store.GetAccount(r.Context(), Id, userId)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("unable to get account: %s", err.Error()), http.StatusInternalServerError)
+				return
+			}
+			targetType = current.Type
+		}
+		if payload.Currency != nil && targetType.RequiresCurrency() {
 			cur, err := currency.ParseISO(*payload.Currency)
 			if err != nil {
 				http.Error(w, fmt.Sprintf("unable to parse currency: %s", err.Error()), http.StatusBadRequest)
@@ -332,6 +352,7 @@ func (h *Handler) UpdateAccount(Id uint, userId string) http.Handler {
 			}
 			account.Currency = &cur
 		}
+		// Investment/Unvested: ignore currency in request (handler does not set it; store will clear if needed)
 
 		if payload.Type != "" {
 			t := parseAccountType(payload.Type)
@@ -387,12 +408,13 @@ const (
 	checkinAccountStr    = "checkin"
 	savingsAccountStr    = "savings"
 	investmentAccountStr = "investment"
+	unvestedAccountStr   = "unvested"
 )
 
 func parseAccountType(in string) accounting.AccountType {
 	in = strings.TrimSpace(in)
 	in = strings.ToLower(in)
-	switch strings.ToLower(in) {
+	switch in {
 	case cashAccountStr:
 		return accounting.CashAccountType
 	case checkinAccountStr:
@@ -401,6 +423,8 @@ func parseAccountType(in string) accounting.AccountType {
 		return accounting.SavingsAccountType
 	case investmentAccountStr:
 		return accounting.InvestmentAccountType
+	case unvestedAccountStr:
+		return accounting.UnvestedAccountType
 	default:
 		return accounting.UnknownAccountType
 	}

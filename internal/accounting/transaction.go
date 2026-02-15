@@ -91,7 +91,7 @@ type StockBuy struct {
 	Date                time.Time
 	InvestmentAccountID uint // account of type Investment (position entry)
 	CashAccountID       uint // account of type Cash/Checkin/Savings (money in that account's currency)
-	SecurityID          uint
+	InstrumentID        uint
 	Quantity            float64
 	TotalAmount         float64 // total cash spent (positive), in cash account currency
 	baseTx
@@ -105,7 +105,7 @@ type StockSell struct {
 	Date                time.Time
 	InvestmentAccountID uint
 	CashAccountID       uint
-	SecurityID          uint
+	InstrumentID        uint
 	Quantity            float64
 	TotalAmount         float64 // total cash received (positive), in cash account currency
 	baseTx
@@ -114,23 +114,23 @@ type StockSell struct {
 // StockGrant represents a position increase without a cash leg (RSU vest, gift, award, etc.).
 // Single entry on a position account (Investment or Grant).
 type StockGrant struct {
-	Id          uint
-	Description string
-	Date        time.Time
-	AccountID   uint // Investment or Grant account that receives the shares
-	SecurityID  uint
-	Quantity    float64
+	Id           uint
+	Description  string
+	Date         time.Time
+	AccountID    uint // Investment or Unvested account that receives the shares
+	InstrumentID uint
+	Quantity     float64
 	baseTx
 }
 
-// StockTransfer represents a transfer of shares between two position accounts (e.g. Grant → Investment).
+// StockTransfer represents a transfer of shares between two position accounts (e.g. Unvested → Investment).
 type StockTransfer struct {
 	Id              uint
 	Description     string
 	Date            time.Time
-	SourceAccountID uint // Investment or Grant
-	TargetAccountID uint // Investment or Grant
-	SecurityID      uint
+	SourceAccountID uint // Investment or Unvested
+	TargetAccountID uint // Investment or Unvested
+	InstrumentID    uint
 	Quantity        float64
 	baseTx
 }
@@ -318,7 +318,7 @@ func (store *Store) CreateTransfer(ctx context.Context, item Transfer, tenant st
 }
 
 var allowedCashAccountTypes = []AccountType{CashAccountType, CheckinAccountType, SavingsAccountType}
-var allowedPositionAccountTypes = []AccountType{InvestmentAccountType, GrantAccountType}
+var allowedPositionAccountTypes = []AccountType{InvestmentAccountType, UnvestedAccountType}
 
 func (store *Store) CreateStockBuy(ctx context.Context, item StockBuy, tenant string) (uint, error) {
 	if item.InvestmentAccountID == 0 {
@@ -327,8 +327,8 @@ func (store *Store) CreateStockBuy(ctx context.Context, item StockBuy, tenant st
 	if item.CashAccountID == 0 {
 		return 0, ErrValidation("cash account id is required")
 	}
-	if item.SecurityID == 0 {
-		return 0, ErrValidation("security id is required")
+	if item.InstrumentID == 0 {
+		return 0, ErrValidation("instrument id is required")
 	}
 	if item.Quantity <= 0 {
 		return 0, ErrValidation("quantity must be positive")
@@ -353,10 +353,10 @@ func (store *Store) CreateStockBuy(ctx context.Context, item StockBuy, tenant st
 		return 0, NewValidationErr("cash account must be Cash, Checkin or Savings for stock buy")
 	}
 
-	_, err = store.GetSecurity(ctx, item.SecurityID, tenant)
+	_, err = store.GetInstrument(ctx, item.InstrumentID, tenant)
 	if err != nil {
-		if errors.Is(err, ErrSecurityNotFound) {
-			return 0, ErrValidation("security not found")
+		if errors.Is(err, ErrInstrumentNotFound) {
+			return 0, ErrValidation("instrument not found")
 		}
 		return 0, fmt.Errorf("error creating stock buy: %w", err)
 	}
@@ -369,12 +369,12 @@ func (store *Store) CreateStockBuy(ctx context.Context, item StockBuy, tenant st
 		Type:        StockBuyTransaction,
 		Entries: []dbEntry{
 			{
-				AccountID:  item.InvestmentAccountID,
-				SecurityID: item.SecurityID,
-				Quantity:   item.Quantity,
-				Amount:     0,
-				EntryType:  stockBuyEntry,
-				OwnerId:    tenant,
+				AccountID:    item.InvestmentAccountID,
+				InstrumentID: item.InstrumentID,
+				Quantity:     item.Quantity,
+				Amount:       0,
+				EntryType:    stockBuyEntry,
+				OwnerId:      tenant,
 			},
 			{
 				AccountID: item.CashAccountID,
@@ -402,8 +402,8 @@ func (store *Store) CreateStockSell(ctx context.Context, item StockSell, tenant 
 	if item.CashAccountID == 0 {
 		return 0, ErrValidation("cash account id is required")
 	}
-	if item.SecurityID == 0 {
-		return 0, ErrValidation("security id is required")
+	if item.InstrumentID == 0 {
+		return 0, ErrValidation("instrument id is required")
 	}
 	if item.Quantity <= 0 {
 		return 0, ErrValidation("quantity must be positive")
@@ -428,10 +428,10 @@ func (store *Store) CreateStockSell(ctx context.Context, item StockSell, tenant 
 		return 0, NewValidationErr("cash account must be Cash, Checkin or Savings for stock sell")
 	}
 
-	_, err = store.GetSecurity(ctx, item.SecurityID, tenant)
+	_, err = store.GetInstrument(ctx, item.InstrumentID, tenant)
 	if err != nil {
-		if errors.Is(err, ErrSecurityNotFound) {
-			return 0, ErrValidation("security not found")
+		if errors.Is(err, ErrInstrumentNotFound) {
+			return 0, ErrValidation("instrument not found")
 		}
 		return 0, fmt.Errorf("error creating stock sell: %w", err)
 	}
@@ -444,12 +444,12 @@ func (store *Store) CreateStockSell(ctx context.Context, item StockSell, tenant 
 		Type:        StockSellTransaction,
 		Entries: []dbEntry{
 			{
-				AccountID:  item.InvestmentAccountID,
-				SecurityID: item.SecurityID,
-				Quantity:   item.Quantity,
-				Amount:     0,
-				EntryType:  stockSellEntry,
-				OwnerId:    tenant,
+				AccountID:    item.InvestmentAccountID,
+				InstrumentID: item.InstrumentID,
+				Quantity:     item.Quantity,
+				Amount:       0,
+				EntryType:    stockSellEntry,
+				OwnerId:      tenant,
 			},
 			{
 				AccountID: item.CashAccountID,
@@ -474,8 +474,8 @@ func (store *Store) CreateStockGrant(ctx context.Context, item StockGrant, tenan
 	if item.AccountID == 0 {
 		return 0, ErrValidation("account id is required")
 	}
-	if item.SecurityID == 0 {
-		return 0, ErrValidation("security id is required")
+	if item.InstrumentID == 0 {
+		return 0, ErrValidation("instrument id is required")
 	}
 	if item.Quantity <= 0 {
 		return 0, ErrValidation("quantity must be positive")
@@ -486,13 +486,13 @@ func (store *Store) CreateStockGrant(ctx context.Context, item StockGrant, tenan
 		return 0, fmt.Errorf("error creating stock grant: %w", err)
 	}
 	if !slices.Contains(allowedPositionAccountTypes, acc.Type) {
-		return 0, NewValidationErr("account must be Investment or Grant for stock grant")
+		return 0, NewValidationErr("account must be Investment or Unvested for stock grant")
 	}
 
-	_, err = store.GetSecurity(ctx, item.SecurityID, tenant)
+	_, err = store.GetInstrument(ctx, item.InstrumentID, tenant)
 	if err != nil {
-		if errors.Is(err, ErrSecurityNotFound) {
-			return 0, ErrValidation("security not found")
+		if errors.Is(err, ErrInstrumentNotFound) {
+			return 0, ErrValidation("instrument not found")
 		}
 		return 0, fmt.Errorf("error creating stock grant: %w", err)
 	}
@@ -504,12 +504,12 @@ func (store *Store) CreateStockGrant(ctx context.Context, item StockGrant, tenan
 		Type:        StockGrantTransaction,
 		Entries: []dbEntry{
 			{
-				AccountID:  item.AccountID,
-				SecurityID: item.SecurityID,
-				Quantity:   item.Quantity,
-				Amount:     0,
-				EntryType:  stockGrantEntry,
-				OwnerId:    tenant,
+				AccountID:    item.AccountID,
+				InstrumentID: item.InstrumentID,
+				Quantity:     item.Quantity,
+				Amount:       0,
+				EntryType:    stockGrantEntry,
+				OwnerId:      tenant,
 			},
 		},
 	}
@@ -531,8 +531,8 @@ func (store *Store) CreateStockTransfer(ctx context.Context, item StockTransfer,
 	if item.SourceAccountID == item.TargetAccountID {
 		return 0, ErrValidation("source and target accounts must be different")
 	}
-	if item.SecurityID == 0 {
-		return 0, ErrValidation("security id is required")
+	if item.InstrumentID == 0 {
+		return 0, ErrValidation("instrument id is required")
 	}
 	if item.Quantity <= 0 {
 		return 0, ErrValidation("quantity must be positive")
@@ -543,7 +543,7 @@ func (store *Store) CreateStockTransfer(ctx context.Context, item StockTransfer,
 		return 0, fmt.Errorf("error creating stock transfer: %w", err)
 	}
 	if !slices.Contains(allowedPositionAccountTypes, srcAcc.Type) {
-		return 0, NewValidationErr("source account must be Investment or Grant for stock transfer")
+		return 0, NewValidationErr("source account must be Investment or Unvested for stock transfer")
 	}
 
 	tgtAcc, err := store.GetAccount(ctx, item.TargetAccountID, tenant)
@@ -551,13 +551,13 @@ func (store *Store) CreateStockTransfer(ctx context.Context, item StockTransfer,
 		return 0, fmt.Errorf("error creating stock transfer: %w", err)
 	}
 	if !slices.Contains(allowedPositionAccountTypes, tgtAcc.Type) {
-		return 0, NewValidationErr("target account must be Investment or Grant for stock transfer")
+		return 0, NewValidationErr("target account must be Investment or Unvested for stock transfer")
 	}
 
-	_, err = store.GetSecurity(ctx, item.SecurityID, tenant)
+	_, err = store.GetInstrument(ctx, item.InstrumentID, tenant)
 	if err != nil {
-		if errors.Is(err, ErrSecurityNotFound) {
-			return 0, ErrValidation("security not found")
+		if errors.Is(err, ErrInstrumentNotFound) {
+			return 0, ErrValidation("instrument not found")
 		}
 		return 0, fmt.Errorf("error creating stock transfer: %w", err)
 	}
@@ -569,20 +569,20 @@ func (store *Store) CreateStockTransfer(ctx context.Context, item StockTransfer,
 		Type:        StockTransferTransaction,
 		Entries: []dbEntry{
 			{
-				AccountID:  item.SourceAccountID,
-				SecurityID: item.SecurityID,
-				Quantity:   item.Quantity,
-				Amount:     0,
-				EntryType:  stockTransferOutEntry,
-				OwnerId:    tenant,
+				AccountID:    item.SourceAccountID,
+				InstrumentID: item.InstrumentID,
+				Quantity:     item.Quantity,
+				Amount:       0,
+				EntryType:    stockTransferOutEntry,
+				OwnerId:      tenant,
 			},
 			{
-				AccountID:  item.TargetAccountID,
-				SecurityID: item.SecurityID,
-				Quantity:   item.Quantity,
-				Amount:     0,
-				EntryType:  stockTransferInEntry,
-				OwnerId:    tenant,
+				AccountID:    item.TargetAccountID,
+				InstrumentID: item.InstrumentID,
+				Quantity:     item.Quantity,
+				Amount:       0,
+				EntryType:    stockTransferInEntry,
+				OwnerId:      tenant,
 			},
 		},
 	}
@@ -641,134 +641,159 @@ func (store *Store) GetTransaction(ctx context.Context, Id uint, tenant string) 
 func publicTransactions(in dbTransaction) (Transaction, error) {
 	switch in.Type {
 	case IncomeTransaction:
-		return Income{
-			Description: in.Description,
-			Date:        in.Date,
-			Amount:      in.Entries[0].Amount,
-			AccountID:   in.Entries[0].AccountID,
-			CategoryID:  in.Entries[0].CategoryID,
-		}, nil
+		return incomeFromDb(in)
 	case ExpenseTransaction:
-		return Expense{
-			Description: in.Description,
-			Date:        in.Date,
-			Amount:      -in.Entries[0].Amount,
-			AccountID:   in.Entries[0].AccountID,
-			CategoryID:  in.Entries[0].CategoryID,
-		}, nil
+		return expenseFromDb(in)
 	case TransferTransaction:
-		var inEntity dbEntry
-		var outEntry dbEntry
-		entries := in.Entries
-		for _, entry := range entries {
-			switch entry.EntryType {
-			case transferInEntry:
-				inEntity = entry
-			case transferOutEntry:
-				outEntry = entry
-			default:
-				return nil, fmt.Errorf("unexpected entry type: %v found in transfer", entry.EntryType)
-			}
-		}
-		return Transfer{
-			Description:     in.Description,
-			OriginAmount:    -outEntry.Amount,
-			OriginAccountID: outEntry.AccountID,
-			TargetAmount:    inEntity.Amount,
-			TargetAccountID: inEntity.AccountID,
-			Date:            in.Date,
-		}, nil
+		return transferFromDb(in)
 	case StockBuyTransaction:
-		var positionEntry, cashEntry *dbEntry
-		for i := range in.Entries {
-			e := &in.Entries[i]
-			switch e.EntryType {
-			case stockBuyEntry:
-				positionEntry = e
-			case stockCashOutEntry:
-				cashEntry = e
-			}
-		}
-		if positionEntry == nil || cashEntry == nil {
-			return nil, fmt.Errorf("stock buy transaction must have position and cash entries")
-		}
-		totalAmount := -cashEntry.Amount
-		return StockBuy{
-			Id:                  in.Id,
-			Description:         in.Description,
-			Date:                in.Date,
-			InvestmentAccountID: positionEntry.AccountID,
-			CashAccountID:       cashEntry.AccountID,
-			SecurityID:          positionEntry.SecurityID,
-			Quantity:            positionEntry.Quantity,
-			TotalAmount:         totalAmount,
-		}, nil
+		return stockBuyFromDb(in)
 	case StockSellTransaction:
-		var positionEntry, cashEntry *dbEntry
-		for i := range in.Entries {
-			e := &in.Entries[i]
-			switch e.EntryType {
-			case stockSellEntry:
-				positionEntry = e
-			case stockCashInEntry:
-				cashEntry = e
-			}
-		}
-		if positionEntry == nil || cashEntry == nil {
-			return nil, fmt.Errorf("stock sell transaction must have position and cash entries")
-		}
-		return StockSell{
-			Id:                  in.Id,
-			Description:         in.Description,
-			Date:                in.Date,
-			InvestmentAccountID: positionEntry.AccountID,
-			CashAccountID:       cashEntry.AccountID,
-			SecurityID:          positionEntry.SecurityID,
-			Quantity:            positionEntry.Quantity,
-			TotalAmount:         cashEntry.Amount,
-		}, nil
+		return stockSellFromDb(in)
 	case StockGrantTransaction:
-		if len(in.Entries) != 1 {
-			return nil, fmt.Errorf("stock grant transaction must have exactly one entry")
-		}
-		e := &in.Entries[0]
-		if e.EntryType != stockGrantEntry {
-			return nil, fmt.Errorf("stock grant transaction has unexpected entry type %v", e.EntryType)
-		}
-		return StockGrant{
-			Id:          in.Id,
-			Description: in.Description,
-			Date:        in.Date,
-			AccountID:   e.AccountID,
-			SecurityID:  e.SecurityID,
-			Quantity:    e.Quantity,
-		}, nil
+		return stockGrantFromDb(in)
 	case StockTransferTransaction:
-		var outEntry, inEntry *dbEntry
-		for i := range in.Entries {
-			e := &in.Entries[i]
-			switch e.EntryType {
-			case stockTransferOutEntry:
-				outEntry = e
-			case stockTransferInEntry:
-				inEntry = e
-			}
-		}
-		if outEntry == nil || inEntry == nil {
-			return nil, fmt.Errorf("stock transfer transaction must have source and target entries")
-		}
-		return StockTransfer{
-			Id:              in.Id,
-			Description:     in.Description,
-			Date:            in.Date,
-			SourceAccountID: outEntry.AccountID,
-			TargetAccountID: inEntry.AccountID,
-			SecurityID:      outEntry.SecurityID,
-			Quantity:        outEntry.Quantity,
-		}, nil
+		return stockTransferFromDb(in)
 	default:
 		return EmptyTransaction{}, ErrTransactionTypeNotFound
 	}
+}
+
+func incomeFromDb(in dbTransaction) (Transaction, error) {
+	return Income{
+		Description: in.Description,
+		Date:        in.Date,
+		Amount:      in.Entries[0].Amount,
+		AccountID:   in.Entries[0].AccountID,
+		CategoryID:  in.Entries[0].CategoryID,
+	}, nil
+}
+
+func expenseFromDb(in dbTransaction) (Transaction, error) {
+	return Expense{
+		Description: in.Description,
+		Date:        in.Date,
+		Amount:      -in.Entries[0].Amount,
+		AccountID:   in.Entries[0].AccountID,
+		CategoryID:  in.Entries[0].CategoryID,
+	}, nil
+}
+
+func transferFromDb(in dbTransaction) (Transaction, error) {
+	var inEntity, outEntry dbEntry
+	for _, entry := range in.Entries {
+		switch entry.EntryType {
+		case transferInEntry:
+			inEntity = entry
+		case transferOutEntry:
+			outEntry = entry
+		default:
+			return nil, fmt.Errorf("unexpected entry type: %v found in transfer", entry.EntryType)
+		}
+	}
+	return Transfer{
+		Description:     in.Description,
+		OriginAmount:    -outEntry.Amount,
+		OriginAccountID: outEntry.AccountID,
+		TargetAmount:    inEntity.Amount,
+		TargetAccountID: inEntity.AccountID,
+		Date:            in.Date,
+	}, nil
+}
+
+func stockBuyFromDb(in dbTransaction) (Transaction, error) {
+	var positionEntry, cashEntry *dbEntry
+	for i := range in.Entries {
+		e := &in.Entries[i]
+		switch e.EntryType {
+		case stockBuyEntry:
+			positionEntry = e
+		case stockCashOutEntry:
+			cashEntry = e
+		}
+	}
+	if positionEntry == nil || cashEntry == nil {
+		return nil, fmt.Errorf("stock buy transaction must have position and cash entries")
+	}
+	return StockBuy{
+		Id:                  in.Id,
+		Description:         in.Description,
+		Date:                in.Date,
+		InvestmentAccountID: positionEntry.AccountID,
+		CashAccountID:       cashEntry.AccountID,
+		InstrumentID:        positionEntry.InstrumentID,
+		Quantity:            positionEntry.Quantity,
+		TotalAmount:         -cashEntry.Amount,
+	}, nil
+}
+
+func stockSellFromDb(in dbTransaction) (Transaction, error) {
+	var positionEntry, cashEntry *dbEntry
+	for i := range in.Entries {
+		e := &in.Entries[i]
+		switch e.EntryType {
+		case stockSellEntry:
+			positionEntry = e
+		case stockCashInEntry:
+			cashEntry = e
+		}
+	}
+	if positionEntry == nil || cashEntry == nil {
+		return nil, fmt.Errorf("stock sell transaction must have position and cash entries")
+	}
+	return StockSell{
+		Id:                  in.Id,
+		Description:         in.Description,
+		Date:                in.Date,
+		InvestmentAccountID: positionEntry.AccountID,
+		CashAccountID:       cashEntry.AccountID,
+		InstrumentID:        positionEntry.InstrumentID,
+		Quantity:            positionEntry.Quantity,
+		TotalAmount:         cashEntry.Amount,
+	}, nil
+}
+
+func stockGrantFromDb(in dbTransaction) (Transaction, error) {
+	if len(in.Entries) != 1 {
+		return nil, fmt.Errorf("stock grant transaction must have exactly one entry")
+	}
+	e := &in.Entries[0]
+	if e.EntryType != stockGrantEntry {
+		return nil, fmt.Errorf("stock grant transaction has unexpected entry type %v", e.EntryType)
+	}
+	return StockGrant{
+		Id:           in.Id,
+		Description:  in.Description,
+		Date:         in.Date,
+		AccountID:    e.AccountID,
+		InstrumentID: e.InstrumentID,
+		Quantity:     e.Quantity,
+	}, nil
+}
+
+func stockTransferFromDb(in dbTransaction) (Transaction, error) {
+	var outEntry, inEntry *dbEntry
+	for i := range in.Entries {
+		e := &in.Entries[i]
+		switch e.EntryType {
+		case stockTransferOutEntry:
+			outEntry = e
+		case stockTransferInEntry:
+			inEntry = e
+		}
+	}
+	if outEntry == nil || inEntry == nil {
+		return nil, fmt.Errorf("stock transfer transaction must have source and target entries")
+	}
+	return StockTransfer{
+		Id:              in.Id,
+		Description:     in.Description,
+		Date:            in.Date,
+		SourceAccountID: outEntry.AccountID,
+		TargetAccountID: inEntry.AccountID,
+		InstrumentID:    outEntry.InstrumentID,
+		Quantity:        outEntry.Quantity,
+	}, nil
 }
 
 func (store *Store) DeleteTransaction(ctx context.Context, Id uint, tenant string) error {
@@ -1196,7 +1221,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts, tenant 
         CAST(SUM(CASE WHEN db_entries.entry_type = 3 THEN db_entries.amount ELSE 0 END) AS REAL) AS target_amount,
 
         -- stock position (buy=5, sell=6)
-        CAST(MAX(CASE WHEN db_entries.entry_type IN (5, 6) THEN db_entries.security_id END) AS INTEGER) AS stock_security_id,
+        CAST(MAX(CASE WHEN db_entries.entry_type IN (5, 6) THEN db_entries.security_id END) AS INTEGER) AS stock_instrument_id,
         CAST(MAX(CASE WHEN db_entries.entry_type IN (5, 6) THEN db_entries.quantity END) AS REAL) AS stock_quantity,
         CAST(MAX(CASE WHEN db_entries.entry_type IN (5, 6) THEN db_entries.entry_type END) AS INTEGER) AS stock_entry_type,
         CAST(MAX(CASE WHEN db_entries.entry_type IN (5, 6) THEN db_entries.account_id END) AS INTEGER) AS stock_account_id,
@@ -1204,13 +1229,13 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts, tenant 
         CAST(MAX(CASE WHEN db_entries.entry_type IN (7, 8) THEN db_entries.account_id END) AS INTEGER) AS stock_cash_account_id,
         CAST(MAX(CASE WHEN db_entries.entry_type IN (7, 8) THEN db_entries.amount END) AS REAL) AS stock_cash_amount,
         -- stock grant (9)
-        CAST(MAX(CASE WHEN db_entries.entry_type = 9 THEN db_entries.security_id END) AS INTEGER) AS stock_grant_security_id,
+        CAST(MAX(CASE WHEN db_entries.entry_type = 9 THEN db_entries.security_id END) AS INTEGER) AS stock_grant_instrument_id,
         CAST(MAX(CASE WHEN db_entries.entry_type = 9 THEN db_entries.quantity END) AS REAL) AS stock_grant_quantity,
         CAST(MAX(CASE WHEN db_entries.entry_type = 9 THEN db_entries.account_id END) AS INTEGER) AS stock_grant_account_id,
         -- stock transfer (out=10, in=11)
         CAST(MAX(CASE WHEN db_entries.entry_type = 10 THEN db_entries.account_id END) AS INTEGER) AS stock_transfer_source_id,
         CAST(MAX(CASE WHEN db_entries.entry_type = 11 THEN db_entries.account_id END) AS INTEGER) AS stock_transfer_target_id,
-        CAST(MAX(CASE WHEN db_entries.entry_type IN (10, 11) THEN db_entries.security_id END) AS INTEGER) AS stock_transfer_security_id,
+        CAST(MAX(CASE WHEN db_entries.entry_type IN (10, 11) THEN db_entries.security_id END) AS INTEGER) AS stock_transfer_instrument_id,
         CAST(MAX(CASE WHEN db_entries.entry_type IN (10, 11) THEN db_entries.quantity END) AS REAL) AS stock_transfer_quantity
     `).Joins("JOIN db_entries ON db_entries.transaction_id = db_transactions.id")
 
@@ -1261,21 +1286,21 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts, tenant 
 		TargetAccountId  uint
 		TargetAmount     float64
 
-		StockSecurityId    uint
+		StockInstrumentId  uint
 		StockQuantity      float64
 		StockEntryType     int
 		StockAccountId     uint
 		StockCashAccountId uint
 		StockCashAmount    float64
 
-		StockGrantSecurityId uint
-		StockGrantQuantity   float64
-		StockGrantAccountId  uint
+		StockGrantInstrumentId uint
+		StockGrantQuantity     float64
+		StockGrantAccountId    uint
 
-		StockTransferSourceId   uint
-		StockTransferTargetId   uint
-		StockTransferSecurityId uint
-		StockTransferQuantity   float64
+		StockTransferSourceId     uint
+		StockTransferTargetId     uint
+		StockTransferInstrumentId uint
+		StockTransferQuantity     float64
 	}
 
 	var target []intermediate
@@ -1336,7 +1361,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts, tenant 
 				Date:                item.Date,
 				InvestmentAccountID: item.StockAccountId,
 				CashAccountID:       item.StockCashAccountId,
-				SecurityID:          item.StockSecurityId,
+				InstrumentID:        item.StockInstrumentId,
 				Quantity:            item.StockQuantity,
 				TotalAmount:         totalAmount,
 			})
@@ -1351,18 +1376,18 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts, tenant 
 				Date:                item.Date,
 				InvestmentAccountID: item.StockAccountId,
 				CashAccountID:       item.StockCashAccountId,
-				SecurityID:          item.StockSecurityId,
+				InstrumentID:        item.StockInstrumentId,
 				Quantity:            item.StockQuantity,
 				TotalAmount:         totalAmount,
 			})
 		case StockGrantTransaction:
 			txs = append(txs, StockGrant{
-				Id:          item.TransactionId,
-				Description: item.Description,
-				Date:        item.Date,
-				AccountID:   item.StockGrantAccountId,
-				SecurityID:  item.StockGrantSecurityId,
-				Quantity:    item.StockGrantQuantity,
+				Id:           item.TransactionId,
+				Description:  item.Description,
+				Date:         item.Date,
+				AccountID:    item.StockGrantAccountId,
+				InstrumentID: item.StockGrantInstrumentId,
+				Quantity:     item.StockGrantQuantity,
 			})
 		case StockTransferTransaction:
 			txs = append(txs, StockTransfer{
@@ -1371,7 +1396,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts, tenant 
 				Date:            item.Date,
 				SourceAccountID: item.StockTransferSourceId,
 				TargetAccountID: item.StockTransferTargetId,
-				SecurityID:      item.StockTransferSecurityId,
+				InstrumentID:    item.StockTransferInstrumentId,
 				Quantity:        item.StockTransferQuantity,
 			})
 		default:

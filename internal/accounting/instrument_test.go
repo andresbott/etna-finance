@@ -1,7 +1,6 @@
 package accounting
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -10,40 +9,46 @@ import (
 	"golang.org/x/text/currency"
 )
 
-func TestCreateSecurity(t *testing.T) {
+func TestCreateInstrument(t *testing.T) {
 	for _, db := range testdbs.DBs() {
 		t.Run(db.DbType(), func(t *testing.T) {
 			tcs := []struct {
 				name    string
-				input   Security
+				input   Instrument
 				tenant  string
 				wantErr string
 			}{
 				{
 					name:   "create valid security",
 					tenant: tenant1,
-					input:  Security{Symbol: "AAPL", Name: "Apple Inc.", Currency: currency.USD},
+					input:  Instrument{Symbol: "AAPL", Name: "Apple Inc.", Currency: currency.USD},
 				},
 				{
 					name:   "create security with empty name",
 					tenant: tenant1,
-					input:  Security{Symbol: "GOOGL", Name: "", Currency: currency.EUR},
+					input:  Instrument{Symbol: "GOOGL", Name: "", Currency: currency.EUR},
 				},
 				{
 					name:    "want error on empty symbol",
 					tenant:  tenant1,
-					input:   Security{Symbol: "", Name: "Unknown", Currency: currency.USD},
+					input:   Instrument{Symbol: "", Name: "Unknown", Currency: currency.USD},
 					wantErr: "symbol cannot be empty",
 				},
 				{
 					name:    "want error on empty currency",
 					tenant:  tenant1,
-					input:   Security{Symbol: "MSFT", Name: "Microsoft", Currency: currency.Unit{}},
+					input:   Instrument{Symbol: "MSFT", Name: "Microsoft", Currency: currency.Unit{}},
 					wantErr: "currency cannot be empty",
+				},
+				{
+					name:    "want error on duplicate symbol for same tenant",
+					tenant:  tenant1,
+					input:   Instrument{Symbol: "AAPL", Name: "Another Apple", Currency: currency.USD},
+					wantErr: ErrInstrumentSymbolDuplicate.Error(),
 				},
 			}
 
-			dbCon := db.ConnDbName("TestCreateSecurity")
+			dbCon := db.ConnDbName("TestCreateInstrument")
 			store, err := NewStore(dbCon)
 			if err != nil {
 				t.Fatal(err)
@@ -51,8 +56,8 @@ func TestCreateSecurity(t *testing.T) {
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
-					ctx := context.Background()
-					id, err := store.CreateSecurity(ctx, tc.input, tc.tenant)
+					ctx := t.Context()
+					id, err := store.CreateInstrument(ctx, tc.input, tc.tenant)
 
 					if tc.wantErr != "" {
 						if err == nil {
@@ -70,12 +75,12 @@ func TestCreateSecurity(t *testing.T) {
 						t.Errorf("expected valid security id, but got 0")
 					}
 
-					got, err := store.GetSecurity(ctx, id, tc.tenant)
+					got, err := store.GetInstrument(ctx, id, tc.tenant)
 					if err != nil {
 						t.Fatalf("expected security to be found, but got error: %v", err)
 					}
 					if got.Symbol != tc.input.Symbol || got.Name != tc.input.Name || got.Currency.String() != tc.input.Currency.String() {
-						t.Errorf("got Security Symbol=%q Name=%q Currency=%q, want Symbol=%q Name=%q Currency=%q",
+						t.Errorf("got Instrument Symbol=%q Name=%q Currency=%q, want Symbol=%q Name=%q Currency=%q",
 							got.Symbol, got.Name, got.Currency.String(), tc.input.Symbol, tc.input.Name, tc.input.Currency.String())
 					}
 				})
@@ -84,18 +89,18 @@ func TestCreateSecurity(t *testing.T) {
 	}
 }
 
-func TestGetSecurity(t *testing.T) {
+func TestGetInstrument(t *testing.T) {
 	for _, db := range testdbs.DBs() {
 		t.Run(db.DbType(), func(t *testing.T) {
-			ctx := context.Background()
-			dbCon := db.ConnDbName("TestGetSecurity")
+			ctx := t.Context()
+			dbCon := db.ConnDbName("TestGetInstrument")
 			store, err := NewStore(dbCon)
 			if err != nil {
 				t.Fatal(err)
 			}
 
 			// Create a security for tenant1
-			id, err := store.CreateSecurity(ctx, Security{Symbol: "TEST", Name: "Test Security", Currency: currency.CHF}, tenant1)
+			id, err := store.CreateInstrument(ctx, Instrument{Symbol: "TEST", Name: "Test Instrument", Currency: currency.CHF}, tenant1)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -104,32 +109,32 @@ func TestGetSecurity(t *testing.T) {
 				name        string
 				checkId     uint
 				checkTenant string
-				want        Security
+				want        Instrument
 				wantErr     string
 			}{
 				{
 					name:        "get existing security",
 					checkId:     id,
 					checkTenant: tenant1,
-					want:        Security{Symbol: "TEST", Name: "Test Security", Currency: currency.CHF},
+					want:        Instrument{Symbol: "TEST", Name: "Test Instrument", Currency: currency.CHF},
 				},
 				{
 					name:        "want error when reading from different tenant",
 					checkId:     id,
 					checkTenant: tenant2,
-					wantErr:     ErrSecurityNotFound.Error(),
+					wantErr:     ErrInstrumentNotFound.Error(),
 				},
 				{
 					name:        "want error when security does not exist",
 					checkId:     99999,
 					checkTenant: tenant1,
-					wantErr:     ErrSecurityNotFound.Error(),
+					wantErr:     ErrInstrumentNotFound.Error(),
 				},
 			}
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
-					got, err := store.GetSecurity(ctx, tc.checkId, tc.checkTenant)
+					got, err := store.GetInstrument(ctx, tc.checkId, tc.checkTenant)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -143,7 +148,7 @@ func TestGetSecurity(t *testing.T) {
 						t.Fatalf("unexpected error: %v", err)
 					}
 					if got.Symbol != tc.want.Symbol || got.Name != tc.want.Name || got.Currency.String() != tc.want.Currency.String() {
-						t.Errorf("got Security Symbol=%q Name=%q Currency=%q, want Symbol=%q Name=%q Currency=%q",
+						t.Errorf("got Instrument Symbol=%q Name=%q Currency=%q, want Symbol=%q Name=%q Currency=%q",
 							got.Symbol, got.Name, got.Currency.String(), tc.want.Symbol, tc.want.Name, tc.want.Currency.String())
 					}
 				})
@@ -152,20 +157,20 @@ func TestGetSecurity(t *testing.T) {
 	}
 }
 
-func TestListSecurities(t *testing.T) {
+func TestListInstruments(t *testing.T) {
 	for _, db := range testdbs.DBs() {
 		t.Run(db.DbType(), func(t *testing.T) {
-			ctx := context.Background()
-			dbCon := db.ConnDbName("TestListSecurities")
+			ctx := t.Context()
+			dbCon := db.ConnDbName("TestListInstruments")
 			store, err := NewStore(dbCon)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			// Create securities for tenant1
-			_, _ = store.CreateSecurity(ctx, Security{Symbol: "A", Name: "First", Currency: currency.USD}, tenant1)
-			_, _ = store.CreateSecurity(ctx, Security{Symbol: "B", Name: "Second", Currency: currency.EUR}, tenant1)
-			_, _ = store.CreateSecurity(ctx, Security{Symbol: "C", Name: "Third", Currency: currency.CHF}, tenant1)
+			// Create instruments for tenant1
+			_, _ = store.CreateInstrument(ctx, Instrument{Symbol: "A", Name: "First", Currency: currency.USD}, tenant1)
+			_, _ = store.CreateInstrument(ctx, Instrument{Symbol: "B", Name: "Second", Currency: currency.EUR}, tenant1)
+			_, _ = store.CreateInstrument(ctx, Instrument{Symbol: "C", Name: "Third", Currency: currency.CHF}, tenant1)
 
 			tcs := []struct {
 				name        string
@@ -174,7 +179,7 @@ func TestListSecurities(t *testing.T) {
 				wantSymbols []string
 			}{
 				{
-					name:        "list multiple securities sorted by id",
+					name:        "list multiple instruments sorted by id",
 					tenant:      tenant1,
 					wantCount:   3,
 					wantSymbols: []string{"A", "B", "C"},
@@ -189,12 +194,12 @@ func TestListSecurities(t *testing.T) {
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
-					got, err := store.ListSecurities(ctx, tc.tenant)
+					got, err := store.ListInstruments(ctx, tc.tenant)
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
 					if len(got) != tc.wantCount {
-						t.Errorf("ListSecurities: got %d items, want %d", len(got), tc.wantCount)
+						t.Errorf("ListInstruments: got %d items, want %d", len(got), tc.wantCount)
 					}
 					if tc.wantSymbols != nil {
 						symbols := make([]string, len(got))
@@ -211,17 +216,21 @@ func TestListSecurities(t *testing.T) {
 	}
 }
 
-func TestUpdateSecurity(t *testing.T) {
+func TestUpdateInstrument(t *testing.T) {
 	for _, db := range testdbs.DBs() {
 		t.Run(db.DbType(), func(t *testing.T) {
-			ctx := context.Background()
-			dbCon := db.ConnDbName("TestUpdateSecurity")
+			ctx := t.Context()
+			dbCon := db.ConnDbName("TestUpdateInstrument")
 			store, err := NewStore(dbCon)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			id, err := store.CreateSecurity(ctx, Security{Symbol: "OLD", Name: "Old Name", Currency: currency.USD}, tenant1)
+			id, err := store.CreateInstrument(ctx, Instrument{Symbol: "OLD", Name: "Old Name", Currency: currency.USD}, tenant1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = store.CreateInstrument(ctx, Instrument{Symbol: "TAKEN", Name: "Other", Currency: currency.EUR}, tenant1)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -230,69 +239,76 @@ func TestUpdateSecurity(t *testing.T) {
 				name    string
 				id      uint
 				tenant  string
-				payload SecurityUpdatePayload
+				payload InstrumentUpdatePayload
 				wantErr string
-				want    Security
+				want    Instrument
 			}{
 				{
 					name:   "update name only",
 					id:     id,
 					tenant: tenant1,
-					payload: SecurityUpdatePayload{
+					payload: InstrumentUpdatePayload{
 						Name: ptr("New Name"),
 					},
-					want: Security{ID: id, Symbol: "OLD", Name: "New Name", Currency: currency.USD},
+					want: Instrument{ID: id, Symbol: "OLD", Name: "New Name", Currency: currency.USD},
 				},
 				{
 					name:   "update symbol and currency",
 					id:     id,
 					tenant: tenant1,
-					payload: SecurityUpdatePayload{
+					payload: InstrumentUpdatePayload{
 						Symbol:   ptr("NEW"),
 						Currency: ptr("EUR"),
 					},
-					want: Security{ID: id, Symbol: "NEW", Name: "New Name", Currency: currency.EUR},
+					want: Instrument{ID: id, Symbol: "NEW", Name: "New Name", Currency: currency.EUR},
 				},
 				{
 					name:    "empty symbol rejected",
 					id:      id,
 					tenant:  tenant1,
-					payload: SecurityUpdatePayload{Symbol: ptr("")},
+					payload: InstrumentUpdatePayload{Symbol: ptr("")},
 					wantErr: "symbol cannot be empty",
 				},
 				{
 					name:    "empty currency rejected",
 					id:      id,
 					tenant:  tenant1,
-					payload: SecurityUpdatePayload{Currency: ptr("")},
+					payload: InstrumentUpdatePayload{Currency: ptr("")},
 					wantErr: "currency cannot be empty",
 				},
 				{
 					name:    "no changes",
 					id:      id,
 					tenant:  tenant1,
-					payload: SecurityUpdatePayload{},
+					payload: InstrumentUpdatePayload{},
 					wantErr: ErrNoChanges.Error(),
 				},
 				{
 					name:    "not found wrong tenant",
 					id:      id,
 					tenant:  tenant2,
-					payload: SecurityUpdatePayload{Name: ptr("X")},
-					wantErr: ErrSecurityNotFound.Error(),
+					payload: InstrumentUpdatePayload{Name: ptr("X")},
+					wantErr: ErrInstrumentNotFound.Error(),
 				},
 				{
 					name:    "not found wrong id",
 					id:      99999,
 					tenant:  tenant1,
-					payload: SecurityUpdatePayload{Name: ptr("X")},
-					wantErr: ErrSecurityNotFound.Error(),
+					payload: InstrumentUpdatePayload{Name: ptr("X")},
+					wantErr: ErrInstrumentNotFound.Error(),
+				},
+				{
+					name:    "duplicate symbol rejected",
+					id:      id,
+					tenant:  tenant1,
+					payload: InstrumentUpdatePayload{Symbol: ptr("TAKEN")},
+					wantErr: ErrInstrumentSymbolDuplicate.Error(),
 				},
 			}
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
-					err := store.UpdateSecurity(ctx, tc.id, tc.tenant, tc.payload)
+					err := store.UpdateInstrument(ctx, tc.id, tc.tenant, tc.payload)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -305,7 +321,7 @@ func TestUpdateSecurity(t *testing.T) {
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
-					got, err := store.GetSecurity(ctx, tc.id, tc.tenant)
+					got, err := store.GetInstrument(ctx, tc.id, tc.tenant)
 					if err != nil {
 						t.Fatalf("get after update: %v", err)
 					}
@@ -319,17 +335,17 @@ func TestUpdateSecurity(t *testing.T) {
 	}
 }
 
-func TestDeleteSecurity(t *testing.T) {
+func TestDeleteInstrument(t *testing.T) {
 	for _, db := range testdbs.DBs() {
 		t.Run(db.DbType(), func(t *testing.T) {
-			ctx := context.Background()
-			dbCon := db.ConnDbName("TestDeleteSecurity")
+			ctx := t.Context()
+			dbCon := db.ConnDbName("TestDeleteInstrument")
 			store, err := NewStore(dbCon)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			id, err := store.CreateSecurity(ctx, Security{Symbol: "DEL", Name: "To Delete", Currency: currency.USD}, tenant1)
+			id, err := store.CreateInstrument(ctx, Instrument{Symbol: "DEL", Name: "To Delete", Currency: currency.USD}, tenant1)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -349,19 +365,19 @@ func TestDeleteSecurity(t *testing.T) {
 					name:    "delete again returns not found",
 					id:      id,
 					tenant:  tenant1,
-					wantErr: ErrSecurityNotFound.Error(),
+					wantErr: ErrInstrumentNotFound.Error(),
 				},
 				{
 					name:    "delete wrong tenant",
 					id:      id,
 					tenant:  tenant2,
-					wantErr: ErrSecurityNotFound.Error(),
+					wantErr: ErrInstrumentNotFound.Error(),
 				},
 			}
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
-					err := store.DeleteSecurity(ctx, tc.id, tc.tenant)
+					err := store.DeleteInstrument(ctx, tc.id, tc.tenant)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -374,12 +390,12 @@ func TestDeleteSecurity(t *testing.T) {
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
-					_, err = store.GetSecurity(ctx, tc.id, tc.tenant)
+					_, err = store.GetInstrument(ctx, tc.id, tc.tenant)
 					if err == nil {
 						t.Error("expected security to be deleted (get should fail)")
 					}
-					if !errors.Is(err, ErrSecurityNotFound) {
-						t.Errorf("expected ErrSecurityNotFound after delete, got %v", err)
+					if !errors.Is(err, ErrInstrumentNotFound) {
+						t.Errorf("expected ErrInstrumentNotFound after delete, got %v", err)
 					}
 				})
 			}

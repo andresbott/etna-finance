@@ -4,10 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/andresbott/etna/internal/accounting"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/andresbott/etna/internal/accounting"
 )
 
 // generic payload struct used to handle all transaction types
@@ -29,6 +30,15 @@ type transactionPayload struct {
 	TargetAccountID uint    `json:"targetAccountId"`
 	OriginAmount    float64 `json:"originAmount"`
 	OriginAccountID uint    `json:"originAccountId"`
+
+	// used for stock buy / sell
+	InstrumentID        uint    `json:"instrumentId"`
+	Quantity            float64 `json:"quantity"`
+	TotalAmount         float64 `json:"totalAmount"`
+	InvestmentAccountID uint    `json:"investmentAccountId"`
+	CashAccountID       uint    `json:"cashAccountId"`
+
+	// used for stock grant (instruments added for free; no cash account) - reuses accountId
 }
 
 func (h *Handler) CreateTx(userId string) http.Handler {
@@ -76,8 +86,46 @@ func (h *Handler) CreateTx(userId string) http.Handler {
 				TargetAmount:    payload.TargetAmount,
 				TargetAccountID: payload.TargetAccountID,
 			}
+		case accounting.StockBuyTransaction:
+			entry = accounting.StockBuy{
+				Description:         payload.Description,
+				Date:                payload.Date,
+				InvestmentAccountID: payload.InvestmentAccountID,
+				CashAccountID:       payload.CashAccountID,
+				InstrumentID:        payload.InstrumentID,
+				Quantity:            payload.Quantity,
+				TotalAmount:         payload.TotalAmount,
+			}
+		case accounting.StockSellTransaction:
+			entry = accounting.StockSell{
+				Description:         payload.Description,
+				Date:                payload.Date,
+				InvestmentAccountID: payload.InvestmentAccountID,
+				CashAccountID:       payload.CashAccountID,
+				InstrumentID:        payload.InstrumentID,
+				Quantity:            payload.Quantity,
+				TotalAmount:         payload.TotalAmount,
+			}
+		case accounting.StockGrantTransaction:
+			entry = accounting.StockGrant{
+				Description:  payload.Description,
+				Date:         payload.Date,
+				AccountID:    payload.AccountId,
+				InstrumentID: payload.InstrumentID,
+				Quantity:     payload.Quantity,
+			}
+		case accounting.StockTransferTransaction:
+			entry = accounting.StockTransfer{
+				Description:     payload.Description,
+				Date:            payload.Date,
+				SourceAccountID: payload.OriginAccountID,
+				TargetAccountID: payload.TargetAccountID,
+				InstrumentID:    payload.InstrumentID,
+				Quantity:        payload.Quantity,
+			}
 		default:
 			http.Error(w, fmt.Sprintf("unknown entry type: %s", payload.Type), http.StatusBadRequest)
+			return
 		}
 
 		entryID, err := h.Store.CreateTransaction(r.Context(), entry, userId)
@@ -339,10 +387,14 @@ func (h *Handler) ListTx(userId string) http.Handler {
 }
 
 const (
-	unknownTxStr  = "unknown"
-	incomeTxStr   = "income"
-	expenseTxStr  = "expense"
-	transferTxStr = "transfer"
+	unknownTxStr       = "unknown"
+	incomeTxStr        = "income"
+	expenseTxStr       = "expense"
+	transferTxStr      = "transfer"
+	stockBuyTxStr      = "stockbuy"
+	stockSellTxStr     = "stocksell"
+	stockGrantTxStr    = "stockgrant"
+	stockTransferTxStr = "stocktransfer"
 )
 
 func parseTxType(in string) accounting.TxType {
@@ -353,6 +405,14 @@ func parseTxType(in string) accounting.TxType {
 		return accounting.ExpenseTransaction
 	case transferTxStr:
 		return accounting.TransferTransaction
+	case stockBuyTxStr:
+		return accounting.StockBuyTransaction
+	case stockSellTxStr:
+		return accounting.StockSellTransaction
+	case stockGrantTxStr:
+		return accounting.StockGrantTransaction
+	case stockTransferTxStr:
+		return accounting.StockTransferTransaction
 	default:
 		return accounting.UnknownTransaction
 	}

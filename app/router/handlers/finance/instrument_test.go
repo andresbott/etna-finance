@@ -8,9 +8,15 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/andresbott/etna/internal/accounting"
 )
 
-func TestHandler_ListSecurities(t *testing.T) {
+// ---------------------------------------------------------------------------
+// Instrument tests
+// ---------------------------------------------------------------------------
+
+func TestHandler_ListInstruments(t *testing.T) {
 	tcs := []struct {
 		name       string
 		userId     string
@@ -27,7 +33,7 @@ func TestHandler_ListSecurities(t *testing.T) {
 		{
 			name:       "empty user rejected",
 			userId:     "",
-			expectErr:  "unable to list securities: user not provided",
+			expectErr:  "unable to list instruments: user not provided",
 			expectCode: http.StatusBadRequest,
 		},
 	}
@@ -38,8 +44,8 @@ func TestHandler_ListSecurities(t *testing.T) {
 			defer end()
 
 			rec := httptest.NewRecorder()
-			req, _ := http.NewRequest(http.MethodGet, "/fin/security", nil)
-			h.ListSecurities(tc.userId).ServeHTTP(rec, req)
+			req, _ := http.NewRequest(http.MethodGet, "/fin/instrument", nil)
+			h.ListInstruments(tc.userId).ServeHTTP(rec, req)
 
 			if tc.expectErr != "" {
 				if rec.Code != tc.expectCode {
@@ -55,7 +61,7 @@ func TestHandler_ListSecurities(t *testing.T) {
 				t.Errorf("status: got %d want %d", rec.Code, tc.expectCode)
 			}
 			var resp struct {
-				Items []securityPayload `json:"items"`
+				Items []instrumentPayload `json:"items"`
 			}
 			if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 				t.Fatalf("decode: %v", err)
@@ -67,7 +73,7 @@ func TestHandler_ListSecurities(t *testing.T) {
 	}
 }
 
-func TestHandler_CreateSecurity(t *testing.T) {
+func TestHandler_CreateInstrument(t *testing.T) {
 	tcs := []struct {
 		name       string
 		userId     string
@@ -85,7 +91,7 @@ func TestHandler_CreateSecurity(t *testing.T) {
 			name:       "empty user",
 			userId:     "",
 			payload:    bytes.NewBuffer([]byte(`{"symbol":"AAPL","name":"Apple","currency":"USD"}`)),
-			expectErr:  "unable to create security: user not provided",
+			expectErr:  "unable to create instrument: user not provided",
 			expectCode: http.StatusBadRequest,
 		},
 		{
@@ -117,8 +123,8 @@ func TestHandler_CreateSecurity(t *testing.T) {
 			defer end()
 
 			rec := httptest.NewRecorder()
-			req, _ := http.NewRequest(http.MethodPost, "/fin/security", tc.payload)
-			h.CreateSecurity(tc.userId).ServeHTTP(rec, req)
+			req, _ := http.NewRequest(http.MethodPost, "/fin/instrument", tc.payload)
+			h.CreateInstrument(tc.userId).ServeHTTP(rec, req)
 
 			if tc.expectErr != "" {
 				if rec.Code != tc.expectCode {
@@ -133,7 +139,7 @@ func TestHandler_CreateSecurity(t *testing.T) {
 			if rec.Code != tc.expectCode {
 				t.Errorf("status: got %d want %d", rec.Code, tc.expectCode)
 			}
-			var out securityPayload
+			var out instrumentPayload
 			if err := json.NewDecoder(rec.Body).Decode(&out); err != nil {
 				t.Fatalf("decode: %v", err)
 			}
@@ -147,18 +153,41 @@ func TestHandler_CreateSecurity(t *testing.T) {
 	}
 }
 
-func TestHandler_GetSecurity(t *testing.T) {
+func TestHandler_CreateInstrument_duplicateSymbol(t *testing.T) {
 	h, end := SampleHandler(t)
 	defer end()
 
-	// Create a security first
+	rec1 := httptest.NewRecorder()
+	req1, _ := http.NewRequest(http.MethodPost, "/fin/instrument", bytes.NewBuffer([]byte(`{"symbol":"DUP","name":"First","currency":"USD"}`)))
+	h.CreateInstrument(tenant1).ServeHTTP(rec1, req1)
+	if rec1.Code != http.StatusOK {
+		t.Fatalf("first create: %d %s", rec1.Code, rec1.Body.String())
+	}
+
+	rec2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest(http.MethodPost, "/fin/instrument", bytes.NewBuffer([]byte(`{"symbol":"DUP","name":"Second","currency":"EUR"}`)))
+	h.CreateInstrument(tenant1).ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusConflict {
+		t.Errorf("duplicate create: got status %d want 409", rec2.Code)
+	}
+	body, _ := io.ReadAll(rec2.Body)
+	if got := strings.TrimSuffix(string(body), "\n"); got != accounting.ErrInstrumentSymbolDuplicate.Error() {
+		t.Errorf("body: got %q want %q", got, accounting.ErrInstrumentSymbolDuplicate.Error())
+	}
+}
+
+func TestHandler_GetInstrument(t *testing.T) {
+	h, end := SampleHandler(t)
+	defer end()
+
+	// Create an instrument first
 	createRec := httptest.NewRecorder()
-	createReq, _ := http.NewRequest(http.MethodPost, "/fin/security", bytes.NewBuffer([]byte(`{"symbol":"GET","name":"Get Test","currency":"EUR"}`)))
-	h.CreateSecurity(tenant1).ServeHTTP(createRec, createReq)
+	createReq, _ := http.NewRequest(http.MethodPost, "/fin/instrument", bytes.NewBuffer([]byte(`{"symbol":"GET","name":"Get Test","currency":"EUR"}`)))
+	h.CreateInstrument(tenant1).ServeHTTP(createRec, createReq)
 	if createRec.Code != http.StatusOK {
 		t.Fatalf("create failed: %d %s", createRec.Code, createRec.Body.String())
 	}
-	var created securityPayload
+	var created instrumentPayload
 	if err := json.NewDecoder(createRec.Body).Decode(&created); err != nil {
 		t.Fatal(err)
 	}
@@ -180,14 +209,14 @@ func TestHandler_GetSecurity(t *testing.T) {
 			name:       "not found",
 			id:         99999,
 			userId:     tenant1,
-			expectErr:  "security not found",
+			expectErr:  "instrument not found",
 			expectCode: http.StatusNotFound,
 		},
 		{
 			name:       "empty user",
 			id:         created.ID,
 			userId:     "",
-			expectErr:  "unable to get security: user not provided",
+			expectErr:  "unable to get instrument: user not provided",
 			expectCode: http.StatusBadRequest,
 		},
 	}
@@ -195,8 +224,8 @@ func TestHandler_GetSecurity(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
-			req, _ := http.NewRequest(http.MethodGet, "/fin/security/1", nil)
-			h.GetSecurity(tc.id, tc.userId).ServeHTTP(rec, req)
+			req, _ := http.NewRequest(http.MethodGet, "/fin/instrument/1", nil)
+			h.GetInstrument(tc.id, tc.userId).ServeHTTP(rec, req)
 
 			if tc.expectErr != "" {
 				if rec.Code != tc.expectCode {
@@ -211,7 +240,7 @@ func TestHandler_GetSecurity(t *testing.T) {
 			if rec.Code != tc.expectCode {
 				t.Errorf("status: got %d want %d", rec.Code, tc.expectCode)
 			}
-			var out securityPayload
+			var out instrumentPayload
 			if err := json.NewDecoder(rec.Body).Decode(&out); err != nil {
 				t.Fatalf("decode: %v", err)
 			}
@@ -222,19 +251,25 @@ func TestHandler_GetSecurity(t *testing.T) {
 	}
 }
 
-func TestHandler_UpdateSecurity(t *testing.T) {
+func TestHandler_UpdateInstrument(t *testing.T) {
 	h, end := SampleHandler(t)
 	defer end()
 
 	createRec := httptest.NewRecorder()
-	createReq, _ := http.NewRequest(http.MethodPost, "/fin/security", bytes.NewBuffer([]byte(`{"symbol":"UPD","name":"Update Me","currency":"USD"}`)))
-	h.CreateSecurity(tenant1).ServeHTTP(createRec, createReq)
+	createReq, _ := http.NewRequest(http.MethodPost, "/fin/instrument", bytes.NewBuffer([]byte(`{"symbol":"UPD","name":"Update Me","currency":"USD"}`)))
+	h.CreateInstrument(tenant1).ServeHTTP(createRec, createReq)
 	if createRec.Code != http.StatusOK {
 		t.Fatalf("create failed: %d %s", createRec.Code, createRec.Body.String())
 	}
-	var created securityPayload
+	var created instrumentPayload
 	if err := json.NewDecoder(createRec.Body).Decode(&created); err != nil {
 		t.Fatal(err)
+	}
+	rec2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest(http.MethodPost, "/fin/instrument", bytes.NewBuffer([]byte(`{"symbol":"TAKEN","name":"Other","currency":"EUR"}`)))
+	h.CreateInstrument(tenant1).ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("second create: %d %s", rec2.Code, rec2.Body.String())
 	}
 
 	tcs := []struct {
@@ -257,7 +292,7 @@ func TestHandler_UpdateSecurity(t *testing.T) {
 			id:         99999,
 			userId:     tenant1,
 			payload:    bytes.NewBuffer([]byte(`{"name":"X"}`)),
-			expectErr:  "security not found",
+			expectErr:  "instrument not found",
 			expectCode: http.StatusNotFound,
 		},
 		{
@@ -265,7 +300,7 @@ func TestHandler_UpdateSecurity(t *testing.T) {
 			id:         created.ID,
 			userId:     "",
 			payload:    bytes.NewBuffer([]byte(`{"name":"X"}`)),
-			expectErr:  "unable to update security: user not provided",
+			expectErr:  "unable to update instrument: user not provided",
 			expectCode: http.StatusBadRequest,
 		},
 		{
@@ -276,13 +311,21 @@ func TestHandler_UpdateSecurity(t *testing.T) {
 			expectErr:  "no changes applied",
 			expectCode: http.StatusBadRequest,
 		},
+		{
+			name:       "duplicate symbol rejected",
+			id:         created.ID,
+			userId:     tenant1,
+			payload:    bytes.NewBuffer([]byte(`{"symbol":"TAKEN"}`)),
+			expectErr:  accounting.ErrInstrumentSymbolDuplicate.Error(),
+			expectCode: http.StatusConflict,
+		},
 	}
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
-			req, _ := http.NewRequest(http.MethodPut, "/fin/security/1", tc.payload)
-			h.UpdateSecurity(tc.id, tc.userId).ServeHTTP(rec, req)
+			req, _ := http.NewRequest(http.MethodPut, "/fin/instrument/1", tc.payload)
+			h.UpdateInstrument(tc.id, tc.userId).ServeHTTP(rec, req)
 
 			if tc.expectErr != "" {
 				if rec.Code != tc.expectCode {
@@ -301,17 +344,17 @@ func TestHandler_UpdateSecurity(t *testing.T) {
 	}
 }
 
-func TestHandler_DeleteSecurity(t *testing.T) {
+func TestHandler_DeleteInstrument(t *testing.T) {
 	h, end := SampleHandler(t)
 	defer end()
 
 	createRec := httptest.NewRecorder()
-	createReq, _ := http.NewRequest(http.MethodPost, "/fin/security", bytes.NewBuffer([]byte(`{"symbol":"DEL","name":"Delete Me","currency":"CHF"}`)))
-	h.CreateSecurity(tenant1).ServeHTTP(createRec, createReq)
+	createReq, _ := http.NewRequest(http.MethodPost, "/fin/instrument", bytes.NewBuffer([]byte(`{"symbol":"DEL","name":"Delete Me","currency":"CHF"}`)))
+	h.CreateInstrument(tenant1).ServeHTTP(createRec, createReq)
 	if createRec.Code != http.StatusOK {
 		t.Fatalf("create failed: %d %s", createRec.Code, createRec.Body.String())
 	}
-	var created securityPayload
+	var created instrumentPayload
 	if err := json.NewDecoder(createRec.Body).Decode(&created); err != nil {
 		t.Fatal(err)
 	}
@@ -333,14 +376,14 @@ func TestHandler_DeleteSecurity(t *testing.T) {
 			name:       "not found",
 			id:         99999,
 			userId:     tenant1,
-			expectErr:  "security not found",
+			expectErr:  "instrument not found",
 			expectCode: http.StatusNotFound,
 		},
 		{
 			name:       "empty user",
 			id:         created.ID,
 			userId:     "",
-			expectErr:  "unable to delete security: user not provided",
+			expectErr:  "unable to delete instrument: user not provided",
 			expectCode: http.StatusBadRequest,
 		},
 	}
@@ -348,8 +391,8 @@ func TestHandler_DeleteSecurity(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
-			req, _ := http.NewRequest(http.MethodDelete, "/fin/security/1", nil)
-			h.DeleteSecurity(tc.id, tc.userId).ServeHTTP(rec, req)
+			req, _ := http.NewRequest(http.MethodDelete, "/fin/instrument/1", nil)
+			h.DeleteInstrument(tc.id, tc.userId).ServeHTTP(rec, req)
 
 			if tc.expectErr != "" {
 				if rec.Code != tc.expectCode {

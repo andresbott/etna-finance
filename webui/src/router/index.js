@@ -66,12 +66,17 @@ const router = createRouter({
             component: () => import('@/views/categories/CategoriesView.vue')
         },
         {
-            path: '/securities',
-            name: 'securities',
+            path: '/instruments',
+            name: 'instruments',
             meta: {
-                requiresAuth: true
+                requiresAuth: true,
+                title: 'Investment Instruments'
             },
-            component: () => import('@/views/securities/SecuritiesView.vue')
+            component: () => import('@/views/instruments/InstrumentsView.vue')
+        },
+        {
+            path: '/securities',
+            redirect: '/instruments'
         },
         {
             path: '/backup-restore',

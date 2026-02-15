@@ -28,7 +28,7 @@ func NewStore(db *gorm.DB) (*Store, error) {
 		return nil, fmt.Errorf("error parsing schema: %w", err)
 	}
 
-	err = db.AutoMigrate(&dbAccountProvider{}, &dbAccount{}, &dbTransaction{}, &dbEntry{}, &dbSecurity{})
+	err = db.AutoMigrate(&dbAccountProvider{}, &dbAccount{}, &dbTransaction{}, &dbEntry{}, &dbInstrument{})
 	if err != nil {
 		return nil, err
 	}

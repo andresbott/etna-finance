@@ -3,7 +3,7 @@ import { ref, computed, watch } from 'vue'
 
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import TransferDialog from './dialogs/TransferDialog.vue'
-import StockDialog from './dialogs/StockDialog.vue'
+import BuySellInstrumentDialog from './dialogs/BuySellInstrumentDialog.vue'
 import DeleteDialog from '@/components/common/confirmDialog.vue'
 import EntriesTable from './EntriesTable.vue'
 
@@ -60,7 +60,8 @@ const dialogs = {
     expense: ref(false),
     income: ref(false),
     transfer: ref(false),
-    stock: ref(false)
+    buyStock: ref(false),
+    sellStock: ref(false)
 }
 
 /* --- Entry Actions --- */
@@ -76,9 +77,10 @@ const openEditEntryDialog = (entry) => {
     } else if (entry.type === 'transfer') {
         // Use TransferDialog for transfer entries
         dialogs.transfer.value = true
-    } else if (entry.type === 'buystock' || entry.type === 'sellstock') {
-        // Use StockDialog for stock entries
-        dialogs.stock.value = true
+    } else if (entry.type === 'buystock') {
+        dialogs.buyStock.value = true
+    } else if (entry.type === 'sellstock') {
+        dialogs.sellStock.value = true
     }
 }
 
@@ -94,9 +96,10 @@ const openDuplicateEntryDialog = (entry) => {
     } else if (entry.type === 'transfer') {
         // Use TransferDialog for transfer entries
         dialogs.transfer.value = true
-    } else if (entry.type === 'buystock' || entry.type === 'sellstock') {
-        // Use StockDialog for stock entries
-        dialogs.stock.value = true
+    } else if (entry.type === 'buystock') {
+        dialogs.buyStock.value = true
+    } else if (entry.type === 'sellstock') {
+        dialogs.sellStock.value = true
     }
 }
 
@@ -181,17 +184,17 @@ const handleDeleteEntry = async () => {
         :autofocus-amount="isDuplicateMode"
     />
 
-    <StockDialog
-        v-model:visible="dialogs.stock.value"
+    <BuySellInstrumentDialog
+        v-model:visible="dialogs.buyStock.value"
         :is-edit="isEditMode"
-        :entry-id="selectedEntry?.id"
-        :description="selectedEntry?.description"
-        :amount="isDuplicateMode ? undefined : selectedEntry?.targetAmount"
-        :stock-amount="isDuplicateMode ? undefined : selectedEntry?.targetStockAmount"
-        :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
-        :type="selectedEntry?.type"
-        :target-account-id="selectedEntry?.targetAccountId"
-        :autofocus-amount="isDuplicateMode"
+        operation-type="buy"
+        @update:visible="dialogs.buyStock.value = $event"
+    />
+    <BuySellInstrumentDialog
+        v-model:visible="dialogs.sellStock.value"
+        :is-edit="isEditMode"
+        operation-type="sell"
+        @update:visible="dialogs.sellStock.value = $event"
     />
 
     <!-- Delete Confirmation Dialog -->

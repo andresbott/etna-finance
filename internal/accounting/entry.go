@@ -25,10 +25,10 @@ const (
 
 type dbEntry struct {
 	Id            uint `gorm:"primarykey"`
-	TransactionID uint `gorm:"not null;index"` // Foreign key
-	AccountID     uint `gorm:"not null;index"` // Foreign key
-	CategoryID    uint `gorm:"index"`          // Foreign key, only populated for income and expense
-	SecurityID    uint `gorm:"index"`          // Foreign key, only populated for stock buy/sell entries
+	TransactionID uint `gorm:"not null;index"`           // Foreign key
+	AccountID     uint `gorm:"not null;index"`           // Foreign key
+	CategoryID    uint `gorm:"index"`                    // Foreign key, only populated for income and expense
+	InstrumentID  uint `gorm:"column:security_id;index"` // Foreign key, only populated for stock buy/sell entries
 
 	Amount   float64 `gorm:"not null"` // Amount in account currency; for stock position entries (buy/sell) is 0; for stock cash entries signed (out negative, in positive)
 	Quantity float64 // for stock position entries: shares; unused for stock cash entries

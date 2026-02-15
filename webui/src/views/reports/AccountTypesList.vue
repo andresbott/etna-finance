@@ -6,7 +6,7 @@ import Column from 'primevue/column'
 import { useAccounts } from '@/composables/useAccounts.js'
 import { useBalance } from '@/composables/useGetBalanceReport'
 import { formatAmount } from '@/utils/currency'
-import { getAccountTypeIcon } from '@/types/account'
+import { getAccountTypeIcon, getAccountTypeLabel } from '@/types/account'
 
 const { accounts: accountProviders } = useAccounts()
 const { balanceReport: balanceReportMutation } = useBalance()
@@ -116,7 +116,7 @@ watch(
                     <template #body="slotProps">
                         <div class="flex align-items-center gap-2">
                             <i :class="['pi', getAccountTypeIcon(slotProps.data.type)]"></i>
-                            <span class="font-semibold">{{ slotProps.data.type }}</span>
+                            <span class="font-semibold">{{ getAccountTypeLabel(slotProps.data.type) }}</span>
                         </div>
                     </template>
                 </Column>

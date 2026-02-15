@@ -13,6 +13,10 @@ import DeleteDialog from '@/components/common/confirmDialog.vue'
 import AccountProviderDialog from './AccountProviderDialog.vue'
 
 import { useAccounts } from '@/composables/useAccounts.js'
+import { getAccountTypeLabel } from '@/types/account'
+
+// Documentation URL for the accounts section (open in new tab)
+const ACCOUNTS_DOCS_URL = 'https://github.com/andresbott/etna-finance#readme'
 
 // Composables
 const { accounts, isLoading, deleteAccount, deleteAccountProvider } = useAccounts()
@@ -122,7 +126,25 @@ const handleDeleteProvider = async () => {
     <div class="main-app-content">
         <div class="accounts-view">
             <div class="header">
-                <h1>Accounts</h1>
+                <div class="header-title-row">
+                    <h1>Accounts</h1>
+                    <a
+                        :href="ACCOUNTS_DOCS_URL"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="docs-link"
+                        aria-label="About accounts"
+                        v-tooltip.top="'About accounts'"
+                    >
+                        <Button
+                            icon="pi pi-question-circle"
+                            text
+                            rounded
+                            severity="secondary"
+                            class="p-button-sm"
+                        />
+                    </a>
+                </div>
                 <Button
                     label="Add Account Provider"
                     icon="pi pi-plus"
@@ -161,12 +183,16 @@ const handleDeleteProvider = async () => {
                                     <span>{{ node.data.description }}</span>
                                 </div>
                                 <div v-else>
-                                    <i>{{ node.data.type }}</i>
+                                    <i>{{ getAccountTypeLabel(node.data.type) }}</i>
                                 </div>
                             </template>
                         </Column>
 
-                        <Column field="currency" header="Currency" />
+                        <Column field="currency" header="Currency">
+                            <template #body="{ node }">
+                                <span v-if="!node.children">{{ node.data.currency || '—' }}</span>
+                            </template>
+                        </Column>
 
                         <Column>
                             <template #body="{ node }">
@@ -262,6 +288,22 @@ const handleDeleteProvider = async () => {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 2rem;
+}
+
+.header-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.header-title-row h1 {
+    margin: 0;
+}
+
+.docs-link {
+    color: inherit;
+    text-decoration: none;
+    display: inline-flex;
 }
 
 .actions {

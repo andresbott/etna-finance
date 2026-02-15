@@ -1,7 +1,6 @@
 package accounting
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -46,7 +45,7 @@ func TestCreateAccountProvider(t *testing.T) {
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
-					ctx := context.Background()
+					ctx := t.Context()
 					id, err := store.CreateAccountProvider(ctx, tc.input, tc.tenant)
 
 					if tc.wantErr != "" {
@@ -114,7 +113,7 @@ func TestGetAccountProvider(t *testing.T) {
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
-					ctx := context.Background()
+					ctx := t.Context()
 
 					got, err := store.GetAccountProvider(ctx, tc.checkId, tc.checkTenant)
 					if tc.wantErr != "" {
@@ -176,7 +175,7 @@ func TestDeleteAccountProvider(t *testing.T) {
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
-					ctx := context.Background()
+					ctx := t.Context()
 
 					err = store.DeleteAccountProvider(ctx, tc.deleteID, tc.deleteTenant)
 					if tc.wantErr != "" {
@@ -259,7 +258,7 @@ func TestUpdateAccountProvider(t *testing.T) {
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
-					ctx := context.Background()
+					ctx := t.Context()
 					err = store.UpdateAccountProvider(tc.updatePayload, tc.updateID, tc.updateTenant)
 					if tc.wantErr != "" {
 						if err == nil {
@@ -336,7 +335,7 @@ func TestListAccountsProvider(t *testing.T) {
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
-					ctx := context.Background()
+					ctx := t.Context()
 					got, err := store.ListAccountsProvider(ctx, tc.checkTenant, tc.preload)
 					if tc.wantErr != "" {
 						if err == nil {
@@ -397,7 +396,7 @@ func TestCreateAccount(t *testing.T) {
 				{
 					name:    "want error on empty currency",
 					tenant:  tenant1,
-					input:   Account{Name: "Main", Currency: currency.Unit{}, AccountProviderID: 1},
+					input:   Account{Name: "Main", Currency: currency.Unit{}, Type: CashAccountType, AccountProviderID: 1},
 					wantErr: "currency cannot be empty",
 				},
 			}
@@ -412,7 +411,7 @@ func TestCreateAccount(t *testing.T) {
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
-					ctx := context.Background()
+					ctx := t.Context()
 					id, err := store.CreateAccount(ctx, tc.input, tc.tenant)
 
 					if tc.wantErr != "" {
@@ -439,9 +438,11 @@ func TestCreateAccount(t *testing.T) {
 						if diff := cmp.Diff(got, tc.input, cmpopts.IgnoreFields(Account{}, "ID", "Currency")); diff != "" {
 							t.Errorf("unexpected result (-want +got):\n%s", diff)
 						}
-						// verify currency
-						if got.Currency != tc.input.Currency {
-							t.Errorf("expected currency %s, but got %s", tc.input.Currency, got.Currency)
+						// verify currency: required for all types except Unknown
+						if tc.input.Type.RequiresCurrency() {
+							if got.Currency != tc.input.Currency {
+								t.Errorf("expected currency %s, but got %s", tc.input.Currency, got.Currency)
+							}
 						}
 					}
 				})
@@ -485,7 +486,7 @@ func TestGetAccount(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
-					ctx := context.Background()
+					ctx := t.Context()
 
 					got, err := store.GetAccount(ctx, tc.checkId, tc.checkTenant)
 					if tc.wantErr != "" {
@@ -565,7 +566,7 @@ func TestDeleteAccount(t *testing.T) {
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
-					ctx := context.Background()
+					ctx := t.Context()
 
 					err = store.DeleteAccount(ctx, tc.deleteID, tc.deleteTenant)
 					if tc.wantErr != "" {
@@ -627,7 +628,7 @@ func TestUpdateAccount(t *testing.T) {
 					updateID:      4,
 					updateTenant:  tenant1,
 					updatePayload: AccountUpdatePayload{ProviderID: ptr(uint(2))},
-					want:          Account{ID: 4, Name: "acc4", Icon: "savings", Currency: currency.EUR, Type: 0, AccountProviderID: 2},
+					want:          Account{ID: 4, Name: "acc4", Icon: "savings", Currency: currency.Unit{}, Type: 0, AccountProviderID: 2},
 				},
 				{
 					name:          "update icon",
@@ -662,7 +663,7 @@ func TestUpdateAccount(t *testing.T) {
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
-					ctx := context.Background()
+					ctx := t.Context()
 
 					err = store.UpdateAccount(t.Context(), tc.updatePayload, tc.updateID, tc.updateTenant)
 					if tc.wantErr != "" {
@@ -730,7 +731,7 @@ func TestListAccounts(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
-					ctx := context.Background()
+					ctx := t.Context()
 					got, err := store.ListAccounts(ctx, tc.checkTenant)
 
 					if tc.wantErr != "" {
@@ -775,7 +776,7 @@ var sampleAccounts2 = []Account{
 }
 
 func accountSampleData(t *testing.T, store *Store) {
-	ctx := context.Background()
+	ctx := t.Context()
 	// =========================================
 	// create accounts providers
 	// =========================================
