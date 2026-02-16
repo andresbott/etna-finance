@@ -21,9 +21,11 @@ import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
 import DatePicker from 'primevue/datepicker'
 import CategorySelect from '@/components/common/categorySelect.vue'
+import { useDateFormat } from '@/composables/useDateFormat'
 
 const { createEntry, updateEntry, isCreating, isUpdating } = useEntries({})
 const { accounts } = useAccounts()
+const { pickerDateFormat } = useDateFormat()
 
 const props = defineProps({
     isEdit: { type: Boolean, default: false },
@@ -276,7 +278,7 @@ const emit = defineEmits(['update:visible'])
                         v-model="formValues.date"
                         :showIcon="true"
                         iconDisplay="input"
-                        dateFormat="dd/mm/yy"
+                        :dateFormat="pickerDateFormat"
                         :showButtonBar="true"
                     />
                     <Message v-if="$form.date?.invalid" severity="error" size="small">

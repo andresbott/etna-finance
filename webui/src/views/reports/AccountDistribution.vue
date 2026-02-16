@@ -1,35 +1,61 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
 import Card from 'primevue/card'
-import Chart from 'primevue/chart'
+import VChart from 'vue-echarts'
+import { use } from 'echarts/core'
+import { CanvasRenderer } from 'echarts/renderers'
+import { PieChart } from 'echarts/charts'
+import { TooltipComponent, LegendComponent } from 'echarts/components'
 
-// Mock data - to be replaced with real data later
-const pieChartData = ref({
-    labels: ['Cash', 'Bank', 'Investment', 'Credit'],
-    datasets: [
-        {
-            data: [3000, 5000, 10000, 2000],
-            backgroundColor: ['#22c55e', '#3b82f6', '#eab308', '#ef4444']
-        }
-    ]
-})
+use([CanvasRenderer, PieChart, TooltipComponent, LegendComponent])
 
 // Get computed colors from CSS variables
 const getTextColor = () => {
     return getComputedStyle(document.documentElement).getPropertyValue('--c-text-color').trim() || '#495057'
 }
 
-const pieChartOptions = computed(() => ({
-    maintainAspectRatio: false,
-    aspectRatio: 0.8,
-    plugins: {
+// Mock data - to be replaced with real data later
+const chartOption = computed(() => {
+    const textColor = getTextColor()
+
+    return {
+        tooltip: {
+            trigger: 'item',
+            formatter: '{b}: {c} ({d}%)'
+        },
         legend: {
-            labels: {
-                color: getTextColor()
+            bottom: 0,
+            textStyle: { color: textColor }
+        },
+        series: [
+            {
+                type: 'pie',
+                radius: ['0%', '70%'],
+                center: ['50%', '45%'],
+                avoidLabelOverlap: true,
+                label: {
+                    show: false
+                },
+                emphasis: {
+                    label: {
+                        show: true,
+                        fontSize: 14,
+                        fontWeight: 'bold'
+                    }
+                },
+                labelLine: {
+                    show: false
+                },
+                data: [
+                    { value: 3000, name: 'Cash', itemStyle: { color: '#22c55e' } },
+                    { value: 5000, name: 'Bank', itemStyle: { color: '#3b82f6' } },
+                    { value: 10000, name: 'Investment', itemStyle: { color: '#eab308' } },
+                    { value: 2000, name: 'Credit', itemStyle: { color: '#ef4444' } }
+                ]
             }
-        }
+        ]
     }
-}))
+})
 </script>
 
 <template>
@@ -43,13 +69,11 @@ const pieChartOptions = computed(() => ({
             </div>
         </template>
         <template #content>
-            <Chart
-                type="pie"
-                :data="pieChartData"
-                :options="pieChartOptions"
+            <VChart
+                :option="chartOption"
+                autoresize
                 style="height: 300px"
             />
         </template>
     </Card>
 </template>
-

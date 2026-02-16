@@ -1,12 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import axios from 'axios'
+import { useSettingsStore } from '@/store/settingsStore'
 
 const statusPath = import.meta.env.VITE_AUTH_PATH + '/status'
 const loginPath = import.meta.env.VITE_AUTH_PATH + '/login'
 const logoutPath = import.meta.env.VITE_AUTH_PATH + '/logout'
 
 export const useUserStore = defineStore('user', () => {
+    const settingsStore = useSettingsStore()
     const isLoggedIn = ref(false)
     const loggedInUser = ref('')
     const isFirstLogin = ref(true)
@@ -37,6 +39,9 @@ export const useUserStore = defineStore('user', () => {
                     console.debug(res.data)
                     loggedInUser.value = res.data['username']
                     isLoggedIn.value = res.data['logged-in']
+                    if (res.data['logged-in']) {
+                        settingsStore.fetchSettings()
+                    }
                 } else {
                     console.log(res)
                 }
@@ -81,7 +86,8 @@ export const useUserStore = defineStore('user', () => {
                     isLoggedIn.value = true
                     wrongPwErr.value = false
 
-                    // Trigger the callback for navigation
+                    settingsStore.fetchSettings()
+
                     if (onSuccessNavigate) {
                         onSuccessNavigate()
                     }
@@ -115,6 +121,7 @@ export const useUserStore = defineStore('user', () => {
             .then((res) => {
                 loggedInUser.value = ''
                 isLoggedIn.value = false
+                settingsStore.$reset()
 
                 // Call all registered callbacks
                 logoutCallbacks.forEach((callback) => {

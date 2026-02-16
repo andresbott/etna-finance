@@ -11,8 +11,10 @@ import { z } from 'zod'
 import { useAccounts } from '@/composables/useAccounts.js'
 import IconSelect from '@/components/common/IconSelect.vue'
 import { ACCOUNT_TYPES, ACCOUNT_TYPE_LABELS, getAccountTypeLabel } from '@/types/account'
+import { useSettingsStore } from '@/store/settingsStore'
 
 const { createAccount, updateAccount, isCreating, isUpdating } = useAccounts()
+const settingsStore = useSettingsStore()
 
 const props = defineProps({
     isEdit: { type: Boolean, default: false },
@@ -27,14 +29,22 @@ const props = defineProps({
 
 const emit = defineEmits(['update:visible'])
 
-const currencies = ref(['CHF', 'USD', 'EUR'])
-const accountTypeOptions = [
+const currencies = computed(() => settingsStore.currencies.length > 0 ? settingsStore.currencies : ['CHF'])
+
+const allAccountTypeOptions = [
     { value: ACCOUNT_TYPES.CASH, label: ACCOUNT_TYPE_LABELS[ACCOUNT_TYPES.CASH] },
     { value: ACCOUNT_TYPES.CHECKING, label: ACCOUNT_TYPE_LABELS[ACCOUNT_TYPES.CHECKING] },
     { value: ACCOUNT_TYPES.SAVINGS, label: ACCOUNT_TYPE_LABELS[ACCOUNT_TYPES.SAVINGS] },
     { value: ACCOUNT_TYPES.INVESTMENT, label: ACCOUNT_TYPE_LABELS[ACCOUNT_TYPES.INVESTMENT] },
     { value: ACCOUNT_TYPES.UNVESTED, label: ACCOUNT_TYPE_LABELS[ACCOUNT_TYPES.UNVESTED] },
 ]
+
+const instrumentAccountTypes = [ACCOUNT_TYPES.INVESTMENT, ACCOUNT_TYPES.UNVESTED]
+
+const accountTypeOptions = computed(() => {
+    if (settingsStore.instruments) return allAccountTypeOptions
+    return allAccountTypeOptions.filter(opt => !instrumentAccountTypes.includes(opt.value))
+})
 
 // Separate ref for icon since it's not managed by the Form
 const selectedIcon = ref(props.icon)

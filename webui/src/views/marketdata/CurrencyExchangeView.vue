@@ -3,13 +3,31 @@ import { ResponsiveHorizontal } from '@go-bumbu/vue-layouts'
 import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
 import { ref, computed } from 'vue'
 import Card from 'primevue/card'
-import Chart from 'primevue/chart'
+import VChart from 'vue-echarts'
+import { use } from 'echarts/core'
+import { CanvasRenderer } from 'echarts/renderers'
+import { LineChart } from 'echarts/charts'
+import {
+    GridComponent,
+    TooltipComponent,
+    LegendComponent
+} from 'echarts/components'
 import TabView from 'primevue/tabview'
 import TabPanel from 'primevue/tabpanel'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import Message from 'primevue/message'
+import { useSettingsStore } from '@/store/settingsStore'
+
+use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent])
+
+const settingsStore = useSettingsStore()
+const mainCurrency = computed(() => settingsStore.mainCurrency || 'CHF')
+const otherCurrencies = computed(() => {
+    const all = settingsStore.currencies.length > 0 ? settingsStore.currencies : ['CHF']
+    return all.filter(c => c !== mainCurrency.value)
+})
 
 const leftSidebarCollapsed = ref(true)
 
@@ -18,18 +36,20 @@ const startDate = ref(new Date(new Date().setMonth(new Date().getMonth() - 3)))
 const endDate = ref(new Date())
 
 // Mock exchange rate data
+const defaultBaseRates = { USD: 0.92, EUR: 1.08, GBP: 1.26, JPY: 0.0061, CHF: 1.0 }
+
 const generateMockData = () => {
     const data = []
-    const currencies = ['USD', 'EUR', 'GBP', 'JPY']
-    const baseRates = { USD: 0.92, EUR: 1.08, GBP: 1.26, JPY: 0.0061 }
+    const currencies = otherCurrencies.value
     
     const start = new Date(startDate.value)
     const end = new Date(endDate.value)
     
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
         currencies.forEach(currency => {
+            const baseRate = defaultBaseRates[currency] ?? 1.0
             const variance = (Math.random() - 0.5) * 0.02
-            const rate = baseRates[currency] * (1 + variance)
+            const rate = baseRate * (1 + variance)
             data.push({
                 date: new Date(d).toISOString().split('T')[0],
                 currency,
@@ -44,77 +64,6 @@ const generateMockData = () => {
 
 const mockData = ref(generateMockData())
 
-// Chart data
-const chartData = computed(() => {
-    const currencies = ['USD', 'EUR', 'GBP', 'JPY']
-    const colors = {
-        USD: '#22c55e',
-        EUR: '#3b82f6',
-        GBP: '#eab308',
-        JPY: '#ef4444'
-    }
-    
-    const datasets = currencies.map(currency => {
-        const currencyData = mockData.value
-            .filter(d => d.currency === currency)
-            .sort((a, b) => new Date(a.date) - new Date(b.date))
-        
-        return {
-            label: `CHF/${currency}`,
-            data: currencyData.map(d => parseFloat(d.rate)),
-            borderColor: colors[currency],
-            backgroundColor: colors[currency] + '20',
-            tension: 0.4,
-            fill: false
-        }
-    })
-    
-    const labels = [...new Set(mockData.value.map(d => d.date))].sort()
-    
-    return { labels, datasets }
-})
-
-const chartOptions = computed(() => ({
-    maintainAspectRatio: false,
-    animation: {
-        duration: 500 // Fast animation in milliseconds (default is 1000)
-    },
-    plugins: {
-        legend: {
-            labels: {
-                color: getTextColor()
-            }
-        },
-        tooltip: {
-            callbacks: {
-                label: function(context) {
-                    return `${context.dataset.label}: ${context.parsed.y.toFixed(4)}`
-                }
-            }
-        }
-    },
-    scales: {
-        x: {
-            ticks: {
-                color: getTextColor(),
-                maxRotation: 45,
-                minRotation: 45
-            },
-            grid: {
-                color: getSurfaceColor()
-            }
-        },
-        y: {
-            ticks: {
-                color: getTextColor()
-            },
-            grid: {
-                color: getSurfaceColor()
-            }
-        }
-    }
-}))
-
 const getTextColor = () => {
     return getComputedStyle(document.documentElement).getPropertyValue('--text-color') || '#495057'
 }
@@ -123,22 +72,88 @@ const getSurfaceColor = () => {
     return getComputedStyle(document.documentElement).getPropertyValue('--surface-border') || '#dfe7ef'
 }
 
-// Data by currency for tables
-const usdData = computed(() => 
-    mockData.value.filter(d => d.currency === 'USD').sort((a, b) => new Date(b.date) - new Date(a.date))
-)
+const chartColors = ['#22c55e', '#3b82f6', '#eab308', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316']
 
-const eurData = computed(() => 
-    mockData.value.filter(d => d.currency === 'EUR').sort((a, b) => new Date(b.date) - new Date(a.date))
-)
+// ECharts option
+const chartOption = computed(() => {
+    const currencies = otherCurrencies.value
 
-const gbpData = computed(() => 
-    mockData.value.filter(d => d.currency === 'GBP').sort((a, b) => new Date(b.date) - new Date(a.date))
-)
+    const labels = [...new Set(mockData.value.map(d => d.date))].sort()
 
-const jpyData = computed(() => 
-    mockData.value.filter(d => d.currency === 'JPY').sort((a, b) => new Date(b.date) - new Date(a.date))
-)
+    const series = currencies.map((currency, idx) => {
+        const color = chartColors[idx % chartColors.length]
+        const currencyData = mockData.value
+            .filter(d => d.currency === currency)
+            .sort((a, b) => new Date(a.date) - new Date(b.date))
+
+        return {
+            name: `${mainCurrency.value}/${currency}`,
+            type: 'line',
+            smooth: 0.4,
+            showSymbol: false,
+            data: currencyData.map(d => parseFloat(d.rate)),
+            lineStyle: { color },
+            itemStyle: { color }
+        }
+    })
+
+    const textColor = getTextColor()
+    const surfaceColor = getSurfaceColor()
+
+    return {
+        animation: true,
+        animationDuration: 500,
+        grid: {
+            left: '3%',
+            right: '4%',
+            bottom: '12%',
+            top: '3%',
+            containLabel: true
+        },
+        tooltip: {
+            trigger: 'axis',
+            formatter: (params) => {
+                let result = `<strong>${params[0].axisValueLabel}</strong><br/>`
+                for (const p of params) {
+                    result += `${p.marker} ${p.seriesName}: ${p.value.toFixed(4)}<br/>`
+                }
+                return result
+            }
+        },
+        legend: {
+            bottom: 0,
+            textStyle: { color: textColor }
+        },
+        xAxis: {
+            type: 'category',
+            data: labels,
+            axisLabel: {
+                color: textColor,
+                rotate: 45
+            },
+            axisLine: { lineStyle: { color: surfaceColor } },
+            splitLine: { lineStyle: { color: surfaceColor } }
+        },
+        yAxis: {
+            type: 'value',
+            axisLabel: { color: textColor },
+            axisLine: { lineStyle: { color: surfaceColor } },
+            splitLine: { lineStyle: { color: surfaceColor } }
+        },
+        series
+    }
+})
+
+// Data by currency for tables (dynamic)
+const currencyTableData = computed(() => {
+    const result = {}
+    for (const currency of otherCurrencies.value) {
+        result[currency] = mockData.value
+            .filter(d => d.currency === currency)
+            .sort((a, b) => new Date(b.date) - new Date(a.date))
+    }
+    return result
+})
 
 const formatChange = (value) => {
     const num = parseFloat(value)
@@ -183,10 +198,9 @@ const getChangeClass = (value) => {
                                 </div>
                             </template>
                             <template #content>
-                                <Chart
-                                    type="line"
-                                    :data="chartData"
-                                    :options="chartOptions"
+                                <VChart
+                                    :option="chartOption"
+                                    autoresize
                                     style="height: 400px"
                                 />
                             </template>
@@ -204,52 +218,10 @@ const getChangeClass = (value) => {
                             </template>
                             <template #content>
                                 <TabView>
-                                    <TabPanel header="USD">
-                                        <DataTable :value="usdData" stripedRows :paginator="true" :rows="10">
+                                    <TabPanel v-for="currency in otherCurrencies" :key="currency" :header="currency">
+                                        <DataTable :value="currencyTableData[currency] || []" stripedRows :paginator="true" :rows="10">
                                             <Column field="date" header="Date" sortable style="min-width: 150px"></Column>
-                                            <Column field="rate" header="CHF/USD Rate" sortable style="min-width: 150px"></Column>
-                                            <Column field="change" header="Change %" sortable style="min-width: 120px">
-                                                <template #body="slotProps">
-                                                    <span :class="getChangeClass(slotProps.data.change)">
-                                                        {{ formatChange(slotProps.data.change) }}
-                                                    </span>
-                                                </template>
-                                            </Column>
-                                        </DataTable>
-                                    </TabPanel>
-                                    
-                                    <TabPanel header="EUR">
-                                        <DataTable :value="eurData" stripedRows :paginator="true" :rows="10">
-                                            <Column field="date" header="Date" sortable style="min-width: 150px"></Column>
-                                            <Column field="rate" header="CHF/EUR Rate" sortable style="min-width: 150px"></Column>
-                                            <Column field="change" header="Change %" sortable style="min-width: 120px">
-                                                <template #body="slotProps">
-                                                    <span :class="getChangeClass(slotProps.data.change)">
-                                                        {{ formatChange(slotProps.data.change) }}
-                                                    </span>
-                                                </template>
-                                            </Column>
-                                        </DataTable>
-                                    </TabPanel>
-                                    
-                                    <TabPanel header="GBP">
-                                        <DataTable :value="gbpData" stripedRows :paginator="true" :rows="10">
-                                            <Column field="date" header="Date" sortable style="min-width: 150px"></Column>
-                                            <Column field="rate" header="CHF/GBP Rate" sortable style="min-width: 150px"></Column>
-                                            <Column field="change" header="Change %" sortable style="min-width: 120px">
-                                                <template #body="slotProps">
-                                                    <span :class="getChangeClass(slotProps.data.change)">
-                                                        {{ formatChange(slotProps.data.change) }}
-                                                    </span>
-                                                </template>
-                                            </Column>
-                                        </DataTable>
-                                    </TabPanel>
-                                    
-                                    <TabPanel header="JPY">
-                                        <DataTable :value="jpyData" stripedRows :paginator="true" :rows="10">
-                                            <Column field="date" header="Date" sortable style="min-width: 150px"></Column>
-                                            <Column field="rate" header="CHF/JPY Rate" sortable style="min-width: 150px"></Column>
+                                            <Column field="rate" :header="`${mainCurrency}/${currency} Rate`" sortable style="min-width: 150px"></Column>
                                             <Column field="change" header="Change %" sortable style="min-width: 120px">
                                                 <template #body="slotProps">
                                                     <span :class="getChangeClass(slotProps.data.change)">
@@ -297,4 +269,3 @@ const getChangeClass = (value) => {
     margin-right: 0.25rem;
 }
 </style>
-

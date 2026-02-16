@@ -7,6 +7,9 @@ import GrantDialog from '@/views/entries/dialogs/GrantDialog.vue'
 import TransferInstrumentDialog from '@/views/entries/dialogs/TransferInstrumentDialog.vue'
 import TransferDialog from '@/views/entries/dialogs/TransferDialog.vue'
 import { getAllowedOperations } from '@/types/account'
+import { useSettingsStore } from '@/store/settingsStore.js'
+
+const settings = useSettingsStore()
 
 /* Props for pre-populating account fields */
 const props = defineProps({
@@ -92,10 +95,16 @@ const allDropdownOptions = [
     }
 ]
 
-/* Filtered dropdown options based on account type */
+const instrumentOperations = ['buyStock', 'sellStock', 'grantStock', 'transferInstrument']
+
+/* Filtered dropdown options based on account type and instrument settings */
 const dropdownOptions = computed(() => {
     const allowedOps = getAllowedOperations(props.accountType)
-    return allDropdownOptions.filter(option => allowedOps.includes(option.value))
+    return allDropdownOptions.filter(option => {
+        if (!allowedOps.includes(option.value)) return false
+        if (!settings.instruments && instrumentOperations.includes(option.value)) return false
+        return true
+    })
 })
 
 </script>

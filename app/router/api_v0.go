@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	handlrs "github.com/andresbott/etna/app/router/handlers"
 	"github.com/andresbott/etna/app/router/handlers/backup"
 	finHandler "github.com/andresbott/etna/app/router/handlers/finance"
 	"github.com/go-bumbu/userauth/authenticator"
@@ -20,6 +21,7 @@ func (h *MainAppHandler) attachApiV0(r *mux.Router) error {
 	r.Use(auth.Middleware)
 
 	// attach api paths to api/v0
+	h.settingsApi(r)
 	h.accountingAPI(r)
 	h.backupApi(r)
 
@@ -27,6 +29,12 @@ func (h *MainAppHandler) attachApiV0(r *mux.Router) error {
 	r.PathPrefix("").HandlerFunc(StatusErrText(http.StatusBadRequest, "wrong api call"))
 
 	return nil
+}
+
+const settingsPath = "/settings"
+
+func (h *MainAppHandler) settingsApi(r *mux.Router) {
+	r.Path(settingsPath).Methods(http.MethodGet).Handler(handlrs.SettingsHandler(h.appSettings))
 }
 
 const finProviderPath = "/fin/provider"
@@ -312,65 +320,70 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 	// Instruments
 	// ==========================================================================
 
-	r.Path(finInstrumentPath).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userData, err := sessionauth.CtxGetUserData(r)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
-			return
-		}
-		finHndlr.ListInstruments(userData.UserId).ServeHTTP(w, r)
-	})
+	if h.appSettings.Instruments {
+		r.Path(finInstrumentPath).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			userData, err := sessionauth.CtxGetUserData(r)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+				return
+			}
+			finHndlr.ListInstruments(userData.UserId).ServeHTTP(w, r)
+		})
 
-	r.Path(finInstrumentPath).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userData, err := sessionauth.CtxGetUserData(r)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
-			return
-		}
-		finHndlr.CreateInstrument(userData.UserId).ServeHTTP(w, r)
-	})
+		r.Path(finInstrumentPath).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			userData, err := sessionauth.CtxGetUserData(r)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+				return
+			}
+			finHndlr.CreateInstrument(userData.UserId).ServeHTTP(w, r)
+		})
 
-	r.Path(fmt.Sprintf("%s/{id}", finInstrumentPath)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userData, err := sessionauth.CtxGetUserData(r)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
-			return
-		}
-		itemId, httpErr := getId(r)
-		if httpErr != nil {
-			http.Error(w, httpErr.Error, httpErr.Code)
-			return
-		}
-		finHndlr.GetInstrument(itemId, userData.UserId).ServeHTTP(w, r)
-	})
+		r.Path(fmt.Sprintf("%s/{id}", finInstrumentPath)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			userData, err := sessionauth.CtxGetUserData(r)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+				return
+			}
+			itemId, httpErr := getId(r)
+			if httpErr != nil {
+				http.Error(w, httpErr.Error, httpErr.Code)
+				return
+			}
+			finHndlr.GetInstrument(itemId, userData.UserId).ServeHTTP(w, r)
+		})
 
-	r.Path(fmt.Sprintf("%s/{id}", finInstrumentPath)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userData, err := sessionauth.CtxGetUserData(r)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
-			return
-		}
-		itemId, httpErr := getId(r)
-		if httpErr != nil {
-			http.Error(w, httpErr.Error, httpErr.Code)
-			return
-		}
-		finHndlr.UpdateInstrument(itemId, userData.UserId).ServeHTTP(w, r)
-	})
+		r.Path(fmt.Sprintf("%s/{id}", finInstrumentPath)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			userData, err := sessionauth.CtxGetUserData(r)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+				return
+			}
+			itemId, httpErr := getId(r)
+			if httpErr != nil {
+				http.Error(w, httpErr.Error, httpErr.Code)
+				return
+			}
+			finHndlr.UpdateInstrument(itemId, userData.UserId).ServeHTTP(w, r)
+		})
 
-	r.Path(fmt.Sprintf("%s/{id}", finInstrumentPath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userData, err := sessionauth.CtxGetUserData(r)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
-			return
-		}
-		itemId, httpErr := getId(r)
-		if httpErr != nil {
-			http.Error(w, httpErr.Error, httpErr.Code)
-			return
-		}
-		finHndlr.DeleteInstrument(itemId, userData.UserId).ServeHTTP(w, r)
-	})
+		r.Path(fmt.Sprintf("%s/{id}", finInstrumentPath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			userData, err := sessionauth.CtxGetUserData(r)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+				return
+			}
+			itemId, httpErr := getId(r)
+			if httpErr != nil {
+				http.Error(w, httpErr.Error, httpErr.Code)
+				return
+			}
+			finHndlr.DeleteInstrument(itemId, userData.UserId).ServeHTTP(w, r)
+		})
+	} else {
+		instrumentsDisabled := StatusErrText(http.StatusForbidden, "financial instruments are disabled")
+		r.PathPrefix(finInstrumentPath).HandlerFunc(instrumentsDisabled)
+	}
 
 	// ==========================================================================
 	// Report

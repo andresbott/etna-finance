@@ -16,6 +16,7 @@ import { useInstruments } from '@/composables/useInstruments'
 import { useMutation } from '@tanstack/vue-query'
 import { createStockGrant } from '@/lib/api/Entry'
 import { useEntries } from '@/composables/useEntries'
+import { useDateFormat } from '@/composables/useDateFormat'
 import {
     getFormattedAccountId,
     getDateOnly,
@@ -34,6 +35,7 @@ const createMutation = useMutation({
     }
 })
 const isSaving = computed(() => createMutation.isPending.value)
+const { pickerDateFormat } = useDateFormat()
 
 const instruments = computed(() => instrumentsData.value ?? [])
 
@@ -210,7 +212,7 @@ const handleSubmit = async (e) => {
                         v-model="formValues.date"
                         :showIcon="true"
                         iconDisplay="input"
-                        dateFormat="dd/mm/yy"
+                        :dateFormat="pickerDateFormat"
                         :showButtonBar="true"
                     />
                     <Message v-if="$form.date?.invalid" severity="error" size="small">

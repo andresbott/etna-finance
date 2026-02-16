@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
@@ -8,6 +8,7 @@ import Message from 'primevue/message'
 import Select from 'primevue/select'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
+import { useSettingsStore } from '@/store/settingsStore'
 
 const props = defineProps({
     visible: { type: Boolean, default: false },
@@ -21,13 +22,11 @@ const props = defineProps({
 
 const emit = defineEmits(['update:visible', 'save'])
 
-const currencies = [
-    { label: 'CHF', value: 'CHF' },
-    { label: 'USD', value: 'USD' },
-    { label: 'EUR', value: 'EUR' },
-    { label: 'GBP', value: 'GBP' },
-    { label: 'JPY', value: 'JPY' }
-]
+const settingsStore = useSettingsStore()
+const currencies = computed(() => {
+    const list = settingsStore.currencies.length > 0 ? settingsStore.currencies : ['CHF']
+    return list.map(c => ({ label: c, value: c }))
+})
 
 const formValues = ref({
     symbol: '',

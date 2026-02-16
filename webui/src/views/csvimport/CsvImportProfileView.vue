@@ -12,8 +12,10 @@ import Dialog from 'primevue/dialog'
 import Message from 'primevue/message'
 import CsvHeaderEditor from '@/components/CsvHeaderEditor.vue'
 import { useToast } from 'primevue/usetoast'
+import { useDateFormat } from '@/composables/useDateFormat'
 
 const toast = useToast()
+const { formatDate: formatDisplayDate } = useDateFormat()
 
 // State
 const profiles = ref([])
@@ -201,14 +203,7 @@ const handleDuplicateProfile = (profile) => {
     showProfileDialog.value = true
 }
 
-// Format date
-const formatDate = (date) => {
-    return new Date(date).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-    })
-}
+const formatDate = (date) => formatDisplayDate(date)
 
 // Get mapped fields count
 const getMappedFieldsCount = (headers) => {

@@ -7,6 +7,7 @@ import Card from 'primevue/card'
 import { useCategoryUtils } from '@/utils/categoryUtils'
 import { useAccountUtils } from '@/utils/accountUtils'
 import { useInstruments } from '@/composables/useInstruments'
+import { useDateFormat } from '@/composables/useDateFormat'
 
 /* --- Props --- */
 const props = defineProps({
@@ -43,6 +44,7 @@ const emit = defineEmits(['edit', 'duplicate', 'delete', 'page'])
 const { getCategoryName, getCategoryPath } = useCategoryUtils()
 const { getAccountCurrency, getAccountName } = useAccountUtils()
 const { instruments: instrumentsData } = useInstruments()
+const { formatDate } = useDateFormat()
 
 const instrumentsMap = computed(() => {
     const list = instrumentsData.value ?? []
@@ -171,13 +173,7 @@ const handlePage = (event) => {
 
                 <Column field="date" header="Date">
                     <template #body="{ data }">
-                        {{
-                            new Date(data.date).toLocaleDateString('es-ES', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: '2-digit'
-                            })
-                        }}
+                        {{ formatDate(data.date) }}
                     </template>
                 </Column>
 

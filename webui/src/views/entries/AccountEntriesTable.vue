@@ -6,6 +6,7 @@ import Button from 'primevue/button'
 import Card from 'primevue/card'
 import { useCategoryUtils } from '@/utils/categoryUtils'
 import { useAccountUtils } from '@/utils/accountUtils'
+import { useDateFormat } from '@/composables/useDateFormat'
 
 /* --- Props --- */
 const props = defineProps({
@@ -45,6 +46,7 @@ const emit = defineEmits(['edit', 'duplicate', 'delete', 'page'])
 /* --- Utils --- */
 const { getCategoryName, getCategoryPath } = useCategoryUtils()
 const { getAccountCurrency, getAccountName } = useAccountUtils()
+const { formatDate } = useDateFormat()
 
 /* --- Helpers --- */
 const getEntryTypeIcon = (type) => {
@@ -198,13 +200,7 @@ const handlePage = (event) => {
 
                 <Column field="date" header="Date">
                     <template #body="{ data }">
-                        {{
-                            new Date(data.date).toLocaleDateString('es-ES', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: '2-digit'
-                            })
-                        }}
+                        {{ formatDate(data.date) }}
                     </template>
                 </Column>
 

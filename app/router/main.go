@@ -3,6 +3,9 @@ package router
 import (
 	_ "embed"
 	"fmt"
+	"log/slog"
+	"net/http"
+
 	handlrs "github.com/andresbott/etna/app/router/handlers"
 	"github.com/andresbott/etna/app/spa"
 	"github.com/andresbott/etna/internal/accounting"
@@ -11,8 +14,6 @@ import (
 	"github.com/go-bumbu/userauth/handlers/sessionauth"
 	"github.com/gorilla/mux"
 	"gorm.io/gorm"
-	"log/slog"
-	"net/http"
 )
 
 type Cfg struct {
@@ -22,6 +23,7 @@ type Cfg struct {
 	Logger            *slog.Logger
 	BackupDestination string
 	ProductionMode    bool
+	AppSettings       handlrs.AppSettings
 }
 
 // MainAppHandler is the entrypoint http handler for the whole application
@@ -34,6 +36,7 @@ type MainAppHandler struct {
 	logger            *slog.Logger
 	backupDestination string
 	productionMode    bool
+	appSettings       handlrs.AppSettings
 }
 
 func (h *MainAppHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -50,6 +53,7 @@ func New(cfg Cfg) (*MainAppHandler, error) {
 		logger:            cfg.Logger,
 		backupDestination: cfg.BackupDestination,
 		productionMode:    cfg.ProductionMode,
+		appSettings:       cfg.AppSettings,
 	}
 
 	fineStore, err := accounting.NewStore(cfg.Db)

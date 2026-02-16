@@ -13,13 +13,16 @@ import DeleteDialog from '@/components/common/confirmDialog.vue'
 import AccountProviderDialog from './AccountProviderDialog.vue'
 
 import { useAccounts } from '@/composables/useAccounts.js'
-import { getAccountTypeLabel } from '@/types/account'
+import { getAccountTypeLabel, ACCOUNT_TYPES } from '@/types/account'
+import { useSettingsStore } from '@/store/settingsStore.js'
 
 // Documentation URL for the accounts section (open in new tab)
 const ACCOUNTS_DOCS_URL = 'https://github.com/andresbott/etna-finance#readme'
 
 // Composables
 const { accounts, isLoading, deleteAccount, deleteAccountProvider } = useAccounts()
+const settings = useSettingsStore()
+const instrumentAccountTypes = [ACCOUNT_TYPES.INVESTMENT, ACCOUNT_TYPES.UNVESTED]
 
 // Reactive State
 const expandedKeys = ref({})
@@ -40,26 +43,33 @@ const deleteProviderDialogVisible = ref(false)
 const treeTableData = computed(() => {
     if (!accounts.value) return []
 
-    const data = accounts.value.map((provider) => ({
-        key: provider.id,
-        data: {
-            id: provider.id,
-            name: provider.name,
-            description: provider.description,
-            icon: provider.icon || 'pi-building'
-        },
-        children:
-            provider.accounts?.map((account) => ({
-                key: account.id,
-                data: {
-                    id: account.id,
-                    name: account.name,
-                    type: account.type,
-                    currency: account.currency,
-                    icon: account.icon || 'pi-wallet'
-                }
-            })) || []
-    }))
+    const data = accounts.value.map((provider) => {
+        const allChildren = provider.accounts?.map((account) => ({
+            key: account.id,
+            data: {
+                id: account.id,
+                name: account.name,
+                type: account.type,
+                currency: account.currency,
+                icon: account.icon || 'pi-wallet'
+            }
+        })) || []
+
+        const children = settings.instruments
+            ? allChildren
+            : allChildren.filter(child => !instrumentAccountTypes.includes(child.data.type))
+
+        return {
+            key: provider.id,
+            data: {
+                id: provider.id,
+                name: provider.name,
+                description: provider.description,
+                icon: provider.icon || 'pi-building'
+            },
+            children
+        }
+    })
 
     expandedKeys.value = data.reduce((acc, node) => {
         acc[node.key] = true

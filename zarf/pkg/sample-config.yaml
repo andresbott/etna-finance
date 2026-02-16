@@ -22,3 +22,11 @@ Auth:
 Env:
   Loglevel: "info"
   Production: false
+
+# Application settings exposed to the frontend
+#Settings:
+#  DateFormat: "YYYY-MM-DD"    # tokens: YYYY, YY, MM, DD; separators: - / .
+#  MainCurrency: "CHF"         # ISO 4217, 3 uppercase letters
+#  Currencies:                 # must include MainCurrency
+#    - "CHF"
+#  Instruments: false

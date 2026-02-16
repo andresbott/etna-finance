@@ -107,6 +107,12 @@ func runServer(configFile string) error {
 		},
 		Logger:            l,
 		BackupDestination: filepath.Join(cfg.DataDir, backupsDir),
+		AppSettings: handlers.AppSettings{
+			DateFormat:   cfg.Settings.DateFormat,
+			MainCurrency: cfg.Settings.MainCurrency,
+			Currencies:   cfg.Settings.Currencies,
+			Instruments:  cfg.Settings.Instruments,
+		},
 	}
 	mainAppHandler, err := router.New(routerCfg)
 	if err != nil {

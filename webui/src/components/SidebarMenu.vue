@@ -66,7 +66,7 @@
                             </li>
                         </ul>
                     </li>
-                    <li>
+                    <li v-if="settings.instruments">
                         <a
                             @click="expandAllInvestment"
                             class="menu-item"
@@ -130,10 +130,12 @@ import { ref, watch, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useUiStore } from '@/store/uiStore.js'
 import { useAccounts } from '@/composables/useAccounts.js'
+import { useSettingsStore } from '@/store/settingsStore.js'
 import { ACCOUNT_TYPES } from '@/types/account'
 
 const route = useRoute()
 const uiStore = useUiStore()
+const settings = useSettingsStore()
 const { accounts } = useAccounts()
 
 const CASH_ACCOUNT_TYPES = [ACCOUNT_TYPES.CASH, ACCOUNT_TYPES.CHECKING, ACCOUNT_TYPES.SAVINGS]

@@ -3,19 +3,30 @@ package cmd
 import (
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/go-bumbu/config"
 	"github.com/gorilla/securecookie"
+	"golang.org/x/text/currency"
 )
 
 type AppCfg struct {
-	Server  serverCfg
-	Obs     serverCfg `config:"Observability"`
-	Auth    authConfig
-	Env     Env
-	Msgs    []Msg
-	DataDir string
+	Server   serverCfg
+	Obs      serverCfg `config:"Observability"`
+	Auth     authConfig
+	Env      Env
+	Settings AppSettings
+	Msgs     []Msg
+	DataDir  string
+}
+
+type AppSettings struct {
+	DateFormat   string
+	MainCurrency string
+	Currencies   []string
+	Instruments  bool
 }
 
 type Env struct {
@@ -85,6 +96,12 @@ var defaultCfg = AppCfg{
 		LogLevel:   "info",
 		Production: true,
 	},
+	Settings: AppSettings{
+		DateFormat:   "YYYY-MM-DD",
+		MainCurrency: "CHF",
+		Currencies:   []string{"CHF"},
+		Instruments:  false,
+	},
 }
 
 type Msg struct {
@@ -93,6 +110,67 @@ type Msg struct {
 }
 
 const EnvBarPrefix = "ETNA"
+
+// dateFormatRegex matches date formats composed of tokens YYYY, YY, MM, DD
+// separated by one of: - / .
+var dateFormatRegex = regexp.MustCompile(`^(YYYY|YY|MM|DD)([-/.](YYYY|YY|MM|DD)){2}$`)
+
+// validateCurrency checks that the given string is a recognized ISO 4217 currency code
+// in its canonical uppercase form.
+func validateCurrency(code string) error {
+	unit, err := currency.ParseISO(code)
+	if err != nil {
+		return fmt.Errorf("invalid currency %q: not a recognized ISO 4217 code (e.g. CHF, USD, EUR)", code)
+	}
+	if unit.String() != code {
+		return fmt.Errorf("invalid currency %q: must be uppercase %q", code, unit.String())
+	}
+	return nil
+}
+
+func validateSettings(s AppSettings) error {
+	// Validate date format
+	if !dateFormatRegex.MatchString(s.DateFormat) {
+		return fmt.Errorf("invalid date format %q: must use tokens YYYY, YY, MM, DD separated by - / or . (e.g. YYYY-MM-DD, DD/MM/YYYY)", s.DateFormat)
+	}
+
+	// Ensure all three components (year, month, day) are present
+	hasYear := strings.Contains(s.DateFormat, "YYYY") || strings.Contains(s.DateFormat, "YY")
+	hasMonth := strings.Contains(s.DateFormat, "MM")
+	hasDay := strings.Contains(s.DateFormat, "DD")
+	if !hasYear || !hasMonth || !hasDay {
+		return fmt.Errorf("invalid date format %q: must contain year (YYYY or YY), month (MM) and day (DD)", s.DateFormat)
+	}
+
+	// Validate main currency
+	if err := validateCurrency(s.MainCurrency); err != nil {
+		return fmt.Errorf("main currency: %w", err)
+	}
+
+	// Validate currencies list
+	if len(s.Currencies) == 0 {
+		return fmt.Errorf("currencies list must not be empty")
+	}
+	for _, c := range s.Currencies {
+		if err := validateCurrency(c); err != nil {
+			return fmt.Errorf("currencies list: %w", err)
+		}
+	}
+
+	// Ensure main currency is included in the currencies list
+	found := false
+	for _, c := range s.Currencies {
+		if c == s.MainCurrency {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("main currency %q must be included in the currencies list %v", s.MainCurrency, s.Currencies)
+	}
+
+	return nil
+}
 
 func getAppCfg(file string) (AppCfg, error) {
 	configMsg := []Msg{}
@@ -138,6 +216,11 @@ func getAppCfg(file string) (AppCfg, error) {
 
 	cfg.Auth.HashKeyBytes = []byte(cfg.Auth.HashKey)
 	cfg.Auth.BlockKeyBytes = []byte(cfg.Auth.BlockKey)
+
+	// Validate application settings
+	if err := validateSettings(cfg.Settings); err != nil {
+		return cfg, fmt.Errorf("settings validation: %w", err)
+	}
 
 	return cfg, nil
 }

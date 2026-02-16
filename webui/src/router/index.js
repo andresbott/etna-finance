@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '@/lib/user/userstore.js'
+import { useSettingsStore } from '@/store/settingsStore.js'
 
 const router = createRouter({
     // history: createWebHistory(),
@@ -70,6 +71,7 @@ const router = createRouter({
             name: 'instruments',
             meta: {
                 requiresAuth: true,
+                requiresInstruments: true,
                 title: 'Investment Instruments'
             },
             component: () => import('@/views/instruments/InstrumentsView.vue')
@@ -143,10 +145,14 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
     const user = useUserStore()
 
+    const settings = useSettingsStore()
+
     const navigate = function (to, next) {
         if (to.matched.some((record) => record.meta.requiresAuth)) {
             if (!user.isLoggedIn) {
                 next({ name: 'login' })
+            } else if (to.matched.some((record) => record.meta.requiresInstruments) && !settings.instruments) {
+                next({ name: 'reports-overview' })
             } else {
                 next() // go to wherever I'm going
             }
