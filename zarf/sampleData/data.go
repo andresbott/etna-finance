@@ -45,6 +45,208 @@ var Accounts = []Provider{
 			},
 		},
 	},
+	{
+		Name:        "Broker",
+		Description: "Brokerage for stocks and ETFs",
+		Accounts: []Account{
+			{
+				Name:        "Brokerage (CHF)",
+				Description: "Main brokerage account",
+				Currency:    "CHF",
+				Type:        "investment",
+			},
+			{
+				Name:        "Brokerage (USD)",
+				Description: "Secondary brokerage account",
+				Currency:    "USD",
+				Type:        "investment",
+			},
+			{
+				Name:        "RSUs",
+				Description: "Unvested restricted stock units",
+				Currency:    "USD",
+				Type:        "unvested",
+			},
+		},
+	},
+}
+
+// Instruments are created by the sample data script; IDs are filled after creation.
+var Instruments = []Instrument{
+	{Symbol: "AAPL", Name: "Apple Inc.", Currency: "USD"},
+	{Symbol: "MSFT", Name: "Microsoft Corporation", Currency: "USD"},
+	{Symbol: "ADBE", Name: "Adobe Inc.", Currency: "USD"},
+	{Symbol: "GOOGL", Name: "Alphabet Inc. (Google)", Currency: "USD"},
+	{Symbol: "NESN", Name: "Nestlé S.A.", Currency: "CHF"},
+}
+
+// Instrument for API creation (ID set after create).
+type Instrument struct {
+	ID       int    `json:"id,omitempty"`
+	Symbol   string `json:"symbol"`
+	Name     string `json:"name"`
+	Currency string `json:"currency"`
+}
+
+// StockEntryDefinition defines a stock-related transaction (buy, sell, grant, transfer).
+type StockEntryDefinition struct {
+	Description string  `json:"description"`
+	DaysDelta   int     `json:"daysDelta"`
+	Type        string  `json:"type"`       // "stockbuy", "stocksell", "stockgrant", "stocktransfer"
+	Instrument  string  `json:"instrument"` // symbol
+	Quantity    float64 `json:"quantity"`
+
+	// buy/sell: total cash amount (in cash account currency)
+	TotalAmount float64 `json:"totalAmount,omitempty"`
+	// buy/sell: monetary value of shares (in instrument currency)
+	StockAmount float64 `json:"StockAmount,omitempty"`
+
+	// investment account (buy, sell, grant)
+	InvestmentProvider string `json:"investmentProvider,omitempty"`
+	InvestmentAccount  string `json:"investmentAccount,omitempty"`
+
+	// cash account (buy, sell)
+	CashProvider string `json:"cashProvider,omitempty"`
+	CashAccount  string `json:"cashAccount,omitempty"`
+
+	// transfer: origin and target (both investment)
+	OriginProvider string `json:"originProvider,omitempty"`
+	OriginAccount  string `json:"originAccount,omitempty"`
+	TargetProvider string `json:"targetProvider,omitempty"`
+	TargetAccount  string `json:"targetAccount,omitempty"`
+}
+
+// StockEntries are created after instruments and accounts exist.
+var StockEntries = []StockEntryDefinition{
+	{
+		Description:        "Buy AAPL",
+		DaysDelta:          -20,
+		Type:               "stockbuy",
+		Instrument:         "AAPL",
+		Quantity:           10,
+		TotalAmount:        1650.00, // CHF paid
+		StockAmount:        1850.00, // USD value (10 × $185)
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "Brokerage (USD)",
+		CashProvider:       "Main Bank",
+		CashAccount:        "Main Account",
+	},
+	{
+		Description:        "Buy MSFT",
+		DaysDelta:          -45,
+		Type:               "stockbuy",
+		Instrument:         "MSFT",
+		Quantity:           5,
+		TotalAmount:        1890.00, // CHF paid
+		StockAmount:        2100.00, // USD value (5 × $420)
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "Brokerage (USD)",
+		CashProvider:       "Main Bank",
+		CashAccount:        "Main Account",
+	},
+	{
+		Description:        "Buy ADBE",
+		DaysDelta:          -8,
+		Type:               "stockbuy",
+		Instrument:         "ADBE",
+		Quantity:           4,
+		TotalAmount:        1730.00, // CHF paid
+		StockAmount:        1920.00, // USD value (4 × $480)
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "Brokerage (USD)",
+		CashProvider:       "Main Bank",
+		CashAccount:        "Main Account",
+	},
+	{
+		Description:        "Sell AAPL",
+		DaysDelta:          -5,
+		Type:               "stocksell",
+		Instrument:         "AAPL",
+		Quantity:           3,
+		TotalAmount:        525.00, // CHF received
+		StockAmount:        585.00, // USD value (3 × $195)
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "Brokerage (USD)",
+		CashProvider:       "Main Bank",
+		CashAccount:        "Main Account",
+	},
+	{
+		Description:        "Grant GOOGL (RSU vest)",
+		DaysDelta:          -30,
+		Type:               "stockgrant",
+		Instrument:         "GOOGL",
+		Quantity:           2,
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "Brokerage (USD)",
+	},
+	{
+		Description:    "Transfer GOOGL from RSUs to brokerage",
+		DaysDelta:      -12,
+		Type:           "stocktransfer",
+		Instrument:     "GOOGL",
+		Quantity:       2,
+		OriginProvider: "Broker",
+		OriginAccount:  "RSUs",
+		TargetProvider: "Broker",
+		TargetAccount:  "Brokerage (USD)",
+	},
+	// RSUs (unvested) account: grants and vesting transfers
+	{
+		Description:        "RSU grant GOOGL (unvested)",
+		DaysDelta:          -60,
+		Type:               "stockgrant",
+		Instrument:         "GOOGL",
+		Quantity:           10,
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "RSUs",
+	},
+	{
+		Description:        "RSU grant MSFT (unvested)",
+		DaysDelta:          -90,
+		Type:               "stockgrant",
+		Instrument:         "MSFT",
+		Quantity:           5,
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "RSUs",
+	},
+	{
+		Description:    "RSU vest: GOOGL from RSUs to brokerage",
+		DaysDelta:      -25,
+		Type:           "stocktransfer",
+		Instrument:     "GOOGL",
+		Quantity:       4,
+		OriginProvider: "Broker",
+		OriginAccount:  "RSUs",
+		TargetProvider: "Broker",
+		TargetAccount:  "Brokerage (USD)",
+	},
+	// CHF instrument in CHF brokerage account
+	{
+		Description:        "Buy NESN",
+		DaysDelta:          -15,
+		Type:               "stockbuy",
+		Instrument:         "NESN",
+		Quantity:           10,
+		TotalAmount:        890.00, // CHF paid
+		StockAmount:        890.00, // CHF value (same currency, 10 × CHF 89)
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "Brokerage (CHF)",
+		CashProvider:       "Main Bank",
+		CashAccount:        "Main Account",
+	},
+	{
+		Description:        "Sell NESN",
+		DaysDelta:          -3,
+		Type:               "stocksell",
+		Instrument:         "NESN",
+		Quantity:           3,
+		TotalAmount:        276.00, // CHF received
+		StockAmount:        276.00, // CHF value (same currency, 3 × CHF 92)
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "Brokerage (CHF)",
+		CashProvider:       "Main Bank",
+		CashAccount:        "Main Account",
+	},
 }
 
 var ExpenseCategories = []Category{
@@ -215,7 +417,7 @@ var IncomeCategories = []Category{
 }
 
 var Entries = []EntryDefinition{
-	// Monthly Income entries (repeated across 3 months)
+	// Monthly Income entries (repeated across 5 months)
 	{
 		Description:  "Monthly salary - current month",
 		DaysDelta:    -1,
@@ -237,6 +439,24 @@ var Entries = []EntryDefinition{
 	{
 		Description:  "Monthly salary - two months ago",
 		DaysDelta:    -61,
+		Type:         "income",
+		Amount:       4500.00,
+		ProviderName: "Main Bank",
+		AccountName:  "Main Account",
+		CategoryName: "Salary",
+	},
+	{
+		Description:  "Monthly salary - three months ago",
+		DaysDelta:    -91,
+		Type:         "income",
+		Amount:       4500.00,
+		ProviderName: "Main Bank",
+		AccountName:  "Main Account",
+		CategoryName: "Salary",
+	},
+	{
+		Description:  "Monthly salary - four months ago",
+		DaysDelta:    -121,
 		Type:         "income",
 		Amount:       4500.00,
 		ProviderName: "Main Bank",
@@ -360,6 +580,24 @@ var Entries = []EntryDefinition{
 		AccountName:  "Main Account",
 		CategoryName: "Rental Income",
 	},
+	{
+		Description:  "Apartment rental income",
+		DaysDelta:    -93,
+		Type:         "income",
+		Amount:       1500.00,
+		ProviderName: "Main Bank",
+		AccountName:  "Main Account",
+		CategoryName: "Rental Income",
+	},
+	{
+		Description:  "Apartment rental income",
+		DaysDelta:    -123,
+		Type:         "income",
+		Amount:       1500.00,
+		ProviderName: "Main Bank",
+		AccountName:  "Main Account",
+		CategoryName: "Rental Income",
+	},
 
 	// Housing & Rent expenses (monthly recurring)
 	{
@@ -388,33 +626,6 @@ var Entries = []EntryDefinition{
 		ProviderName: "Main Bank",
 		AccountName:  "Main Account",
 		CategoryName: "Rent",
-	},
-	{
-		Description:  "Mortgage payment",
-		DaysDelta:    -15,
-		Type:         "expense",
-		Amount:       1850.00,
-		ProviderName: "Main Bank",
-		AccountName:  "Main Account",
-		CategoryName: "Mortgage",
-	},
-	{
-		Description:  "Mortgage payment",
-		DaysDelta:    -45,
-		Type:         "expense",
-		Amount:       1850.00,
-		ProviderName: "Main Bank",
-		AccountName:  "Main Account",
-		CategoryName: "Mortgage",
-	},
-	{
-		Description:  "Mortgage payment",
-		DaysDelta:    -75,
-		Type:         "expense",
-		Amount:       1850.00,
-		ProviderName: "Main Bank",
-		AccountName:  "Main Account",
-		CategoryName: "Mortgage",
 	},
 	{
 		Description:  "Electricity bill",
@@ -1153,10 +1364,10 @@ var Entries = []EntryDefinition{
 		Description:    "Transfer to secondary bank",
 		DaysDelta:      -38,
 		Type:           "transfer",
-		OriginAmount:   1000.00,
+		OriginAmount:   300.00,
 		OriginProvider: "Main Bank",
 		OriginAccount:  "Main Account",
-		TargetAmount:   1000.00,
+		TargetAmount:   300.00,
 		TargetProvider: "Secondary Bank",
 		TargetAccount:  "Another Bank",
 	},
@@ -1186,10 +1397,10 @@ var Entries = []EntryDefinition{
 		Description:    "Investment transfer",
 		DaysDelta:      -71,
 		Type:           "transfer",
-		OriginAmount:   2000.00,
+		OriginAmount:   500.00,
 		OriginProvider: "Main Bank",
 		OriginAccount:  "Main Account",
-		TargetAmount:   2000.00,
+		TargetAmount:   500.00,
 		TargetProvider: "Secondary Bank",
 		TargetAccount:  "Another Bank",
 	},

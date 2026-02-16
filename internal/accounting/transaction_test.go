@@ -1222,6 +1222,7 @@ func TestStore_CreateStockBuy_CreateStockSell(t *testing.T) {
 				InstrumentID:        instrumentID,
 				Quantity:            10,
 				TotalAmount:         1500.0,
+				StockAmount:         1850.0,
 			}
 			buyID, err := store.CreateStockBuy(ctx, buy, tenant1)
 			if err != nil {
@@ -1244,6 +1245,7 @@ func TestStore_CreateStockBuy_CreateStockSell(t *testing.T) {
 				InstrumentID:        instrumentID,
 				Quantity:            3,
 				TotalAmount:         465.0,
+				StockAmount:         585.0,
 			}
 			sellID, err := store.CreateStockSell(ctx, sell, tenant1)
 			if err != nil {
@@ -1422,11 +1424,11 @@ func TestStore_CreateStockBuy_validationErrors(t *testing.T) {
 				input   StockBuy
 				wantErr string
 			}{
-				{"investment account must be Investment", StockBuy{Description: "x", Date: getDate("2025-01-01"), InvestmentAccountID: cashAccountID, CashAccountID: cashAccountID, InstrumentID: instrumentID, Quantity: 1, TotalAmount: 1}, "Investment"},
-				{"cash account must be Cash/Checkin/Savings", StockBuy{Description: "x", Date: getDate("2025-01-01"), InvestmentAccountID: accountID, CashAccountID: accountID, InstrumentID: instrumentID, Quantity: 1, TotalAmount: 1}, "Cash, Checkin or Savings"},
-				{"instrument not found", StockBuy{Description: "x", Date: getDate("2025-01-01"), InvestmentAccountID: accountID, CashAccountID: cashAccountID, InstrumentID: 99999, Quantity: 1, TotalAmount: 1}, "instrument not found"},
-				{"quantity must be positive", StockBuy{Description: "x", Date: getDate("2025-01-01"), InvestmentAccountID: accountID, CashAccountID: cashAccountID, InstrumentID: instrumentID, Quantity: 0, TotalAmount: 1}, "quantity must be positive"},
-				{"total amount must be positive", StockBuy{Description: "x", Date: getDate("2025-01-01"), InvestmentAccountID: accountID, CashAccountID: cashAccountID, InstrumentID: instrumentID, Quantity: 1, TotalAmount: 0}, "total amount must be positive"},
+				{"investment account must be Investment", StockBuy{Description: "x", Date: getDate("2025-01-01"), InvestmentAccountID: cashAccountID, CashAccountID: cashAccountID, InstrumentID: instrumentID, Quantity: 1, TotalAmount: 1, StockAmount: 1}, "Investment"},
+				{"cash account must be Cash/Checkin/Savings", StockBuy{Description: "x", Date: getDate("2025-01-01"), InvestmentAccountID: accountID, CashAccountID: accountID, InstrumentID: instrumentID, Quantity: 1, TotalAmount: 1, StockAmount: 1}, "Cash, Checkin or Savings"},
+				{"instrument not found", StockBuy{Description: "x", Date: getDate("2025-01-01"), InvestmentAccountID: accountID, CashAccountID: cashAccountID, InstrumentID: 99999, Quantity: 1, TotalAmount: 1, StockAmount: 1}, "instrument not found"},
+				{"quantity must be positive", StockBuy{Description: "x", Date: getDate("2025-01-01"), InvestmentAccountID: accountID, CashAccountID: cashAccountID, InstrumentID: instrumentID, Quantity: 0, TotalAmount: 1, StockAmount: 1}, "quantity must be positive"},
+				{"total amount must be positive", StockBuy{Description: "x", Date: getDate("2025-01-01"), InvestmentAccountID: accountID, CashAccountID: cashAccountID, InstrumentID: instrumentID, Quantity: 1, TotalAmount: 0, StockAmount: 1}, "total amount must be positive"},
 			}
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 	"slices"
 	"time"
 
+	"golang.org/x/text/currency"
 	"gorm.io/gorm"
 )
 
@@ -94,6 +95,7 @@ type StockBuy struct {
 	InstrumentID        uint
 	Quantity            float64
 	TotalAmount         float64 // total cash spent (positive), in cash account currency
+	StockAmount         float64 // monetary value of shares (positive), in investment account / instrument currency
 	baseTx
 }
 
@@ -108,6 +110,7 @@ type StockSell struct {
 	InstrumentID        uint
 	Quantity            float64
 	TotalAmount         float64 // total cash received (positive), in cash account currency
+	StockAmount         float64 // monetary value of shares (positive), in investment account / instrument currency
 	baseTx
 }
 
@@ -320,6 +323,81 @@ func (store *Store) CreateTransfer(ctx context.Context, item Transfer, tenant st
 var allowedCashAccountTypes = []AccountType{CashAccountType, CheckinAccountType, SavingsAccountType}
 var allowedPositionAccountTypes = []AccountType{InvestmentAccountType, UnvestedAccountType}
 
+// validateStockCurrencyMatch checks that the instrument currency matches the investment account currency
+// during partial updates. If either the account or instrument is being changed, it resolves the other
+// from the existing transaction to perform the comparison.
+func (store *Store) validateStockCurrencyMatch(
+	ctx context.Context, txID uint, tenant string,
+	newAccountID *uint, newInstrumentID *uint,
+	newInstrument *Instrument, txType TxType,
+) error {
+	if newAccountID == nil && newInstrumentID == nil {
+		return nil
+	}
+
+	var accCurrency, instCurrency currency.Unit
+
+	if newAccountID != nil {
+		acc, err := store.GetAccount(ctx, *newAccountID, tenant)
+		if err != nil {
+			return fmt.Errorf("error validating currency match: %w", err)
+		}
+		accCurrency = acc.Currency
+	}
+
+	if newInstrument != nil {
+		instCurrency = newInstrument.Currency
+	}
+
+	// If only one changed, resolve the other from the existing transaction
+	if newAccountID != nil && newInstrumentID == nil {
+		existing, err := store.GetTransaction(ctx, txID, tenant)
+		if err != nil {
+			return fmt.Errorf("error validating currency match: %w", err)
+		}
+		var existingInstrumentID uint
+		switch tx := existing.(type) {
+		case StockBuy:
+			existingInstrumentID = tx.InstrumentID
+		case StockSell:
+			existingInstrumentID = tx.InstrumentID
+		}
+		if existingInstrumentID != 0 {
+			inst, err := store.GetInstrument(ctx, existingInstrumentID, tenant)
+			if err != nil {
+				return fmt.Errorf("error validating currency match: %w", err)
+			}
+			instCurrency = inst.Currency
+		}
+	} else if newAccountID == nil && newInstrumentID != nil {
+		existing, err := store.GetTransaction(ctx, txID, tenant)
+		if err != nil {
+			return fmt.Errorf("error validating currency match: %w", err)
+		}
+		var existingAccountID uint
+		switch tx := existing.(type) {
+		case StockBuy:
+			existingAccountID = tx.InvestmentAccountID
+		case StockSell:
+			existingAccountID = tx.InvestmentAccountID
+		}
+		if existingAccountID != 0 {
+			acc, err := store.GetAccount(ctx, existingAccountID, tenant)
+			if err != nil {
+				return fmt.Errorf("error validating currency match: %w", err)
+			}
+			accCurrency = acc.Currency
+		}
+	}
+
+	if accCurrency != (currency.Unit{}) && instCurrency != (currency.Unit{}) && accCurrency != instCurrency {
+		return NewValidationErr(fmt.Sprintf(
+			"instrument currency %s does not match investment account currency %s",
+			instCurrency, accCurrency))
+	}
+	return nil
+}
+
 func (store *Store) CreateStockBuy(ctx context.Context, item StockBuy, tenant string) (uint, error) {
 	if item.InvestmentAccountID == 0 {
 		return 0, ErrValidation("investment account id is required")
@@ -336,13 +414,16 @@ func (store *Store) CreateStockBuy(ctx context.Context, item StockBuy, tenant st
 	if item.TotalAmount <= 0 {
 		return 0, ErrValidation("total amount must be positive")
 	}
+	if item.StockAmount <= 0 {
+		return 0, ErrValidation("stock amount must be positive")
+	}
 
 	invAcc, err := store.GetAccount(ctx, item.InvestmentAccountID, tenant)
 	if err != nil {
 		return 0, fmt.Errorf("error creating stock buy: %w", err)
 	}
-	if invAcc.Type != InvestmentAccountType {
-		return 0, NewValidationErr("investment account must be of type Investment for stock buy")
+	if !slices.Contains(allowedPositionAccountTypes, invAcc.Type) {
+		return 0, NewValidationErr("investment account must be Investment or Unvested for stock buy")
 	}
 
 	cashAcc, err := store.GetAccount(ctx, item.CashAccountID, tenant)
@@ -353,7 +434,7 @@ func (store *Store) CreateStockBuy(ctx context.Context, item StockBuy, tenant st
 		return 0, NewValidationErr("cash account must be Cash, Checkin or Savings for stock buy")
 	}
 
-	_, err = store.GetInstrument(ctx, item.InstrumentID, tenant)
+	instrument, err := store.GetInstrument(ctx, item.InstrumentID, tenant)
 	if err != nil {
 		if errors.Is(err, ErrInstrumentNotFound) {
 			return 0, ErrValidation("instrument not found")
@@ -361,7 +442,14 @@ func (store *Store) CreateStockBuy(ctx context.Context, item StockBuy, tenant st
 		return 0, fmt.Errorf("error creating stock buy: %w", err)
 	}
 
-	// Two entries: position on investment account (Amount=0), cash out on cash account (Amount negative)
+	if instrument.Currency != invAcc.Currency {
+		return 0, NewValidationErr(fmt.Sprintf(
+			"instrument currency %s does not match investment account currency %s",
+			instrument.Currency, invAcc.Currency))
+	}
+
+	// Two entries: position on investment account (monetary value in instrument currency),
+	// cash out on cash account (negative amount in cash account currency)
 	tx := dbTransaction{
 		Description: item.Description,
 		Date:        item.Date,
@@ -372,7 +460,7 @@ func (store *Store) CreateStockBuy(ctx context.Context, item StockBuy, tenant st
 				AccountID:    item.InvestmentAccountID,
 				InstrumentID: item.InstrumentID,
 				Quantity:     item.Quantity,
-				Amount:       0,
+				Amount:       item.StockAmount,
 				EntryType:    stockBuyEntry,
 				OwnerId:      tenant,
 			},
@@ -411,13 +499,16 @@ func (store *Store) CreateStockSell(ctx context.Context, item StockSell, tenant 
 	if item.TotalAmount <= 0 {
 		return 0, ErrValidation("total amount must be positive")
 	}
+	if item.StockAmount <= 0 {
+		return 0, ErrValidation("stock amount must be positive")
+	}
 
 	invAcc, err := store.GetAccount(ctx, item.InvestmentAccountID, tenant)
 	if err != nil {
 		return 0, fmt.Errorf("error creating stock sell: %w", err)
 	}
-	if invAcc.Type != InvestmentAccountType {
-		return 0, NewValidationErr("investment account must be of type Investment for stock sell")
+	if !slices.Contains(allowedPositionAccountTypes, invAcc.Type) {
+		return 0, NewValidationErr("investment account must be Investment or Unvested for stock sell")
 	}
 
 	cashAcc, err := store.GetAccount(ctx, item.CashAccountID, tenant)
@@ -428,7 +519,7 @@ func (store *Store) CreateStockSell(ctx context.Context, item StockSell, tenant 
 		return 0, NewValidationErr("cash account must be Cash, Checkin or Savings for stock sell")
 	}
 
-	_, err = store.GetInstrument(ctx, item.InstrumentID, tenant)
+	instrument, err := store.GetInstrument(ctx, item.InstrumentID, tenant)
 	if err != nil {
 		if errors.Is(err, ErrInstrumentNotFound) {
 			return 0, ErrValidation("instrument not found")
@@ -436,7 +527,13 @@ func (store *Store) CreateStockSell(ctx context.Context, item StockSell, tenant 
 		return 0, fmt.Errorf("error creating stock sell: %w", err)
 	}
 
-	// Two entries: position on investment account (Amount=0), cash in on cash account (Amount positive)
+	if instrument.Currency != invAcc.Currency {
+		return 0, NewValidationErr(fmt.Sprintf(
+			"instrument currency %s does not match investment account currency %s",
+			instrument.Currency, invAcc.Currency))
+	}
+
+	// Two entries: position on investment account (negative monetary value), cash in on cash account
 	tx := dbTransaction{
 		Description: item.Description,
 		Date:        item.Date,
@@ -447,7 +544,7 @@ func (store *Store) CreateStockSell(ctx context.Context, item StockSell, tenant 
 				AccountID:    item.InvestmentAccountID,
 				InstrumentID: item.InstrumentID,
 				Quantity:     item.Quantity,
-				Amount:       0,
+				Amount:       -item.StockAmount,
 				EntryType:    stockSellEntry,
 				OwnerId:      tenant,
 			},
@@ -489,12 +586,18 @@ func (store *Store) CreateStockGrant(ctx context.Context, item StockGrant, tenan
 		return 0, NewValidationErr("account must be Investment or Unvested for stock grant")
 	}
 
-	_, err = store.GetInstrument(ctx, item.InstrumentID, tenant)
+	instrument, err := store.GetInstrument(ctx, item.InstrumentID, tenant)
 	if err != nil {
 		if errors.Is(err, ErrInstrumentNotFound) {
 			return 0, ErrValidation("instrument not found")
 		}
 		return 0, fmt.Errorf("error creating stock grant: %w", err)
+	}
+
+	if instrument.Currency != acc.Currency {
+		return 0, NewValidationErr(fmt.Sprintf(
+			"instrument currency %s does not match account currency %s",
+			instrument.Currency, acc.Currency))
 	}
 
 	tx := dbTransaction{
@@ -554,12 +657,23 @@ func (store *Store) CreateStockTransfer(ctx context.Context, item StockTransfer,
 		return 0, NewValidationErr("target account must be Investment or Unvested for stock transfer")
 	}
 
-	_, err = store.GetInstrument(ctx, item.InstrumentID, tenant)
+	instrument, err := store.GetInstrument(ctx, item.InstrumentID, tenant)
 	if err != nil {
 		if errors.Is(err, ErrInstrumentNotFound) {
 			return 0, ErrValidation("instrument not found")
 		}
 		return 0, fmt.Errorf("error creating stock transfer: %w", err)
+	}
+
+	if instrument.Currency != srcAcc.Currency {
+		return 0, NewValidationErr(fmt.Sprintf(
+			"instrument currency %s does not match source account currency %s",
+			instrument.Currency, srcAcc.Currency))
+	}
+	if instrument.Currency != tgtAcc.Currency {
+		return 0, NewValidationErr(fmt.Sprintf(
+			"instrument currency %s does not match target account currency %s",
+			instrument.Currency, tgtAcc.Currency))
 	}
 
 	tx := dbTransaction{
@@ -605,9 +719,9 @@ func validateTransaction(tx dbTransaction) error {
 		return NewValidationErr("date cannot be zero")
 	}
 	for _, entry := range tx.Entries {
-		// stock position entries use Amount=0; cash movement is on separate entry where applicable
-		allowZeroAmount := entry.EntryType == stockBuyEntry || entry.EntryType == stockSellEntry ||
-			entry.EntryType == stockGrantEntry || entry.EntryType == stockTransferOutEntry || entry.EntryType == stockTransferInEntry
+		// stock grant/transfer position entries use Amount=0; other stock entries now carry monetary values
+		allowZeroAmount := entry.EntryType == stockGrantEntry ||
+			entry.EntryType == stockTransferOutEntry || entry.EntryType == stockTransferInEntry
 		if !allowZeroAmount && entry.Amount == 0 {
 			return NewValidationErr("amount cannot be zero")
 		}
@@ -724,6 +838,7 @@ func stockBuyFromDb(in dbTransaction) (Transaction, error) {
 		InstrumentID:        positionEntry.InstrumentID,
 		Quantity:            positionEntry.Quantity,
 		TotalAmount:         -cashEntry.Amount,
+		StockAmount:         positionEntry.Amount,
 	}, nil
 }
 
@@ -750,6 +865,7 @@ func stockSellFromDb(in dbTransaction) (Transaction, error) {
 		InstrumentID:        positionEntry.InstrumentID,
 		Quantity:            positionEntry.Quantity,
 		TotalAmount:         cashEntry.Amount,
+		StockAmount:         -positionEntry.Amount,
 	}, nil
 }
 
@@ -864,6 +980,53 @@ type TransferUpdate struct {
 	txUpdate
 }
 
+type StockBuyUpdate struct {
+	Description         *string
+	Date                *time.Time
+	InstrumentID        *uint
+	Quantity            *float64
+	TotalAmount         *float64
+	StockAmount         *float64
+	InvestmentAccountID *uint
+	CashAccountID       *uint
+
+	txUpdate
+}
+
+type StockSellUpdate struct {
+	Description         *string
+	Date                *time.Time
+	InstrumentID        *uint
+	Quantity            *float64
+	TotalAmount         *float64
+	StockAmount         *float64
+	InvestmentAccountID *uint
+	CashAccountID       *uint
+
+	txUpdate
+}
+
+type StockGrantUpdate struct {
+	Description  *string
+	Date         *time.Time
+	InstrumentID *uint
+	Quantity     *float64
+	AccountID    *uint
+
+	txUpdate
+}
+
+type StockTransferUpdate struct {
+	Description     *string
+	Date            *time.Time
+	InstrumentID    *uint
+	Quantity        *float64
+	SourceAccountID *uint
+	TargetAccountID *uint
+
+	txUpdate
+}
+
 // TODO: there is nothing preventing an income category to be tagged with an expense entry
 
 func (store *Store) UpdateTransaction(ctx context.Context, input TransactionUpdate, Id uint, tenant string) error {
@@ -874,6 +1037,14 @@ func (store *Store) UpdateTransaction(ctx context.Context, input TransactionUpda
 		return store.UpdateExpense(ctx, item, Id, tenant)
 	case TransferUpdate:
 		return store.UpdateTransfer(ctx, item, Id, tenant)
+	case StockBuyUpdate:
+		return store.UpdateStockBuy(ctx, item, Id, tenant)
+	case StockSellUpdate:
+		return store.UpdateStockSell(ctx, item, Id, tenant)
+	case StockGrantUpdate:
+		return store.UpdateStockGrant(ctx, item, Id, tenant)
+	case StockTransferUpdate:
+		return store.UpdateStockTransfer(ctx, item, Id, tenant)
 	default:
 		return errors.New("invalid baseTx type")
 	}
@@ -1176,6 +1347,406 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 	return nil
 }
 
+func (store *Store) UpdateStockBuy(ctx context.Context, input StockBuyUpdate, id uint, tenant string) error {
+	var selectedFields []string
+	var updateStruct dbTransaction
+
+	if input.Description != nil {
+		if *input.Description == "" {
+			return NewValidationErr("description cannot be empty")
+		}
+		updateStruct.Description = *input.Description
+		selectedFields = append(selectedFields, "Description")
+	}
+	if input.Date != nil {
+		if input.Date.IsZero() {
+			return NewValidationErr("date cannot be zero")
+		}
+		updateStruct.Date = *input.Date
+		selectedFields = append(selectedFields, "Date")
+	}
+
+	var positionEntry dbEntry
+	var positionFields []string
+	if input.InvestmentAccountID != nil {
+		if *input.InvestmentAccountID == 0 {
+			return NewValidationErr("investment account is required")
+		}
+		acc, err := store.GetAccount(ctx, *input.InvestmentAccountID, tenant)
+		if err != nil {
+			return fmt.Errorf("error updating stock buy: %w", err)
+		}
+		if !slices.Contains(allowedPositionAccountTypes, acc.Type) {
+			return NewValidationErr("investment account must be Investment or Unvested")
+		}
+		positionEntry.AccountID = *input.InvestmentAccountID
+		positionFields = append(positionFields, "AccountID")
+	}
+	var newInstrument *Instrument
+	if input.InstrumentID != nil {
+		if *input.InstrumentID == 0 {
+			return NewValidationErr("instrument is required")
+		}
+		inst, err := store.GetInstrument(ctx, *input.InstrumentID, tenant)
+		if err != nil {
+			if errors.Is(err, ErrInstrumentNotFound) {
+				return ErrValidation("instrument not found")
+			}
+			return fmt.Errorf("error updating stock buy: %w", err)
+		}
+		newInstrument = &inst
+		positionEntry.InstrumentID = *input.InstrumentID
+		positionFields = append(positionFields, "InstrumentID")
+	}
+	if input.Quantity != nil {
+		if *input.Quantity <= 0 {
+			return NewValidationErr("quantity must be positive")
+		}
+		positionEntry.Quantity = *input.Quantity
+		positionFields = append(positionFields, "Quantity")
+	}
+	if input.StockAmount != nil {
+		if *input.StockAmount <= 0 {
+			return NewValidationErr("stock amount must be positive")
+		}
+		positionEntry.Amount = *input.StockAmount
+		positionFields = append(positionFields, "Amount")
+	}
+
+	// Validate instrument/account currency match when either changes
+	if err := store.validateStockCurrencyMatch(ctx, id, tenant, input.InvestmentAccountID, input.InstrumentID, newInstrument, StockBuyTransaction); err != nil {
+		return err
+	}
+
+	var cashEntry dbEntry
+	var cashFields []string
+	if input.CashAccountID != nil {
+		if *input.CashAccountID == 0 {
+			return NewValidationErr("cash account is required")
+		}
+		acc, err := store.GetAccount(ctx, *input.CashAccountID, tenant)
+		if err != nil {
+			return fmt.Errorf("error updating stock buy: %w", err)
+		}
+		if !slices.Contains(allowedCashAccountTypes, acc.Type) {
+			return NewValidationErr("cash account must be Cash, Checkin or Savings")
+		}
+		cashEntry.AccountID = *input.CashAccountID
+		cashFields = append(cashFields, "AccountID")
+	}
+	if input.TotalAmount != nil {
+		if *input.TotalAmount <= 0 {
+			return NewValidationErr("total amount must be positive")
+		}
+		cashEntry.Amount = -*input.TotalAmount
+		cashFields = append(cashFields, "Amount")
+	}
+
+	if len(selectedFields) == 0 && len(positionFields) == 0 && len(cashFields) == 0 {
+		return ErrNoChanges
+	}
+
+	wParams := writeTxUpdateParams{
+		selectedFields:   selectedFields,
+		updateStruct:     updateStruct,
+		txType:           StockBuyTransaction,
+		entryType1Fields: positionFields,
+		entryType1Values: positionEntry,
+		entryType1:       stockBuyEntry,
+		entryType2Fields: cashFields,
+		entryType2Values: cashEntry,
+		entryType2:       stockCashOutEntry,
+	}
+	if err := store.writeTxUpdate(wParams, id, tenant); err != nil {
+		return fmt.Errorf("error updating stock buy: %w", err)
+	}
+	return nil
+}
+
+func (store *Store) UpdateStockSell(ctx context.Context, input StockSellUpdate, id uint, tenant string) error {
+	var selectedFields []string
+	var updateStruct dbTransaction
+
+	if input.Description != nil {
+		if *input.Description == "" {
+			return NewValidationErr("description cannot be empty")
+		}
+		updateStruct.Description = *input.Description
+		selectedFields = append(selectedFields, "Description")
+	}
+	if input.Date != nil {
+		if input.Date.IsZero() {
+			return NewValidationErr("date cannot be zero")
+		}
+		updateStruct.Date = *input.Date
+		selectedFields = append(selectedFields, "Date")
+	}
+
+	var positionEntry dbEntry
+	var positionFields []string
+	if input.InvestmentAccountID != nil {
+		if *input.InvestmentAccountID == 0 {
+			return NewValidationErr("investment account is required")
+		}
+		acc, err := store.GetAccount(ctx, *input.InvestmentAccountID, tenant)
+		if err != nil {
+			return fmt.Errorf("error updating stock sell: %w", err)
+		}
+		if !slices.Contains(allowedPositionAccountTypes, acc.Type) {
+			return NewValidationErr("investment account must be Investment or Unvested")
+		}
+		positionEntry.AccountID = *input.InvestmentAccountID
+		positionFields = append(positionFields, "AccountID")
+	}
+	var newInstrument *Instrument
+	if input.InstrumentID != nil {
+		if *input.InstrumentID == 0 {
+			return NewValidationErr("instrument is required")
+		}
+		inst, err := store.GetInstrument(ctx, *input.InstrumentID, tenant)
+		if err != nil {
+			if errors.Is(err, ErrInstrumentNotFound) {
+				return ErrValidation("instrument not found")
+			}
+			return fmt.Errorf("error updating stock sell: %w", err)
+		}
+		newInstrument = &inst
+		positionEntry.InstrumentID = *input.InstrumentID
+		positionFields = append(positionFields, "InstrumentID")
+	}
+	if input.Quantity != nil {
+		if *input.Quantity <= 0 {
+			return NewValidationErr("quantity must be positive")
+		}
+		positionEntry.Quantity = *input.Quantity
+		positionFields = append(positionFields, "Quantity")
+	}
+	if input.StockAmount != nil {
+		if *input.StockAmount <= 0 {
+			return NewValidationErr("stock amount must be positive")
+		}
+		positionEntry.Amount = -*input.StockAmount
+		positionFields = append(positionFields, "Amount")
+	}
+
+	// Validate instrument/account currency match when either changes
+	if err := store.validateStockCurrencyMatch(ctx, id, tenant, input.InvestmentAccountID, input.InstrumentID, newInstrument, StockSellTransaction); err != nil {
+		return err
+	}
+
+	var cashEntry dbEntry
+	var cashFields []string
+	if input.CashAccountID != nil {
+		if *input.CashAccountID == 0 {
+			return NewValidationErr("cash account is required")
+		}
+		acc, err := store.GetAccount(ctx, *input.CashAccountID, tenant)
+		if err != nil {
+			return fmt.Errorf("error updating stock sell: %w", err)
+		}
+		if !slices.Contains(allowedCashAccountTypes, acc.Type) {
+			return NewValidationErr("cash account must be Cash, Checkin or Savings")
+		}
+		cashEntry.AccountID = *input.CashAccountID
+		cashFields = append(cashFields, "AccountID")
+	}
+	if input.TotalAmount != nil {
+		if *input.TotalAmount <= 0 {
+			return NewValidationErr("total amount must be positive")
+		}
+		cashEntry.Amount = *input.TotalAmount
+		cashFields = append(cashFields, "Amount")
+	}
+
+	if len(selectedFields) == 0 && len(positionFields) == 0 && len(cashFields) == 0 {
+		return ErrNoChanges
+	}
+
+	wParams := writeTxUpdateParams{
+		selectedFields:   selectedFields,
+		updateStruct:     updateStruct,
+		txType:           StockSellTransaction,
+		entryType1Fields: positionFields,
+		entryType1Values: positionEntry,
+		entryType1:       stockSellEntry,
+		entryType2Fields: cashFields,
+		entryType2Values: cashEntry,
+		entryType2:       stockCashInEntry,
+	}
+	if err := store.writeTxUpdate(wParams, id, tenant); err != nil {
+		return fmt.Errorf("error updating stock sell: %w", err)
+	}
+	return nil
+}
+
+func (store *Store) UpdateStockGrant(ctx context.Context, input StockGrantUpdate, id uint, tenant string) error {
+	var selectedFields []string
+	var updateStruct dbTransaction
+
+	if input.Description != nil {
+		if *input.Description == "" {
+			return NewValidationErr("description cannot be empty")
+		}
+		updateStruct.Description = *input.Description
+		selectedFields = append(selectedFields, "Description")
+	}
+	if input.Date != nil {
+		if input.Date.IsZero() {
+			return NewValidationErr("date cannot be zero")
+		}
+		updateStruct.Date = *input.Date
+		selectedFields = append(selectedFields, "Date")
+	}
+
+	var grantEntry dbEntry
+	var grantFields []string
+	if input.AccountID != nil {
+		if *input.AccountID == 0 {
+			return NewValidationErr("account is required")
+		}
+		acc, err := store.GetAccount(ctx, *input.AccountID, tenant)
+		if err != nil {
+			return fmt.Errorf("error updating stock grant: %w", err)
+		}
+		if !slices.Contains(allowedPositionAccountTypes, acc.Type) {
+			return NewValidationErr("account must be Investment or Unvested")
+		}
+		grantEntry.AccountID = *input.AccountID
+		grantFields = append(grantFields, "AccountID")
+	}
+	if input.InstrumentID != nil {
+		if *input.InstrumentID == 0 {
+			return NewValidationErr("instrument is required")
+		}
+		if _, err := store.GetInstrument(ctx, *input.InstrumentID, tenant); err != nil {
+			if errors.Is(err, ErrInstrumentNotFound) {
+				return ErrValidation("instrument not found")
+			}
+			return fmt.Errorf("error updating stock grant: %w", err)
+		}
+		grantEntry.InstrumentID = *input.InstrumentID
+		grantFields = append(grantFields, "InstrumentID")
+	}
+	if input.Quantity != nil {
+		if *input.Quantity <= 0 {
+			return NewValidationErr("quantity must be positive")
+		}
+		grantEntry.Quantity = *input.Quantity
+		grantFields = append(grantFields, "Quantity")
+	}
+
+	if len(selectedFields) == 0 && len(grantFields) == 0 {
+		return ErrNoChanges
+	}
+
+	wParams := writeTxUpdateParams{
+		selectedFields:   selectedFields,
+		updateStruct:     updateStruct,
+		txType:           StockGrantTransaction,
+		entryType1Fields: grantFields,
+		entryType1Values: grantEntry,
+		entryType1:       stockGrantEntry,
+	}
+	if err := store.writeTxUpdate(wParams, id, tenant); err != nil {
+		return fmt.Errorf("error updating stock grant: %w", err)
+	}
+	return nil
+}
+
+func (store *Store) UpdateStockTransfer(ctx context.Context, input StockTransferUpdate, id uint, tenant string) error {
+	var selectedFields []string
+	var updateStruct dbTransaction
+
+	if input.Description != nil {
+		if *input.Description == "" {
+			return NewValidationErr("description cannot be empty")
+		}
+		updateStruct.Description = *input.Description
+		selectedFields = append(selectedFields, "Description")
+	}
+	if input.Date != nil {
+		if input.Date.IsZero() {
+			return NewValidationErr("date cannot be zero")
+		}
+		updateStruct.Date = *input.Date
+		selectedFields = append(selectedFields, "Date")
+	}
+
+	var outEntry dbEntry
+	var outFields []string
+	if input.SourceAccountID != nil {
+		if *input.SourceAccountID == 0 {
+			return NewValidationErr("source account is required")
+		}
+		acc, err := store.GetAccount(ctx, *input.SourceAccountID, tenant)
+		if err != nil {
+			return fmt.Errorf("error updating stock transfer: %w", err)
+		}
+		if !slices.Contains(allowedPositionAccountTypes, acc.Type) {
+			return NewValidationErr("source account must be Investment or Unvested")
+		}
+		outEntry.AccountID = *input.SourceAccountID
+		outFields = append(outFields, "AccountID")
+	}
+	if input.InstrumentID != nil {
+		if *input.InstrumentID == 0 {
+			return NewValidationErr("instrument is required")
+		}
+		if _, err := store.GetInstrument(ctx, *input.InstrumentID, tenant); err != nil {
+			if errors.Is(err, ErrInstrumentNotFound) {
+				return ErrValidation("instrument not found")
+			}
+			return fmt.Errorf("error updating stock transfer: %w", err)
+		}
+		outEntry.InstrumentID = *input.InstrumentID
+		outFields = append(outFields, "InstrumentID")
+	}
+	if input.Quantity != nil {
+		if *input.Quantity <= 0 {
+			return NewValidationErr("quantity must be positive")
+		}
+		outEntry.Quantity = *input.Quantity
+		outFields = append(outFields, "Quantity")
+	}
+
+	var inEntry dbEntry
+	var inFields []string
+	if input.TargetAccountID != nil {
+		if *input.TargetAccountID == 0 {
+			return NewValidationErr("target account is required")
+		}
+		acc, err := store.GetAccount(ctx, *input.TargetAccountID, tenant)
+		if err != nil {
+			return fmt.Errorf("error updating stock transfer: %w", err)
+		}
+		if !slices.Contains(allowedPositionAccountTypes, acc.Type) {
+			return NewValidationErr("target account must be Investment or Unvested")
+		}
+		inEntry.AccountID = *input.TargetAccountID
+		inFields = append(inFields, "AccountID")
+	}
+
+	if len(selectedFields) == 0 && len(outFields) == 0 && len(inFields) == 0 {
+		return ErrNoChanges
+	}
+
+	wParams := writeTxUpdateParams{
+		selectedFields:   selectedFields,
+		updateStruct:     updateStruct,
+		txType:           StockTransferTransaction,
+		entryType1Fields: outFields,
+		entryType1Values: outEntry,
+		entryType1:       stockTransferOutEntry,
+		entryType2Fields: inFields,
+		entryType2Values: inEntry,
+		entryType2:       stockTransferInEntry,
+	}
+	if err := store.writeTxUpdate(wParams, id, tenant); err != nil {
+		return fmt.Errorf("error updating stock transfer: %w", err)
+	}
+	return nil
+}
+
 type ListOpts struct {
 	StartDate time.Time
 	EndDate   time.Time
@@ -1225,6 +1796,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts, tenant 
         CAST(MAX(CASE WHEN db_entries.entry_type IN (5, 6) THEN db_entries.quantity END) AS REAL) AS stock_quantity,
         CAST(MAX(CASE WHEN db_entries.entry_type IN (5, 6) THEN db_entries.entry_type END) AS INTEGER) AS stock_entry_type,
         CAST(MAX(CASE WHEN db_entries.entry_type IN (5, 6) THEN db_entries.account_id END) AS INTEGER) AS stock_account_id,
+        CAST(MAX(CASE WHEN db_entries.entry_type IN (5, 6) THEN db_entries.amount END) AS REAL) AS stock_position_amount,
         -- stock cash leg (out=7, in=8)
         CAST(MAX(CASE WHEN db_entries.entry_type IN (7, 8) THEN db_entries.account_id END) AS INTEGER) AS stock_cash_account_id,
         CAST(MAX(CASE WHEN db_entries.entry_type IN (7, 8) THEN db_entries.amount END) AS REAL) AS stock_cash_amount,
@@ -1286,12 +1858,13 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts, tenant 
 		TargetAccountId  uint
 		TargetAmount     float64
 
-		StockInstrumentId  uint
-		StockQuantity      float64
-		StockEntryType     int
-		StockAccountId     uint
-		StockCashAccountId uint
-		StockCashAmount    float64
+		StockInstrumentId   uint
+		StockQuantity       float64
+		StockEntryType      int
+		StockAccountId      uint
+		StockPositionAmount float64
+		StockCashAccountId  uint
+		StockCashAmount     float64
 
 		StockGrantInstrumentId uint
 		StockGrantQuantity     float64
@@ -1355,6 +1928,10 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts, tenant 
 			if totalAmount < 0 {
 				totalAmount = -totalAmount
 			}
+			stockAmount := item.StockPositionAmount
+			if stockAmount < 0 {
+				stockAmount = -stockAmount
+			}
 			txs = append(txs, StockBuy{
 				Id:                  item.TransactionId,
 				Description:         item.Description,
@@ -1364,11 +1941,16 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts, tenant 
 				InstrumentID:        item.StockInstrumentId,
 				Quantity:            item.StockQuantity,
 				TotalAmount:         totalAmount,
+				StockAmount:         stockAmount,
 			})
 		case StockSellTransaction:
 			totalAmount := item.StockCashAmount
 			if totalAmount < 0 {
 				totalAmount = -totalAmount
+			}
+			stockAmount := item.StockPositionAmount
+			if stockAmount < 0 {
+				stockAmount = -stockAmount
 			}
 			txs = append(txs, StockSell{
 				Id:                  item.TransactionId,
@@ -1379,6 +1961,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts, tenant 
 				InstrumentID:        item.StockInstrumentId,
 				Quantity:            item.StockQuantity,
 				TotalAmount:         totalAmount,
+				StockAmount:         stockAmount,
 			})
 		case StockGrantTransaction:
 			txs = append(txs, StockGrant{

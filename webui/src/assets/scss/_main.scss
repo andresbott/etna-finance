@@ -94,11 +94,15 @@ a {
 .entry-dialog {
     width: 90vw;
     max-width: 500px;
-    
+
+    .p-dialog-content {
+        overflow-x: hidden;
+    }
+
     &.entry-dialog--wide {
         max-width: 700px;
     }
-    
+
     /* Make all form inputs full width within dialogs */
     .p-inputtext,
     .p-inputnumber,

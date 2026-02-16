@@ -78,6 +78,20 @@ func main() {
 	}
 
 	// ======================================================================
+	// Create instruments
+	// ======================================================================
+
+	for i := range Instruments {
+		instID, err := createInstrument(apiBase, Instruments[i])
+		if err != nil {
+			slog.Error("Failed to create instrument", "symbol", Instruments[i].Symbol, "error", err)
+			continue
+		}
+		Instruments[i].ID = instID
+		slog.Info("✅ Instrument created", "symbol", Instruments[i].Symbol, "id", instID)
+	}
+
+	// ======================================================================
 	// Create sample entries
 	// ======================================================================
 
@@ -94,6 +108,24 @@ func main() {
 			slog.Error(fmt.Sprintf("Failed to create entry '%s': %v", entry.Description, err))
 		} else {
 			slog.Info(fmt.Sprintf("✅ Entry '%s' created with id: %d", entry.Description, entryID))
+		}
+	}
+
+	// ======================================================================
+	// Create stock / instrument entries
+	// ======================================================================
+
+	for _, stockDef := range StockEntries {
+		payload, err := convertStockEntryDefinitionToPayload(stockDef)
+		if err != nil {
+			slog.Error("Failed to convert stock entry", "description", stockDef.Description, "error", err)
+			continue
+		}
+		entryID, err := createStockEntry(apiBase, payload)
+		if err != nil {
+			slog.Error("Failed to create stock entry", "description", stockDef.Description, "error", err)
+		} else {
+			slog.Info("✅ Stock entry created", "description", stockDef.Description, "id", entryID)
 		}
 	}
 

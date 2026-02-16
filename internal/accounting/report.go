@@ -168,7 +168,7 @@ type AccountBalance struct {
 }
 
 // entry types used when calling sum entries for balance purposes
-var balanceEntryTypes = []entryType{incomeEntry, expenseEntry, transferInEntry, transferOutEntry, stockCashOutEntry, stockCashInEntry}
+var balanceEntryTypes = []entryType{incomeEntry, expenseEntry, transferInEntry, transferOutEntry, stockCashOutEntry, stockCashInEntry, stockBuyEntry, stockSellEntry}
 
 // AccountBalanceSingle get the balance of a single account on a given point in time
 func (store *Store) AccountBalanceSingle(ctx context.Context, accountID uint, endDate time.Time, tenant string) (AccountBalance, error) {

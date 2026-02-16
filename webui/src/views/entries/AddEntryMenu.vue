@@ -159,6 +159,7 @@ const dropdownOptions = computed(() => {
             v-model:visible="dialogs.buyStock"
             :isEdit="false"
             operation-type="buy"
+            :investment-account-id="defaultAccountId"
             @update:visible="dialogs.buyStock = $event"
         />
 
@@ -167,6 +168,7 @@ const dropdownOptions = computed(() => {
             v-model:visible="dialogs.sellStock"
             :isEdit="false"
             operation-type="sell"
+            :investment-account-id="defaultAccountId"
             @update:visible="dialogs.sellStock = $event"
         />
 
@@ -174,6 +176,7 @@ const dropdownOptions = computed(() => {
         <GrantDialog
             v-model:visible="dialogs.grantStock"
             :isEdit="false"
+            :account-id="defaultAccountId"
             @update:visible="dialogs.grantStock = $event"
         />
 
@@ -181,6 +184,7 @@ const dropdownOptions = computed(() => {
         <TransferInstrumentDialog
             v-model:visible="dialogs.transferInstrument"
             :isEdit="false"
+            :origin-account-id="defaultOriginAccountId ?? defaultAccountId"
             @update:visible="dialogs.transferInstrument = $event"
         />
     </div>

@@ -7,6 +7,13 @@ import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
 import { useEntries } from '@/composables/useEntries.ts'
 import { useAccounts } from '@/composables/useAccounts.js'
+import {
+    getFormattedAccountId,
+    getDateOnly,
+    extractAccountId,
+    toDateString,
+    getSubmitValues
+} from '@/composables/useEntryDialogForm'
 
 import AccountSelector from '@/components/AccountSelector.vue'
 import Message from 'primevue/message'
@@ -47,19 +54,6 @@ watch(() => [props.visible, props.autofocusAmount], ([visible, autofocus]) => {
     }
 })
 
-// Convert numeric accountId to {id: true} format for form validation
-const getFormattedAccountId = (accountId) => {
-    if (accountId === null || accountId === undefined) return null
-    return { [accountId]: true }
-}
-
-// Strip time from date for date-only display
-const getDateOnly = (date) => {
-    if (!date) return new Date(new Date().setHours(0, 0, 0, 0))
-    const d = new Date(date)
-    return new Date(d.getFullYear(), d.getMonth(), d.getDate())
-}
-
 const formValues = ref({
     description: props.description,
     date: getDateOnly(props.date),
@@ -80,24 +74,6 @@ watch(props, (newProps) => {
         originAccountId: getFormattedAccountId(newProps.originAccountId)
     }
 })
-
-// Helper function to extract numeric ID from {id: true} object
-const extractAccountId = (formValue) => {
-    if (!formValue) return null
-
-    // Handle numeric ID (for backwards compatibility)
-    if (typeof formValue === 'number') return formValue
-
-    // Handle {id: true} format
-    if (typeof formValue === 'object') {
-        const keys = Object.keys(formValue)
-        if (keys.length > 0) {
-            return parseInt(keys[0], 10)
-        }
-    }
-
-    return null
-}
 
 // Track selected accounts
 const selectedTargetAccount = ref(null)
@@ -211,25 +187,24 @@ const dialogTitle = computed(() => {
 })
 
 const handleSubmit = async (e) => {
-    if (!e.valid) return
+    e.preventDefault?.()
+    const values = getSubmitValues(e, formValues)
+    const description = (values.description ?? formValues.value.description ?? '').toString().trim()
+    const targetAmount = Number(values.targetAmount ?? formValues.value.targetAmount ?? 0)
+    const originAmount = Number(values.originAmount ?? formValues.value.originAmount ?? 0)
+    const targetAccountId = extractAccountId(values.targetAccountId ?? formValues.value.targetAccountId)
+    const originAccountId = extractAccountId(values.originAccountId ?? formValues.value.originAccountId)
+    const date = values.date ?? formValues.value.date
 
-    // Extract account IDs from the form values
-    const formData = { ...e.values }
-
-    // Convert targetAccountId from {id: true} to numeric id
-    if (formData.targetAccountId && typeof formData.targetAccountId === 'object') {
-        const targetKeys = Object.keys(formData.targetAccountId)
-        formData.targetAccountId = targetKeys.length > 0 ? parseInt(targetKeys[0], 10) : null
-    }
-
-    // Convert originAccountId from {id: true} to numeric id
-    if (formData.originAccountId && typeof formData.originAccountId === 'object') {
-        const originKeys = Object.keys(formData.originAccountId)
-        formData.originAccountId = originKeys.length > 0 ? parseInt(originKeys[0], 10) : null
-    }
+    if (!description || !(targetAmount > 0) || !(originAmount > 0) || targetAccountId == null || originAccountId == null) return
 
     const entryData = {
-        ...formData,
+        description,
+        date: toDateString(date),
+        targetAmount,
+        originAmount,
+        targetAccountId,
+        originAccountId,
         type: 'transfer'
     }
 
@@ -272,8 +247,19 @@ const emit = defineEmits(['update:visible'])
                     <!-- Description Field -->
                     <div>
                         <label for="description" class="form-label">Description</label>
-                        <InputText id="description" name="description" v-if="autofocusAmount" />
-                        <InputText id="description" name="description" v-focus v-else />
+                        <InputText
+                            id="description"
+                            v-model="formValues.description"
+                            name="description"
+                            v-if="autofocusAmount"
+                        />
+                        <InputText
+                            id="description"
+                            v-model="formValues.description"
+                            name="description"
+                            v-focus
+                            v-else
+                        />
                         <Message v-if="$form.description?.invalid" severity="error" size="small">
                             {{ $form.description.error?.message }}
                         </Message>
@@ -330,6 +316,7 @@ const emit = defineEmits(['update:visible'])
                             <InputNumber
                                 ref="originAmountInputRef"
                                 id="originAmount"
+                                v-model="formValues.originAmount"
                                 name="originAmount"
                                 :minFractionDigits="2"
                                 :maxFractionDigits="2"
@@ -376,6 +363,7 @@ const emit = defineEmits(['update:visible'])
                             <label for="targetAmount" class="form-label">Target Amount</label>
                             <InputNumber
                                 id="targetAmount"
+                                v-model="formValues.targetAmount"
                                 name="targetAmount"
                                 :minFractionDigits="2"
                                 :maxFractionDigits="2"

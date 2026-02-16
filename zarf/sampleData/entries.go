@@ -17,13 +17,36 @@ type Entry struct {
 	// used for income / expense
 	Amount     float64 `json:"Amount"`
 	AccountId  uint    `json:"accountId"`
-	CategoryId uint    `json:"CategoryId"`
+	CategoryId uint    `json:"categoryId"`
 
 	// used for transfers
 	TargetAmount    float64 `json:"targetAmount"`
 	TargetAccountID uint    `json:"targetAccountId"`
 	OriginAmount    float64 `json:"originAmount"`
 	OriginAccountID uint    `json:"originAccountId"`
+
+	// used for stock buy / sell
+	InstrumentID        uint    `json:"instrumentId,omitempty"`
+	Quantity            float64 `json:"quantity,omitempty"`
+	TotalAmount         float64 `json:"totalAmount,omitempty"`
+	InvestmentAccountID uint    `json:"investmentAccountId,omitempty"`
+	CashAccountID       uint    `json:"cashAccountId,omitempty"`
+}
+
+// stockEntryPayload is sent to the API for stock transactions (date as string).
+type stockEntryPayload struct {
+	Description         string  `json:"description"`
+	Date                string  `json:"date"` // "2006-01-02"
+	Type                string  `json:"type"`
+	InstrumentID        uint    `json:"instrumentId"`
+	Quantity            float64 `json:"quantity"`
+	TotalAmount         float64 `json:"totalAmount,omitempty"`
+	StockAmount         float64 `json:"StockAmount,omitempty"`
+	InvestmentAccountID uint    `json:"investmentAccountId,omitempty"`
+	CashAccountID       uint    `json:"cashAccountId,omitempty"`
+	AccountId           uint    `json:"accountId,omitempty"`
+	OriginAccountID     uint    `json:"originAccountId,omitempty"`
+	TargetAccountID     uint    `json:"targetAccountId,omitempty"`
 }
 
 // EntryDefinition represents an entry definition with string references
@@ -131,4 +154,73 @@ func convertEntryDefinitionToEntry(def EntryDefinition, expenseCategoryMap, inco
 	}
 
 	return entry, nil
+}
+
+// convertStockEntryDefinitionToPayload converts a StockEntryDefinition to the API payload, resolving names to IDs.
+func convertStockEntryDefinitionToPayload(def StockEntryDefinition) (stockEntryPayload, error) {
+	date := deltaTime(def.DaysDelta)
+	payload := stockEntryPayload{
+		Description: def.Description,
+		Date:        date.Format("2006-01-02"),
+		Type:        def.Type,
+		Quantity:    def.Quantity,
+	}
+
+	instrumentID, err := findInstrumentID(def.Instrument)
+	if err != nil {
+		return stockEntryPayload{}, fmt.Errorf("instrument: %w", err)
+	}
+	payload.InstrumentID = uint(instrumentID)
+
+	switch def.Type {
+	case "stockbuy", "stocksell":
+		invID, err := findAccountID(def.InvestmentProvider, def.InvestmentAccount)
+		if err != nil {
+			return stockEntryPayload{}, fmt.Errorf("investment account: %w", err)
+		}
+		cashID, err := findAccountID(def.CashProvider, def.CashAccount)
+		if err != nil {
+			return stockEntryPayload{}, fmt.Errorf("cash account: %w", err)
+		}
+		payload.InvestmentAccountID = uint(invID)
+		payload.CashAccountID = uint(cashID)
+		payload.TotalAmount = def.TotalAmount
+		payload.StockAmount = def.StockAmount
+	case "stockgrant":
+		accID, err := findAccountID(def.InvestmentProvider, def.InvestmentAccount)
+		if err != nil {
+			return stockEntryPayload{}, fmt.Errorf("account: %w", err)
+		}
+		payload.AccountId = uint(accID)
+	case "stocktransfer":
+		originID, err := findAccountID(def.OriginProvider, def.OriginAccount)
+		if err != nil {
+			return stockEntryPayload{}, fmt.Errorf("origin account: %w", err)
+		}
+		targetID, err := findAccountID(def.TargetProvider, def.TargetAccount)
+		if err != nil {
+			return stockEntryPayload{}, fmt.Errorf("target account: %w", err)
+		}
+		payload.OriginAccountID = uint(originID)
+		payload.TargetAccountID = uint(targetID)
+	default:
+		return stockEntryPayload{}, fmt.Errorf("unknown stock entry type: %s", def.Type)
+	}
+
+	return payload, nil
+}
+
+type stockEntryCreateResponse struct {
+	Id uint `json:"id"`
+}
+
+// createStockEntry POSTs a stock transaction to the entries API and returns the created id.
+func createStockEntry(baseURL string, payload stockEntryPayload) (uint, error) {
+	url := fmt.Sprintf("%s/api/v0/fin/entries", baseURL)
+	var resp stockEntryCreateResponse
+	err := postJSON(url, payload, &resp)
+	if err != nil {
+		return 0, err
+	}
+	return resp.Id, nil
 }

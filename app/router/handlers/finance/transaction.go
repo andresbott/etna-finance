@@ -11,12 +11,34 @@ import (
 	"github.com/andresbott/etna/internal/accounting"
 )
 
+// dateOnlyTime unmarshals JSON date strings in "2006-01-02" or full RFC3339 format.
+type dateOnlyTime struct{ time.Time }
+
+func (t *dateOnlyTime) UnmarshalJSON(b []byte) error {
+	s := strings.Trim(string(b), `"`)
+	if s == "" || s == "null" {
+		t.Time = time.Time{}
+		return nil
+	}
+	parsed, err := time.Parse("2006-01-02", s)
+	if err == nil {
+		t.Time = parsed
+		return nil
+	}
+	parsed, err = time.Parse(time.RFC3339, s)
+	if err != nil {
+		return err
+	}
+	t.Time = parsed
+	return nil
+}
+
 // generic payload struct used to handle all transaction types
 type transactionPayload struct {
-	Id          uint      `json:"id"`
-	Description string    `json:"description"`
-	Date        time.Time `json:"date"`
-	Type        string    `json:"type"`
+	Id          uint         `json:"id"`
+	Description string       `json:"description"`
+	Date        dateOnlyTime `json:"date"`
+	Type        string       `json:"type"`
 
 	StockAmount float64 `json:"StockAmount"`
 
@@ -64,7 +86,7 @@ func (h *Handler) CreateTx(userId string) http.Handler {
 		case accounting.IncomeTransaction:
 			entry = accounting.Income{
 				Description: payload.Description,
-				Date:        payload.Date,
+				Date:        payload.Date.Time,
 				Amount:      payload.Amount,
 				AccountID:   payload.AccountId,
 				CategoryID:  payload.CategoryId,
@@ -72,7 +94,7 @@ func (h *Handler) CreateTx(userId string) http.Handler {
 		case accounting.ExpenseTransaction:
 			entry = accounting.Expense{
 				Description: payload.Description,
-				Date:        payload.Date,
+				Date:        payload.Date.Time,
 				Amount:      payload.Amount,
 				AccountID:   payload.AccountId,
 				CategoryID:  payload.CategoryId,
@@ -80,7 +102,7 @@ func (h *Handler) CreateTx(userId string) http.Handler {
 		case accounting.TransferTransaction:
 			entry = accounting.Transfer{
 				Description:     payload.Description,
-				Date:            payload.Date,
+				Date:            payload.Date.Time,
 				OriginAmount:    payload.OriginAmount,
 				OriginAccountID: payload.OriginAccountID,
 				TargetAmount:    payload.TargetAmount,
@@ -89,27 +111,29 @@ func (h *Handler) CreateTx(userId string) http.Handler {
 		case accounting.StockBuyTransaction:
 			entry = accounting.StockBuy{
 				Description:         payload.Description,
-				Date:                payload.Date,
+				Date:                payload.Date.Time,
 				InvestmentAccountID: payload.InvestmentAccountID,
 				CashAccountID:       payload.CashAccountID,
 				InstrumentID:        payload.InstrumentID,
 				Quantity:            payload.Quantity,
 				TotalAmount:         payload.TotalAmount,
+				StockAmount:         payload.StockAmount,
 			}
 		case accounting.StockSellTransaction:
 			entry = accounting.StockSell{
 				Description:         payload.Description,
-				Date:                payload.Date,
+				Date:                payload.Date.Time,
 				InvestmentAccountID: payload.InvestmentAccountID,
 				CashAccountID:       payload.CashAccountID,
 				InstrumentID:        payload.InstrumentID,
 				Quantity:            payload.Quantity,
 				TotalAmount:         payload.TotalAmount,
+				StockAmount:         payload.StockAmount,
 			}
 		case accounting.StockGrantTransaction:
 			entry = accounting.StockGrant{
 				Description:  payload.Description,
-				Date:         payload.Date,
+				Date:         payload.Date.Time,
 				AccountID:    payload.AccountId,
 				InstrumentID: payload.InstrumentID,
 				Quantity:     payload.Quantity,
@@ -117,7 +141,7 @@ func (h *Handler) CreateTx(userId string) http.Handler {
 		case accounting.StockTransferTransaction:
 			entry = accounting.StockTransfer{
 				Description:     payload.Description,
-				Date:            payload.Date,
+				Date:            payload.Date.Time,
 				SourceAccountID: payload.OriginAccountID,
 				TargetAccountID: payload.TargetAccountID,
 				InstrumentID:    payload.InstrumentID,
@@ -151,11 +175,41 @@ func (h *Handler) CreateTx(userId string) http.Handler {
 	})
 }
 
+// dateOnlyTimePtr is like dateOnlyTime but for pointer; unmarshals "2006-01-02" or RFC3339.
+type dateOnlyTimePtr struct{ time.Time }
+
+func (t *dateOnlyTimePtr) UnmarshalJSON(b []byte) error {
+	s := strings.Trim(string(b), `"`)
+	if s == "" || s == "null" {
+		t.Time = time.Time{}
+		return nil
+	}
+	parsed, err := time.Parse("2006-01-02", s)
+	if err == nil {
+		t.Time = parsed
+		return nil
+	}
+	parsed, err = time.Parse(time.RFC3339, s)
+	if err != nil {
+		return err
+	}
+	t.Time = parsed
+	return nil
+}
+
+func dateOnlyPtrToTime(d *dateOnlyTimePtr) *time.Time {
+	if d == nil {
+		return nil
+	}
+	t := d.Time
+	return &t
+}
+
 type entryUpdatePayload struct {
 	Type string `json:"type"`
 
-	Description *string    `json:"description"`
-	Date        *time.Time `json:"date"`
+	Description *string          `json:"description"`
+	Date        *dateOnlyTimePtr `json:"date"`
 
 	StockAmount *float64 `json:"stockAmount"`
 
@@ -168,6 +222,13 @@ type entryUpdatePayload struct {
 	TargetAccountID *uint    `json:"targetAccountId"`
 	OriginAmount    *float64 `json:"originAmount"`
 	OriginAccountID *uint    `json:"originAccountId"`
+
+	// used for stock buy / sell / grant / transfer
+	InstrumentID        *uint    `json:"instrumentId"`
+	Quantity            *float64 `json:"quantity"`
+	TotalAmount         *float64 `json:"totalAmount"`
+	InvestmentAccountID *uint    `json:"investmentAccountId"`
+	CashAccountID       *uint    `json:"cashAccountId"`
 }
 
 func (h *Handler) UpdateTx(Id uint, userId string) http.Handler {
@@ -194,12 +255,13 @@ func (h *Handler) UpdateTx(Id uint, userId string) http.Handler {
 			return
 		}
 
+		datePtr := dateOnlyPtrToTime(payload.Date)
 		var entry accounting.TransactionUpdate
 		switch tr.(type) {
 		case accounting.Income:
 			entry = accounting.IncomeUpdate{
 				Description: payload.Description,
-				Date:        payload.Date,
+				Date:        datePtr,
 				Amount:      payload.Amount,
 				AccountID:   payload.AccountId,
 				CategoryID:  payload.CategoryId,
@@ -207,7 +269,7 @@ func (h *Handler) UpdateTx(Id uint, userId string) http.Handler {
 		case accounting.Expense:
 			entry = accounting.ExpenseUpdate{
 				Description: payload.Description,
-				Date:        payload.Date,
+				Date:        datePtr,
 				Amount:      payload.Amount,
 				AccountID:   payload.AccountId,
 				CategoryID:  payload.CategoryId,
@@ -215,14 +277,53 @@ func (h *Handler) UpdateTx(Id uint, userId string) http.Handler {
 		case accounting.Transfer:
 			entry = accounting.TransferUpdate{
 				Description:     payload.Description,
-				Date:            payload.Date,
+				Date:            datePtr,
 				OriginAmount:    payload.OriginAmount,
 				OriginAccountID: payload.OriginAccountID,
 				TargetAmount:    payload.TargetAmount,
 				TargetAccountID: payload.TargetAccountID,
 			}
+		case accounting.StockBuy:
+			entry = accounting.StockBuyUpdate{
+				Description:         payload.Description,
+				Date:                datePtr,
+				InstrumentID:        payload.InstrumentID,
+				Quantity:            payload.Quantity,
+				TotalAmount:         payload.TotalAmount,
+				StockAmount:         payload.StockAmount,
+				InvestmentAccountID: payload.InvestmentAccountID,
+				CashAccountID:       payload.CashAccountID,
+			}
+		case accounting.StockSell:
+			entry = accounting.StockSellUpdate{
+				Description:         payload.Description,
+				Date:                datePtr,
+				InstrumentID:        payload.InstrumentID,
+				Quantity:            payload.Quantity,
+				TotalAmount:         payload.TotalAmount,
+				StockAmount:         payload.StockAmount,
+				InvestmentAccountID: payload.InvestmentAccountID,
+				CashAccountID:       payload.CashAccountID,
+			}
+		case accounting.StockGrant:
+			entry = accounting.StockGrantUpdate{
+				Description:  payload.Description,
+				Date:         datePtr,
+				InstrumentID: payload.InstrumentID,
+				Quantity:     payload.Quantity,
+				AccountID:    payload.AccountId,
+			}
+		case accounting.StockTransfer:
+			entry = accounting.StockTransferUpdate{
+				Description:     payload.Description,
+				Date:            datePtr,
+				InstrumentID:    payload.InstrumentID,
+				Quantity:        payload.Quantity,
+				SourceAccountID: payload.OriginAccountID,
+				TargetAccountID: payload.TargetAccountID,
+			}
 		default:
-			http.Error(w, fmt.Sprintf("unknown entry type: %s", payload.Type), http.StatusBadRequest)
+			http.Error(w, fmt.Sprintf("unknown entry type: %T", tr), http.StatusBadRequest)
 			return
 		}
 
@@ -342,7 +443,7 @@ func (h *Handler) ListTx(userId string) http.Handler {
 				response.Items[i] = transactionPayload{
 					Id:          item.Id,
 					Description: item.Description,
-					Date:        item.Date,
+					Date:        dateOnlyTime{Time: item.Date},
 					Type:        incomeTxStr,
 					Amount:      item.Amount,
 					AccountId:   item.AccountID,
@@ -353,7 +454,7 @@ func (h *Handler) ListTx(userId string) http.Handler {
 				response.Items[i] = transactionPayload{
 					Id:          item.Id,
 					Description: item.Description,
-					Date:        item.Date,
+					Date:        dateOnlyTime{Time: item.Date},
 					Type:        expenseTxStr,
 					Amount:      item.Amount,
 					AccountId:   item.AccountID,
@@ -364,12 +465,63 @@ func (h *Handler) ListTx(userId string) http.Handler {
 				response.Items[i] = transactionPayload{
 					Id:              item.Id,
 					Description:     item.Description,
-					Date:            item.Date,
+					Date:            dateOnlyTime{Time: item.Date},
 					Type:            transferTxStr,
 					TargetAmount:    item.TargetAmount,
 					TargetAccountID: item.TargetAccountID,
 					OriginAmount:    item.OriginAmount,
 					OriginAccountID: item.OriginAccountID,
+				}
+			case accounting.StockBuy:
+				item := entry
+				response.Items[i] = transactionPayload{
+					Id:                  item.Id,
+					Description:         item.Description,
+					Date:                dateOnlyTime{Time: item.Date},
+					Type:                stockBuyTxStr,
+					StockAmount:         item.StockAmount,
+					InstrumentID:        item.InstrumentID,
+					Quantity:            item.Quantity,
+					TotalAmount:         item.TotalAmount,
+					InvestmentAccountID: item.InvestmentAccountID,
+					CashAccountID:       item.CashAccountID,
+				}
+			case accounting.StockSell:
+				item := entry
+				response.Items[i] = transactionPayload{
+					Id:                  item.Id,
+					Description:         item.Description,
+					Date:                dateOnlyTime{Time: item.Date},
+					Type:                stockSellTxStr,
+					StockAmount:         item.StockAmount,
+					InstrumentID:        item.InstrumentID,
+					Quantity:            item.Quantity,
+					TotalAmount:         item.TotalAmount,
+					InvestmentAccountID: item.InvestmentAccountID,
+					CashAccountID:       item.CashAccountID,
+				}
+			case accounting.StockGrant:
+				item := entry
+				response.Items[i] = transactionPayload{
+					Id:           item.Id,
+					Description:  item.Description,
+					Date:         dateOnlyTime{Time: item.Date},
+					Type:         stockGrantTxStr,
+					AccountId:    item.AccountID,
+					InstrumentID: item.InstrumentID,
+					Quantity:     item.Quantity,
+				}
+			case accounting.StockTransfer:
+				item := entry
+				response.Items[i] = transactionPayload{
+					Id:              item.Id,
+					Description:     item.Description,
+					Date:            dateOnlyTime{Time: item.Date},
+					Type:            stockTransferTxStr,
+					OriginAccountID: item.SourceAccountID,
+					TargetAccountID: item.TargetAccountID,
+					InstrumentID:    item.InstrumentID,
+					Quantity:        item.Quantity,
 				}
 			}
 		}

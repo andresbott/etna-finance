@@ -7,6 +7,13 @@ import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
 import { useEntries } from '@/composables/useEntries.ts'
 import { useAccounts } from '@/composables/useAccounts.js'
+import {
+    getFormattedAccountId,
+    getDateOnly,
+    extractAccountId,
+    toDateString,
+    getSubmitValues
+} from '@/composables/useEntryDialogForm'
 
 import AccountSelector from '@/components/AccountSelector.vue'
 import Message from 'primevue/message'
@@ -50,21 +57,6 @@ watch(() => [props.visible, props.autofocusAmount], ([visible, autofocus]) => {
     }
 })
 
-console.log(props)
-
-// Convert numeric targetAccountId to {id: true} format for form validation
-const getFormattedAccountId = (accountId) => {
-    if (accountId === null || accountId === undefined) return null
-    return { [accountId]: true }
-}
-
-// Strip time from date for date-only display
-const getDateOnly = (date) => {
-    if (!date) return new Date(new Date().setHours(0, 0, 0, 0))
-    const d = new Date(date)
-    return new Date(d.getFullYear(), d.getMonth(), d.getDate())
-}
-
 const formValues = ref({
     description: props.description,
     amount: props.amount,
@@ -83,24 +75,6 @@ watch(props, (newProps) => {
         date: getDateOnly(newProps.date)
     }
 })
-
-// Helper function to extract numeric ID from {id: true} object
-const extractAccountId = (formValue) => {
-    if (!formValue) return null
-
-    // Handle numeric ID (for backwards compatibility)
-    if (typeof formValue === 'number') return formValue
-
-    // Handle {id: true} format
-    if (typeof formValue === 'object') {
-        const keys = Object.keys(formValue)
-        if (keys.length > 0) {
-            return parseInt(keys[0], 10)
-        }
-    }
-
-    return null
-}
 
 // Track if selected account is of type stocks
 const selectedAccount = ref(null)
@@ -185,22 +159,26 @@ const dialogTitle = computed(() => {
 })
 
 const handleSubmit = async (e) => {
-    if (!e.valid) return
+    e.preventDefault?.()
+    const values = getSubmitValues(e, formValues)
+    const accountId = extractAccountId(values.AccountId)
+    const description = (values.description ?? formValues.value.description ?? '').toString().trim()
+    const amount = Number(values.amount ?? formValues.value.amount ?? 0)
+    const stockAmount = values.stockAmount != null ? Number(values.stockAmount) : formValues.value.stockAmount
+    const date = values.date ?? formValues.value.date
 
-    // Extract account IDs from the form values
-    const formData = { ...e.values }
-
-    // TODO here we use the form data directly instead of the composable
-    // Convert AccountId from {id: true} to numeric id
-    if (formData.AccountId && typeof formData.AccountId === 'object') {
-        const targetKeys = Object.keys(formData.AccountId)
-        formData.AccountId = targetKeys.length > 0 ? parseInt(targetKeys[0], 10) : null
-    }
+    if (!description || !(amount > 0) || accountId == null) return
 
     const entryData = {
-        ...formData,
+        description,
+        amount,
+        date: toDateString(date),
+        accountId,
         type: props.entryType,
         categoryId: categoryId.value
+    }
+    if (stockAmount != null && Number(stockAmount) > 0) {
+        entryData.stockAmount = Number(stockAmount)
     }
 
     try {
@@ -240,8 +218,19 @@ const emit = defineEmits(['update:visible'])
                 <!-- Description Field -->
                 <div>
                     <label for="description" class="form-label">Description</label>
-                    <InputText id="description" name="description" v-if="autofocusAmount" />
-                    <InputText id="description" name="description" v-focus v-else />
+                    <InputText
+                        id="description"
+                        v-model="formValues.description"
+                        name="description"
+                        v-if="autofocusAmount"
+                    />
+                    <InputText
+                        id="description"
+                        v-model="formValues.description"
+                        name="description"
+                        v-focus
+                        v-else
+                    />
                     <Message v-if="$form.description?.invalid" severity="error" size="small">
                         {{ $form.description.error?.message }}
                     </Message>
@@ -253,6 +242,7 @@ const emit = defineEmits(['update:visible'])
                     <InputNumber
                         ref="amountInputRef"
                         id="amount"
+                        v-model="formValues.amount"
                         name="amount"
                         :minFractionDigits="2"
                         :maxFractionDigits="2"
@@ -267,6 +257,7 @@ const emit = defineEmits(['update:visible'])
                     <label for="stockAmount" class="form-label">Stock Amount</label>
                     <InputNumber
                         id="stockAmount"
+                        v-model="formValues.stockAmount"
                         name="stockAmount"
                         :minFractionDigits="2"
                         :maxFractionDigits="2"

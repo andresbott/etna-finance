@@ -6,6 +6,7 @@ import Button from 'primevue/button'
 import Card from 'primevue/card'
 import { useCategoryUtils } from '@/utils/categoryUtils'
 import { useAccountUtils } from '@/utils/accountUtils'
+import { useInstruments } from '@/composables/useInstruments'
 
 /* --- Props --- */
 const props = defineProps({
@@ -41,6 +42,26 @@ const emit = defineEmits(['edit', 'duplicate', 'delete', 'page'])
 /* --- Utils --- */
 const { getCategoryName, getCategoryPath } = useCategoryUtils()
 const { getAccountCurrency, getAccountName } = useAccountUtils()
+const { instruments: instrumentsData } = useInstruments()
+
+const instrumentsMap = computed(() => {
+    const list = instrumentsData.value ?? []
+    return Object.fromEntries(list.map((i) => [i.id, i]))
+})
+
+const getInstrument = (instrumentId) => instrumentsMap.value[instrumentId]
+const getInstrumentSymbol = (instrumentId) => getInstrument(instrumentId)?.symbol ?? '—'
+const getInstrumentCurrency = (instrumentId) => getInstrument(instrumentId)?.currency ?? ''
+
+/** True when this row is a stock sell (in the stock-trade block we only have buy or sell, so not-buy => sell) */
+const isStockSell = (data) => {
+    const t = data.type ?? data.Type
+    if (t == null) return false
+    return String(t).toLowerCase() !== 'stockbuy'
+}
+
+/** Amount to show for stock trade total: negative for buy (cash out), positive for sell (cash in). */
+const stockTradeTotalAmount = (data) => (isStockSell(data) ? (data.totalAmount || 0) : -(data.totalAmount || 0))
 
 /* --- Helpers --- */
 const getEntryTypeIcon = (type) => {
@@ -48,8 +69,10 @@ const getEntryTypeIcon = (type) => {
         expense: 'pi pi-minus text-red-500',
         income: 'pi pi-plus text-green-500',
         transfer: 'pi pi-arrow-right-arrow-left text-blue-500',
-        buystock: 'pi pi-chart-line text-yellow-500',
-        sellstock: 'pi pi-chart-line text-orange-500'
+        stockbuy: 'pi pi-chart-line text-yellow-500',
+        stocksell: 'pi pi-chart-line text-orange-500',
+        stockgrant: 'pi pi-gift text-purple-500',
+        stocktransfer: 'pi pi-arrow-right-arrow-left text-indigo-500'
     }
     return icons[type] || 'pi pi-question-circle'
 }
@@ -58,8 +81,10 @@ const getRowClass = (data) => ({
     'expense-row': data.type === 'expense',
     'income-row': data.type === 'income',
     'transfer-row': data.type === 'transfer',
-    'buystock-row': data.type === 'buystock',
-    'sellstock-row': data.type === 'sellstock'
+    'stockbuy-row': data.type === 'stockbuy',
+    'stocksell-row': data.type === 'stocksell',
+    'stockgrant-row': data.type === 'stockgrant',
+    'stocktransfer-row': data.type === 'stocktransfer'
 })
 
 /* --- Event Handlers --- */
@@ -124,6 +149,20 @@ const handlePage = (event) => {
                                 style="font-size: 0.9rem; margin: 0 8px"
                             />{{ getAccountName(data.targetAccountId) }}
                         </span>
+                        <span v-else-if="data.type === 'stockbuy' || data.type === 'stocksell'">
+                            {{ getAccountName(data.cashAccountId)
+                            }}<i
+                                class="pi pi-arrow-right"
+                                style="font-size: 0.9rem; margin: 0 8px"
+                            />{{ getAccountName(data.investmentAccountId) }}
+                        </span>
+                        <span v-else-if="data.type === 'stocktransfer'">
+                            {{ getAccountName(data.originAccountId)
+                            }}<i
+                                class="pi pi-arrow-right"
+                                style="font-size: 0.9rem; margin: 0 8px"
+                            />{{ getAccountName(data.targetAccountId) }}
+                        </span>
                         <span v-else>
                             {{ getAccountName(data.accountId) }}
                         </span>
@@ -154,7 +193,7 @@ const handlePage = (event) => {
                             {{ getAccountCurrency(data.accountId) }}
                         </div>
                         <div v-else-if="data.type === 'income'" class="amount income">
-                            {{
+                            +{{
                                 data.Amount.toLocaleString('es-ES', {
                                     minimumFractionDigits: 2,
                                     maximumFractionDigits: 2
@@ -182,14 +221,36 @@ const handlePage = (event) => {
                             }}
                             {{ getAccountCurrency(data.targetAccountId) }}
                         </div>
+                        <div v-else-if="data.type === 'stockbuy' || data.type === 'stocksell'" class="amount stock-trade">
+                            <template v-if="data.quantity && data.StockAmount != null">
+                                ({{ getInstrumentSymbol(data.instrumentId) }}) {{ data.quantity }}
+                                @ {{ (data.StockAmount / data.quantity).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                                {{ getInstrumentCurrency(data.instrumentId) }}
+                                <i
+                                    class="pi pi-arrow-right"
+                                    style="font-size: 0.9rem; margin: 0 8px"
+                                />
+                                <span :class="isStockSell(data) ? 'stock-trade-total sell' : 'stock-trade-total buy'">{{ isStockSell(data) ? '+' : '' }}{{ stockTradeTotalAmount(data).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ getAccountCurrency(data.cashAccountId) }}</span>
+                            </template>
+                            <template v-else>—</template>
+                        </div>
+                        <div v-else-if="data.type === 'stockgrant'" class="amount stock-trade">
+                            <template v-if="data.quantity != null && data.instrumentId != null">
+                                ({{ getInstrumentSymbol(data.instrumentId) }}) {{ data.quantity }}
+                                @ {{ (0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ getInstrumentCurrency(data.instrumentId) }}
+                            </template>
+                            <template v-else>—</template>
+                        </div>
+                        <div v-else-if="data.type === 'stocktransfer'" class="amount">
+                            {{ data.quantity }} (transfer)
+                        </div>
                         <div v-else class="amount">
                             {{
-                                data.targetAmount.toLocaleString('es-ES', {
+                                (data.totalAmount || data.targetAmount || 0).toLocaleString('es-ES', {
                                     minimumFractionDigits: 2,
                                     maximumFractionDigits: 2
                                 })
                             }}
-                            {{ data.targetAccountCurrency || '' }}
                         </div>
                     </template>
                 </Column>
@@ -261,6 +322,14 @@ const handlePage = (event) => {
 
 .amount.transfer {
     color: var(--c-blue-600);
+}
+
+.amount.stock-trade .stock-trade-total.buy {
+    color: var(--c-red-600);
+}
+
+.amount.stock-trade .stock-trade-total.sell {
+    color: var(--c-green-600);
 }
 
 :deep(.amount-column .p-datatable-column-title) {

@@ -16,18 +16,9 @@ import AccountSelector from '@/components/AccountSelector.vue'
 import { useInstruments } from '@/composables/useInstruments'
 import { useMutation } from '@tanstack/vue-query'
 import { createStockTransaction } from '@/lib/api/Entry'
-import { useEntries } from '@/composables/useEntries'
-import {
-    getFormattedAccountId,
-    getDateOnly,
-    extractAccountId,
-    toDateString,
-    getSubmitValues
-} from '@/composables/useEntryDialogForm'
 
 const queryClient = useQueryClient()
 const { instruments: instrumentsData } = useInstruments()
-const { updateEntry } = useEntries({})
 
 const createMutation = useMutation({
     mutationFn: createStockTransaction,
@@ -44,14 +35,9 @@ const instrumentOptions = computed(() =>
     instruments.value.map((s) => ({ label: `${s.symbol} – ${s.name}`, value: s.id }))
 )
 
-const instrumentById = computed(() =>
-    Object.fromEntries((instruments.value ?? []).map((i) => [i.id, i]))
-)
-
 const props = defineProps({
     visible: { type: Boolean, default: false },
     isEdit: { type: Boolean, default: false },
-    entryId: { type: Number, default: null },
     operationType: { type: String, default: 'buy' },
     instrumentId: { type: Number, default: null },
     description: { type: String, default: '' },
@@ -60,26 +46,30 @@ const props = defineProps({
     date: { type: Date, default: () => new Date() },
     investmentAccountId: { type: Number, default: null },
     cashAccountId: { type: Number, default: null },
-    cashAmount: { type: Number, default: null },
     autofocusAmount: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['update:visible'])
 
-const initialOriginAmount = () => {
-    if (props.cashAmount != null && props.cashAmount > 0) return props.cashAmount
-    const q = props.quantity
-    const p = props.pricePerShare
-    if (q != null && p != null && !Number.isNaN(q) && !Number.isNaN(p) && p > 0) return q * p
-    return 0
+const getFormattedAccountId = (accountId) => {
+    if (accountId == null) return null
+    return { [accountId]: true }
 }
 
-const initialTargetAmount = () => {
-    if (props.cashAmount != null && props.cashAmount > 0) return props.cashAmount
-    const q = props.quantity
-    const p = props.pricePerShare
-    if (q != null && p != null && !Number.isNaN(q) && !Number.isNaN(p) && p > 0) return q * p
-    return 0
+const getDateOnly = (date) => {
+    if (!date) return new Date(new Date().setHours(0, 0, 0, 0))
+    const d = new Date(date)
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate())
+}
+
+const extractAccountId = (formValue) => {
+    if (!formValue) return null
+    if (typeof formValue === 'number') return formValue
+    if (typeof formValue === 'object') {
+        const keys = Object.keys(formValue)
+        if (keys.length > 0) return parseInt(keys[0], 10)
+    }
+    return null
 }
 
 const formValues = ref({
@@ -88,8 +78,6 @@ const formValues = ref({
     quantity: props.quantity,
     pricePerShare: props.pricePerShare,
     date: getDateOnly(props.date),
-    originAmount: initialOriginAmount(),
-    targetAmount: initialTargetAmount(),
     InvestmentAccountId: getFormattedAccountId(props.investmentAccountId),
     CashAccountId: getFormattedAccountId(props.cashAccountId)
 })
@@ -104,29 +92,8 @@ watch(
                 quantity: props.quantity,
                 pricePerShare: props.pricePerShare,
                 date: getDateOnly(props.date),
-                originAmount: initialOriginAmount(),
-                targetAmount: initialTargetAmount(),
                 InvestmentAccountId: getFormattedAccountId(props.investmentAccountId),
                 CashAccountId: getFormattedAccountId(props.cashAccountId)
-            }
-        }
-    }
-)
-
-function getDefaultDescriptionForInstrument(id) {
-    const symbol = instrumentById.value[id]?.symbol ?? ''
-    if (!symbol) return ''
-    const action = props.operationType === 'sell' ? 'Sell' : 'Buy'
-    return `${action} ${symbol}`
-}
-
-watch(
-    () => formValues.value.instrumentId,
-    (instrumentId) => {
-        if (instrumentId != null && instrumentId >= 1) {
-            const currentDesc = (formValues.value.description ?? '').toString().trim()
-            if (!currentDesc) {
-                formValues.value = { ...formValues.value, description: getDefaultDescriptionForInstrument(instrumentId) }
             }
         }
     }
@@ -148,24 +115,19 @@ const accountValidation = z
     .union([z.null(), z.record(z.boolean())])
     .refine((obj) => obj != null, { message: 'Account must be selected' })
 
-const resolver = computed(() => {
-    const base = {
-        instrumentId: z.number().min(1, { message: 'Instrument is required' }),
-        description: z.string().min(1, { message: 'Description is required' }),
-        quantity: z.number().min(0.0001, { message: 'Quantity must be greater than 0' }),
-        pricePerShare: z.number().min(0, { message: 'Price must be 0 or greater' }),
-        date: z.date(),
-        InvestmentAccountId: accountValidation,
-        CashAccountId: accountValidation
-    }
-    if (props.operationType === 'buy') {
-        base.originAmount = z.number().min(0.01, { message: 'Amount must be greater than 0' })
-    }
-    if (props.operationType === 'sell') {
-        base.targetAmount = z.number().min(0.01, { message: 'Amount must be greater than 0' })
-    }
-    return zodResolver(z.object(base))
-})
+const resolver = computed(() =>
+    zodResolver(
+        z.object({
+            instrumentId: z.number().min(1, { message: 'Instrument is required' }),
+            description: z.string().min(1, { message: 'Description is required' }),
+            quantity: z.number().min(0.0001, { message: 'Quantity must be greater than 0' }),
+            pricePerShare: z.number().min(0, { message: 'Price must be 0 or greater' }),
+            date: z.date(),
+            InvestmentAccountId: accountValidation,
+            CashAccountId: accountValidation
+        })
+    )
+)
 
 const dialogTitle = computed(() => {
     const op = props.operationType === 'sell' ? 'Sell' : 'Buy'
@@ -173,54 +135,30 @@ const dialogTitle = computed(() => {
 })
 
 const handleSubmit = async (e) => {
-    e.preventDefault?.()
-    const values = getSubmitValues(e, formValues)
-    const v = formValues.value
-    const description = (values.description ?? v.description ?? '').toString().trim()
-    const instrumentId = Number(values.instrumentId ?? v.instrumentId)
-    const quantity = Number(values.quantity ?? v.quantity)
-    const date = values.date ?? v.date
-    const invId = extractAccountId(values.InvestmentAccountId ?? v.InvestmentAccountId)
-    const cashId = extractAccountId(values.CashAccountId ?? v.CashAccountId)
-    const total =
-        props.operationType === 'buy'
-            ? Number(values.originAmount ?? v.originAmount ?? 0)
-            : Number(values.targetAmount ?? v.targetAmount ?? 0)
-    const pricePerShare = Number(values.pricePerShare ?? v.pricePerShare ?? 0)
-    const stockAmount = quantity * pricePerShare
+    if (!e.valid) return
 
-    if (!description || !(instrumentId >= 1) || !(quantity > 0) || invId == null || cashId == null || !(total > 0) || !(stockAmount > 0)) return
+    const invId = extractAccountId(e.values.InvestmentAccountId)
+    const cashId = extractAccountId(e.values.CashAccountId)
+    const q = Number(e.values.quantity)
+    const p = Number(e.values.pricePerShare)
+    const total = q * p
+
+    const payload = {
+        type: props.operationType === 'sell' ? 'stocksell' : 'stockbuy',
+        description: e.values.description,
+        date: new Date(e.values.date).toISOString().slice(0, 10),
+        instrumentId: e.values.instrumentId,
+        quantity: q,
+        totalAmount: total,
+        investmentAccountId: invId,
+        cashAccountId: cashId
+    }
 
     try {
-        if (props.isEdit && props.entryId != null) {
-            await updateEntry({
-                id: String(props.entryId),
-                description,
-                date: toDateString(date),
-                instrumentId,
-                quantity,
-                totalAmount: total,
-                StockAmount: stockAmount,
-                investmentAccountId: invId,
-                cashAccountId: cashId
-            })
-        } else {
-            const payload = {
-                type: props.operationType === 'sell' ? 'stocksell' : 'stockbuy',
-                description,
-                date: toDateString(date),
-                instrumentId,
-                quantity,
-                totalAmount: total,
-                StockAmount: stockAmount,
-                investmentAccountId: invId,
-                cashAccountId: cashId
-            }
-            await createMutation.mutateAsync(payload)
-        }
+        await createMutation.mutateAsync(payload)
         emit('update:visible', false)
     } catch (err) {
-        console.error(props.isEdit ? 'Failed to update stock operation:' : 'Failed to create stock operation:', err)
+        console.error('Failed to create stock operation:', err)
     }
 }
 </script>
@@ -243,28 +181,12 @@ const handleSubmit = async (e) => {
             @submit="handleSubmit"
         >
             <div v-focustrap class="flex flex-column gap-3">
-                <!-- Top section: instrument, description, date, quantity -->
+                <!-- Top section: description and date (same as transfer) -->
                 <div class="flex flex-column gap-3">
-                    <div>
-                        <label for="instrumentId" class="form-label">Investment instrument</label>
-                        <Select
-                            id="instrumentId"
-                            v-model="formValues.instrumentId"
-                            name="instrumentId"
-                            :options="instrumentOptions"
-                            optionLabel="label"
-                            optionValue="value"
-                            placeholder="Select instrument"
-                        />
-                        <Message v-if="$form.instrumentId?.invalid" severity="error" size="small">
-                            {{ $form.instrumentId?.error?.message }}
-                        </Message>
-                    </div>
                     <div>
                         <label for="description" class="form-label">Description</label>
                         <InputText
                             id="description"
-                            v-model="formValues.description"
                             name="description"
                             placeholder="e.g. Buy 10 AAPL"
                         />
@@ -287,39 +209,15 @@ const handleSubmit = async (e) => {
                             {{ $form.date?.error?.message }}
                         </Message>
                     </div>
-                    <div>
-                        <label for="quantity" class="form-label">Quantity</label>
-                        <InputNumber
-                            id="quantity"
-                            v-model="formValues.quantity"
-                            name="quantity"
-                            :minFractionDigits="0"
-                            :maxFractionDigits="4"
-                        />
-                        <Message v-if="$form.quantity?.invalid" severity="error" size="small">
-                            {{ $form.quantity?.error?.message }}
-                        </Message>
-                    </div>
-                    <div>
-                        <label for="pricePerShare" class="form-label">Price per share</label>
-                        <InputNumber
-                            id="pricePerShare"
-                            v-model="formValues.pricePerShare"
-                            name="pricePerShare"
-                            :minFractionDigits="2"
-                            :maxFractionDigits="4"
-                        />
-                        <Message v-if="$form.pricePerShare?.invalid" severity="error" size="small">
-                            {{ $form.pricePerShare?.error?.message }}
-                        </Message>
-                    </div>
                 </div>
 
                 <Divider />
 
-                <!-- Two columns: buy = cash → investment, sell = investment → cash -->
+                <!-- From / To layout: buy = cash → investment, sell = investment → cash -->
                 <div class="flex flex-row">
+                    <!-- From (left): cash account + amount for buy; investment + instrument + qty/price for sell -->
                     <div class="flex flex-column gap-3 flex-1 p-2">
+                        <h3 class="m-0 text-lg font-medium">From</h3>
                         <template v-if="operationType === 'buy'">
                             <div>
                                 <label for="CashAccountId" class="form-label">Cash account</label>
@@ -327,24 +225,15 @@ const handleSubmit = async (e) => {
                                     v-model="formValues.CashAccountId"
                                     name="CashAccountId"
                                     placeholder="Select cash account"
-                                    :accountTypes="['cash', 'checkin', 'savings']"
+                                    :accountTypes="['cash', 'checkin', 'bank', 'savings']"
                                 />
                                 <Message v-if="$form.CashAccountId?.invalid" severity="error" size="small">
                                     {{ $form.CashAccountId?.error?.message }}
                                 </Message>
                             </div>
                             <div>
-                                <label for="originAmount" class="form-label">Amount</label>
-                                <InputNumber
-                                    id="originAmount"
-                                    v-model="formValues.originAmount"
-                                    name="originAmount"
-                                    :minFractionDigits="2"
-                                    :maxFractionDigits="2"
-                                />
-                                <Message v-if="$form.originAmount?.invalid" severity="error" size="small">
-                                    {{ $form.originAmount?.error?.message }}
-                                </Message>
+                                <label class="form-label">Amount</label>
+                                <p class="amount-display mt-1 mb-0">{{ totalAmountDisplay || '—' }}</p>
                             </div>
                         </template>
                         <template v-else>
@@ -353,11 +242,51 @@ const handleSubmit = async (e) => {
                                 <AccountSelector
                                     v-model="formValues.InvestmentAccountId"
                                     name="InvestmentAccountId"
-                                    placeholder="Select investment or unvested account"
-                                    :accountTypes="['investment', 'unvested']"
+                                    placeholder="Select investment account"
+                                    :accountTypes="['investment']"
                                 />
                                 <Message v-if="$form.InvestmentAccountId?.invalid" severity="error" size="small">
                                     {{ $form.InvestmentAccountId?.error?.message }}
+                                </Message>
+                            </div>
+                            <div>
+                                <label for="instrumentId" class="form-label">Investment instrument</label>
+                                <Select
+                                    id="instrumentId"
+                                    name="instrumentId"
+                                    :options="instrumentOptions"
+                                    optionLabel="label"
+                                    optionValue="value"
+                                    placeholder="Select instrument"
+                                />
+                                <Message v-if="$form.instrumentId?.invalid" severity="error" size="small">
+                                    {{ $form.instrumentId?.error?.message }}
+                                </Message>
+                            </div>
+                            <div>
+                                <label for="quantity" class="form-label">Quantity</label>
+                                <InputNumber
+                                    id="quantity"
+                                    v-model="formValues.quantity"
+                                    name="quantity"
+                                    :minFractionDigits="0"
+                                    :maxFractionDigits="4"
+                                />
+                                <Message v-if="$form.quantity?.invalid" severity="error" size="small">
+                                    {{ $form.quantity?.error?.message }}
+                                </Message>
+                            </div>
+                            <div>
+                                <label for="pricePerShare" class="form-label">Price per share</label>
+                                <InputNumber
+                                    id="pricePerShare"
+                                    v-model="formValues.pricePerShare"
+                                    name="pricePerShare"
+                                    :minFractionDigits="2"
+                                    :maxFractionDigits="4"
+                                />
+                                <Message v-if="$form.pricePerShare?.invalid" severity="error" size="small">
+                                    {{ $form.pricePerShare?.error?.message }}
                                 </Message>
                             </div>
                             <div>
@@ -371,18 +300,60 @@ const handleSubmit = async (e) => {
                         <i class="pi pi-arrow-right text-2xl"></i>
                     </div>
 
+                    <!-- To (right): investment + instrument + qty/price for buy; cash account + amount for sell -->
                     <div class="flex flex-column gap-3 flex-1 p-2">
+                        <h3 class="m-0 text-lg font-medium">To</h3>
                         <template v-if="operationType === 'buy'">
                             <div>
                                 <label for="InvestmentAccountId" class="form-label">Investment account</label>
                                 <AccountSelector
                                     v-model="formValues.InvestmentAccountId"
                                     name="InvestmentAccountId"
-                                    placeholder="Select investment or unvested account"
-                                    :accountTypes="['investment', 'unvested']"
+                                    placeholder="Select investment account"
+                                    :accountTypes="['investment']"
                                 />
                                 <Message v-if="$form.InvestmentAccountId?.invalid" severity="error" size="small">
                                     {{ $form.InvestmentAccountId?.error?.message }}
+                                </Message>
+                            </div>
+                            <div>
+                                <label for="instrumentId" class="form-label">Investment instrument</label>
+                                <Select
+                                    id="instrumentId"
+                                    name="instrumentId"
+                                    :options="instrumentOptions"
+                                    optionLabel="label"
+                                    optionValue="value"
+                                    placeholder="Select instrument"
+                                />
+                                <Message v-if="$form.instrumentId?.invalid" severity="error" size="small">
+                                    {{ $form.instrumentId?.error?.message }}
+                                </Message>
+                            </div>
+                            <div>
+                                <label for="quantity" class="form-label">Quantity</label>
+                                <InputNumber
+                                    id="quantity"
+                                    v-model="formValues.quantity"
+                                    name="quantity"
+                                    :minFractionDigits="0"
+                                    :maxFractionDigits="4"
+                                />
+                                <Message v-if="$form.quantity?.invalid" severity="error" size="small">
+                                    {{ $form.quantity?.error?.message }}
+                                </Message>
+                            </div>
+                            <div>
+                                <label for="pricePerShare" class="form-label">Price per share</label>
+                                <InputNumber
+                                    id="pricePerShare"
+                                    v-model="formValues.pricePerShare"
+                                    name="pricePerShare"
+                                    :minFractionDigits="2"
+                                    :maxFractionDigits="4"
+                                />
+                                <Message v-if="$form.pricePerShare?.invalid" severity="error" size="small">
+                                    {{ $form.pricePerShare?.error?.message }}
                                 </Message>
                             </div>
                             <div>
@@ -397,24 +368,15 @@ const handleSubmit = async (e) => {
                                     v-model="formValues.CashAccountId"
                                     name="CashAccountId"
                                     placeholder="Select cash account"
-                                    :accountTypes="['cash', 'checkin', 'savings']"
+                                    :accountTypes="['cash', 'checkin', 'bank', 'savings']"
                                 />
                                 <Message v-if="$form.CashAccountId?.invalid" severity="error" size="small">
                                     {{ $form.CashAccountId?.error?.message }}
                                 </Message>
                             </div>
                             <div>
-                                <label for="targetAmount" class="form-label">Amount</label>
-                                <InputNumber
-                                    id="targetAmount"
-                                    v-model="formValues.targetAmount"
-                                    name="targetAmount"
-                                    :minFractionDigits="2"
-                                    :maxFractionDigits="2"
-                                />
-                                <Message v-if="$form.targetAmount?.invalid" severity="error" size="small">
-                                    {{ $form.targetAmount?.error?.message }}
-                                </Message>
+                                <label class="form-label">Amount</label>
+                                <p class="amount-display mt-1 mb-0">{{ totalAmountDisplay || '—' }}</p>
                             </div>
                         </template>
                     </div>

@@ -5,6 +5,8 @@ import { useRoute } from 'vue-router'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import TransferDialog from './dialogs/TransferDialog.vue'
 import BuySellInstrumentDialog from './dialogs/BuySellInstrumentDialog.vue'
+import GrantDialog from './dialogs/GrantDialog.vue'
+import TransferInstrumentDialog from './dialogs/TransferInstrumentDialog.vue'
 import DeleteDialog from '@/components/common/confirmDialog.vue'
 import AccountEntriesTable from './AccountEntriesTable.vue'
 
@@ -188,7 +190,9 @@ const dialogs = {
     income: ref(false),
     transfer: ref(false),
     buyStock: ref(false),
-    sellStock: ref(false)
+    sellStock: ref(false),
+    grantStock: ref(false),
+    transferInstrument: ref(false)
 }
 
 /* --- Entry Actions --- */
@@ -202,12 +206,15 @@ const openEditEntryDialog = (entry) => {
         // Use IncomeExpenseDialog for income and expense entries
         dialogs.incomeExpense.value = true
     } else if (entry.type === 'transfer') {
-        // Use TransferDialog for transfer entries
         dialogs.transfer.value = true
-    } else if (entry.type === 'buystock') {
+    } else if (entry.type === 'stockbuy') {
         dialogs.buyStock.value = true
-    } else if (entry.type === 'sellstock') {
+    } else if (entry.type === 'stocksell') {
         dialogs.sellStock.value = true
+    } else if (entry.type === 'stockgrant') {
+        dialogs.grantStock.value = true
+    } else if (entry.type === 'stocktransfer') {
+        dialogs.transferInstrument.value = true
     }
 }
 
@@ -221,12 +228,15 @@ const openDuplicateEntryDialog = (entry) => {
         // Use IncomeExpenseDialog for income and expense entries
         dialogs.incomeExpense.value = true
     } else if (entry.type === 'transfer') {
-        // Use TransferDialog for transfer entries
         dialogs.transfer.value = true
-    } else if (entry.type === 'buystock') {
+    } else if (entry.type === 'stockbuy') {
         dialogs.buyStock.value = true
-    } else if (entry.type === 'sellstock') {
+    } else if (entry.type === 'stocksell') {
         dialogs.sellStock.value = true
+    } else if (entry.type === 'stockgrant') {
+        dialogs.grantStock.value = true
+    } else if (entry.type === 'stocktransfer') {
+        dialogs.transferInstrument.value = true
     }
 }
 
@@ -322,14 +332,56 @@ const handleDeleteEntry = async () => {
     <BuySellInstrumentDialog
         v-model:visible="dialogs.buyStock.value"
         :is-edit="isEditMode"
+        :entry-id="selectedEntry?.id"
         operation-type="buy"
+        :instrument-id="selectedEntry?.instrumentId"
+        :description="selectedEntry?.description"
+        :quantity="selectedEntry?.quantity"
+        :price-per-share="selectedEntry?.StockAmount && selectedEntry?.quantity ? selectedEntry.StockAmount / selectedEntry.quantity : undefined"
+        :cash-amount="isDuplicateMode ? undefined : selectedEntry?.totalAmount"
+        :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
+        :investment-account-id="selectedEntry?.investmentAccountId"
+        :cash-account-id="selectedEntry?.cashAccountId"
         @update:visible="dialogs.buyStock.value = $event"
     />
     <BuySellInstrumentDialog
         v-model:visible="dialogs.sellStock.value"
         :is-edit="isEditMode"
+        :entry-id="selectedEntry?.id"
         operation-type="sell"
+        :instrument-id="selectedEntry?.instrumentId"
+        :description="selectedEntry?.description"
+        :quantity="selectedEntry?.quantity"
+        :price-per-share="selectedEntry?.StockAmount && selectedEntry?.quantity ? selectedEntry.StockAmount / selectedEntry.quantity : undefined"
+        :cash-amount="isDuplicateMode ? undefined : selectedEntry?.totalAmount"
+        :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
+        :investment-account-id="selectedEntry?.investmentAccountId"
+        :cash-account-id="selectedEntry?.cashAccountId"
         @update:visible="dialogs.sellStock.value = $event"
+    />
+
+    <GrantDialog
+        v-model:visible="dialogs.grantStock.value"
+        :is-edit="isEditMode"
+        :entry-id="selectedEntry?.id"
+        :instrument-id="selectedEntry?.instrumentId"
+        :description="selectedEntry?.description"
+        :quantity="selectedEntry?.quantity"
+        :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
+        :account-id="selectedEntry?.accountId"
+        @update:visible="dialogs.grantStock.value = $event"
+    />
+    <TransferInstrumentDialog
+        v-model:visible="dialogs.transferInstrument.value"
+        :is-edit="isEditMode"
+        :entry-id="selectedEntry?.id"
+        :instrument-id="selectedEntry?.instrumentId"
+        :description="selectedEntry?.description"
+        :quantity="selectedEntry?.quantity"
+        :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
+        :origin-account-id="selectedEntry?.originAccountId"
+        :target-account-id="selectedEntry?.targetAccountId"
+        @update:visible="dialogs.transferInstrument.value = $event"
     />
 
     <!-- Delete Confirmation Dialog -->
