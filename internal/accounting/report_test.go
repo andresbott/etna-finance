@@ -171,7 +171,7 @@ func TestGetCategoryReport(t *testing.T) {
 		t.Run(db.DbType(), func(t *testing.T) {
 
 			dbCon := db.ConnDbName("TestGetCategoryReport")
-			store, err := NewStore(dbCon)
+			store, err := NewStore(dbCon, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -289,7 +289,7 @@ func TestAccountBalanceSingle(t *testing.T) {
 		t.Run(db.DbType(), func(t *testing.T) {
 
 			dbCon := db.ConnDbName("storeCreateEntry")
-			store, err := NewStore(dbCon)
+			store, err := NewStore(dbCon, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -487,7 +487,7 @@ func TestAccountBalance(t *testing.T) {
 		t.Run(db.DbType(), func(t *testing.T) {
 
 			dbCon := db.ConnDbName("TestAccountBalance")
-			store, err := NewStore(dbCon)
+			store, err := NewStore(dbCon, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

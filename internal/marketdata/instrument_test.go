@@ -1,13 +1,28 @@
-package accounting
+package marketdata
 
 import (
 	"errors"
+	"os"
 	"testing"
 
 	"github.com/go-bumbu/testdbs"
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/text/currency"
 )
+
+func TestMain(m *testing.M) {
+	testdbs.InitDBS()
+	code := m.Run()
+	_ = testdbs.Clean()
+	os.Exit(code)
+}
+
+const (
+	tenant1 = "tenant1"
+	tenant2 = "tenant2"
+)
+
+func ptr[T any](v T) *T { return &v }
 
 func TestCreateInstrument(t *testing.T) {
 	for _, db := range testdbs.DBs() {
@@ -99,7 +114,6 @@ func TestGetInstrument(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			// Create a security for tenant1
 			id, err := store.CreateInstrument(ctx, Instrument{Symbol: "TEST", Name: "Test Instrument", Currency: currency.CHF}, tenant1)
 			if err != nil {
 				t.Fatal(err)
@@ -167,7 +181,6 @@ func TestListInstruments(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			// Create instruments for tenant1
 			_, _ = store.CreateInstrument(ctx, Instrument{Symbol: "A", Name: "First", Currency: currency.USD}, tenant1)
 			_, _ = store.CreateInstrument(ctx, Instrument{Symbol: "B", Name: "Second", Currency: currency.EUR}, tenant1)
 			_, _ = store.CreateInstrument(ctx, Instrument{Symbol: "C", Name: "Third", Currency: currency.CHF}, tenant1)
@@ -398,6 +411,41 @@ func TestDeleteInstrument(t *testing.T) {
 						t.Errorf("expected ErrInstrumentNotFound after delete, got %v", err)
 					}
 				})
+			}
+		})
+	}
+}
+
+func TestCreateInstrument_restoresSoftDeleted(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			dbCon := db.ConnDbName("TestCreateInstrument_restoresSoftDeleted")
+			store, err := NewStore(dbCon)
+			if err != nil {
+				t.Fatal(err)
+			}
+			id1, err := store.CreateInstrument(ctx, Instrument{Symbol: "ADBE", Name: "Adobe", Currency: currency.USD}, tenant1)
+			if err != nil {
+				t.Fatalf("create: %v", err)
+			}
+			if err := store.DeleteInstrument(ctx, id1, tenant1); err != nil {
+				t.Fatalf("delete: %v", err)
+			}
+			// Creating again with same symbol should restore the soft-deleted row and return same ID
+			id2, err := store.CreateInstrument(ctx, Instrument{Symbol: "ADBE", Name: "Adobe Inc.", Currency: currency.USD}, tenant1)
+			if err != nil {
+				t.Fatalf("create after delete: %v", err)
+			}
+			if id2 != id1 {
+				t.Errorf("expected same id after restore, got id1=%d id2=%d", id1, id2)
+			}
+			got, err := store.GetInstrument(ctx, id2, tenant1)
+			if err != nil {
+				t.Fatalf("get restored: %v", err)
+			}
+			if got.Symbol != "ADBE" || got.Name != "Adobe Inc." || got.Currency.String() != "USD" {
+				t.Errorf("restored instrument: Symbol=%q Name=%q Currency=%q, want ADBE, Adobe Inc., USD", got.Symbol, got.Name, got.Currency.String())
 			}
 		})
 	}

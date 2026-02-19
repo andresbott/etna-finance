@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/andresbott/etna/internal/accounting"
+	"github.com/andresbott/etna/internal/marketdata"
 	"golang.org/x/text/currency"
 )
 
 // ---------------------------------------------------------------------------
-// Instrument
+// Instrument (marketdata)
 // ---------------------------------------------------------------------------
 
 type instrumentPayload struct {
@@ -27,7 +27,7 @@ type instrumentCreatePayload struct {
 	Currency string `json:"currency"`
 }
 
-func instrumentToPayload(s accounting.Instrument) instrumentPayload {
+func instrumentToPayload(s marketdata.Instrument) instrumentPayload {
 	return instrumentPayload{
 		ID:       s.ID,
 		Symbol:   s.Symbol,
@@ -36,22 +36,7 @@ func instrumentToPayload(s accounting.Instrument) instrumentPayload {
 	}
 }
 
-// writeUpdateError writes the appropriate HTTP error for a store update failure.
-func writeUpdateError(w http.ResponseWriter, err error, notFound error, msgPrefix string) {
-	if errors.As(err, &validationErr) {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	if errors.Is(err, accounting.ErrNoChanges) {
-		http.Error(w, "no changes applied", http.StatusBadRequest)
-		return
-	}
-	if errors.Is(err, notFound) {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	http.Error(w, fmt.Sprintf("%s: %s", msgPrefix, err.Error()), http.StatusInternalServerError)
-}
+var instrumentValidationErr = marketdata.ErrValidation("")
 
 // checkUserAndBody writes 400 if userId is empty or r.Body is nil and returns false; otherwise returns true.
 func checkUserAndBody(w http.ResponseWriter, r *http.Request, userId string, userMsg string) bool {
@@ -72,8 +57,12 @@ func (h *Handler) ListInstruments(userId string) http.Handler {
 			http.Error(w, "unable to list instruments: user not provided", http.StatusBadRequest)
 			return
 		}
+		if h.InstrumentStore == nil {
+			http.Error(w, "instruments not available", http.StatusServiceUnavailable)
+			return
+		}
 
-		items, err := h.Store.ListInstruments(r.Context(), userId)
+		items, err := h.InstrumentStore.ListInstruments(r.Context(), userId)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to list instruments: %s", err.Error()), http.StatusInternalServerError)
 			return
@@ -104,6 +93,10 @@ func (h *Handler) CreateInstrument(userId string) http.Handler {
 			http.Error(w, "request had empty body", http.StatusBadRequest)
 			return
 		}
+		if h.InstrumentStore == nil {
+			http.Error(w, "instruments not available", http.StatusServiceUnavailable)
+			return
+		}
 
 		var payload instrumentCreatePayload
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -117,19 +110,19 @@ func (h *Handler) CreateInstrument(userId string) http.Handler {
 			return
 		}
 
-		item := accounting.Instrument{
+		item := marketdata.Instrument{
 			Symbol:   payload.Symbol,
 			Name:     payload.Name,
 			Currency: curr,
 		}
 
-		id, err := h.Store.CreateInstrument(r.Context(), item, userId)
+		id, err := h.InstrumentStore.CreateInstrument(r.Context(), item, userId)
 		if err != nil {
-			if errors.As(err, &validationErr) {
+			if errors.As(err, &instrumentValidationErr) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			if errors.Is(err, accounting.ErrInstrumentSymbolDuplicate) {
+			if errors.Is(err, marketdata.ErrInstrumentSymbolDuplicate) {
 				http.Error(w, err.Error(), http.StatusConflict)
 				return
 			}
@@ -155,10 +148,14 @@ func (h *Handler) GetInstrument(id uint, userId string) http.Handler {
 			http.Error(w, "unable to get instrument: user not provided", http.StatusBadRequest)
 			return
 		}
+		if h.InstrumentStore == nil {
+			http.Error(w, "instruments not available", http.StatusServiceUnavailable)
+			return
+		}
 
-		item, err := h.Store.GetInstrument(r.Context(), id, userId)
+		item, err := h.InstrumentStore.GetInstrument(r.Context(), id, userId)
 		if err != nil {
-			if errors.Is(err, accounting.ErrInstrumentNotFound) {
+			if errors.Is(err, marketdata.ErrInstrumentNotFound) {
 				http.Error(w, err.Error(), http.StatusNotFound)
 				return
 			}
@@ -183,23 +180,39 @@ func (h *Handler) UpdateInstrument(id uint, userId string) http.Handler {
 		if !checkUserAndBody(w, r, userId, "unable to update instrument: user not provided") {
 			return
 		}
+		if h.InstrumentStore == nil {
+			http.Error(w, "instruments not available", http.StatusServiceUnavailable)
+			return
+		}
 		var payload instrumentUpdatePayload
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			http.Error(w, fmt.Sprintf("unable to decode json: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
-		item := accounting.InstrumentUpdatePayload{
+		item := marketdata.InstrumentUpdatePayload{
 			Symbol:   payload.Symbol,
 			Name:     payload.Name,
 			Currency: payload.Currency,
 		}
-		err := h.Store.UpdateInstrument(r.Context(), id, userId, item)
+		err := h.InstrumentStore.UpdateInstrument(r.Context(), id, userId, item)
 		if err != nil {
-			if errors.Is(err, accounting.ErrInstrumentSymbolDuplicate) {
+			if errors.As(err, &instrumentValidationErr) {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			if errors.Is(err, marketdata.ErrNoChanges) {
+				http.Error(w, "no changes applied", http.StatusBadRequest)
+				return
+			}
+			if errors.Is(err, marketdata.ErrInstrumentNotFound) {
+				http.Error(w, err.Error(), http.StatusNotFound)
+				return
+			}
+			if errors.Is(err, marketdata.ErrInstrumentSymbolDuplicate) {
 				http.Error(w, err.Error(), http.StatusConflict)
 				return
 			}
-			writeUpdateError(w, err, accounting.ErrInstrumentNotFound, "unable to update instrument")
+			http.Error(w, fmt.Sprintf("unable to update instrument: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
 		w.WriteHeader(http.StatusOK)
@@ -212,10 +225,14 @@ func (h *Handler) DeleteInstrument(id uint, userId string) http.Handler {
 			http.Error(w, "unable to delete instrument: user not provided", http.StatusBadRequest)
 			return
 		}
+		if h.InstrumentStore == nil {
+			http.Error(w, "instruments not available", http.StatusServiceUnavailable)
+			return
+		}
 
-		err := h.Store.DeleteInstrument(r.Context(), id, userId)
+		err := h.InstrumentStore.DeleteInstrument(r.Context(), id, userId)
 		if err != nil {
-			if errors.Is(err, accounting.ErrInstrumentNotFound) {
+			if errors.Is(err, marketdata.ErrInstrumentNotFound) {
 				http.Error(w, err.Error(), http.StatusNotFound)
 				return
 			}

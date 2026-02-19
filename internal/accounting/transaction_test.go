@@ -2,16 +2,49 @@ package accounting
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/andresbott/etna/internal/marketdata"
 	"github.com/go-bumbu/testdbs"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"golang.org/x/text/currency"
+	"gorm.io/gorm"
 )
+
+// testInstrumentGetter adapts marketdata.Store to accounting.InstrumentGetter for tests.
+type testInstrumentGetter struct {
+	store *marketdata.Store
+}
+
+func (g *testInstrumentGetter) GetInstrument(ctx context.Context, id uint, tenant string) (InstrumentInfo, error) {
+	inst, err := g.store.GetInstrument(ctx, id, tenant)
+	if err != nil {
+		if errors.Is(err, marketdata.ErrInstrumentNotFound) {
+			return InstrumentInfo{}, ErrInstrumentNotFound
+		}
+		return InstrumentInfo{}, err
+	}
+	return InstrumentInfo{ID: inst.ID, Currency: inst.Currency}, nil
+}
+
+// newAccountingStoreWithMarketData creates an accounting store with a marketdata-backed getter for tests that need instruments.
+func newAccountingStoreWithMarketData(t *testing.T, db *gorm.DB) (*Store, *marketdata.Store) {
+	t.Helper()
+	mktStore, err := marketdata.NewStore(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := NewStore(db, &testInstrumentGetter{store: mktStore})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return store, mktStore
+}
 
 func TestStore_CreateTransaction(t *testing.T) {
 	tcs := []struct {
@@ -126,10 +159,7 @@ func TestStore_CreateTransaction(t *testing.T) {
 		t.Run(db.DbType(), func(t *testing.T) {
 
 			dbCon := db.ConnDbName("storeCreateEntry")
-			store, err := NewStore(dbCon)
-			if err != nil {
-				t.Fatal(err)
-			}
+			store, _ := newAccountingStoreWithMarketData(t, dbCon)
 
 			categorySampleData(t, store, sampleCategories)
 			transactionSampleData(t, store, sampleTransactions)
@@ -193,10 +223,7 @@ func TestStore_GetTransaction(t *testing.T) {
 			}
 
 			dbCon := db.ConnDbName("storeGetTransaction")
-			store, err := NewStore(dbCon)
-			if err != nil {
-				t.Fatal(err)
-			}
+			store, _ := newAccountingStoreWithMarketData(t, dbCon)
 
 			categorySampleData(t, store, sampleCategories)
 			transactionSampleData(t, store, sampleTransactions)
@@ -255,10 +282,7 @@ func TestStore_DeleteTransaction(t *testing.T) {
 			}
 
 			dbCon := db.ConnDbName("storeGetEntry")
-			store, err := NewStore(dbCon)
-			if err != nil {
-				t.Fatal(err)
-			}
+			store, _ := newAccountingStoreWithMarketData(t, dbCon)
 
 			categorySampleData(t, store, sampleCategories)
 			transactionSampleData(t, store, sampleTransactions)
@@ -266,7 +290,7 @@ func TestStore_DeleteTransaction(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
-					err = store.DeleteTransaction(t.Context(), tc.deleteID, tc.deleteTenant)
+					err := store.DeleteTransaction(t.Context(), tc.deleteID, tc.deleteTenant)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -442,10 +466,7 @@ func TestStore_UpdateIncome(t *testing.T) {
 		t.Run(db.DbType(), func(t *testing.T) {
 
 			dbCon := db.ConnDbName("TestUpdateEntry")
-			store, err := NewStore(dbCon)
-			if err != nil {
-				t.Fatal(err)
-			}
+			store, _ := newAccountingStoreWithMarketData(t, dbCon)
 
 			categorySampleData(t, store, sampleCategories)
 			accountSampleData(t, store) // note: test operates on one set of data
@@ -633,10 +654,7 @@ func TestStore_UpdateExpense(t *testing.T) {
 		t.Run(db.DbType(), func(t *testing.T) {
 
 			dbCon := db.ConnDbName("TestUpdateEntry")
-			store, err := NewStore(dbCon)
-			if err != nil {
-				t.Fatal(err)
-			}
+			store, _ := newAccountingStoreWithMarketData(t, dbCon)
 
 			categorySampleData(t, store, sampleCategories)
 			accountSampleData(t, store) // note: test operates on one set of data
@@ -848,10 +866,7 @@ func TestStore_UpdateTransfer(t *testing.T) {
 	for _, db := range testdbs.DBs() {
 		t.Run(db.DbType(), func(t *testing.T) {
 			dbCon := db.ConnDbName("TestUpdateTransfer")
-			store, err := NewStore(dbCon)
-			if err != nil {
-				t.Fatal(err)
-			}
+			store, _ := newAccountingStoreWithMarketData(t, dbCon)
 
 			accountSampleData(t, store)
 
@@ -1081,10 +1096,7 @@ func TestStore_ListTransactions(t *testing.T) {
 	for _, db := range testdbs.DBs() {
 		t.Run(db.DbType(), func(t *testing.T) {
 			dbCon := db.ConnDbName("TestListTransactions")
-			store, err := NewStore(dbCon)
-			if err != nil {
-				t.Fatal(err)
-			}
+			store, _ := newAccountingStoreWithMarketData(t, dbCon)
 
 			accountSampleData(t, store)
 			// note, to optimize the test, we execute all tests on a common set of pre created transactions
@@ -1137,7 +1149,7 @@ var ignoreUnexportedAndIds = []cmp.Option{
 }
 
 // setupStockBuySellTest creates provider, investment account, cash account and instrument for stock buy/sell tests.
-func setupStockBuySellTest(t *testing.T, ctx context.Context, store *Store) (investmentAccountID, cashAccountID, instrumentID uint) {
+func setupStockBuySellTest(t *testing.T, ctx context.Context, store *Store, mktStore *marketdata.Store) (investmentAccountID, cashAccountID, instrumentID uint) {
 	t.Helper()
 	providerID, err := store.CreateAccountProvider(ctx, AccountProvider{Name: "Broker"}, tenant1)
 	if err != nil {
@@ -1161,7 +1173,7 @@ func setupStockBuySellTest(t *testing.T, ctx context.Context, store *Store) (inv
 	if err != nil {
 		t.Fatal(err)
 	}
-	instrumentID, err = store.CreateInstrument(ctx, Instrument{
+	instrumentID, err = mktStore.CreateInstrument(ctx, marketdata.Instrument{
 		Symbol:   "AAPL",
 		Name:     "Apple Inc.",
 		Currency: currency.USD,
@@ -1208,11 +1220,8 @@ func TestStore_CreateStockBuy_CreateStockSell(t *testing.T) {
 	for _, db := range testdbs.DBs() {
 		t.Run(db.DbType(), func(t *testing.T) {
 			ctx := t.Context()
-			store, err := NewStore(db.ConnDbName("storeCreateStock"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			investmentAccountID, cashAccountID, instrumentID := setupStockBuySellTest(t, ctx, store)
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("storeCreateStock"))
+			investmentAccountID, cashAccountID, instrumentID := setupStockBuySellTest(t, ctx, store, mktStore)
 
 			buy := StockBuy{
 				Description:         "Buy AAPL",
@@ -1277,7 +1286,7 @@ func TestStore_CreateStockBuy_CreateStockSell(t *testing.T) {
 }
 
 // setupStockGrantTransferTest creates provider, unvested account, investment account and instrument.
-func setupStockGrantTransferTest(t *testing.T, ctx context.Context, store *Store) (grantAccountID, investmentAccountID, instrumentID uint) {
+func setupStockGrantTransferTest(t *testing.T, ctx context.Context, store *Store, mktStore *marketdata.Store) (grantAccountID, investmentAccountID, instrumentID uint) {
 	t.Helper()
 	providerID, err := store.CreateAccountProvider(ctx, AccountProvider{Name: "Broker"}, tenant1)
 	if err != nil {
@@ -1301,7 +1310,7 @@ func setupStockGrantTransferTest(t *testing.T, ctx context.Context, store *Store
 	if err != nil {
 		t.Fatal(err)
 	}
-	instrumentID, err = store.CreateInstrument(ctx, Instrument{
+	instrumentID, err = mktStore.CreateInstrument(ctx, marketdata.Instrument{
 		Symbol:   "RSU",
 		Name:     "Company RSU",
 		Currency: currency.USD,
@@ -1341,11 +1350,8 @@ func TestStore_CreateStockGrant_CreateStockTransfer(t *testing.T) {
 	for _, db := range testdbs.DBs() {
 		t.Run(db.DbType(), func(t *testing.T) {
 			ctx := t.Context()
-			store, err := NewStore(db.ConnDbName("storeCreateStockGrantTransfer"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			grantAccountID, investmentAccountID, instrumentID := setupStockGrantTransferTest(t, ctx, store)
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("storeCreateStockGrantTransfer"))
+			grantAccountID, investmentAccountID, instrumentID := setupStockGrantTransferTest(t, ctx, store, mktStore)
 
 			grant := StockGrant{
 				Description:  "RSU grant",
@@ -1409,13 +1415,10 @@ func TestStore_CreateStockBuy_validationErrors(t *testing.T) {
 		t.Run(db.DbType(), func(t *testing.T) {
 			ctx := t.Context()
 			dbCon := db.ConnDbName("storeCreateStockValidation")
-			store, err := NewStore(dbCon)
-			if err != nil {
-				t.Fatal(err)
-			}
+			store, mktStore := newAccountingStoreWithMarketData(t, dbCon)
 			providerID, _ := store.CreateAccountProvider(ctx, AccountProvider{Name: "p"}, tenant1)
 			accountID, _ := store.CreateAccount(ctx, Account{AccountProviderID: providerID, Name: "inv", Currency: currency.USD, Type: InvestmentAccountType}, tenant1)
-			instrumentID, _ := store.CreateInstrument(ctx, Instrument{Symbol: "X", Name: "X", Currency: currency.USD}, tenant1)
+			instrumentID, _ := mktStore.CreateInstrument(ctx, marketdata.Instrument{Symbol: "X", Name: "X", Currency: currency.USD}, tenant1)
 
 			cashAccountID, _ := store.CreateAccount(ctx, Account{AccountProviderID: providerID, Name: "cash", Currency: currency.USD, Type: CashAccountType}, tenant1)
 

@@ -113,6 +113,26 @@ const router = createRouter({
             component: () => import('@/views/marketdata/StockMarketView.vue')
         },
         {
+            path: '/market-data/stock-market/:id',
+            redirect: (to) => ({ path: `/market-data/stock-market/${to.params.id}/overview` })
+        },
+        {
+            path: '/market-data/stock-market/:id/:tab',
+            name: 'stock-detail',
+            meta: {
+                requiresAuth: true
+            },
+            component: () => import('@/views/marketdata/StockDetailView.vue'),
+            beforeEnter: (to, _from, next) => {
+                const validTabs = ['overview', 'raw-data']
+                if (to.params.tab && !validTabs.includes(to.params.tab)) {
+                    next({ path: `/market-data/stock-market/${to.params.id}/overview` })
+                } else {
+                    next()
+                }
+            }
+        },
+        {
             path: '/settings',
             name: 'settings',
             meta: {
@@ -144,7 +164,6 @@ const router = createRouter({
 // based on: https://stackoverflow.com/questions/52653337/vuejs-redirect-from-login-register-to-home-if-already-loggedin-redirect-from
 router.beforeEach((to, from, next) => {
     const user = useUserStore()
-
     const settings = useSettingsStore()
 
     const navigate = function (to, next) {
@@ -166,14 +185,23 @@ router.beforeEach((to, from, next) => {
             next() // does not require auth, make sure to always call next()!
         }
     }
+
+    // When the route needs the instruments flag, ensure settings are loaded first (avoids
+    // redirect on F5 when settings were not yet fetched).
+    const needsInstrumentsCheck = to.matched.some((record) => record.meta.requiresInstruments)
+    const ensureSettingsThenNavigate = () => {
+        if (needsInstrumentsCheck && !settings.isLoaded) {
+            settings.fetchSettings().then(() => navigate(to, next)).catch(() => navigate(to, next))
+        } else {
+            navigate(to, next)
+        }
+    }
+
     if (user.isFirstLogin) {
         user.setFirstLoginFalse()
-        const p = user.checkState()
-        p.then(() => {
-            navigate(to, next)
-        })
+        user.checkState().then(() => ensureSettingsThenNavigate())
     } else {
-        navigate(to, next)
+        ensureSettingsThenNavigate()
     }
 })
 

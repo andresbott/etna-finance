@@ -9,12 +9,14 @@ import (
 	"net/http"
 
 	"github.com/andresbott/etna/internal/accounting"
+	"github.com/andresbott/etna/internal/marketdata"
 
 	"golang.org/x/text/currency"
 )
 
 type Handler struct {
-	Store *accounting.Store
+	Store           *accounting.Store
+	InstrumentStore *marketdata.Store
 }
 
 type accountProviderPayload struct {

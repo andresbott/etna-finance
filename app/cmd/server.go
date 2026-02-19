@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"fmt"
-
+	"log"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -18,6 +18,7 @@ import (
 	"github.com/go-bumbu/userauth/userstore/staticusers"
 	"github.com/spf13/cobra"
 	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
 
 	"github.com/andresbott/etna/app/metainfo"
 )
@@ -76,9 +77,15 @@ func runServer(configFile string) error {
 	l.Info("using data directory", slog.String("path", cfg.DataDir))
 
 	// initialize DB
+	gormLogger := gormlogger.New(
+		log.New(os.Stdout, "\r\n", log.LstdFlags),
+		gormlogger.Config{
+			IgnoreRecordNotFoundError: true,
+			LogLevel:                  gormlogger.Warn, // only warnings and errors, not every SQL
+		},
+	)
 	db, err := gorm.Open(sqlite.Open(filepath.Join(cfg.DataDir, dbFile)), &gorm.Config{
-		// TODO add slogger translation
-		//Logger: zeroGorm.New(l.ZeroLog, zeroGorm.Cfg{IgnoreRecordNotFoundError: true}),
+		Logger: gormLogger,
 	})
 	if err != nil {
 		return err

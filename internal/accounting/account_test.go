@@ -38,7 +38,7 @@ func TestCreateAccountProvider(t *testing.T) {
 			}
 
 			dbCon := db.ConnDbName("TestCreateAccountProvider")
-			store, err := NewStore(dbCon)
+			store, err := NewStore(dbCon, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -105,7 +105,7 @@ func TestGetAccountProvider(t *testing.T) {
 			}
 
 			dbCon := db.ConnDbName("TestGetAccountProvider")
-			store, err := NewStore(dbCon)
+			store, err := NewStore(dbCon, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -167,7 +167,7 @@ func TestDeleteAccountProvider(t *testing.T) {
 			}
 
 			dbCon := db.ConnDbName("DeleteAccountProvider")
-			store, err := NewStore(dbCon)
+			store, err := NewStore(dbCon, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -250,7 +250,7 @@ func TestUpdateAccountProvider(t *testing.T) {
 			}
 
 			dbCon := db.ConnDbName("UpdateAccountProvider")
-			store, err := NewStore(dbCon)
+			store, err := NewStore(dbCon, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -327,7 +327,7 @@ func TestListAccountsProvider(t *testing.T) {
 			}
 
 			dbCon := db.ConnDbName("TestListAccountsProvider")
-			store, err := NewStore(dbCon)
+			store, err := NewStore(dbCon, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -402,7 +402,7 @@ func TestCreateAccount(t *testing.T) {
 			}
 
 			dbCon := db.ConnDbName("TestCreateAccount")
-			store, err := NewStore(dbCon)
+			store, err := NewStore(dbCon, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -476,7 +476,7 @@ func TestGetAccount(t *testing.T) {
 			}
 
 			dbCon := db.ConnDbName("TestGetAccount")
-			store, err := NewStore(dbCon)
+			store, err := NewStore(dbCon, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -550,7 +550,7 @@ func TestDeleteAccount(t *testing.T) {
 			}
 
 			dbCon := db.ConnDbName("TestGetAccount")
-			store, err := NewStore(dbCon)
+			store, err := NewStore(dbCon, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -654,7 +654,7 @@ func TestUpdateAccount(t *testing.T) {
 			}
 
 			dbCon := db.ConnDbName("TestUpdateAccount")
-			store, err := NewStore(dbCon)
+			store, err := NewStore(dbCon, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -721,7 +721,7 @@ func TestListAccounts(t *testing.T) {
 			}
 
 			dbCon := db.ConnDbName("ListAccounts")
-			store, err := NewStore(dbCon)
+			store, err := NewStore(dbCon, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

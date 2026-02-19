@@ -2,11 +2,12 @@ package accounting
 
 import (
 	"fmt"
-	"github.com/go-bumbu/testdbs"
-	"github.com/google/go-cmp/cmp"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/go-bumbu/testdbs"
+	"github.com/google/go-cmp/cmp"
 )
 
 // TestMain modifies how test are run,
@@ -53,7 +54,7 @@ func TestListTenants(t *testing.T) {
 
 			t.Run("with tenant", func(t *testing.T) {
 				dbCon := db.ConnDbName("TestListTenants")
-				store, err := NewStore(dbCon)
+				store, err := NewStore(dbCon, nil)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -76,7 +77,7 @@ func TestListTenants(t *testing.T) {
 			t.Run("without tenant", func(t *testing.T) {
 
 				dbEmptyCon := db.ConnDbName("TestListTenants_Empty")
-				storeEmpty, err := NewStore(dbEmptyCon)
+				storeEmpty, err := NewStore(dbEmptyCon, nil)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -100,7 +101,7 @@ func TestWipeData(t *testing.T) {
 		t.Run(db.DbType(), func(t *testing.T) {
 
 			dbConn := db.ConnDbName("TestWipeData")
-			store, err := NewStore(dbConn)
+			store, err := NewStore(dbConn, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

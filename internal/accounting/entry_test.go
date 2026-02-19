@@ -1,9 +1,10 @@
 package accounting
 
 import (
-	"github.com/go-bumbu/testdbs"
 	"testing"
 	"time"
+
+	"github.com/go-bumbu/testdbs"
 )
 
 var sumEntriesSample = map[int]Transaction{
@@ -108,7 +109,7 @@ func TestSumEntries(t *testing.T) {
 	for _, db := range testdbs.DBs() {
 		t.Run(db.DbType(), func(t *testing.T) {
 			dbCon := db.ConnDbName("TestSumEntries")
-			store, err := NewStore(dbCon)
+			store, err := NewStore(dbCon, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

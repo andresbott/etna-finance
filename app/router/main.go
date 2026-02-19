@@ -9,6 +9,7 @@ import (
 	handlrs "github.com/andresbott/etna/app/router/handlers"
 	"github.com/andresbott/etna/app/spa"
 	"github.com/andresbott/etna/internal/accounting"
+	"github.com/andresbott/etna/internal/marketdata"
 	"github.com/go-bumbu/http/middleware"
 	"github.com/go-bumbu/userauth"
 	"github.com/go-bumbu/userauth/handlers/sessionauth"
@@ -31,6 +32,7 @@ type MainAppHandler struct {
 	router            *mux.Router
 	db                *gorm.DB
 	finStore          *accounting.Store
+	marketStore       *marketdata.Store
 	SessionAuth       *sessionauth.Manager
 	userMngr          userauth.LoginHandler
 	logger            *slog.Logger
@@ -56,7 +58,14 @@ func New(cfg Cfg) (*MainAppHandler, error) {
 		appSettings:       cfg.AppSettings,
 	}
 
-	fineStore, err := accounting.NewStore(cfg.Db)
+	mktStore, err := marketdata.NewStore(cfg.Db)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create market data Store: %v", err)
+	}
+	app.marketStore = mktStore
+
+	instrumentGetter := &marketDataInstrumentGetter{store: mktStore}
+	fineStore, err := accounting.NewStore(cfg.Db, instrumentGetter)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create accounting Store :%v", err)
 	}

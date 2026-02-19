@@ -7,7 +7,10 @@ import Column from 'primevue/column'
 import InstrumentDialog from './dialogs/InstrumentDialog.vue'
 import ConfirmDialog from '@/components/common/confirmDialog.vue'
 import { useInstruments } from '@/composables/useInstruments'
+import { useSettingsStore } from '@/store/settingsStore'
 
+const settingsStore = useSettingsStore()
+const defaultCurrency = computed(() => settingsStore.mainCurrency || 'CHF')
 const {
     instruments: instrumentsData,
     isLoading,
@@ -32,7 +35,7 @@ const openNewInstrumentDialog = () => {
     selectedInstrument.value = {
         symbol: '',
         name: '',
-        currency: 'CHF'
+        currency: defaultCurrency.value
     }
     isEditInstrument.value = false
     instrumentDialogVisible.value = true

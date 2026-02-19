@@ -23,32 +23,34 @@ const props = defineProps({
 const emit = defineEmits(['update:visible', 'save'])
 
 const settingsStore = useSettingsStore()
+const defaultCurrency = computed(() => settingsStore.mainCurrency || 'CHF')
 const currencies = computed(() => {
-    const list = settingsStore.currencies.length > 0 ? settingsStore.currencies : ['CHF']
+    const list = settingsStore.currencies.length > 0 ? settingsStore.currencies : [defaultCurrency.value]
     return list.map(c => ({ label: c, value: c }))
 })
 
 const formValues = ref({
     symbol: '',
     name: '',
-    currency: 'CHF'
+    currency: ''
 })
 
 watch(
     () => [props.visible, props.instrument],
     ([visible, instrument]) => {
         if (visible) {
+            const currencyDefault = defaultCurrency.value
             if (instrument) {
                 formValues.value = {
                     symbol: instrument.symbol ?? '',
                     name: instrument.name ?? '',
-                    currency: instrument.currency ?? 'CHF'
+                    currency: instrument.currency ?? currencyDefault
                 }
             } else {
                 formValues.value = {
                     symbol: '',
                     name: '',
-                    currency: 'CHF'
+                    currency: currencyDefault
                 }
             }
         }

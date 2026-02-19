@@ -25,7 +25,7 @@ func TestStore_CategorySmoke(t *testing.T) {
 			for catStr, categoryType := range categoryTypes {
 				t.Run(catStr, func(t *testing.T) {
 					dbCon := db.ConnDbName("TestCategory")
-					store, err := NewStore(dbCon)
+					store, err := NewStore(dbCon, nil)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -137,7 +137,7 @@ func TestStore_CreateCategoryErrors(t *testing.T) {
 			}
 
 			dbCon := db.ConnDbName("TestCreateCategoryErrors")
-			store, err := NewStore(dbCon)
+			store, err := NewStore(dbCon, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -194,7 +194,7 @@ func TestStore_UpdateCategoryErrors(t *testing.T) {
 			}
 
 			dbCon := db.ConnDbName("TestCreateCategoryErrors")
-			store, err := NewStore(dbCon)
+			store, err := NewStore(dbCon, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -246,7 +246,7 @@ func TestStore_MoveCategoryErrors(t *testing.T) {
 			}
 
 			dbCon := db.ConnDbName("TestCreateCategoryErrors")
-			store, err := NewStore(dbCon)
+			store, err := NewStore(dbCon, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -309,7 +309,7 @@ func TestGetCategory(t *testing.T) {
 		t.Run(db.DbType(), func(t *testing.T) {
 
 			dbCon := db.ConnDbName("storeGetCategory")
-			store, err := NewStore(dbCon)
+			store, err := NewStore(dbCon, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -381,7 +381,7 @@ func TestGetCategoryChildren(t *testing.T) {
 		t.Run(db.DbType(), func(t *testing.T) {
 
 			dbCon := db.ConnDbName("storeGetDescendants")
-			store, err := NewStore(dbCon)
+			store, err := NewStore(dbCon, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

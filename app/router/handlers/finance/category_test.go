@@ -523,7 +523,7 @@ func SampleCategoryHandler(t *testing.T) (*CategoryHandler, func()) {
 		t.Fatalf("unable to connect to sqlite: %v", err)
 	}
 
-	store, err := accounting.NewStore(db)
+	store, err := accounting.NewStore(db, nil)
 	if err != nil {
 		t.Fatalf("unable to connect to finance: %v", err)
 	}

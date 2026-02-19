@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/andresbott/etna/internal/accounting"
+	"github.com/andresbott/etna/internal/marketdata"
 )
 
 // ---------------------------------------------------------------------------
@@ -171,8 +171,8 @@ func TestHandler_CreateInstrument_duplicateSymbol(t *testing.T) {
 		t.Errorf("duplicate create: got status %d want 409", rec2.Code)
 	}
 	body, _ := io.ReadAll(rec2.Body)
-	if got := strings.TrimSuffix(string(body), "\n"); got != accounting.ErrInstrumentSymbolDuplicate.Error() {
-		t.Errorf("body: got %q want %q", got, accounting.ErrInstrumentSymbolDuplicate.Error())
+	if got := strings.TrimSuffix(string(body), "\n"); got != marketdata.ErrInstrumentSymbolDuplicate.Error() {
+		t.Errorf("body: got %q want %q", got, marketdata.ErrInstrumentSymbolDuplicate.Error())
 	}
 }
 
@@ -316,7 +316,7 @@ func TestHandler_UpdateInstrument(t *testing.T) {
 			id:         created.ID,
 			userId:     tenant1,
 			payload:    bytes.NewBuffer([]byte(`{"symbol":"TAKEN"}`)),
-			expectErr:  accounting.ErrInstrumentSymbolDuplicate.Error(),
+			expectErr:  marketdata.ErrInstrumentSymbolDuplicate.Error(),
 			expectCode: http.StatusConflict,
 		},
 	}

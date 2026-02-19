@@ -4,6 +4,12 @@ import (
 	"archive/zip"
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
 	"github.com/andresbott/etna/internal/accounting"
 	"github.com/glebarez/sqlite"
 	"github.com/google/go-cmp/cmp"
@@ -11,11 +17,6 @@ import (
 	"golang.org/x/text/currency"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"io"
-	"os"
-	"path/filepath"
-	"testing"
-	"time"
 )
 
 func TestExport(t *testing.T) {
@@ -26,7 +27,7 @@ func TestExport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unable to connect to sqlite: %v", err)
 	}
-	store, err := accounting.NewStore(db)
+	store, err := accounting.NewStore(db, nil)
 	if err != nil {
 		t.Fatalf("unable to connect to finance: %v", err)
 	}

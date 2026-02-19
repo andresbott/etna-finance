@@ -2,7 +2,9 @@ package finance
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +15,7 @@ import (
 	"time"
 
 	"github.com/andresbott/etna/internal/accounting"
+	"github.com/andresbott/etna/internal/marketdata"
 	"github.com/glebarez/sqlite"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -642,6 +645,22 @@ func getTime(timeStr string) time.Time {
 	return parsedTime
 }
 
+// sampleInstrumentGetter adapts marketdata.Store to accounting.InstrumentGetter for tests.
+type sampleInstrumentGetter struct {
+	store *marketdata.Store
+}
+
+func (g *sampleInstrumentGetter) GetInstrument(ctx context.Context, id uint, tenant string) (accounting.InstrumentInfo, error) {
+	inst, err := g.store.GetInstrument(ctx, id, tenant)
+	if err != nil {
+		if errors.Is(err, marketdata.ErrInstrumentNotFound) {
+			return accounting.InstrumentInfo{}, accounting.ErrInstrumentNotFound
+		}
+		return accounting.InstrumentInfo{}, err
+	}
+	return accounting.InstrumentInfo{ID: inst.ID, Currency: inst.Currency}, nil
+}
+
 func SampleHandler(t *testing.T) (*Handler, func()) {
 
 	db, err := gorm.Open(sqlite.Open(inMemorySqlite), &gorm.Config{
@@ -651,14 +670,19 @@ func SampleHandler(t *testing.T) (*Handler, func()) {
 		t.Fatalf("unable to connect to sqlite: %v", err)
 	}
 
-	store, err := accounting.NewStore(db)
+	mktStore, err := marketdata.NewStore(db)
+	if err != nil {
+		t.Fatalf("unable to create marketdata store: %v", err)
+	}
+	store, err := accounting.NewStore(db, &sampleInstrumentGetter{store: mktStore})
 	if err != nil {
 		t.Fatalf("unable to connect to finance: %v", err)
 	}
 	sampleData(t, store)
 
 	bkmh := Handler{
-		Store: store,
+		Store:           store,
+		InstrumentStore: mktStore,
 	}
 
 	closeFn := func() {

@@ -8,6 +8,7 @@ import (
 	handlrs "github.com/andresbott/etna/app/router/handlers"
 	"github.com/andresbott/etna/app/router/handlers/backup"
 	finHandler "github.com/andresbott/etna/app/router/handlers/finance"
+	mktHandler "github.com/andresbott/etna/app/router/handlers/marketdata"
 	"github.com/go-bumbu/userauth/authenticator"
 	"github.com/go-bumbu/userauth/handlers/sessionauth"
 	"github.com/gorilla/mux"
@@ -23,6 +24,7 @@ func (h *MainAppHandler) attachApiV0(r *mux.Router) error {
 	// attach api paths to api/v0
 	h.settingsApi(r)
 	h.accountingAPI(r)
+	h.marketDataAPI(r)
 	h.backupApi(r)
 
 	// send a 400 error on everything else on the API
@@ -34,7 +36,8 @@ func (h *MainAppHandler) attachApiV0(r *mux.Router) error {
 const settingsPath = "/settings"
 
 func (h *MainAppHandler) settingsApi(r *mux.Router) {
-	r.Path(settingsPath).Methods(http.MethodGet).Handler(handlrs.SettingsHandler(h.appSettings))
+	getSymbols := func() ([]string, error) { return h.marketStore.ListPriceSymbols() }
+	r.Path(settingsPath).Methods(http.MethodGet).Handler(handlrs.SettingsHandlerWithMarketData(h.appSettings, getSymbols))
 }
 
 const finProviderPath = "/fin/provider"
@@ -51,7 +54,7 @@ const finReport = "/fin/report"
 //nolint:gocognit,gocyclo // the function is quite big and verbose but easy to follow
 func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 
-	finHndlr := finHandler.Handler{Store: h.finStore}
+	finHndlr := finHandler.Handler{Store: h.finStore, InstrumentStore: h.marketStore}
 
 	// ==========================================================================
 	// Account Providers
@@ -407,6 +410,63 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 		finHndlr.AccountBalance(userData.UserId).ServeHTTP(w, r)
 	})
 
+}
+
+// ==========================================================================
+// Market Data
+// ==========================================================================
+
+const finMarketDataPath = "/fin/marketdata"
+
+func (h *MainAppHandler) marketDataAPI(r *mux.Router) {
+	mktHndlr := mktHandler.Handler{Store: h.marketStore}
+
+	// GET /fin/marketdata/symbols (list symbols with price data; must be before {symbol} routes)
+	r.Path(fmt.Sprintf("%s/symbols", finMarketDataPath)).Methods(http.MethodGet).Handler(mktHndlr.ListSymbols())
+
+	// GET /fin/marketdata/{symbol}/prices?start=YYYY-MM-DD&end=YYYY-MM-DD
+	r.Path(fmt.Sprintf("%s/{symbol}/prices", finMarketDataPath)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		symbol := mux.Vars(r)["symbol"]
+		mktHndlr.ListPrices(symbol).ServeHTTP(w, r)
+	})
+
+	// POST /fin/marketdata/{symbol}/prices  (single point)
+	r.Path(fmt.Sprintf("%s/{symbol}/prices", finMarketDataPath)).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		symbol := mux.Vars(r)["symbol"]
+		mktHndlr.CreatePrice(symbol).ServeHTTP(w, r)
+	})
+
+	// POST /fin/marketdata/{symbol}/prices/bulk
+	r.Path(fmt.Sprintf("%s/{symbol}/prices/bulk", finMarketDataPath)).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		symbol := mux.Vars(r)["symbol"]
+		mktHndlr.CreatePricesBulk(symbol).ServeHTTP(w, r)
+	})
+
+	// GET /fin/marketdata/{symbol}/prices/latest
+	r.Path(fmt.Sprintf("%s/{symbol}/prices/latest", finMarketDataPath)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		symbol := mux.Vars(r)["symbol"]
+		mktHndlr.LatestPrice(symbol).ServeHTTP(w, r)
+	})
+
+	// PUT /fin/marketdata/prices/{id}
+	r.Path(fmt.Sprintf("%s/prices/{id}", finMarketDataPath)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		mktHndlr.UpdatePrice(itemId).ServeHTTP(w, r)
+	})
+
+	// DELETE /fin/marketdata/prices/{id}
+	r.Path(fmt.Sprintf("%s/prices/{id}", finMarketDataPath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		mktHndlr.DeletePrice(itemId).ServeHTTP(w, r)
+	})
 }
 
 const backupPath = "/backup"

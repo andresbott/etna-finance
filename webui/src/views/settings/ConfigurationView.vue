@@ -131,6 +131,22 @@ const settings = useSettingsStore()
                                             />
                                         </div>
                                     </div>
+                                    <div v-if="settings.marketDataSymbols && settings.marketDataSymbols.length > 0" class="setting-item">
+                                        <div class="setting-label">
+                                            <i class="pi pi-list mr-2"></i>
+                                            <span>Symbols with market data</span>
+                                        </div>
+                                        <div class="setting-value">
+                                            <div class="flex gap-2 flex-wrap">
+                                                <Tag
+                                                    v-for="sym in settings.marketDataSymbols"
+                                                    :key="sym"
+                                                    :value="sym"
+                                                    severity="secondary"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </template>
                         </Card>

@@ -1,6 +1,6 @@
 module github.com/andresbott/etna
 
-go 1.24.2
+go 1.25.4
 
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
@@ -8,7 +8,9 @@ require (
 	github.com/go-bumbu/closure-tree v0.8.2
 	github.com/go-bumbu/config v0.2.0
 	github.com/go-bumbu/http v0.3.0
+	github.com/go-bumbu/tempo v0.0.0
 	github.com/go-bumbu/testdbs v0.2.3
+	github.com/go-bumbu/timeseries v0.0.0
 	github.com/go-bumbu/userauth v0.2.1
 	github.com/go-rod/rod v0.116.2
 	github.com/google/go-cmp v0.7.0
@@ -21,8 +23,12 @@ require (
 	github.com/samber/slog-formatter v1.2.0
 	github.com/spf13/cobra v1.9.1
 	golang.org/x/text v0.34.0
-	gorm.io/gorm v1.30.0
+	gorm.io/gorm v1.31.1
 )
+
+replace github.com/go-bumbu/tempo => /home/odo/datos/edit/programacion/bumbu/tempo
+
+replace github.com/go-bumbu/timeseries => /home/odo/datos/edit/programacion/bumbu/timeseries
 
 require (
 	dario.cat/mergo v1.0.0 // indirect
@@ -107,7 +113,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/mysql v1.5.7 // indirect
 	gorm.io/driver/postgres v1.5.11 // indirect
-	gorm.io/driver/sqlite v1.5.7 // indirect
+	gorm.io/driver/sqlite v1.6.0 // indirect
 	modernc.org/libc v1.65.8 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect

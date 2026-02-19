@@ -2,11 +2,6 @@ package backup
 
 import (
 	"encoding/json"
-	"github.com/andresbott/etna/internal/accounting"
-	"github.com/glebarez/sqlite"
-	"github.com/google/go-cmp/cmp"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -15,6 +10,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/andresbott/etna/internal/accounting"
+	"github.com/glebarez/sqlite"
+	"github.com/google/go-cmp/cmp"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 func TestHandler_List(t *testing.T) {
@@ -197,7 +198,7 @@ func TestHandler_CreateBackup(t *testing.T) {
 					t.Fatalf("unable to connect to sqlite: %v", err)
 				}
 
-				store, err := accounting.NewStore(db)
+				store, err := accounting.NewStore(db, nil)
 				if err != nil {
 					t.Fatalf("unable to connect to finance: %v", err)
 				}
@@ -354,7 +355,7 @@ func TestHandler_RestoreUpload(t *testing.T) {
 				if err != nil {
 					t.Fatalf("unable to connect to sqlite: %v", err)
 				}
-				store, err := accounting.NewStore(db)
+				store, err := accounting.NewStore(db, nil)
 				if err != nil {
 					t.Fatalf("unable to create store: %v", err)
 				}
@@ -392,7 +393,7 @@ func TestHandler_RestoreUpload(t *testing.T) {
 				if err != nil {
 					t.Fatalf("unable to connect to sqlite: %v", err)
 				}
-				store, err := accounting.NewStore(db)
+				store, err := accounting.NewStore(db, nil)
 				if err != nil {
 					t.Fatalf("unable to create store: %v", err)
 				}
@@ -413,7 +414,7 @@ func TestHandler_RestoreUpload(t *testing.T) {
 				if err != nil {
 					t.Fatalf("unable to connect to sqlite: %v", err)
 				}
-				store, err := accounting.NewStore(db)
+				store, err := accounting.NewStore(db, nil)
 				if err != nil {
 					t.Fatalf("unable to create store: %v", err)
 				}
@@ -502,7 +503,7 @@ func TestHandler_RestoreFromExisting(t *testing.T) {
 				if err != nil {
 					t.Fatalf("unable to connect to sqlite: %v", err)
 				}
-				store, err := accounting.NewStore(db)
+				store, err := accounting.NewStore(db, nil)
 				if err != nil {
 					t.Fatalf("unable to create store: %v", err)
 				}
@@ -544,7 +545,7 @@ func TestHandler_RestoreFromExisting(t *testing.T) {
 				if err != nil {
 					t.Fatalf("unable to connect to sqlite: %v", err)
 				}
-				store, err := accounting.NewStore(db)
+				store, err := accounting.NewStore(db, nil)
 				if err != nil {
 					t.Fatalf("unable to create store: %v", err)
 				}
@@ -565,7 +566,7 @@ func TestHandler_RestoreFromExisting(t *testing.T) {
 				if err != nil {
 					t.Fatalf("unable to connect to sqlite: %v", err)
 				}
-				store, err := accounting.NewStore(db)
+				store, err := accounting.NewStore(db, nil)
 				if err != nil {
 					t.Fatalf("unable to create store: %v", err)
 				}

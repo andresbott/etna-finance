@@ -2,8 +2,16 @@ import { computed } from 'vue'
 import { useSettingsStore } from '@/store/settingsStore'
 
 /**
- * Convert a backend date-format string (DD/MM/YYYY etc.) to PrimeVue DatePicker format.
+ * Global date formatting for the webui.
  *
+ * All user-visible date representation in the app should use this composable so that
+ * the format follows the global setting (Settings → dateFormat). Use `formatDate(date)`
+ * for display (Date or ISO date string). Use `pickerDateFormat` for PrimeVue date
+ * pickers. Do not introduce locale-specific or hardcoded date formats for display.
+ */
+
+/**
+ * Convert a backend date-format string (DD/MM/YYYY etc.) to PrimeVue DatePicker format.
  * Backend tokens: YYYY, YY, MM, DD  –  separators: - / .
  * PrimeVue tokens: dd (day), mm (month), yy (4-digit year), y (2-digit year)
  */

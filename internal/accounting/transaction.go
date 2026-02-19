@@ -329,7 +329,7 @@ var allowedPositionAccountTypes = []AccountType{InvestmentAccountType, UnvestedA
 func (store *Store) validateStockCurrencyMatch(
 	ctx context.Context, txID uint, tenant string,
 	newAccountID *uint, newInstrumentID *uint,
-	newInstrument *Instrument, txType TxType,
+	newInstrument *InstrumentInfo, txType TxType,
 ) error {
 	if newAccountID == nil && newInstrumentID == nil {
 		return nil
@@ -1382,7 +1382,7 @@ func (store *Store) UpdateStockBuy(ctx context.Context, input StockBuyUpdate, id
 		positionEntry.AccountID = *input.InvestmentAccountID
 		positionFields = append(positionFields, "AccountID")
 	}
-	var newInstrument *Instrument
+	var newInstrument *InstrumentInfo
 	if input.InstrumentID != nil {
 		if *input.InstrumentID == 0 {
 			return NewValidationErr("instrument is required")
@@ -1498,7 +1498,7 @@ func (store *Store) UpdateStockSell(ctx context.Context, input StockSellUpdate, 
 		positionEntry.AccountID = *input.InvestmentAccountID
 		positionFields = append(positionFields, "AccountID")
 	}
-	var newInstrument *Instrument
+	var newInstrument *InstrumentInfo
 	if input.InstrumentID != nil {
 		if *input.InstrumentID == 0 {
 			return NewValidationErr("instrument is required")

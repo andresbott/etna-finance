@@ -14,6 +14,7 @@ export const useSettingsStore = defineStore('settings', () => {
     const mainCurrency = ref('')
     const currencies = ref([])
     const instruments = ref(false)
+    const marketDataSymbols = ref([])
 
     const hasMultipleCurrencies = computed(() => currencies.value.length > 1)
 
@@ -24,8 +25,9 @@ export const useSettingsStore = defineStore('settings', () => {
             const res = await axios.get(SETTINGS_ENDPOINT)
             dateFormat.value = res.data.dateFormat
             mainCurrency.value = res.data.mainCurrency
-            currencies.value = res.data.currencies
+            currencies.value = res.data.currencies ?? []
             instruments.value = res.data.instruments
+            marketDataSymbols.value = res.data.marketDataSymbols ?? []
             isLoaded.value = true
         } catch (err) {
             console.error('Failed to fetch application settings:', err)
@@ -43,6 +45,7 @@ export const useSettingsStore = defineStore('settings', () => {
         mainCurrency.value = ''
         currencies.value = []
         instruments.value = false
+        marketDataSymbols.value = []
     }
 
     return {
@@ -54,6 +57,7 @@ export const useSettingsStore = defineStore('settings', () => {
         mainCurrency,
         currencies,
         instruments,
+        marketDataSymbols,
         hasMultipleCurrencies,
 
         fetchSettings,

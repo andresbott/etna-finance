@@ -2,24 +2,42 @@ package accounting
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	closuretree "github.com/go-bumbu/closure-tree"
+	"golang.org/x/text/currency"
 	"gorm.io/gorm"
 )
 
-type Store struct {
-	db           *gorm.DB
-	categoryTree *closuretree.Tree
+// InstrumentInfo is the minimal instrument data needed for transaction validation (e.g. currency match).
+type InstrumentInfo struct {
+	ID       uint
+	Currency currency.Unit
 }
 
-func NewStore(db *gorm.DB) (*Store, error) {
+var ErrInstrumentNotFound = errors.New("instrument not found")
+
+// InstrumentGetter provides instrument lookup for transaction validation.
+// Implementations typically adapt an external store (e.g. marketdata).
+type InstrumentGetter interface {
+	GetInstrument(ctx context.Context, id uint, tenant string) (InstrumentInfo, error)
+}
+
+type Store struct {
+	db               *gorm.DB
+	categoryTree     *closuretree.Tree
+	instrumentGetter InstrumentGetter
+}
+
+func NewStore(db *gorm.DB, instrumentGetter InstrumentGetter) (*Store, error) {
 	if db == nil {
 		return nil, fmt.Errorf("db cannot be nil")
 	}
 
 	b := Store{
-		db: db,
+		db:               db,
+		instrumentGetter: instrumentGetter,
 	}
 
 	stmt := &gorm.Statement{DB: db}
@@ -28,7 +46,7 @@ func NewStore(db *gorm.DB) (*Store, error) {
 		return nil, fmt.Errorf("error parsing schema: %w", err)
 	}
 
-	err = db.AutoMigrate(&dbAccountProvider{}, &dbAccount{}, &dbTransaction{}, &dbEntry{}, &dbInstrument{})
+	err = db.AutoMigrate(&dbAccountProvider{}, &dbAccount{}, &dbTransaction{}, &dbEntry{})
 	if err != nil {
 		return nil, err
 	}
@@ -40,6 +58,15 @@ func NewStore(db *gorm.DB) (*Store, error) {
 	b.categoryTree = categoryTree
 
 	return &b, nil
+}
+
+// GetInstrument returns instrument info by id and tenant, delegating to the injected InstrumentGetter.
+// If no getter is set, returns ErrInstrumentNotFound.
+func (s *Store) GetInstrument(ctx context.Context, id uint, tenant string) (InstrumentInfo, error) {
+	if s.instrumentGetter == nil {
+		return InstrumentInfo{}, ErrInstrumentNotFound
+	}
+	return s.instrumentGetter.GetInstrument(ctx, id, tenant)
 }
 
 func NewValidationErr(in string) ErrValidation {
@@ -74,7 +101,6 @@ func (store *Store) WipeData(ctx context.Context) error {
 		"db_transactions",
 		"db_entries",
 		"db_categories",
-		"db_securities",
 	}
 
 	for _, table := range tables {
