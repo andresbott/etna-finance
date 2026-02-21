@@ -35,7 +35,6 @@ type dbEntry struct {
 
 	EntryType entryType
 
-	OwnerId   string `gorm:"index"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -51,7 +50,6 @@ type sumEntriesOpts struct {
 	categoryIds []uint
 	accountIds  []uint
 	entryTypes  []entryType
-	tenant      string
 }
 
 // sumEntries is an internal function to sum the values of entries filtering by Categories entry types etc
@@ -64,8 +62,6 @@ func (store *Store) sumEntries(ctx context.Context, opts sumEntriesOpts) (sumRes
 	db = db.Select("SUM(amount) as sum, COUNT(*) as count").
 		Joins("JOIN db_transactions ON db_transactions.id = db_entries.transaction_id")
 
-	// ensure proper owner
-	db = db.Where("db_entries.owner_id = ? AND db_transactions.owner_id = ? ", opts.tenant, opts.tenant)
 	// Filter by date range
 	db = db.Where("db_transactions.date BETWEEN ? AND ?", opts.startDate, opts.endDate)
 

@@ -46,7 +46,7 @@ func TestCreateAccountProvider(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 					ctx := t.Context()
-					id, err := store.CreateAccountProvider(ctx, tc.input, tc.tenant)
+					id, err := store.CreateAccountProvider(ctx, tc.input)
 
 					if tc.wantErr != "" {
 						if err == nil {
@@ -64,7 +64,7 @@ func TestCreateAccountProvider(t *testing.T) {
 							t.Errorf("expected valid account id, but got 0")
 						}
 
-						got, err := store.GetAccountProvider(ctx, id, tc.tenant)
+						got, err := store.GetAccountProvider(ctx, id)
 						if err != nil {
 							t.Fatalf("expected account to be found, but got error: %v", err)
 						}
@@ -84,23 +84,15 @@ func TestGetAccountProvider(t *testing.T) {
 	for _, db := range testdbs.DBs() {
 		t.Run(db.DbType(), func(t *testing.T) {
 			tcs := []struct {
-				name        string
-				checkId     uint
-				checkTenant string
-				want        AccountProvider
-				wantErr     string
+				name    string
+				checkId uint
+				want    AccountProvider
+				wantErr string
 			}{
 				{
-					name:        "get existing account provider",
-					checkId:     1,
-					checkTenant: tenant1,
-					want:        sampleAccountProviders[0],
-				},
-				{
-					name:        "want error when reading from different tenant",
-					checkId:     1,
-					checkTenant: tenant2,
-					wantErr:     ErrAccountProviderNotFound.Error(),
+					name:    "get existing account provider",
+					checkId: 1,
+					want:    sampleAccountProviders[0],
 				},
 			}
 
@@ -115,7 +107,7 @@ func TestGetAccountProvider(t *testing.T) {
 				t.Run(tc.name, func(t *testing.T) {
 					ctx := t.Context()
 
-					got, err := store.GetAccountProvider(ctx, tc.checkId, tc.checkTenant)
+					got, err := store.GetAccountProvider(ctx, tc.checkId)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -177,7 +169,7 @@ func TestDeleteAccountProvider(t *testing.T) {
 				t.Run(tc.name, func(t *testing.T) {
 					ctx := t.Context()
 
-					err = store.DeleteAccountProvider(ctx, tc.deleteID, tc.deleteTenant)
+					err = store.DeleteAccountProvider(ctx, tc.deleteID)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -190,7 +182,7 @@ func TestDeleteAccountProvider(t *testing.T) {
 							t.Fatalf("unexpected error: %v", err)
 						}
 
-						_, err := store.GetAccountProvider(ctx, tc.deleteID, tc.deleteTenant)
+						_, err := store.GetAccountProvider(ctx, tc.deleteID)
 						if err == nil {
 							t.Fatalf("expected NotFoundErr, but got account")
 						}
@@ -240,13 +232,6 @@ func TestUpdateAccountProvider(t *testing.T) {
 					updatePayload: AccountProviderUpdatePayload{Description: ptr("Updated description")},
 					wantErr:       ErrAccountProviderNotFound.Error(),
 				},
-				{
-					name:          "error when updating another tenant",
-					updateTenant:  tenant2,
-					updateID:      1,
-					updatePayload: AccountProviderUpdatePayload{Description: ptr("Updated description")},
-					wantErr:       ErrAccountProviderNotFound.Error(),
-				},
 			}
 
 			dbCon := db.ConnDbName("UpdateAccountProvider")
@@ -259,7 +244,7 @@ func TestUpdateAccountProvider(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 					ctx := t.Context()
-					err = store.UpdateAccountProvider(tc.updatePayload, tc.updateID, tc.updateTenant)
+					err = store.UpdateAccountProvider(tc.updatePayload, tc.updateID)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -272,7 +257,7 @@ func TestUpdateAccountProvider(t *testing.T) {
 							t.Fatalf("unexpected error: %v", err)
 						}
 
-						got, err := store.GetAccountProvider(ctx, tc.updateID, tc.updateTenant)
+						got, err := store.GetAccountProvider(ctx, tc.updateID)
 						if err != nil {
 							t.Fatalf("expected account provider to be found, but got error: %v", err)
 						}
@@ -300,7 +285,7 @@ func TestListAccountsProvider(t *testing.T) {
 				{
 					name:        "list multiple Account Providers sorted",
 					checkTenant: tenant1,
-					want:        []AccountProvider{sampleAccountProviders[0], sampleAccountProviders[1], sampleAccountProviders[2]},
+					want:        sampleAccountProviders,
 				},
 				{
 					name:        "get account provider with prefetched accounts",
@@ -316,13 +301,11 @@ func TestListAccountsProvider(t *testing.T) {
 						{Name: "provider2", Description: "provider2", Icon: "wallet", Accounts: []Account{
 							{ID: 2, Name: "acc2", Icon: "dollar", Currency: currency.USD, Type: CashAccountType, AccountProviderID: 2},
 						}},
-						{Name: "provider3", Description: "provider3", Icon: "", Accounts: []Account{}}, // 3 does not have accounts
+						{Name: "provider3", Description: "provider3", Icon: "", Accounts: []Account{}},
+						{Name: "provider4_tenant2", Description: "provider4t2", Icon: "credit", Accounts: []Account{
+							{ID: 6, Name: "acc1tenant2", Icon: "foreign", Currency: currency.EUR, Type: 0, AccountProviderID: 4},
+						}},
 					},
-				},
-				{
-					name:        "want empty result when listing for different tenant",
-					checkTenant: emptyTenant,
-					want:        []AccountProvider{},
 				},
 			}
 
@@ -336,7 +319,7 @@ func TestListAccountsProvider(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 					ctx := t.Context()
-					got, err := store.ListAccountsProvider(ctx, tc.checkTenant, tc.preload)
+					got, err := store.ListAccountsProvider(ctx, tc.preload)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -412,7 +395,7 @@ func TestCreateAccount(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 					ctx := t.Context()
-					id, err := store.CreateAccount(ctx, tc.input, tc.tenant)
+					id, err := store.CreateAccount(ctx, tc.input)
 
 					if tc.wantErr != "" {
 						if err == nil {
@@ -430,7 +413,7 @@ func TestCreateAccount(t *testing.T) {
 							t.Errorf("expected valid account id, but got 0")
 						}
 
-						got, err := store.GetAccount(ctx, id, tc.tenant)
+						got, err := store.GetAccount(ctx, id)
 						if err != nil {
 							t.Fatalf("expected account to be found, but got error: %v", err)
 						}
@@ -467,12 +450,6 @@ func TestGetAccount(t *testing.T) {
 					checkTenant: tenant1,
 					want:        sampleAccounts[0],
 				},
-				{
-					name:        "want error when reading from different tenant",
-					checkId:     1,
-					checkTenant: tenant2,
-					wantErr:     ErrAccountNotFound.Error(),
-				},
 			}
 
 			dbCon := db.ConnDbName("TestGetAccount")
@@ -488,7 +465,7 @@ func TestGetAccount(t *testing.T) {
 
 					ctx := t.Context()
 
-					got, err := store.GetAccount(ctx, tc.checkId, tc.checkTenant)
+					got, err := store.GetAccount(ctx, tc.checkId)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -536,12 +513,6 @@ func TestDeleteAccount(t *testing.T) {
 					wantErr:      ErrAccountNotFound.Error(),
 				},
 				{
-					name:         "error when deleting non-existent tenant",
-					deleteTenant: emptyTenant,
-					deleteID:     2,
-					wantErr:      ErrAccountNotFound.Error(),
-				},
-				{
 					name:         "error when deleting account that has entries referenced",
 					deleteTenant: tenant1,
 					deleteID:     3,
@@ -559,7 +530,7 @@ func TestDeleteAccount(t *testing.T) {
 			accountSampleData(t, store)
 			// add one entry to trigger error on delete
 			_, err = store.CreateTransaction(t.Context(),
-				Income{Description: "test", Amount: 1, AccountID: 3, Date: time.Now()}, tenant1)
+				Income{Description: "test", Amount: 1, AccountID: 3, Date: time.Now()})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -568,7 +539,7 @@ func TestDeleteAccount(t *testing.T) {
 				t.Run(tc.name, func(t *testing.T) {
 					ctx := t.Context()
 
-					err = store.DeleteAccount(ctx, tc.deleteID, tc.deleteTenant)
+					err = store.DeleteAccount(ctx, tc.deleteID)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -580,7 +551,7 @@ func TestDeleteAccount(t *testing.T) {
 						if err != nil {
 							t.Fatalf("unexpected error: %v", err)
 						}
-						_, err := store.GetAccount(ctx, tc.deleteID, tc.deleteTenant)
+						_, err := store.GetAccount(ctx, tc.deleteID)
 						if err == nil {
 							t.Fatalf("expected NotFoundErr, but got account")
 						}
@@ -644,13 +615,6 @@ func TestUpdateAccount(t *testing.T) {
 					updatePayload: AccountUpdatePayload{Name: ptr("Updated Name")},
 					wantErr:       ErrAccountNotFound.Error(),
 				},
-				{
-					name:          "error when updating wron tenant",
-					updateTenant:  emptyTenant,
-					updateID:      1,
-					updatePayload: AccountUpdatePayload{Name: ptr("Updated Name")},
-					wantErr:       ErrAccountNotFound.Error(),
-				},
 			}
 
 			dbCon := db.ConnDbName("TestUpdateAccount")
@@ -665,7 +629,7 @@ func TestUpdateAccount(t *testing.T) {
 				t.Run(tc.name, func(t *testing.T) {
 					ctx := t.Context()
 
-					err = store.UpdateAccount(t.Context(), tc.updatePayload, tc.updateID, tc.updateTenant)
+					err = store.UpdateAccount(t.Context(), tc.updatePayload, tc.updateID)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -678,7 +642,7 @@ func TestUpdateAccount(t *testing.T) {
 							t.Fatalf("unexpected error: %v", err)
 						}
 
-						got, err := store.GetAccount(ctx, tc.updateID, tc.updateTenant)
+						got, err := store.GetAccount(ctx, tc.updateID)
 						if err != nil {
 							t.Fatalf("expected account to be found, but got error: %v", err)
 						}
@@ -701,6 +665,7 @@ func TestUpdateAccount(t *testing.T) {
 func TestListAccounts(t *testing.T) {
 	for _, db := range testdbs.DBs() {
 		t.Run(db.DbType(), func(t *testing.T) {
+			allAccounts := append(sampleAccounts, sampleAccounts2...)
 			tcs := []struct {
 				name string
 
@@ -709,14 +674,9 @@ func TestListAccounts(t *testing.T) {
 				wantErr     string
 			}{
 				{
-					name:        "list multiple accounts sorted",
+					name:        "list all accounts sorted",
 					checkTenant: tenant1,
-					want:        sampleAccounts,
-				},
-				{
-					name:        "want empty result when listing for different tenant",
-					checkTenant: emptyTenant,
-					want:        nil,
+					want:        allAccounts,
 				},
 			}
 
@@ -732,7 +692,7 @@ func TestListAccounts(t *testing.T) {
 				t.Run(tc.name, func(t *testing.T) {
 
 					ctx := t.Context()
-					got, err := store.ListAccounts(ctx, tc.checkTenant)
+					got, err := store.ListAccounts(ctx)
 
 					if tc.wantErr != "" {
 						if err == nil {
@@ -781,21 +741,21 @@ func accountSampleData(t *testing.T, store *Store) {
 	// create accounts providers
 	// =========================================
 
-	provider1, err := store.CreateAccountProvider(ctx, sampleAccountProviders[0], tenant1)
+	provider1, err := store.CreateAccountProvider(ctx, sampleAccountProviders[0])
 	if err != nil {
 		t.Fatalf("error creating provider 1: %v", err)
 	}
-	provider2, err := store.CreateAccountProvider(ctx, sampleAccountProviders[1], tenant1)
+	provider2, err := store.CreateAccountProvider(ctx, sampleAccountProviders[1])
 	if err != nil {
 		t.Fatalf("error creating provider 2: %v", err)
 	}
-	provider3, err := store.CreateAccountProvider(ctx, sampleAccountProviders[2], tenant1)
+	provider3, err := store.CreateAccountProvider(ctx, sampleAccountProviders[2])
 	if err != nil {
 		t.Fatalf("error creating provider 2: %v", err)
 	}
 	_ = provider3
 
-	provider4, err := store.CreateAccountProvider(ctx, sampleAccountProviders[3], tenant2)
+	provider4, err := store.CreateAccountProvider(ctx, sampleAccountProviders[3])
 	if err != nil {
 		t.Fatalf("error creating provider 2: %v", err)
 	}
@@ -806,7 +766,7 @@ func accountSampleData(t *testing.T, store *Store) {
 
 	acc := sampleAccounts[0]
 	acc.AccountProviderID = provider1
-	account1, err := store.CreateAccount(ctx, acc, tenant1)
+	account1, err := store.CreateAccount(ctx, acc)
 	if err != nil {
 		t.Fatalf("error creating account 1: %v", err)
 	}
@@ -814,7 +774,7 @@ func accountSampleData(t *testing.T, store *Store) {
 
 	acc = sampleAccounts[1]
 	acc.AccountProviderID = provider2
-	account2, err := store.CreateAccount(ctx, acc, tenant1)
+	account2, err := store.CreateAccount(ctx, acc)
 	if err != nil {
 		t.Fatalf("error creating account 2: %v", err)
 	}
@@ -823,7 +783,7 @@ func accountSampleData(t *testing.T, store *Store) {
 	for i := 2; i < len(sampleAccounts); i++ {
 		acc = sampleAccounts[i]
 		acc.AccountProviderID = provider1
-		_, err = store.CreateAccount(ctx, acc, tenant1)
+		_, err = store.CreateAccount(ctx, acc)
 		if err != nil {
 			t.Fatalf("error creating account 1: %v", err)
 		}
@@ -831,7 +791,7 @@ func accountSampleData(t *testing.T, store *Store) {
 	for i := 0; i < len(sampleAccounts2); i++ {
 		acc2 := sampleAccounts2[i]
 		acc2.AccountProviderID = provider4
-		_, err := store.CreateAccount(ctx, acc2, tenant2)
+		_, err := store.CreateAccount(ctx, acc2)
 		if err != nil {
 			t.Fatalf("error creating account 1: %v", err)
 		}

@@ -182,7 +182,7 @@ func TestGetCategoryReport(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
-					got, err := store.ReportInOutByCategory(t.Context(), tc.startDate, tc.endDate, tc.tenant)
+					got, err := store.ReportInOutByCategory(t.Context(), tc.startDate, tc.endDate)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -299,7 +299,7 @@ func TestAccountBalanceSingle(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
-					got, err := store.AccountBalanceSingle(t.Context(), tc.accountId, tc.date, tc.tenant)
+					got, err := store.AccountBalanceSingle(t.Context(), tc.accountId, tc.date)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -497,7 +497,7 @@ func TestAccountBalance(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
-					got, err := store.AccountBalance(t.Context(), tc.accountId, tc.count, tc.startDate, tc.endDate, tc.tenant)
+					got, err := store.AccountBalance(t.Context(), tc.accountId, tc.count, tc.startDate, tc.endDate)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)

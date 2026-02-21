@@ -29,12 +29,8 @@ type accountProviderPayload struct {
 
 var validationErr = accounting.ErrValidation("")
 
-func (h *Handler) CreateAccountProvider(userId string) http.Handler {
+func (h *Handler) CreateAccountProvider() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if userId == "" {
-			http.Error(w, "unable to create account: user not provided", http.StatusBadRequest)
-			return
-		}
 		if r.Body == nil {
 			http.Error(w, "request had empty body", http.StatusBadRequest)
 			return
@@ -53,7 +49,7 @@ func (h *Handler) CreateAccountProvider(userId string) http.Handler {
 			Icon:        payload.Icon,
 		}
 
-		accID, err := h.Store.CreateAccountProvider(r.Context(), account, userId)
+		accID, err := h.Store.CreateAccountProvider(r.Context(), account)
 		if err != nil {
 			if errors.As(err, &validationErr) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -82,12 +78,8 @@ type accountProviderUpdatePayload struct {
 	Icon        *string `json:"icon"`
 }
 
-func (h *Handler) UpdateAccountProvider(Id uint, userId string) http.Handler {
+func (h *Handler) UpdateAccountProvider(Id uint) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if userId == "" {
-			http.Error(w, "unable to update account: user not provided", http.StatusBadRequest)
-			return
-		}
 		if r.Body == nil {
 			http.Error(w, "request had empty body", http.StatusBadRequest)
 			return
@@ -106,7 +98,7 @@ func (h *Handler) UpdateAccountProvider(Id uint, userId string) http.Handler {
 			Icon:        payload.Icon,
 		}
 
-		err = h.Store.UpdateAccountProvider(item, Id, userId)
+		err = h.Store.UpdateAccountProvider(item, Id)
 		if err != nil {
 			if errors.As(err, &validationErr) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -125,15 +117,9 @@ func (h *Handler) UpdateAccountProvider(Id uint, userId string) http.Handler {
 	})
 }
 
-func (h *Handler) DeleteAccountProvider(Id uint, userId string) http.Handler {
+func (h *Handler) DeleteAccountProvider(Id uint) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		if userId == "" {
-			http.Error(w, "unable to get account: user not provided", http.StatusBadRequest)
-			return
-		}
-
-		err := h.Store.DeleteAccountProvider(r.Context(), Id, userId)
+		err := h.Store.DeleteAccountProvider(r.Context(), Id)
 		if err != nil {
 			if errors.Is(err, accounting.ErrAccountProviderNotFound) {
 				http.Error(w, err.Error(), http.StatusNotFound)
@@ -155,16 +141,11 @@ type listResponse struct {
 	Items []accountProviderPayload `json:"items"`
 }
 
-func (h *Handler) ListAccountProviders(userId string) http.Handler {
+func (h *Handler) ListAccountProviders() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var err error
 
-		if userId == "" {
-			http.Error(w, "unable to list accounts: user not provided", http.StatusBadRequest)
-			return
-		}
-
-		providers, err := h.Store.ListAccountsProvider(r.Context(), userId, true)
+		providers, err := h.Store.ListAccountsProvider(r.Context(), true)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to update account: %s", err.Error()), http.StatusInternalServerError)
 			return
@@ -225,12 +206,8 @@ type accountPayload struct {
 	Type       string `json:"type"` // enum of type
 }
 
-func (h *Handler) CreateAccount(userId string) http.Handler {
+func (h *Handler) CreateAccount() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if userId == "" {
-			http.Error(w, "unable to create account: user not provided", http.StatusBadRequest)
-			return
-		}
 		if r.Body == nil {
 			http.Error(w, "request had empty body", http.StatusBadRequest)
 			return
@@ -265,7 +242,7 @@ func (h *Handler) CreateAccount(userId string) http.Handler {
 		}
 		// Investment/Unvested: ignore any currency in the request
 
-		accID, err := h.Store.CreateAccount(r.Context(), account, userId)
+		accID, err := h.Store.CreateAccount(r.Context(), account)
 		if err != nil {
 			if errors.As(err, &validationErr) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -307,12 +284,8 @@ type accountUpdatePayload struct {
 	Type     string  `json:"type"`
 }
 
-func (h *Handler) UpdateAccount(Id uint, userId string) http.Handler {
+func (h *Handler) UpdateAccount(Id uint) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if userId == "" {
-			http.Error(w, "unable to update account: user not provided", http.StatusBadRequest)
-			return
-		}
 		if r.Body == nil {
 			http.Error(w, "request had empty body", http.StatusBadRequest)
 			return
@@ -339,7 +312,7 @@ func (h *Handler) UpdateAccount(Id uint, userId string) http.Handler {
 			targetType = parseAccountType(payload.Type)
 		}
 		if targetType == accounting.UnknownAccountType && payload.Currency != nil {
-			current, err := h.Store.GetAccount(r.Context(), Id, userId)
+			current, err := h.Store.GetAccount(r.Context(), Id)
 			if err != nil {
 				http.Error(w, fmt.Sprintf("unable to get account: %s", err.Error()), http.StatusInternalServerError)
 				return
@@ -365,7 +338,7 @@ func (h *Handler) UpdateAccount(Id uint, userId string) http.Handler {
 			account.Type = t
 		}
 
-		err = h.Store.UpdateAccount(r.Context(), account, Id, userId)
+		err = h.Store.UpdateAccount(r.Context(), account, Id)
 		if err != nil {
 			if errors.As(err, &validationErr) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -381,15 +354,9 @@ func (h *Handler) UpdateAccount(Id uint, userId string) http.Handler {
 	})
 }
 
-func (h *Handler) DeleteAccount(Id uint, userId string) http.Handler {
+func (h *Handler) DeleteAccount(Id uint) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		if userId == "" {
-			http.Error(w, "unable to get account: user not provided", http.StatusBadRequest)
-			return
-		}
-
-		err := h.Store.DeleteAccount(r.Context(), Id, userId)
+		err := h.Store.DeleteAccount(r.Context(), Id)
 		if err != nil {
 			if errors.Is(err, accounting.ErrAccountNotFound) {
 				http.Error(w, err.Error(), http.StatusNotFound)

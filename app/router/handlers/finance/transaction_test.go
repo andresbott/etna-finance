@@ -26,13 +26,6 @@ func TestFinanceHandler_CreateTx(t *testing.T) {
 			expectCode: http.StatusOK,
 		},
 		{
-			name:       "empty tenant",
-			userId:     "",
-			payload:    bytes.NewBuffer([]byte(`{"description":"Salary", "Amount":1000.0, "date":"2024-01-01T00:00:00Z", "type":"income", "AccountId":1, "categoryId":0}`)),
-			expecErr:   "unable to create entry: user not provided",
-			expectCode: http.StatusBadRequest,
-		},
-		{
 			name:       "empty payload",
 			userId:     tenant1,
 			payload:    nil,
@@ -55,7 +48,7 @@ func TestFinanceHandler_CreateTx(t *testing.T) {
 
 			recorder := httptest.NewRecorder()
 			req, _ := http.NewRequest("POST", "/api/entries", tc.payload)
-			handler := h.CreateTx(tc.userId)
+			handler := h.CreateTx()
 			handler.ServeHTTP(recorder, req)
 
 			if tc.expecErr != "" {
@@ -85,7 +78,7 @@ func TestFinanceHandler_CreateTx(t *testing.T) {
 				if entry.Id == 0 {
 					t.Error("returned entry id is empty")
 				}
-				_, err = h.Store.GetTransaction(t.Context(), entry.Id, tc.userId)
+				_, err = h.Store.GetTransaction(t.Context(), entry.Id)
 				if err != nil {
 					t.Errorf("unexpected error in transaction store: %v", err)
 				}
@@ -109,14 +102,6 @@ func TestFinanceHandler_UpdateTx(t *testing.T) {
 			entryId:    1,
 			payload:    bytes.NewBuffer([]byte(`{"description":"Updated Salary", "amount":2000.5}`)),
 			expectCode: http.StatusOK,
-		},
-		{
-			name:       "empty tenant",
-			userId:     "",
-			entryId:    1,
-			payload:    bytes.NewBuffer([]byte(`{"description":"Updated Salary", "amount":2000.0}`)),
-			expectErr:  "unable to update entry: user not provided",
-			expectCode: http.StatusBadRequest,
 		},
 		{
 			name:       "empty payload",
@@ -143,7 +128,7 @@ func TestFinanceHandler_UpdateTx(t *testing.T) {
 
 			recorder := httptest.NewRecorder()
 			req, _ := http.NewRequest("PUT", "/api/entries/"+strconv.FormatUint(uint64(tc.entryId), 10), tc.payload)
-			handler := h.UpdateTx(tc.entryId, tc.userId)
+			handler := h.UpdateTx(tc.entryId)
 			handler.ServeHTTP(recorder, req)
 
 			if tc.expectErr != "" {
@@ -183,13 +168,6 @@ func TestFinanceHandler_DeleteTx(t *testing.T) {
 			entryId:    1,
 			expectCode: http.StatusOK,
 		},
-		{
-			name:       "empty tenant",
-			userId:     "",
-			entryId:    1,
-			expecErr:   "unable to delete entry: user not provided",
-			expectCode: http.StatusBadRequest,
-		},
 	}
 
 	for _, tc := range tcs {
@@ -199,7 +177,7 @@ func TestFinanceHandler_DeleteTx(t *testing.T) {
 
 			recorder := httptest.NewRecorder()
 			req, _ := http.NewRequest("DELETE", "/api/entries/"+strconv.FormatUint(uint64(tc.entryId), 10), nil)
-			handler := h.DeleteTx(tc.entryId, tc.userId)
+			handler := h.DeleteTx(tc.entryId)
 			handler.ServeHTTP(recorder, req)
 
 			if tc.expecErr != "" {
@@ -253,7 +231,7 @@ func TestFinanceHandler_ListTx(t *testing.T) {
 			userId:           tenant1,
 			query:            "?startDate=2025-01-16",
 			expectCode:       http.StatusOK,
-			expectItemsCount: 3,
+			expectItemsCount: 5,
 		},
 		{
 			name:             "successful request with only end date",
@@ -261,13 +239,6 @@ func TestFinanceHandler_ListTx(t *testing.T) {
 			query:            "?endDate=3026-01-03", // intentionally sing a date in the fare future
 			expectCode:       http.StatusOK,
 			expectItemsCount: 1,
-		},
-		{
-			name:       "empty tenant",
-			userId:     "",
-			query:      "?startDate=2025-01-01&endDate=2025-01-05",
-			expectErr:  "unable to list entries: user not provided",
-			expectCode: http.StatusBadRequest,
 		},
 		{
 			name:       "invalid start date format",
@@ -306,7 +277,7 @@ func TestFinanceHandler_ListTx(t *testing.T) {
 
 			recorder := httptest.NewRecorder()
 			req, _ := http.NewRequest("GET", "/api/entries"+tc.query, nil)
-			handler := h.ListTx(tc.userId)
+			handler := h.ListTx()
 			handler.ServeHTTP(recorder, req)
 
 			if tc.expectErr != "" {

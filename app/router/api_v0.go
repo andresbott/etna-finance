@@ -63,27 +63,24 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 	// ==========================================================================
 
 	r.Path(finProviderPath).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userData, err := sessionauth.CtxGetUserData(r)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("unable to read bookmark: %s", err.Error()), http.StatusInternalServerError)
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
-		finHndlr.ListAccountProviders(userData.UserId).ServeHTTP(w, r)
+		finHndlr.ListAccountProviders().ServeHTTP(w, r)
 	})
 
 	r.Path(finProviderPath).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userData, err := sessionauth.CtxGetUserData(r)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("unable to read bookmark: %s", err.Error()), http.StatusInternalServerError)
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
-		finHndlr.CreateAccountProvider(userData.UserId).ServeHTTP(w, r)
+		finHndlr.CreateAccountProvider().ServeHTTP(w, r)
 	})
 
 	r.Path(fmt.Sprintf("%s/{id}", finProviderPath)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userData, err := sessionauth.CtxGetUserData(r)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("unable to read bookmark: %s", err.Error()), http.StatusInternalServerError)
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
 
@@ -93,13 +90,12 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 			return
 		}
 
-		finHndlr.UpdateAccountProvider(itemId, userData.UserId).ServeHTTP(w, r)
+		finHndlr.UpdateAccountProvider(itemId).ServeHTTP(w, r)
 	})
 
 	r.Path(fmt.Sprintf("%s/{id}", finProviderPath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userData, err := sessionauth.CtxGetUserData(r)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("unable to read bookmark: %s", err.Error()), http.StatusInternalServerError)
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
 
@@ -109,25 +105,23 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 			return
 		}
 
-		finHndlr.DeleteAccountProvider(itemId, userData.UserId).ServeHTTP(w, r)
+		finHndlr.DeleteAccountProvider(itemId).ServeHTTP(w, r)
 	})
 	// ==========================================================================
 	// Accounts
 	// ==========================================================================
 
 	r.Path(finAccountPath).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userData, err := sessionauth.CtxGetUserData(r)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("unable to read bookmark: %s", err.Error()), http.StatusInternalServerError)
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
-		finHndlr.CreateAccount(userData.UserId).ServeHTTP(w, r)
+		finHndlr.CreateAccount().ServeHTTP(w, r)
 	})
 
 	r.Path(fmt.Sprintf("%s/{id}", finAccountPath)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userData, err := sessionauth.CtxGetUserData(r)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("unable to read bookmark: %s", err.Error()), http.StatusInternalServerError)
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
 
@@ -137,13 +131,12 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 			return
 		}
 
-		finHndlr.UpdateAccount(itemId, userData.UserId).ServeHTTP(w, r)
+		finHndlr.UpdateAccount(itemId).ServeHTTP(w, r)
 	})
 
 	r.Path(fmt.Sprintf("%s/{id}", finAccountPath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userData, err := sessionauth.CtxGetUserData(r)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("unable to read bookmark: %s", err.Error()), http.StatusInternalServerError)
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
 
@@ -153,7 +146,7 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 			return
 		}
 
-		finHndlr.DeleteAccount(itemId, userData.UserId).ServeHTTP(w, r)
+		finHndlr.DeleteAccount(itemId).ServeHTTP(w, r)
 	})
 	// ==========================================================================
 	// Entry Category
@@ -163,27 +156,27 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 
 	// list income categories
 	r.Path(finCategoryIncome).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userData, err := sessionauth.CtxGetUserData(r)
+		_, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
-		catHandler.ListIncome(0, userData.UserId).ServeHTTP(w, r)
+		catHandler.ListIncome(0).ServeHTTP(w, r)
 	})
 
 	// create income categories
 	r.Path(finCategoryIncome).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userData, err := sessionauth.CtxGetUserData(r)
+		_, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
-		catHandler.CreateIncome(userData.UserId).ServeHTTP(w, r)
+		catHandler.CreateIncome().ServeHTTP(w, r)
 	})
 
 	// Update income categories
 	r.Path(fmt.Sprintf("%s/{id}", finCategoryIncome)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userData, err := sessionauth.CtxGetUserData(r)
+		_, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
@@ -194,13 +187,13 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 			http.Error(w, httpErr.Error, httpErr.Code)
 			return
 		}
-		catHandler.UpdateIncome(itemId, userData.UserId).ServeHTTP(w, r)
+		catHandler.UpdateIncome(itemId).ServeHTTP(w, r)
 	})
 	// TODO Move exposed as API yet
 
 	// delete income category
 	r.Path(fmt.Sprintf("%s/{id}", finCategoryIncome)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userData, err := sessionauth.CtxGetUserData(r)
+		_, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
@@ -211,32 +204,32 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 			http.Error(w, httpErr.Error, httpErr.Code)
 			return
 		}
-		catHandler.DeleteIncome(itemId, userData.UserId).ServeHTTP(w, r)
+		catHandler.DeleteIncome(itemId).ServeHTTP(w, r)
 	})
 
 	// list expense categories
 	r.Path(finCategoryExpense).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userData, err := sessionauth.CtxGetUserData(r)
+		_, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
-		catHandler.ListExpense(0, userData.UserId).ServeHTTP(w, r)
+		catHandler.ListExpense(0).ServeHTTP(w, r)
 	})
 
 	// create expense categories
 	r.Path(finCategoryExpense).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userData, err := sessionauth.CtxGetUserData(r)
+		_, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
-		catHandler.CreateExpense(userData.UserId).ServeHTTP(w, r)
+		catHandler.CreateExpense().ServeHTTP(w, r)
 	})
 
 	// Update expense categories
 	r.Path(fmt.Sprintf("%s/{id}", finCategoryExpense)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userData, err := sessionauth.CtxGetUserData(r)
+		_, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
@@ -247,13 +240,13 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 			http.Error(w, httpErr.Error, httpErr.Code)
 			return
 		}
-		catHandler.UpdateExpense(itemId, userData.UserId).ServeHTTP(w, r)
+		catHandler.UpdateExpense(itemId).ServeHTTP(w, r)
 	})
 	// TODO Move exposed as API yet
 
 	// delete expense category
 	r.Path(fmt.Sprintf("%s/{id}", finCategoryExpense)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userData, err := sessionauth.CtxGetUserData(r)
+		_, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
@@ -264,7 +257,7 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 			http.Error(w, httpErr.Error, httpErr.Code)
 			return
 		}
-		catHandler.DeleteExpense(itemId, userData.UserId).ServeHTTP(w, r)
+		catHandler.DeleteExpense(itemId).ServeHTTP(w, r)
 	})
 
 	// ==========================================================================
@@ -272,25 +265,25 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 	// ==========================================================================
 
 	r.Path(finEntries).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userData, err := sessionauth.CtxGetUserData(r)
+		_, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
-		finHndlr.ListTx(userData.UserId).ServeHTTP(w, r)
+		finHndlr.ListTx().ServeHTTP(w, r)
 	})
 
 	r.Path(finEntries).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userData, err := sessionauth.CtxGetUserData(r)
+		_, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
-		finHndlr.CreateTx(userData.UserId).ServeHTTP(w, r)
+		finHndlr.CreateTx().ServeHTTP(w, r)
 	})
 
 	r.Path(fmt.Sprintf("%s/{id}", finEntries)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userData, err := sessionauth.CtxGetUserData(r)
+		_, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
@@ -302,11 +295,11 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 			return
 		}
 
-		finHndlr.UpdateTx(itemId, userData.UserId).ServeHTTP(w, r)
+		finHndlr.UpdateTx(itemId).ServeHTTP(w, r)
 	})
 
 	r.Path(fmt.Sprintf("%s/{id}", finEntries)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userData, err := sessionauth.CtxGetUserData(r)
+		_, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
@@ -318,7 +311,7 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 			return
 		}
 
-		finHndlr.DeleteTx(itemId, userData.UserId).ServeHTTP(w, r)
+		finHndlr.DeleteTx(itemId).ServeHTTP(w, r)
 	})
 
 	// ==========================================================================
@@ -327,25 +320,25 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 
 	if h.appSettings.Instruments {
 		r.Path(finInstrumentPath).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			userData, err := sessionauth.CtxGetUserData(r)
+			_, err := sessionauth.CtxGetUserData(r)
 			if err != nil {
 				http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 				return
 			}
-			finHndlr.ListInstruments(userData.UserId).ServeHTTP(w, r)
+			finHndlr.ListInstruments().ServeHTTP(w, r)
 		})
 
 		r.Path(finInstrumentPath).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			userData, err := sessionauth.CtxGetUserData(r)
+			_, err := sessionauth.CtxGetUserData(r)
 			if err != nil {
 				http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 				return
 			}
-			finHndlr.CreateInstrument(userData.UserId).ServeHTTP(w, r)
+			finHndlr.CreateInstrument().ServeHTTP(w, r)
 		})
 
 		r.Path(fmt.Sprintf("%s/{id}", finInstrumentPath)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			userData, err := sessionauth.CtxGetUserData(r)
+			_, err := sessionauth.CtxGetUserData(r)
 			if err != nil {
 				http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 				return
@@ -355,11 +348,11 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 				http.Error(w, httpErr.Error, httpErr.Code)
 				return
 			}
-			finHndlr.GetInstrument(itemId, userData.UserId).ServeHTTP(w, r)
+			finHndlr.GetInstrument(itemId).ServeHTTP(w, r)
 		})
 
 		r.Path(fmt.Sprintf("%s/{id}", finInstrumentPath)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			userData, err := sessionauth.CtxGetUserData(r)
+			_, err := sessionauth.CtxGetUserData(r)
 			if err != nil {
 				http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 				return
@@ -369,11 +362,11 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 				http.Error(w, httpErr.Error, httpErr.Code)
 				return
 			}
-			finHndlr.UpdateInstrument(itemId, userData.UserId).ServeHTTP(w, r)
+			finHndlr.UpdateInstrument(itemId).ServeHTTP(w, r)
 		})
 
 		r.Path(fmt.Sprintf("%s/{id}", finInstrumentPath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			userData, err := sessionauth.CtxGetUserData(r)
+			_, err := sessionauth.CtxGetUserData(r)
 			if err != nil {
 				http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 				return
@@ -383,7 +376,7 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 				http.Error(w, httpErr.Error, httpErr.Code)
 				return
 			}
-			finHndlr.DeleteInstrument(itemId, userData.UserId).ServeHTTP(w, r)
+			finHndlr.DeleteInstrument(itemId).ServeHTTP(w, r)
 		})
 	} else {
 		instrumentsDisabled := StatusErrText(http.StatusForbidden, "financial instruments are disabled")
@@ -395,21 +388,21 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 	// ==========================================================================
 
 	r.Path(fmt.Sprintf("%s/income-expense", finReport)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userData, err := sessionauth.CtxGetUserData(r)
+		_, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
-		finHndlr.IncomeExpenseReport(userData.UserId).ServeHTTP(w, r)
+		finHndlr.IncomeExpenseReport().ServeHTTP(w, r)
 	})
 
 	r.Path(fmt.Sprintf("%s/balance", finReport)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userData, err := sessionauth.CtxGetUserData(r)
+		_, err := sessionauth.CtxGetUserData(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
-		finHndlr.AccountBalance(userData.UserId).ServeHTTP(w, r)
+		finHndlr.AccountBalance().ServeHTTP(w, r)
 	})
 
 }

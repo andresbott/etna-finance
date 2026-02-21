@@ -35,7 +35,7 @@ func TestStore_CategorySmoke(t *testing.T) {
 						Name: "test",
 						Type: categoryType,
 					}
-					cat1Id, err := store.CreateCategory(ctx, category, 0, tenant1)
+					cat1Id, err := store.CreateCategory(ctx, category, 0)
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
@@ -45,17 +45,17 @@ func TestStore_CategorySmoke(t *testing.T) {
 						t.Fatalf("income category id should not be zero")
 					}
 
-					err = store.UpdateCategory(ctx, cat1Id, CategoryData{Name: "changed", Type: categoryType}, tenant1)
+					err = store.UpdateCategory(ctx, cat1Id, CategoryData{Name: "changed", Type: categoryType})
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
 
-					cat2Id, err := store.CreateCategory(ctx, category, 0, tenant1)
+					cat2Id, err := store.CreateCategory(ctx, category, 0)
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
 
-					_, err = store.CreateCategory(ctx, CategoryData{Type: categoryType}, cat1Id, tenant2)
+					_, err = store.CreateCategory(ctx, CategoryData{Type: categoryType}, cat1Id)
 					if err == nil {
 						t.Fatal("expecting error but none got")
 					}
@@ -63,18 +63,18 @@ func TestStore_CategorySmoke(t *testing.T) {
 					// ===================================
 					//  move items
 					// ===================================
-					err = store.MoveCategory(ctx, cat1Id, cat2Id, tenant1)
+					err = store.MoveCategory(ctx, cat1Id, cat2Id)
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
 
 					// expect NO error on moving to the same node it already is
-					err = store.MoveCategory(ctx, cat1Id, cat2Id, tenant1)
+					err = store.MoveCategory(ctx, cat1Id, cat2Id)
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
 
-					got, err := store.ListDescendantCategories(ctx, 0, -1, categoryType, tenant1)
+					got, err := store.ListDescendantCategories(ctx, 0, -1, categoryType)
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
@@ -91,12 +91,12 @@ func TestStore_CategorySmoke(t *testing.T) {
 					// ===================================
 					//  delete
 					// ===================================
-					err = store.DeleteCategoryRecursive(ctx, cat1Id, tenant1)
+					err = store.DeleteCategoryRecursive(ctx, cat1Id)
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
 
-					got, err = store.ListDescendantCategories(ctx, 0, -1, categoryType, tenant1)
+					got, err = store.ListDescendantCategories(ctx, 0, -1, categoryType)
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
@@ -143,13 +143,13 @@ func TestStore_CreateCategoryErrors(t *testing.T) {
 			}
 
 			// create an income
-			inCatId, err := store.CreateCategory(t.Context(), CategoryData{Name: "root income", Type: IncomeCategory}, 0, tenant1)
+			inCatId, err := store.CreateCategory(t.Context(), CategoryData{Name: "root income", Type: IncomeCategory}, 0)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			_ = inCatId
 
-			expCatId, err := store.CreateCategory(t.Context(), CategoryData{Name: "root expense", Type: ExpenseCategory}, 0, tenant1)
+			expCatId, err := store.CreateCategory(t.Context(), CategoryData{Name: "root expense", Type: ExpenseCategory}, 0)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -158,7 +158,7 @@ func TestStore_CreateCategoryErrors(t *testing.T) {
 			// test all category Types
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
-					_, err = store.CreateCategory(t.Context(), tc.input, inCatId, tenant1)
+					_, err = store.CreateCategory(t.Context(), tc.input, inCatId)
 					if err == nil {
 						t.Fatal("expected error but none got")
 					}
@@ -200,13 +200,13 @@ func TestStore_UpdateCategoryErrors(t *testing.T) {
 			}
 
 			// create an income
-			inCatId, err := store.CreateCategory(t.Context(), CategoryData{Name: "root income", Type: IncomeCategory}, 0, tenant1)
+			inCatId, err := store.CreateCategory(t.Context(), CategoryData{Name: "root income", Type: IncomeCategory}, 0)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			_ = inCatId
 
-			expCatId, err := store.CreateCategory(t.Context(), CategoryData{Name: "root expense", Type: ExpenseCategory}, 0, tenant1)
+			expCatId, err := store.CreateCategory(t.Context(), CategoryData{Name: "root expense", Type: ExpenseCategory}, 0)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -215,7 +215,7 @@ func TestStore_UpdateCategoryErrors(t *testing.T) {
 			// test all category Types
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
-					err = store.UpdateCategory(t.Context(), inCatId, tc.input, tenant1)
+					err = store.UpdateCategory(t.Context(), inCatId, tc.input)
 					if err == nil {
 						t.Fatal("expected error but none got")
 					}
@@ -252,7 +252,7 @@ func TestStore_MoveCategoryErrors(t *testing.T) {
 			}
 
 			// create an income
-			inCatId, err := store.CreateCategory(t.Context(), CategoryData{Name: "root income", Type: IncomeCategory}, 0, tenant1)
+			inCatId, err := store.CreateCategory(t.Context(), CategoryData{Name: "root income", Type: IncomeCategory}, 0)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -261,12 +261,12 @@ func TestStore_MoveCategoryErrors(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
-					testCatId, err := store.CreateCategory(t.Context(), tc.input, 0, tenant1)
+					testCatId, err := store.CreateCategory(t.Context(), tc.input, 0)
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
 
-					err = store.MoveCategory(t.Context(), inCatId, testCatId, tenant1)
+					err = store.MoveCategory(t.Context(), inCatId, testCatId)
 					if err == nil {
 						t.Fatal("expected error but none got")
 					}
@@ -319,7 +319,7 @@ func TestGetCategory(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
-					got, err := store.GetCategory(t.Context(), tc.id, tc.tenant)
+					got, err := store.GetCategory(t.Context(), tc.id)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -393,7 +393,7 @@ func TestGetCategoryChildren(t *testing.T) {
 
 					ctx := t.Context()
 
-					got, err := store.getCategoryChildren(ctx, tc.catType, tc.tenant)
+					got, err := store.getCategoryChildren(ctx, tc.catType)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -439,7 +439,7 @@ func categorySampleData(t *testing.T, store *Store, categories []Category) {
 	// =========================================
 
 	for _, cat := range categories {
-		_, err := store.CreateCategory(t.Context(), cat.CategoryData, cat.ParentId, tenant1)
+		_, err := store.CreateCategory(t.Context(), cat.CategoryData, cat.ParentId)
 		if err != nil {
 			t.Fatalf("error creating account 1: %v", err)
 		}

@@ -45,13 +45,6 @@ func TestCreateAccountProvider(t *testing.T) {
 			expectCode: http.StatusOK,
 		},
 		{
-			name:       "empty tenant",
-			userId:     "",
-			payload:    bytes.NewBuffer([]byte(`{"name":"Savings", "currency":"USD", "type":"cash"}`)),
-			expecErr:   "unable to create account: user not provided",
-			expectCode: http.StatusBadRequest,
-		},
-		{
 			name:       "empty payload",
 			userId:     "user123",
 			payload:    nil,
@@ -81,7 +74,7 @@ func TestCreateAccountProvider(t *testing.T) {
 
 			recorder := httptest.NewRecorder()
 			req, _ := http.NewRequest("POST", "/api/accountprovider", tc.payload)
-			handler := h.CreateAccountProvider(tc.userId)
+			handler := h.CreateAccountProvider()
 			handler.ServeHTTP(recorder, req)
 
 			if tc.expecErr != "" {
@@ -141,13 +134,6 @@ func TestUpdateAccountProvider(t *testing.T) {
 			expectCode: http.StatusBadRequest,
 		},
 		{
-			name:       "missing user",
-			user:       "",
-			payload:    bytes.NewBuffer([]byte(`{"name":"Savings"}`)),
-			expectErr:  "unable to update account: user not provided",
-			expectCode: http.StatusBadRequest,
-		},
-		{
 			name:       "empty payload",
 			user:       tenant1,
 			expectErr:  "request had empty body",
@@ -160,13 +146,6 @@ func TestUpdateAccountProvider(t *testing.T) {
 			expectErr:  "unable to decode json: unexpected EOF",
 			expectCode: http.StatusBadRequest,
 		},
-		{
-			name:       "not found on wrong user",
-			user:       tenant2,
-			payload:    bytes.NewBuffer([]byte(`{"name":"Savings","currency":"USD","type":"cash"}`)),
-			expectErr:  "unable to update account provider in DB: account provider not found",
-			expectCode: http.StatusNotFound,
-		},
 	}
 
 	for _, tc := range tcs {
@@ -176,7 +155,7 @@ func TestUpdateAccountProvider(t *testing.T) {
 
 			req, _ := http.NewRequest("PATCH", "/api/providers/1", tc.payload)
 			recorder := httptest.NewRecorder()
-			handler := h.UpdateAccountProvider(1, tc.user)
+			handler := h.UpdateAccountProvider(1)
 			handler.ServeHTTP(recorder, req)
 
 			if tc.expectErr != "" {
@@ -222,20 +201,6 @@ func TestDeleteAccountProvider(t *testing.T) {
 			expectCode: http.StatusConflict,
 		},
 		{
-			name:       "missing user",
-			user:       "",
-			deleteID:   1,
-			expectErr:  "unable to get account: user not provided",
-			expectCode: http.StatusBadRequest,
-		},
-		{
-			name:       "wrong user",
-			deleteID:   1,
-			user:       emptyTenant,
-			expectErr:  accounting.ErrAccountProviderNotFound.Error(),
-			expectCode: http.StatusNotFound,
-		},
-		{
 			name:       "non-existent account",
 			user:       tenant1,
 			deleteID:   9999,
@@ -251,7 +216,7 @@ func TestDeleteAccountProvider(t *testing.T) {
 			req, _ := http.NewRequest("DELETE", "/api/accounts/"+strconv.FormatUint(uint64(tc.deleteID), 10), nil)
 			recorder := httptest.NewRecorder()
 
-			handler := h.DeleteAccountProvider(tc.deleteID, tc.user)
+			handler := h.DeleteAccountProvider(tc.deleteID)
 			handler.ServeHTTP(recorder, req)
 
 			if tc.expectErr != "" {
@@ -271,7 +236,7 @@ func TestDeleteAccountProvider(t *testing.T) {
 					t.Errorf("handler returned wrong status code: got %v want %v", status, tc.expectCode)
 				}
 
-				_, err := h.Store.GetAccountProvider(t.Context(), tc.deleteID, tc.user)
+				_, err := h.Store.GetAccountProvider(t.Context(), tc.deleteID)
 				if err == nil {
 					t.Fatalf("expected NotFoundErr, but account provider still exists")
 				}
@@ -282,7 +247,7 @@ func TestDeleteAccountProvider(t *testing.T) {
 
 func TestListAccountProvider(t *testing.T) {
 
-	tenant1Accounts := []accountProviderPayload{
+	allProviders := []accountProviderPayload{
 		{Id: 1, Name: "provider1", Description: "provider1", Icon: "bank", Accounts: []accountPayload{
 			{Id: 1, Name: "acc1", Icon: "euro", Currency: "EUR", Type: "cash"},
 			{Id: 3, Name: "acc3", Icon: "", Currency: "EUR", Type: "cash"},
@@ -293,6 +258,9 @@ func TestListAccountProvider(t *testing.T) {
 			{Id: 2, Name: "acc2", Icon: "dollar", Currency: "USD", Type: "cash"},
 		}},
 		{Id: 3, Name: "provider3", Description: "provider3", Icon: "", Accounts: []accountPayload{}},
+		{Id: 4, Name: "provider4_tenant2", Description: "provider4t2", Icon: "credit", Accounts: []accountPayload{
+			{Id: 6, Name: "acc1tenant2", Icon: "foreign", Currency: "EUR", Type: "cash"},
+		}},
 	}
 
 	tcs := []struct {
@@ -303,22 +271,10 @@ func TestListAccountProvider(t *testing.T) {
 		want       listResponse
 	}{
 		{
-			name:       "successful request",
+			name:       "list all account providers",
 			user:       tenant1,
 			expectCode: http.StatusOK,
-			want:       listResponse{Items: tenant1Accounts},
-		},
-		{
-			name:       "missing user",
-			user:       "",
-			expectCode: http.StatusBadRequest,
-			expectErr:  "unable to list accounts: user not provided",
-		},
-		{
-			name:       "empty user",
-			user:       emptyTenant,
-			expectCode: http.StatusOK,
-			want:       listResponse{[]accountProviderPayload{}},
+			want:       listResponse{Items: allProviders},
 		},
 	}
 
@@ -329,7 +285,7 @@ func TestListAccountProvider(t *testing.T) {
 
 			recorder := httptest.NewRecorder()
 			req, _ := http.NewRequest("GET", "/api/accounts", nil)
-			handler := h.ListAccountProviders(tc.user)
+			handler := h.ListAccountProviders()
 			handler.ServeHTTP(recorder, req)
 
 			if tc.expectErr != "" {
@@ -390,20 +346,6 @@ func TestCreateAccount(t *testing.T) {
 			expectCode: http.StatusOK,
 		},
 		{
-			name:       "empty tenant",
-			tenant:     "",
-			payload:    bytes.NewBuffer([]byte(`{"name":"Savings", "currency":"USD", "type":"cash"}`)),
-			expectErr:  "unable to create account: user not provided",
-			expectCode: http.StatusBadRequest,
-		},
-		{
-			name:       "wrong tenant",
-			tenant:     emptyTenant,
-			payload:    bytes.NewBuffer([]byte(`{"name":"Savings", "currency":"USD", "type":"cash",  "providerId":1 }`)),
-			expectErr:  "account provider id not found",
-			expectCode: http.StatusBadRequest,
-		},
-		{
 			name:       "empty payload",
 			tenant:     tenant1,
 			payload:    nil,
@@ -433,7 +375,7 @@ func TestCreateAccount(t *testing.T) {
 
 			recorder := httptest.NewRecorder()
 			req, _ := http.NewRequest("POST", "/api/accounts", tc.payload)
-			handler := h.CreateAccount(tc.tenant)
+			handler := h.CreateAccount()
 			handler.ServeHTTP(recorder, req)
 
 			if tc.expectErr != "" {
@@ -493,13 +435,6 @@ func TestUpdateAccount(t *testing.T) {
 			expectCode: http.StatusOK,
 		},
 		{
-			name:       "missing user",
-			user:       "",
-			payload:    bytes.NewBuffer([]byte(`{"name":"Savings"}`)),
-			expecErr:   "unable to update account: user not provided",
-			expectCode: http.StatusBadRequest,
-		},
-		{
 			name:       "empty payload",
 			user:       tenant1,
 			expecErr:   "request had empty body",
@@ -512,13 +447,6 @@ func TestUpdateAccount(t *testing.T) {
 			expecErr:   "unable to decode json: unexpected EOF",
 			expectCode: http.StatusBadRequest,
 		},
-		{
-			name:       "not found on wrong user",
-			user:       tenant2,
-			payload:    bytes.NewBuffer([]byte(`{"name":"Savings","currency":"USD","type":"cash"}`)),
-			expecErr:   "unable to update account in DB: account not found",
-			expectCode: http.StatusNotFound,
-		},
 	}
 
 	for _, tc := range tcs {
@@ -528,14 +456,14 @@ func TestUpdateAccount(t *testing.T) {
 
 			// Create a new account to get an id
 			accountId, err := h.Store.CreateAccount(t.Context(),
-				accounting.Account{Name: "Initial", Currency: currency.USD, AccountProviderID: 1}, tenant1)
+				accounting.Account{Name: "Initial", Currency: currency.USD, AccountProviderID: 1})
 			if err != nil {
 				t.Fatal(err)
 			}
 
 			req, _ := http.NewRequest("PATCH", "/api/accounts/"+strconv.FormatUint(uint64(accountId), 10), tc.payload)
 			recorder := httptest.NewRecorder()
-			handler := h.UpdateAccount(accountId, tc.user)
+			handler := h.UpdateAccount(accountId)
 			handler.ServeHTTP(recorder, req)
 
 			if tc.expecErr != "" {
@@ -581,13 +509,6 @@ func TestDeleteAccount(t *testing.T) {
 			expectCode: http.StatusBadRequest,
 		},
 		{
-			name:       "missing user",
-			user:       "",
-			deleteID:   2,
-			expectErr:  "unable to get account: user not provided",
-			expectCode: http.StatusBadRequest,
-		},
-		{
 			name:       "non-existent account",
 			user:       tenant1,
 			deleteID:   9999,
@@ -604,7 +525,7 @@ func TestDeleteAccount(t *testing.T) {
 			req, _ := http.NewRequest("DELETE", "/api/accounts/"+strconv.FormatUint(uint64(tc.deleteID), 10), nil)
 			recorder := httptest.NewRecorder()
 
-			handler := h.DeleteAccount(tc.deleteID, tc.user)
+			handler := h.DeleteAccount(tc.deleteID)
 			handler.ServeHTTP(recorder, req)
 
 			if tc.expectErr != "" {
@@ -624,7 +545,7 @@ func TestDeleteAccount(t *testing.T) {
 					t.Errorf("handler returned wrong status code: got %v want %v", status, tc.expectCode)
 				}
 
-				_, err := h.Store.GetAccount(t.Context(), tc.deleteID, tc.user)
+				_, err := h.Store.GetAccount(t.Context(), tc.deleteID)
 				if err == nil {
 					t.Fatalf("expected NotFoundErr, but got account")
 				}
@@ -650,8 +571,8 @@ type sampleInstrumentGetter struct {
 	store *marketdata.Store
 }
 
-func (g *sampleInstrumentGetter) GetInstrument(ctx context.Context, id uint, tenant string) (accounting.InstrumentInfo, error) {
-	inst, err := g.store.GetInstrument(ctx, id, tenant)
+func (g *sampleInstrumentGetter) GetInstrument(ctx context.Context, id uint) (accounting.InstrumentInfo, error) {
+	inst, err := g.store.GetInstrument(ctx, id)
 	if err != nil {
 		if errors.Is(err, marketdata.ErrInstrumentNotFound) {
 			return accounting.InstrumentInfo{}, accounting.ErrInstrumentNotFound
@@ -767,21 +688,21 @@ func sampleData(t *testing.T, store *accounting.Store) {
 	// =========================================
 	// create accounts providers
 	// =========================================
-	provider1, err := store.CreateAccountProvider(ctx, sampleAccountProviders[0], tenant1)
+	provider1, err := store.CreateAccountProvider(ctx, sampleAccountProviders[0])
 	if err != nil {
 		t.Fatalf("error creating provider 1: %v", err)
 	}
-	provider2, err := store.CreateAccountProvider(ctx, sampleAccountProviders[1], tenant1)
+	provider2, err := store.CreateAccountProvider(ctx, sampleAccountProviders[1])
 	if err != nil {
 		t.Fatalf("error creating provider 2: %v", err)
 	}
-	provider3, err := store.CreateAccountProvider(ctx, sampleAccountProviders[2], tenant1)
+	provider3, err := store.CreateAccountProvider(ctx, sampleAccountProviders[2])
 	if err != nil {
 		t.Fatalf("error creating provider 2: %v", err)
 	}
 	_ = provider3
 
-	provider4, err := store.CreateAccountProvider(ctx, sampleAccountProviders2[0], tenant2)
+	provider4, err := store.CreateAccountProvider(ctx, sampleAccountProviders2[0])
 	if err != nil {
 		t.Fatalf("error creating provider 2: %v", err)
 	}
@@ -792,7 +713,7 @@ func sampleData(t *testing.T, store *accounting.Store) {
 
 	acc := sampleAccounts[0]
 	acc.AccountProviderID = provider1
-	account1, err := store.CreateAccount(ctx, acc, tenant1)
+	account1, err := store.CreateAccount(ctx, acc)
 	if err != nil {
 		t.Fatalf("error creating account 1: %v", err)
 	}
@@ -800,7 +721,7 @@ func sampleData(t *testing.T, store *accounting.Store) {
 
 	acc = sampleAccounts[1]
 	acc.AccountProviderID = provider2
-	account2, err := store.CreateAccount(ctx, acc, tenant1)
+	account2, err := store.CreateAccount(ctx, acc)
 	if err != nil {
 		t.Fatalf("error creating account 2: %v", err)
 	}
@@ -809,7 +730,7 @@ func sampleData(t *testing.T, store *accounting.Store) {
 	for i := 2; i < len(sampleAccounts); i++ {
 		acc = sampleAccounts[i]
 		acc.AccountProviderID = provider1
-		_, err = store.CreateAccount(ctx, acc, tenant1)
+		_, err = store.CreateAccount(ctx, acc)
 		if err != nil {
 			t.Fatalf("error creating account 1: %v", err)
 		}
@@ -817,7 +738,7 @@ func sampleData(t *testing.T, store *accounting.Store) {
 	for i := 0; i < len(sampleAccounts2); i++ {
 		acc2 := sampleAccounts2[i]
 		acc2.AccountProviderID = provider4
-		_, err := store.CreateAccount(ctx, acc2, tenant2)
+		_, err := store.CreateAccount(ctx, acc2)
 		if err != nil {
 			t.Fatalf("error creating account 1: %v", err)
 		}
@@ -828,7 +749,7 @@ func sampleData(t *testing.T, store *accounting.Store) {
 	// =========================================
 
 	for _, cat := range sampleCategories {
-		_, err = store.CreateCategory(ctx, cat, 0, tenant1)
+		_, err = store.CreateCategory(ctx, cat, 0)
 		if err != nil {
 			t.Fatalf("error creating category: %v", err)
 		}
@@ -839,7 +760,7 @@ func sampleData(t *testing.T, store *accounting.Store) {
 	// =========================================
 
 	for _, entry := range sampleEntries {
-		_, err = store.CreateTransaction(t.Context(), entry, tenant1)
+		_, err = store.CreateTransaction(t.Context(), entry)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -847,13 +768,13 @@ func sampleData(t *testing.T, store *accounting.Store) {
 
 	// create an entry with time now for test purposes
 	entry := accounting.Expense{Description: "now1", Amount: 1, AccountID: 1, Date: time.Now()}
-	_, err = store.CreateTransaction(t.Context(), entry, tenant1)
+	_, err = store.CreateTransaction(t.Context(), entry)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	for _, entry := range sampleEntries2 {
-		_, err = store.CreateTransaction(t.Context(), entry, tenant2)
+		_, err = store.CreateTransaction(t.Context(), entry)
 		if err != nil {
 			t.Fatal(err)
 		}

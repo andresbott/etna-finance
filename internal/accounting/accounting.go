@@ -21,7 +21,7 @@ var ErrInstrumentNotFound = errors.New("instrument not found")
 // InstrumentGetter provides instrument lookup for transaction validation.
 // Implementations typically adapt an external store (e.g. marketdata).
 type InstrumentGetter interface {
-	GetInstrument(ctx context.Context, id uint, tenant string) (InstrumentInfo, error)
+	GetInstrument(ctx context.Context, id uint) (InstrumentInfo, error)
 }
 
 type Store struct {
@@ -60,13 +60,13 @@ func NewStore(db *gorm.DB, instrumentGetter InstrumentGetter) (*Store, error) {
 	return &b, nil
 }
 
-// GetInstrument returns instrument info by id and tenant, delegating to the injected InstrumentGetter.
+// GetInstrument returns instrument info by id, delegating to the injected InstrumentGetter.
 // If no getter is set, returns ErrInstrumentNotFound.
-func (s *Store) GetInstrument(ctx context.Context, id uint, tenant string) (InstrumentInfo, error) {
+func (s *Store) GetInstrument(ctx context.Context, id uint) (InstrumentInfo, error) {
 	if s.instrumentGetter == nil {
 		return InstrumentInfo{}, ErrInstrumentNotFound
 	}
-	return s.instrumentGetter.GetInstrument(ctx, id, tenant)
+	return s.instrumentGetter.GetInstrument(ctx, id)
 }
 
 func NewValidationErr(in string) ErrValidation {
@@ -77,21 +77,6 @@ type ErrValidation string
 
 func (v ErrValidation) Error() string {
 	return string(v)
-}
-
-func (store *Store) ListTenants(ctx context.Context) ([]string, error) {
-	db := store.db.WithContext(ctx).Table("db_account_providers")
-
-	// getTask distinct owner IDs
-	var tenants []string
-	if err := db.
-		Select("DISTINCT(owner_id)").
-		Order("owner_id ASC").
-		Pluck("owner_id", &tenants).Error; err != nil {
-		return nil, err
-	}
-
-	return tenants, nil
 }
 
 func (store *Store) WipeData(ctx context.Context) error {

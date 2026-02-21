@@ -63,12 +63,8 @@ type transactionPayload struct {
 	// used for stock grant (instruments added for free; no cash account) - reuses accountId
 }
 
-func (h *Handler) CreateTx(userId string) http.Handler {
+func (h *Handler) CreateTx() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if userId == "" {
-			http.Error(w, "unable to create entry: user not provided", http.StatusBadRequest)
-			return
-		}
 		if r.Body == nil {
 			http.Error(w, "request had empty body", http.StatusBadRequest)
 			return
@@ -152,7 +148,7 @@ func (h *Handler) CreateTx(userId string) http.Handler {
 			return
 		}
 
-		entryID, err := h.Store.CreateTransaction(r.Context(), entry, userId)
+		entryID, err := h.Store.CreateTransaction(r.Context(), entry)
 		if err != nil {
 			if errors.As(err, &validationErr) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -231,12 +227,8 @@ type entryUpdatePayload struct {
 	CashAccountID       *uint    `json:"cashAccountId"`
 }
 
-func (h *Handler) UpdateTx(Id uint, userId string) http.Handler {
+func (h *Handler) UpdateTx(Id uint) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if userId == "" {
-			http.Error(w, "unable to update entry: user not provided", http.StatusBadRequest)
-			return
-		}
 		if r.Body == nil {
 			http.Error(w, "request had empty body", http.StatusBadRequest)
 			return
@@ -249,7 +241,7 @@ func (h *Handler) UpdateTx(Id uint, userId string) http.Handler {
 			return
 		}
 
-		tr, err := h.Store.GetTransaction(r.Context(), Id, userId)
+		tr, err := h.Store.GetTransaction(r.Context(), Id)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to retrive transaction: %s", err.Error()), http.StatusInternalServerError)
 			return
@@ -327,7 +319,7 @@ func (h *Handler) UpdateTx(Id uint, userId string) http.Handler {
 			return
 		}
 
-		err = h.Store.UpdateTransaction(r.Context(), entry, Id, userId)
+		err = h.Store.UpdateTransaction(r.Context(), entry, Id)
 		if err != nil {
 			if errors.Is(err, accounting.ErrEntryNotFound) {
 				http.Error(w, "entry not found", http.StatusNotFound)
@@ -340,14 +332,9 @@ func (h *Handler) UpdateTx(Id uint, userId string) http.Handler {
 	})
 }
 
-func (h *Handler) DeleteTx(Id uint, userId string) http.Handler {
+func (h *Handler) DeleteTx(Id uint) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if userId == "" {
-			http.Error(w, "unable to delete entry: user not provided", http.StatusBadRequest)
-			return
-		}
-
-		err := h.Store.DeleteTransaction(r.Context(), Id, userId)
+		err := h.Store.DeleteTransaction(r.Context(), Id)
 		if err != nil {
 			if errors.Is(err, accounting.ErrEntryNotFound) {
 				http.Error(w, "entry not found", http.StatusNotFound)
@@ -365,13 +352,8 @@ type listEntriesResponse struct {
 	Items []transactionPayload `json:"items"`
 }
 
-func (h *Handler) ListTx(userId string) http.Handler {
+func (h *Handler) ListTx() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if userId == "" {
-			http.Error(w, "unable to list entries: user not provided", http.StatusBadRequest)
-			return
-		}
-
 		now := time.Now()
 		startDate, endDate, err := getDateRange(
 			r.URL.Query().Get("startDate"), r.URL.Query().Get("endDate"),
@@ -426,7 +408,7 @@ func (h *Handler) ListTx(userId string) http.Handler {
 			Page:      page,
 		}
 
-		entries, err := h.Store.ListTransactions(r.Context(), opts, userId)
+		entries, err := h.Store.ListTransactions(r.Context(), opts)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to list entries: %s", err.Error()), http.StatusInternalServerError)
 			return

@@ -19,8 +19,8 @@ type marketDataInstrumentGetter struct {
 	store *marketdata.Store
 }
 
-func (g *marketDataInstrumentGetter) GetInstrument(ctx context.Context, id uint, tenant string) (accounting.InstrumentInfo, error) {
-	inst, err := g.store.GetInstrument(ctx, id, tenant)
+func (g *marketDataInstrumentGetter) GetInstrument(ctx context.Context, id uint) (accounting.InstrumentInfo, error) {
+	inst, err := g.store.GetInstrument(ctx, id)
 	if err != nil {
 		if errors.Is(err, marketdata.ErrInstrumentNotFound) {
 			return accounting.InstrumentInfo{}, accounting.ErrInstrumentNotFound

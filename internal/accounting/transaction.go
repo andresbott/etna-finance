@@ -30,7 +30,6 @@ type dbTransaction struct {
 	Date        time.Time `gorm:"not null"`
 	Description string    `gorm:"size:255"`
 	Type        TxType
-	OwnerId     string `gorm:"index"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	DeletedAt   gorm.DeletedAt `gorm:"index"`
@@ -138,35 +137,35 @@ type StockTransfer struct {
 	baseTx
 }
 
-// CreateTransaction creates a new transaction in the DB for a specific tenant.
+// CreateTransaction creates a new transaction in the DB.
 // It delegates to the appropriate CreateX function depending on the input type.
-func (store *Store) CreateTransaction(ctx context.Context, input Transaction, tenant string) (uint, error) {
+func (store *Store) CreateTransaction(ctx context.Context, input Transaction) (uint, error) {
 	switch item := input.(type) {
 	case Income:
-		return store.CreateIncome(ctx, item, tenant)
+		return store.CreateIncome(ctx, item)
 	case Expense:
-		return store.CreateExpense(ctx, item, tenant)
+		return store.CreateExpense(ctx, item)
 	case Transfer:
-		return store.CreateTransfer(ctx, item, tenant)
+		return store.CreateTransfer(ctx, item)
 	case StockBuy:
-		return store.CreateStockBuy(ctx, item, tenant)
+		return store.CreateStockBuy(ctx, item)
 	case StockSell:
-		return store.CreateStockSell(ctx, item, tenant)
+		return store.CreateStockSell(ctx, item)
 	case StockGrant:
-		return store.CreateStockGrant(ctx, item, tenant)
+		return store.CreateStockGrant(ctx, item)
 	case StockTransfer:
-		return store.CreateStockTransfer(ctx, item, tenant)
+		return store.CreateStockTransfer(ctx, item)
 	default:
 		return 0, errors.New("invalid transaction type")
 	}
 }
 
-func (store *Store) CreateIncome(ctx context.Context, item Income, tenant string) (uint, error) {
+func (store *Store) CreateIncome(ctx context.Context, item Income) (uint, error) {
 	if item.AccountID == 0 {
 		return 0, ErrValidation("account id is required")
 	}
 
-	acc, err := store.GetAccount(ctx, item.AccountID, tenant)
+	acc, err := store.GetAccount(ctx, item.AccountID)
 	if err != nil {
 		return 0, fmt.Errorf("error creating income: %w", err)
 	}
@@ -178,7 +177,7 @@ func (store *Store) CreateIncome(ctx context.Context, item Income, tenant string
 	}
 
 	if item.CategoryID != 0 {
-		cat, err := store.GetCategory(ctx, item.CategoryID, tenant)
+		cat, err := store.GetCategory(ctx, item.CategoryID)
 		if err != nil {
 			return 0, fmt.Errorf("error creating income: %w", err)
 		}
@@ -190,7 +189,6 @@ func (store *Store) CreateIncome(ctx context.Context, item Income, tenant string
 	tx := dbTransaction{
 		Description: item.Description,
 		Date:        item.Date,
-		OwnerId:     tenant,
 		Type:        IncomeTransaction,
 		Entries: []dbEntry{
 			{
@@ -198,7 +196,6 @@ func (store *Store) CreateIncome(ctx context.Context, item Income, tenant string
 				CategoryID: item.CategoryID,
 				Amount:     item.Amount,
 				EntryType:  incomeEntry,
-				OwnerId:    tenant,
 			},
 		},
 	}
@@ -213,11 +210,11 @@ func (store *Store) CreateIncome(ctx context.Context, item Income, tenant string
 	return tx.Id, nil
 }
 
-func (store *Store) CreateExpense(ctx context.Context, item Expense, tenant string) (uint, error) {
+func (store *Store) CreateExpense(ctx context.Context, item Expense) (uint, error) {
 	if item.AccountID == 0 {
 		return 0, ErrValidation("account id is required")
 	}
-	acc, err := store.GetAccount(ctx, item.AccountID, tenant)
+	acc, err := store.GetAccount(ctx, item.AccountID)
 	if err != nil {
 		return 0, fmt.Errorf("error creating expense: %w", err)
 	}
@@ -229,7 +226,7 @@ func (store *Store) CreateExpense(ctx context.Context, item Expense, tenant stri
 	}
 
 	if item.CategoryID != 0 {
-		cat, err := store.GetCategory(ctx, item.CategoryID, tenant)
+		cat, err := store.GetCategory(ctx, item.CategoryID)
 		if err != nil {
 			return 0, fmt.Errorf("error creating expense: %w", err)
 		}
@@ -241,7 +238,6 @@ func (store *Store) CreateExpense(ctx context.Context, item Expense, tenant stri
 	tx := dbTransaction{
 		Description: item.Description,
 		Date:        item.Date,
-		OwnerId:     tenant,
 		Type:        ExpenseTransaction,
 		Entries: []dbEntry{
 			{
@@ -249,7 +245,6 @@ func (store *Store) CreateExpense(ctx context.Context, item Expense, tenant stri
 				CategoryID: item.CategoryID,
 				Amount:     -item.Amount,
 				EntryType:  expenseEntry,
-				OwnerId:    tenant,
 			},
 		},
 	}
@@ -264,13 +259,13 @@ func (store *Store) CreateExpense(ctx context.Context, item Expense, tenant stri
 	return tx.Id, nil
 }
 
-func (store *Store) CreateTransfer(ctx context.Context, item Transfer, tenant string) (uint, error) {
+func (store *Store) CreateTransfer(ctx context.Context, item Transfer) (uint, error) {
 
 	if item.OriginAccountID == 0 || item.TargetAccountID == 0 {
 		return 0, ErrValidation("origin and target account IDs are required")
 	}
 
-	originAcc, err := store.GetAccount(ctx, item.OriginAccountID, tenant)
+	originAcc, err := store.GetAccount(ctx, item.OriginAccountID)
 	if err != nil {
 		return 0, fmt.Errorf("error creating transfer: %w", err)
 	}
@@ -281,7 +276,7 @@ func (store *Store) CreateTransfer(ctx context.Context, item Transfer, tenant st
 	if !slices.Contains(allowedAccountTypes, originAcc.Type) {
 		return 0, NewValidationErr(fmt.Sprintf("incompatible account type %s for transfer transaction", originAcc.Type.String()))
 	}
-	targetAcc, err := store.GetAccount(ctx, item.TargetAccountID, tenant)
+	targetAcc, err := store.GetAccount(ctx, item.TargetAccountID)
 	if err != nil {
 		return 0, fmt.Errorf("error creating transfer: %w", err)
 	}
@@ -292,20 +287,17 @@ func (store *Store) CreateTransfer(ctx context.Context, item Transfer, tenant st
 	tx := dbTransaction{
 		Description: item.Description,
 		Date:        item.Date,
-		OwnerId:     tenant,
 		Type:        TransferTransaction,
 		Entries: []dbEntry{
 			{
 				AccountID: item.OriginAccountID,
 				Amount:    -item.OriginAmount,
 				EntryType: transferOutEntry,
-				OwnerId:   tenant,
 			},
 			{
 				AccountID: item.TargetAccountID,
 				Amount:    item.TargetAmount,
 				EntryType: transferInEntry,
-				OwnerId:   tenant,
 			},
 		},
 	}
@@ -327,7 +319,7 @@ var allowedPositionAccountTypes = []AccountType{InvestmentAccountType, UnvestedA
 // during partial updates. If either the account or instrument is being changed, it resolves the other
 // from the existing transaction to perform the comparison.
 func (store *Store) validateStockCurrencyMatch(
-	ctx context.Context, txID uint, tenant string,
+	ctx context.Context, txID uint,
 	newAccountID *uint, newInstrumentID *uint,
 	newInstrument *InstrumentInfo, txType TxType,
 ) error {
@@ -338,7 +330,7 @@ func (store *Store) validateStockCurrencyMatch(
 	var accCurrency, instCurrency currency.Unit
 
 	if newAccountID != nil {
-		acc, err := store.GetAccount(ctx, *newAccountID, tenant)
+		acc, err := store.GetAccount(ctx, *newAccountID)
 		if err != nil {
 			return fmt.Errorf("error validating currency match: %w", err)
 		}
@@ -351,7 +343,7 @@ func (store *Store) validateStockCurrencyMatch(
 
 	// If only one changed, resolve the other from the existing transaction
 	if newAccountID != nil && newInstrumentID == nil {
-		existing, err := store.GetTransaction(ctx, txID, tenant)
+		existing, err := store.GetTransaction(ctx, txID)
 		if err != nil {
 			return fmt.Errorf("error validating currency match: %w", err)
 		}
@@ -363,14 +355,14 @@ func (store *Store) validateStockCurrencyMatch(
 			existingInstrumentID = tx.InstrumentID
 		}
 		if existingInstrumentID != 0 {
-			inst, err := store.GetInstrument(ctx, existingInstrumentID, tenant)
+			inst, err := store.GetInstrument(ctx, existingInstrumentID)
 			if err != nil {
 				return fmt.Errorf("error validating currency match: %w", err)
 			}
 			instCurrency = inst.Currency
 		}
 	} else if newAccountID == nil && newInstrumentID != nil {
-		existing, err := store.GetTransaction(ctx, txID, tenant)
+		existing, err := store.GetTransaction(ctx, txID)
 		if err != nil {
 			return fmt.Errorf("error validating currency match: %w", err)
 		}
@@ -382,7 +374,7 @@ func (store *Store) validateStockCurrencyMatch(
 			existingAccountID = tx.InvestmentAccountID
 		}
 		if existingAccountID != 0 {
-			acc, err := store.GetAccount(ctx, existingAccountID, tenant)
+			acc, err := store.GetAccount(ctx, existingAccountID)
 			if err != nil {
 				return fmt.Errorf("error validating currency match: %w", err)
 			}
@@ -398,7 +390,7 @@ func (store *Store) validateStockCurrencyMatch(
 	return nil
 }
 
-func (store *Store) CreateStockBuy(ctx context.Context, item StockBuy, tenant string) (uint, error) {
+func (store *Store) CreateStockBuy(ctx context.Context, item StockBuy) (uint, error) {
 	if item.InvestmentAccountID == 0 {
 		return 0, ErrValidation("investment account id is required")
 	}
@@ -418,7 +410,7 @@ func (store *Store) CreateStockBuy(ctx context.Context, item StockBuy, tenant st
 		return 0, ErrValidation("stock amount must be positive")
 	}
 
-	invAcc, err := store.GetAccount(ctx, item.InvestmentAccountID, tenant)
+	invAcc, err := store.GetAccount(ctx, item.InvestmentAccountID)
 	if err != nil {
 		return 0, fmt.Errorf("error creating stock buy: %w", err)
 	}
@@ -426,7 +418,7 @@ func (store *Store) CreateStockBuy(ctx context.Context, item StockBuy, tenant st
 		return 0, NewValidationErr("investment account must be Investment or Unvested for stock buy")
 	}
 
-	cashAcc, err := store.GetAccount(ctx, item.CashAccountID, tenant)
+	cashAcc, err := store.GetAccount(ctx, item.CashAccountID)
 	if err != nil {
 		return 0, fmt.Errorf("error creating stock buy: %w", err)
 	}
@@ -434,7 +426,7 @@ func (store *Store) CreateStockBuy(ctx context.Context, item StockBuy, tenant st
 		return 0, NewValidationErr("cash account must be Cash, Checkin or Savings for stock buy")
 	}
 
-	instrument, err := store.GetInstrument(ctx, item.InstrumentID, tenant)
+	instrument, err := store.GetInstrument(ctx, item.InstrumentID)
 	if err != nil {
 		if errors.Is(err, ErrInstrumentNotFound) {
 			return 0, ErrValidation("instrument not found")
@@ -453,7 +445,6 @@ func (store *Store) CreateStockBuy(ctx context.Context, item StockBuy, tenant st
 	tx := dbTransaction{
 		Description: item.Description,
 		Date:        item.Date,
-		OwnerId:     tenant,
 		Type:        StockBuyTransaction,
 		Entries: []dbEntry{
 			{
@@ -462,13 +453,11 @@ func (store *Store) CreateStockBuy(ctx context.Context, item StockBuy, tenant st
 				Quantity:     item.Quantity,
 				Amount:       item.StockAmount,
 				EntryType:    stockBuyEntry,
-				OwnerId:      tenant,
 			},
 			{
 				AccountID: item.CashAccountID,
 				Amount:    -item.TotalAmount,
 				EntryType: stockCashOutEntry,
-				OwnerId:   tenant,
 			},
 		},
 	}
@@ -483,7 +472,7 @@ func (store *Store) CreateStockBuy(ctx context.Context, item StockBuy, tenant st
 	return tx.Id, nil
 }
 
-func (store *Store) CreateStockSell(ctx context.Context, item StockSell, tenant string) (uint, error) {
+func (store *Store) CreateStockSell(ctx context.Context, item StockSell) (uint, error) {
 	if item.InvestmentAccountID == 0 {
 		return 0, ErrValidation("investment account id is required")
 	}
@@ -503,7 +492,7 @@ func (store *Store) CreateStockSell(ctx context.Context, item StockSell, tenant 
 		return 0, ErrValidation("stock amount must be positive")
 	}
 
-	invAcc, err := store.GetAccount(ctx, item.InvestmentAccountID, tenant)
+	invAcc, err := store.GetAccount(ctx, item.InvestmentAccountID)
 	if err != nil {
 		return 0, fmt.Errorf("error creating stock sell: %w", err)
 	}
@@ -511,7 +500,7 @@ func (store *Store) CreateStockSell(ctx context.Context, item StockSell, tenant 
 		return 0, NewValidationErr("investment account must be Investment or Unvested for stock sell")
 	}
 
-	cashAcc, err := store.GetAccount(ctx, item.CashAccountID, tenant)
+	cashAcc, err := store.GetAccount(ctx, item.CashAccountID)
 	if err != nil {
 		return 0, fmt.Errorf("error creating stock sell: %w", err)
 	}
@@ -519,7 +508,7 @@ func (store *Store) CreateStockSell(ctx context.Context, item StockSell, tenant 
 		return 0, NewValidationErr("cash account must be Cash, Checkin or Savings for stock sell")
 	}
 
-	instrument, err := store.GetInstrument(ctx, item.InstrumentID, tenant)
+	instrument, err := store.GetInstrument(ctx, item.InstrumentID)
 	if err != nil {
 		if errors.Is(err, ErrInstrumentNotFound) {
 			return 0, ErrValidation("instrument not found")
@@ -537,7 +526,6 @@ func (store *Store) CreateStockSell(ctx context.Context, item StockSell, tenant 
 	tx := dbTransaction{
 		Description: item.Description,
 		Date:        item.Date,
-		OwnerId:     tenant,
 		Type:        StockSellTransaction,
 		Entries: []dbEntry{
 			{
@@ -546,13 +534,11 @@ func (store *Store) CreateStockSell(ctx context.Context, item StockSell, tenant 
 				Quantity:     item.Quantity,
 				Amount:       -item.StockAmount,
 				EntryType:    stockSellEntry,
-				OwnerId:      tenant,
 			},
 			{
 				AccountID: item.CashAccountID,
 				Amount:    item.TotalAmount,
 				EntryType: stockCashInEntry,
-				OwnerId:   tenant,
 			},
 		},
 	}
@@ -567,7 +553,7 @@ func (store *Store) CreateStockSell(ctx context.Context, item StockSell, tenant 
 	return tx.Id, nil
 }
 
-func (store *Store) CreateStockGrant(ctx context.Context, item StockGrant, tenant string) (uint, error) {
+func (store *Store) CreateStockGrant(ctx context.Context, item StockGrant) (uint, error) {
 	if item.AccountID == 0 {
 		return 0, ErrValidation("account id is required")
 	}
@@ -578,7 +564,7 @@ func (store *Store) CreateStockGrant(ctx context.Context, item StockGrant, tenan
 		return 0, ErrValidation("quantity must be positive")
 	}
 
-	acc, err := store.GetAccount(ctx, item.AccountID, tenant)
+	acc, err := store.GetAccount(ctx, item.AccountID)
 	if err != nil {
 		return 0, fmt.Errorf("error creating stock grant: %w", err)
 	}
@@ -586,7 +572,7 @@ func (store *Store) CreateStockGrant(ctx context.Context, item StockGrant, tenan
 		return 0, NewValidationErr("account must be Investment or Unvested for stock grant")
 	}
 
-	instrument, err := store.GetInstrument(ctx, item.InstrumentID, tenant)
+	instrument, err := store.GetInstrument(ctx, item.InstrumentID)
 	if err != nil {
 		if errors.Is(err, ErrInstrumentNotFound) {
 			return 0, ErrValidation("instrument not found")
@@ -603,7 +589,6 @@ func (store *Store) CreateStockGrant(ctx context.Context, item StockGrant, tenan
 	tx := dbTransaction{
 		Description: item.Description,
 		Date:        item.Date,
-		OwnerId:     tenant,
 		Type:        StockGrantTransaction,
 		Entries: []dbEntry{
 			{
@@ -612,7 +597,6 @@ func (store *Store) CreateStockGrant(ctx context.Context, item StockGrant, tenan
 				Quantity:     item.Quantity,
 				Amount:       0,
 				EntryType:    stockGrantEntry,
-				OwnerId:      tenant,
 			},
 		},
 	}
@@ -627,7 +611,7 @@ func (store *Store) CreateStockGrant(ctx context.Context, item StockGrant, tenan
 	return tx.Id, nil
 }
 
-func (store *Store) CreateStockTransfer(ctx context.Context, item StockTransfer, tenant string) (uint, error) {
+func (store *Store) CreateStockTransfer(ctx context.Context, item StockTransfer) (uint, error) {
 	if item.SourceAccountID == 0 || item.TargetAccountID == 0 {
 		return 0, ErrValidation("source and target account ids are required")
 	}
@@ -641,7 +625,7 @@ func (store *Store) CreateStockTransfer(ctx context.Context, item StockTransfer,
 		return 0, ErrValidation("quantity must be positive")
 	}
 
-	srcAcc, err := store.GetAccount(ctx, item.SourceAccountID, tenant)
+	srcAcc, err := store.GetAccount(ctx, item.SourceAccountID)
 	if err != nil {
 		return 0, fmt.Errorf("error creating stock transfer: %w", err)
 	}
@@ -649,7 +633,7 @@ func (store *Store) CreateStockTransfer(ctx context.Context, item StockTransfer,
 		return 0, NewValidationErr("source account must be Investment or Unvested for stock transfer")
 	}
 
-	tgtAcc, err := store.GetAccount(ctx, item.TargetAccountID, tenant)
+	tgtAcc, err := store.GetAccount(ctx, item.TargetAccountID)
 	if err != nil {
 		return 0, fmt.Errorf("error creating stock transfer: %w", err)
 	}
@@ -657,7 +641,7 @@ func (store *Store) CreateStockTransfer(ctx context.Context, item StockTransfer,
 		return 0, NewValidationErr("target account must be Investment or Unvested for stock transfer")
 	}
 
-	instrument, err := store.GetInstrument(ctx, item.InstrumentID, tenant)
+	instrument, err := store.GetInstrument(ctx, item.InstrumentID)
 	if err != nil {
 		if errors.Is(err, ErrInstrumentNotFound) {
 			return 0, ErrValidation("instrument not found")
@@ -679,7 +663,6 @@ func (store *Store) CreateStockTransfer(ctx context.Context, item StockTransfer,
 	tx := dbTransaction{
 		Description: item.Description,
 		Date:        item.Date,
-		OwnerId:     tenant,
 		Type:        StockTransferTransaction,
 		Entries: []dbEntry{
 			{
@@ -688,7 +671,6 @@ func (store *Store) CreateStockTransfer(ctx context.Context, item StockTransfer,
 				Quantity:     item.Quantity,
 				Amount:       0,
 				EntryType:    stockTransferOutEntry,
-				OwnerId:      tenant,
 			},
 			{
 				AccountID:    item.TargetAccountID,
@@ -696,7 +678,6 @@ func (store *Store) CreateStockTransfer(ctx context.Context, item StockTransfer,
 				Quantity:     item.Quantity,
 				Amount:       0,
 				EntryType:    stockTransferInEntry,
-				OwnerId:      tenant,
 			},
 		},
 	}
@@ -738,9 +719,9 @@ var ErrEntryNotFound = errors.New("transaction entry not found")
 
 // GetTransaction Returns a transaction after reading it from the DB
 // Note that type assertion needs to be used to transform the Transaction into a specific type
-func (store *Store) GetTransaction(ctx context.Context, Id uint, tenant string) (Transaction, error) {
+func (store *Store) GetTransaction(ctx context.Context, Id uint) (Transaction, error) {
 	var payload dbTransaction
-	q := store.db.WithContext(ctx).Preload("Entries").Where("id = ? AND owner_id = ?", Id, tenant).First(&payload)
+	q := store.db.WithContext(ctx).Preload("Entries").Where("id = ?", Id).First(&payload)
 	if q.Error != nil {
 		if errors.Is(q.Error, gorm.ErrRecordNotFound) {
 			return nil, ErrTransactionNotFound
@@ -912,7 +893,7 @@ func stockTransferFromDb(in dbTransaction) (Transaction, error) {
 	}, nil
 }
 
-func (store *Store) DeleteTransaction(ctx context.Context, Id uint, tenant string) error {
+func (store *Store) DeleteTransaction(ctx context.Context, Id uint) error {
 	err := store.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.WithContext(ctx).
 			Where("transaction_id = ?", Id).
@@ -920,7 +901,7 @@ func (store *Store) DeleteTransaction(ctx context.Context, Id uint, tenant strin
 			return err
 		}
 		d := tx.WithContext(ctx).
-			Where("id = ? AND owner_id = ?", Id, tenant).
+			Where("id = ?", Id).
 			Delete(&dbTransaction{})
 		if d.Error != nil {
 			return d.Error
@@ -1029,28 +1010,28 @@ type StockTransferUpdate struct {
 
 // TODO: there is nothing preventing an income category to be tagged with an expense entry
 
-func (store *Store) UpdateTransaction(ctx context.Context, input TransactionUpdate, Id uint, tenant string) error {
+func (store *Store) UpdateTransaction(ctx context.Context, input TransactionUpdate, Id uint) error {
 	switch item := input.(type) {
 	case IncomeUpdate:
-		return store.UpdateIncome(ctx, item, Id, tenant)
+		return store.UpdateIncome(ctx, item, Id)
 	case ExpenseUpdate:
-		return store.UpdateExpense(ctx, item, Id, tenant)
+		return store.UpdateExpense(ctx, item, Id)
 	case TransferUpdate:
-		return store.UpdateTransfer(ctx, item, Id, tenant)
+		return store.UpdateTransfer(ctx, item, Id)
 	case StockBuyUpdate:
-		return store.UpdateStockBuy(ctx, item, Id, tenant)
+		return store.UpdateStockBuy(ctx, item, Id)
 	case StockSellUpdate:
-		return store.UpdateStockSell(ctx, item, Id, tenant)
+		return store.UpdateStockSell(ctx, item, Id)
 	case StockGrantUpdate:
-		return store.UpdateStockGrant(ctx, item, Id, tenant)
+		return store.UpdateStockGrant(ctx, item, Id)
 	case StockTransferUpdate:
-		return store.UpdateStockTransfer(ctx, item, Id, tenant)
+		return store.UpdateStockTransfer(ctx, item, Id)
 	default:
 		return errors.New("invalid baseTx type")
 	}
 }
 
-func (store *Store) UpdateIncome(ctx context.Context, input IncomeUpdate, id uint, tenant string) error {
+func (store *Store) UpdateIncome(ctx context.Context, input IncomeUpdate, id uint) error {
 	params := updateIncomeExpenseParams{
 		description:          input.Description,
 		date:                 input.Date,
@@ -1062,10 +1043,10 @@ func (store *Store) UpdateIncome(ctx context.Context, input IncomeUpdate, id uin
 		txType:               IncomeTransaction,
 		entryType:            incomeEntry,
 	}
-	return store.updateIncomeExpense(ctx, params, id, tenant)
+	return store.updateIncomeExpense(ctx, params, id)
 }
 
-func (store *Store) UpdateExpense(ctx context.Context, input ExpenseUpdate, id uint, tenant string) error {
+func (store *Store) UpdateExpense(ctx context.Context, input ExpenseUpdate, id uint) error {
 	params := updateIncomeExpenseParams{
 		description:          input.Description,
 		date:                 input.Date,
@@ -1077,7 +1058,7 @@ func (store *Store) UpdateExpense(ctx context.Context, input ExpenseUpdate, id u
 		txType:               ExpenseTransaction,
 		entryType:            expenseEntry,
 	}
-	return store.updateIncomeExpense(ctx, params, id, tenant)
+	return store.updateIncomeExpense(ctx, params, id)
 }
 
 type updateIncomeExpenseParams struct {
@@ -1095,7 +1076,7 @@ type updateIncomeExpenseParams struct {
 // updateIncomeExpense is a common function to update incomes and expenses
 //
 //nolint:nestif// the linter flags it but the code is simple enough to follow it without refactoring
-func (store *Store) updateIncomeExpense(ctx context.Context, params updateIncomeExpenseParams, id uint, tenant string) error {
+func (store *Store) updateIncomeExpense(ctx context.Context, params updateIncomeExpenseParams, id uint) error {
 	var selectedFields []string
 	var updateStruct dbTransaction
 	var selectedEntryFields []string
@@ -1133,7 +1114,7 @@ func (store *Store) updateIncomeExpense(ctx context.Context, params updateIncome
 		if *params.accountID == 0 {
 			return NewValidationErr("account cannot be zero")
 		}
-		acc, err := store.GetAccount(ctx, *params.accountID, tenant)
+		acc, err := store.GetAccount(ctx, *params.accountID)
 		if err != nil {
 			return fmt.Errorf("error updating transaction: %w", err)
 		}
@@ -1152,7 +1133,7 @@ func (store *Store) updateIncomeExpense(ctx context.Context, params updateIncome
 	// Category
 	if params.categoryID != nil {
 		if *params.categoryID != 0 {
-			cat, err := store.GetCategory(ctx, *params.categoryID, tenant)
+			cat, err := store.GetCategory(ctx, *params.categoryID)
 			if err != nil {
 				return fmt.Errorf("error updating transaction: %w", err)
 			}
@@ -1176,7 +1157,7 @@ func (store *Store) updateIncomeExpense(ctx context.Context, params updateIncome
 		entryType1:       params.entryType,
 	}
 
-	if err := store.writeTxUpdate(wParams, id, tenant); err != nil {
+	if err := store.writeTxUpdate(wParams, id); err != nil {
 		return fmt.Errorf("error updating transaction: %w", err)
 	}
 	return nil
@@ -1197,12 +1178,12 @@ type writeTxUpdateParams struct {
 	entryType2       entryType
 }
 
-func (store *Store) writeTxUpdate(params writeTxUpdateParams, id uint, tenant string) error {
+func (store *Store) writeTxUpdate(params writeTxUpdateParams, id uint) error {
 	return store.db.Transaction(func(tx *gorm.DB) error {
 		// Update the main transaction
 		if len(params.selectedFields) > 0 {
 			q := tx.Model(&dbTransaction{}).
-				Where("id = ? AND owner_id = ? AND type = ?", id, tenant, params.txType).
+				Where("id = ? AND type = ?", id, params.txType).
 				Select(params.selectedFields).
 				Updates(params.updateStruct)
 
@@ -1217,7 +1198,7 @@ func (store *Store) writeTxUpdate(params writeTxUpdateParams, id uint, tenant st
 		// Update fields of the first related entries
 		if len(params.entryType1Fields) > 0 {
 			q := tx.Model(&dbEntry{}).
-				Where("transaction_id = ? AND owner_id = ? AND entry_type = ?", id, tenant, params.entryType1).
+				Where("transaction_id = ? AND entry_type = ?", id, params.entryType1).
 				Select(params.entryType1Fields).
 				Updates(params.entryType1Values)
 			if q.Error != nil {
@@ -1230,7 +1211,7 @@ func (store *Store) writeTxUpdate(params writeTxUpdateParams, id uint, tenant st
 		// Update fields of the second related entries
 		if len(params.entryType2Fields) > 0 {
 			q := tx.Model(&dbEntry{}).
-				Where("transaction_id = ? AND owner_id = ? AND entry_type = ?", id, tenant, params.entryType2).
+				Where("transaction_id = ? AND entry_type = ?", id, params.entryType2).
 				Select(params.entryType2Fields).
 				Updates(params.entryType2Values)
 			if q.Error != nil {
@@ -1246,7 +1227,7 @@ func (store *Store) writeTxUpdate(params writeTxUpdateParams, id uint, tenant st
 }
 
 //nolint:gocyclo// the linter flags it but the code is simply different input validations and payload generation
-func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id uint, tenant string) error {
+func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id uint) error {
 	var selectedFields []string
 	var updateStruct dbTransaction
 
@@ -1286,7 +1267,7 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 		if *input.TargetAccountID == 0 {
 			return NewValidationErr("amount cannot be zero")
 		}
-		acc, err := store.GetAccount(ctx, *input.TargetAccountID, tenant)
+		acc, err := store.GetAccount(ctx, *input.TargetAccountID)
 		if err != nil {
 			return fmt.Errorf("error creating transaction: %w", err)
 		}
@@ -1313,7 +1294,7 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 		if *input.OriginAccountID == 0 {
 			return NewValidationErr("amount cannot be zero")
 		}
-		acc, err := store.GetAccount(ctx, *input.OriginAccountID, tenant)
+		acc, err := store.GetAccount(ctx, *input.OriginAccountID)
 		if err != nil {
 			return fmt.Errorf("error creating transaction: %w", err)
 		}
@@ -1341,13 +1322,13 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 		entryType2Values: originEntry,
 		entryType2:       transferOutEntry,
 	}
-	if err := store.writeTxUpdate(wParams, Id, tenant); err != nil {
+	if err := store.writeTxUpdate(wParams, Id); err != nil {
 		return fmt.Errorf("error updating transaction: %w", err)
 	}
 	return nil
 }
 
-func (store *Store) UpdateStockBuy(ctx context.Context, input StockBuyUpdate, id uint, tenant string) error {
+func (store *Store) UpdateStockBuy(ctx context.Context, input StockBuyUpdate, id uint) error {
 	var selectedFields []string
 	var updateStruct dbTransaction
 
@@ -1372,7 +1353,7 @@ func (store *Store) UpdateStockBuy(ctx context.Context, input StockBuyUpdate, id
 		if *input.InvestmentAccountID == 0 {
 			return NewValidationErr("investment account is required")
 		}
-		acc, err := store.GetAccount(ctx, *input.InvestmentAccountID, tenant)
+		acc, err := store.GetAccount(ctx, *input.InvestmentAccountID)
 		if err != nil {
 			return fmt.Errorf("error updating stock buy: %w", err)
 		}
@@ -1387,7 +1368,7 @@ func (store *Store) UpdateStockBuy(ctx context.Context, input StockBuyUpdate, id
 		if *input.InstrumentID == 0 {
 			return NewValidationErr("instrument is required")
 		}
-		inst, err := store.GetInstrument(ctx, *input.InstrumentID, tenant)
+		inst, err := store.GetInstrument(ctx, *input.InstrumentID)
 		if err != nil {
 			if errors.Is(err, ErrInstrumentNotFound) {
 				return ErrValidation("instrument not found")
@@ -1414,7 +1395,7 @@ func (store *Store) UpdateStockBuy(ctx context.Context, input StockBuyUpdate, id
 	}
 
 	// Validate instrument/account currency match when either changes
-	if err := store.validateStockCurrencyMatch(ctx, id, tenant, input.InvestmentAccountID, input.InstrumentID, newInstrument, StockBuyTransaction); err != nil {
+	if err := store.validateStockCurrencyMatch(ctx, id, input.InvestmentAccountID, input.InstrumentID, newInstrument, StockBuyTransaction); err != nil {
 		return err
 	}
 
@@ -1424,7 +1405,7 @@ func (store *Store) UpdateStockBuy(ctx context.Context, input StockBuyUpdate, id
 		if *input.CashAccountID == 0 {
 			return NewValidationErr("cash account is required")
 		}
-		acc, err := store.GetAccount(ctx, *input.CashAccountID, tenant)
+		acc, err := store.GetAccount(ctx, *input.CashAccountID)
 		if err != nil {
 			return fmt.Errorf("error updating stock buy: %w", err)
 		}
@@ -1457,13 +1438,13 @@ func (store *Store) UpdateStockBuy(ctx context.Context, input StockBuyUpdate, id
 		entryType2Values: cashEntry,
 		entryType2:       stockCashOutEntry,
 	}
-	if err := store.writeTxUpdate(wParams, id, tenant); err != nil {
+	if err := store.writeTxUpdate(wParams, id); err != nil {
 		return fmt.Errorf("error updating stock buy: %w", err)
 	}
 	return nil
 }
 
-func (store *Store) UpdateStockSell(ctx context.Context, input StockSellUpdate, id uint, tenant string) error {
+func (store *Store) UpdateStockSell(ctx context.Context, input StockSellUpdate, id uint) error {
 	var selectedFields []string
 	var updateStruct dbTransaction
 
@@ -1488,7 +1469,7 @@ func (store *Store) UpdateStockSell(ctx context.Context, input StockSellUpdate, 
 		if *input.InvestmentAccountID == 0 {
 			return NewValidationErr("investment account is required")
 		}
-		acc, err := store.GetAccount(ctx, *input.InvestmentAccountID, tenant)
+		acc, err := store.GetAccount(ctx, *input.InvestmentAccountID)
 		if err != nil {
 			return fmt.Errorf("error updating stock sell: %w", err)
 		}
@@ -1503,7 +1484,7 @@ func (store *Store) UpdateStockSell(ctx context.Context, input StockSellUpdate, 
 		if *input.InstrumentID == 0 {
 			return NewValidationErr("instrument is required")
 		}
-		inst, err := store.GetInstrument(ctx, *input.InstrumentID, tenant)
+		inst, err := store.GetInstrument(ctx, *input.InstrumentID)
 		if err != nil {
 			if errors.Is(err, ErrInstrumentNotFound) {
 				return ErrValidation("instrument not found")
@@ -1530,7 +1511,7 @@ func (store *Store) UpdateStockSell(ctx context.Context, input StockSellUpdate, 
 	}
 
 	// Validate instrument/account currency match when either changes
-	if err := store.validateStockCurrencyMatch(ctx, id, tenant, input.InvestmentAccountID, input.InstrumentID, newInstrument, StockSellTransaction); err != nil {
+	if err := store.validateStockCurrencyMatch(ctx, id, input.InvestmentAccountID, input.InstrumentID, newInstrument, StockSellTransaction); err != nil {
 		return err
 	}
 
@@ -1540,7 +1521,7 @@ func (store *Store) UpdateStockSell(ctx context.Context, input StockSellUpdate, 
 		if *input.CashAccountID == 0 {
 			return NewValidationErr("cash account is required")
 		}
-		acc, err := store.GetAccount(ctx, *input.CashAccountID, tenant)
+		acc, err := store.GetAccount(ctx, *input.CashAccountID)
 		if err != nil {
 			return fmt.Errorf("error updating stock sell: %w", err)
 		}
@@ -1573,13 +1554,13 @@ func (store *Store) UpdateStockSell(ctx context.Context, input StockSellUpdate, 
 		entryType2Values: cashEntry,
 		entryType2:       stockCashInEntry,
 	}
-	if err := store.writeTxUpdate(wParams, id, tenant); err != nil {
+	if err := store.writeTxUpdate(wParams, id); err != nil {
 		return fmt.Errorf("error updating stock sell: %w", err)
 	}
 	return nil
 }
 
-func (store *Store) UpdateStockGrant(ctx context.Context, input StockGrantUpdate, id uint, tenant string) error {
+func (store *Store) UpdateStockGrant(ctx context.Context, input StockGrantUpdate, id uint) error {
 	var selectedFields []string
 	var updateStruct dbTransaction
 
@@ -1604,7 +1585,7 @@ func (store *Store) UpdateStockGrant(ctx context.Context, input StockGrantUpdate
 		if *input.AccountID == 0 {
 			return NewValidationErr("account is required")
 		}
-		acc, err := store.GetAccount(ctx, *input.AccountID, tenant)
+		acc, err := store.GetAccount(ctx, *input.AccountID)
 		if err != nil {
 			return fmt.Errorf("error updating stock grant: %w", err)
 		}
@@ -1618,7 +1599,7 @@ func (store *Store) UpdateStockGrant(ctx context.Context, input StockGrantUpdate
 		if *input.InstrumentID == 0 {
 			return NewValidationErr("instrument is required")
 		}
-		if _, err := store.GetInstrument(ctx, *input.InstrumentID, tenant); err != nil {
+		if _, err := store.GetInstrument(ctx, *input.InstrumentID); err != nil {
 			if errors.Is(err, ErrInstrumentNotFound) {
 				return ErrValidation("instrument not found")
 			}
@@ -1647,13 +1628,13 @@ func (store *Store) UpdateStockGrant(ctx context.Context, input StockGrantUpdate
 		entryType1Values: grantEntry,
 		entryType1:       stockGrantEntry,
 	}
-	if err := store.writeTxUpdate(wParams, id, tenant); err != nil {
+	if err := store.writeTxUpdate(wParams, id); err != nil {
 		return fmt.Errorf("error updating stock grant: %w", err)
 	}
 	return nil
 }
 
-func (store *Store) UpdateStockTransfer(ctx context.Context, input StockTransferUpdate, id uint, tenant string) error {
+func (store *Store) UpdateStockTransfer(ctx context.Context, input StockTransferUpdate, id uint) error {
 	var selectedFields []string
 	var updateStruct dbTransaction
 
@@ -1678,7 +1659,7 @@ func (store *Store) UpdateStockTransfer(ctx context.Context, input StockTransfer
 		if *input.SourceAccountID == 0 {
 			return NewValidationErr("source account is required")
 		}
-		acc, err := store.GetAccount(ctx, *input.SourceAccountID, tenant)
+		acc, err := store.GetAccount(ctx, *input.SourceAccountID)
 		if err != nil {
 			return fmt.Errorf("error updating stock transfer: %w", err)
 		}
@@ -1692,7 +1673,7 @@ func (store *Store) UpdateStockTransfer(ctx context.Context, input StockTransfer
 		if *input.InstrumentID == 0 {
 			return NewValidationErr("instrument is required")
 		}
-		if _, err := store.GetInstrument(ctx, *input.InstrumentID, tenant); err != nil {
+		if _, err := store.GetInstrument(ctx, *input.InstrumentID); err != nil {
 			if errors.Is(err, ErrInstrumentNotFound) {
 				return ErrValidation("instrument not found")
 			}
@@ -1715,7 +1696,7 @@ func (store *Store) UpdateStockTransfer(ctx context.Context, input StockTransfer
 		if *input.TargetAccountID == 0 {
 			return NewValidationErr("target account is required")
 		}
-		acc, err := store.GetAccount(ctx, *input.TargetAccountID, tenant)
+		acc, err := store.GetAccount(ctx, *input.TargetAccountID)
 		if err != nil {
 			return fmt.Errorf("error updating stock transfer: %w", err)
 		}
@@ -1741,7 +1722,7 @@ func (store *Store) UpdateStockTransfer(ctx context.Context, input StockTransfer
 		entryType2Values: inEntry,
 		entryType2:       stockTransferInEntry,
 	}
-	if err := store.writeTxUpdate(wParams, id, tenant); err != nil {
+	if err := store.writeTxUpdate(wParams, id); err != nil {
 		return fmt.Errorf("error updating stock transfer: %w", err)
 	}
 	return nil
@@ -1760,7 +1741,7 @@ const MaxSearchResults = 300
 const DefaultSearchResults = 30
 
 // ListTransactions returns an unsorted list of transactions matching the filter criteria
-func (store *Store) ListTransactions(ctx context.Context, opts ListOpts, tenant string) ([]Transaction, error) {
+func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Transaction, error) {
 
 	db := store.db.WithContext(ctx).Table("db_transactions")
 
@@ -1812,7 +1793,6 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts, tenant 
     `).Joins("JOIN db_entries ON db_entries.transaction_id = db_transactions.id")
 
 	// ensure proper owner
-	db = db.Where("db_entries.owner_id = ? AND db_transactions.owner_id = ? ", tenant, tenant)
 	// Filter by date range
 	db = db.Where("db_transactions.date BETWEEN ? AND ?", startDate, endDate)
 	// filter by type

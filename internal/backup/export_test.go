@@ -54,35 +54,38 @@ func TestExport(t *testing.T) {
 	want := backupPayload{
 		Meta: metaInfoV1{
 			Version: SchemaV1,
-			Tenants: []string{tenant1, tenant2},
 		},
 		Providers: []accountProviderV1{
-			{ID: 1, Name: "p1", Description: "d1", Tenant: tenant1},
-			{ID: 2, Name: "p2", Description: "d2", Tenant: tenant2},
+			{ID: 1, Name: "p1", Description: "d1"},
+			{ID: 2, Name: "p2", Description: "d2"},
 		},
 		Accounts: []accountV1{
-			{ID: 1, AccountProviderID: 1, Name: "acc1", Description: "dacc1", Currency: "EUR", Type: "Cash", Tenant: tenant1},
-			{ID: 2, AccountProviderID: 1, Name: "acc2", Description: "dacc2", Currency: "USD", Type: "Checkin", Tenant: tenant1},
-			{ID: 3, AccountProviderID: 1, Name: "acc3", Description: "dacc3", Currency: "CHF", Type: "Savings", Tenant: tenant1},
-			{ID: 4, AccountProviderID: 2, Name: "acc4", Description: "dacc4", Currency: "EUR", Type: "Checkin", Tenant: tenant2},
+			{ID: 1, AccountProviderID: 1, Name: "acc1", Description: "dacc1", Currency: "EUR", Type: "Cash"},
+			{ID: 2, AccountProviderID: 1, Name: "acc2", Description: "dacc2", Currency: "USD", Type: "Checkin"},
+			{ID: 3, AccountProviderID: 1, Name: "acc3", Description: "dacc3", Currency: "CHF", Type: "Savings"},
+			{ID: 4, AccountProviderID: 2, Name: "acc4", Description: "dacc4", Currency: "EUR", Type: "Checkin"},
 		},
 		IncomeCategories: []categoryV1{
-			{ID: 1, ParentId: 0, Name: "in1", Description: "din1", Tenant: tenant1},
-			{ID: 2, ParentId: 1, Name: "in2", Description: "din2", Tenant: tenant1},
-			{ID: 4, ParentId: 0, Name: "in3", Description: "din3", Tenant: tenant2},
+			{ID: 1, ParentId: 0, Name: "in1", Description: "din1"},
+			{ID: 2, ParentId: 1, Name: "in2", Description: "din2"},
+			{ID: 4, ParentId: 0, Name: "in3", Description: "din3"},
 		},
 		ExpenseCategories: []categoryV1{
-			{ID: 3, ParentId: 0, Name: "ex1", Description: "dex1", Tenant: tenant1},
+			{ID: 3, ParentId: 0, Name: "ex1", Description: "dex1"},
 		},
 		Transactions: []TransactionV1{
-			{Id: 1, Description: "i1", Amount: 12.5, AccountID: 1, CategoryID: 1, Date: getDate("2022-01-20"), Type: txTypeIncome, Tenant: tenant1},
-			{Id: 2, Description: "e1", Amount: 22.6, AccountID: 1, CategoryID: 3, Date: getDate("2022-01-19"), Type: txTypeExpense, Tenant: tenant1},
-			{Id: 3, Description: "tr1", OriginAmount: 36.6, OriginAccountID: 1, TargetAmount: 1.5, TargetAccountID: 2, Date: getDate("2022-01-18"), Type: txTypeTransfer, Tenant: tenant1},
-			{Id: 4, Description: "i1", Amount: 10.5, AccountID: 4, CategoryID: 0, Date: getDate("2022-01-17"), Type: txTypeIncome, Tenant: tenant2},
+			{Id: 1, Description: "i1", Amount: 12.5, AccountID: 1, CategoryID: 1, Date: getDate("2022-01-20"), Type: txTypeIncome},
+			{Id: 2, Description: "e1", Amount: 22.6, AccountID: 1, CategoryID: 3, Date: getDate("2022-01-19"), Type: txTypeExpense},
+			{Id: 3, Description: "tr1", OriginAmount: 36.6, OriginAccountID: 1, TargetAmount: 1.5, TargetAccountID: 2, Date: getDate("2022-01-18"), Type: txTypeTransfer},
+			{Id: 4, Description: "i1", Amount: 10.5, AccountID: 4, CategoryID: 0, Date: getDate("2022-01-17"), Type: txTypeIncome},
 		},
 	}
 
-	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(metaInfoV1{}, "Date")); diff != "" {
+	sortCategories := func(a, b categoryV1) bool { return a.ID < b.ID }
+	if diff := cmp.Diff(want, got,
+		cmpopts.IgnoreFields(metaInfoV1{}, "Date"),
+		cmpopts.SortSlices(sortCategories),
+	); diff != "" {
 		t.Errorf("unexpected result (-want +got):\n%s", diff)
 	}
 
@@ -192,11 +195,11 @@ func sampleData(t *testing.T, store *accounting.Store) {
 	// create accounts providers
 	// =========================================
 
-	accProviderId, err := store.CreateAccountProvider(t.Context(), accounting.AccountProvider{Name: "p1", Description: "d1"}, tenant1)
+	accProviderId, err := store.CreateAccountProvider(t.Context(), accounting.AccountProvider{Name: "p1", Description: "d1"})
 	if err != nil {
 		t.Fatalf("error creating provider 1: %v", err)
 	}
-	accProviderId2, err := store.CreateAccountProvider(t.Context(), accounting.AccountProvider{Name: "p2", Description: "d2"}, tenant2)
+	accProviderId2, err := store.CreateAccountProvider(t.Context(), accounting.AccountProvider{Name: "p2", Description: "d2"})
 	if err != nil {
 		t.Fatalf("error creating provider 1: %v", err)
 	}
@@ -209,14 +212,14 @@ func sampleData(t *testing.T, store *accounting.Store) {
 		{AccountProviderID: accProviderId, Name: "acc3", Description: "dacc3", Currency: currency.CHF, Type: accounting.SavingsAccountType},
 	}
 	for _, acc := range Accs {
-		_, err = store.CreateAccount(t.Context(), acc, tenant1)
+		_, err = store.CreateAccount(t.Context(), acc)
 		if err != nil {
 			t.Fatalf("error creating account 1: %v", err)
 		}
 	}
 
 	acc := accounting.Account{AccountProviderID: accProviderId2, Name: "acc4", Description: "dacc4", Currency: currency.EUR, Type: accounting.CheckinAccountType}
-	_, err = store.CreateAccount(t.Context(), acc, tenant2)
+	_, err = store.CreateAccount(t.Context(), acc)
 	if err != nil {
 		t.Fatalf("error creating account 1: %v", err)
 	}
@@ -225,23 +228,23 @@ func sampleData(t *testing.T, store *accounting.Store) {
 	// create categories
 	// =========================================
 
-	in1, err := store.CreateCategory(t.Context(), accounting.CategoryData{Name: "in1", Description: "din1", Type: accounting.IncomeCategory}, 0, tenant1)
+	in1, err := store.CreateCategory(t.Context(), accounting.CategoryData{Name: "in1", Description: "din1", Type: accounting.IncomeCategory}, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	// income children1
-	_, err = store.CreateCategory(t.Context(), accounting.CategoryData{Name: "in2", Description: "din2", Type: accounting.IncomeCategory}, in1, tenant1)
+	_, err = store.CreateCategory(t.Context(), accounting.CategoryData{Name: "in2", Description: "din2", Type: accounting.IncomeCategory}, in1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	// expense
-	ex1, err := store.CreateCategory(t.Context(), accounting.CategoryData{Name: "ex1", Description: "dex1", Type: accounting.ExpenseCategory}, 0, tenant1)
+	ex1, err := store.CreateCategory(t.Context(), accounting.CategoryData{Name: "ex1", Description: "dex1", Type: accounting.ExpenseCategory}, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	// tenant 2
-	_, err = store.CreateCategory(t.Context(), accounting.CategoryData{Name: "in3", Description: "din3", Type: accounting.IncomeCategory}, 0, tenant2)
+	_, err = store.CreateCategory(t.Context(), accounting.CategoryData{Name: "in3", Description: "din3", Type: accounting.IncomeCategory}, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -251,24 +254,24 @@ func sampleData(t *testing.T, store *accounting.Store) {
 	// =========================================
 
 	t1 := accounting.Income{Description: "i1", Amount: 12.5, AccountID: 1, CategoryID: in1, Date: getDate("2022-01-20")}
-	_, err = store.CreateTransaction(t.Context(), t1, tenant1)
+	_, err = store.CreateTransaction(t.Context(), t1)
 	if err != nil {
 		t.Fatalf("error creating transaction: %v", err)
 	}
 
 	t2 := accounting.Expense{Description: "e1", Amount: 22.6, AccountID: 1, CategoryID: ex1, Date: getDate("2022-01-19")}
-	_, err = store.CreateTransaction(t.Context(), t2, tenant1)
+	_, err = store.CreateTransaction(t.Context(), t2)
 	if err != nil {
 		t.Fatalf("error creating transaction: %v", err)
 	}
 	tr1 := accounting.Transfer{Description: "tr1", OriginAmount: 36.6, OriginAccountID: 1, TargetAmount: 1.5, TargetAccountID: 2, Date: getDate("2022-01-18")}
-	_, err = store.CreateTransaction(t.Context(), tr1, tenant1)
+	_, err = store.CreateTransaction(t.Context(), tr1)
 	if err != nil {
 		t.Fatalf("error creating transaction: %v", err)
 	}
 
 	t3 := accounting.Income{Description: "i1", Amount: 10.5, AccountID: 4, CategoryID: 0, Date: getDate("2022-01-17")}
-	_, err = store.CreateTransaction(t.Context(), t3, tenant2)
+	_, err = store.CreateTransaction(t.Context(), t3)
 	if err != nil {
 		t.Fatalf("error creating transaction: %v", err)
 	}

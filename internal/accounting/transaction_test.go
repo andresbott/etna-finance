@@ -21,8 +21,8 @@ type testInstrumentGetter struct {
 	store *marketdata.Store
 }
 
-func (g *testInstrumentGetter) GetInstrument(ctx context.Context, id uint, tenant string) (InstrumentInfo, error) {
-	inst, err := g.store.GetInstrument(ctx, id, tenant)
+func (g *testInstrumentGetter) GetInstrument(ctx context.Context, id uint) (InstrumentInfo, error) {
+	inst, err := g.store.GetInstrument(ctx, id)
 	if err != nil {
 		if errors.Is(err, marketdata.ErrInstrumentNotFound) {
 			return InstrumentInfo{}, ErrInstrumentNotFound
@@ -167,7 +167,7 @@ func TestStore_CreateTransaction(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
-					id, err := store.CreateTransaction(t.Context(), tc.input, tc.tenant)
+					id, err := store.CreateTransaction(t.Context(), tc.input)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -184,7 +184,7 @@ func TestStore_CreateTransaction(t *testing.T) {
 							t.Errorf("expected valid entry id, but got 0")
 						}
 
-						got, err := store.GetTransaction(t.Context(), id, tc.tenant)
+						got, err := store.GetTransaction(t.Context(), id)
 						if err != nil {
 							t.Fatalf("expected entry to be found, but got error: %v", err)
 						}
@@ -231,7 +231,7 @@ func TestStore_GetTransaction(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
-					got, err := store.GetTransaction(t.Context(), tc.checkId, tc.checkTenant)
+					got, err := store.GetTransaction(t.Context(), tc.checkId)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -290,7 +290,7 @@ func TestStore_DeleteTransaction(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
-					err := store.DeleteTransaction(t.Context(), tc.deleteID, tc.deleteTenant)
+					err := store.DeleteTransaction(t.Context(), tc.deleteID)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -303,7 +303,7 @@ func TestStore_DeleteTransaction(t *testing.T) {
 							t.Fatalf("unexpected error: %v", err)
 						}
 
-						_, err := store.GetTransaction(t.Context(), tc.deleteID, tc.deleteTenant)
+						_, err := store.GetTransaction(t.Context(), tc.deleteID)
 						if err == nil {
 							t.Fatalf("expected item to not exist, but got we got a baseTx")
 						}
@@ -448,12 +448,6 @@ func TestStore_UpdateIncome(t *testing.T) {
 
 		// 🚨 Not found / Wrong tenant
 		{
-			name:         "wrong tenant",
-			updateTenant: tenant2,
-			updateInput:  IncomeUpdate{Description: ptr("changed")},
-			wantErr:      "error updating transaction: transaction not found",
-		},
-		{
 			name:         "non-existing transaction",
 			updateTenant: tenant1,
 			updateInput:  IncomeUpdate{Description: ptr("changed")},
@@ -475,7 +469,7 @@ func TestStore_UpdateIncome(t *testing.T) {
 				t.Run(tc.name, func(t *testing.T) {
 
 					in := Income{Description: "description", Amount: 10, AccountID: 1, CategoryID: 1, Date: getDate("2025-01-02")}
-					id, err := store.CreateTransaction(t.Context(), in, tenant1)
+					id, err := store.CreateTransaction(t.Context(), in)
 					if err != nil {
 						t.Fatalf("failed to create baseTx: %v", err)
 					}
@@ -484,7 +478,7 @@ func TestStore_UpdateIncome(t *testing.T) {
 						id = tc.txId
 					}
 
-					err = store.UpdateIncome(t.Context(), tc.updateInput, id, tc.updateTenant)
+					err = store.UpdateIncome(t.Context(), tc.updateInput, id)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -497,7 +491,7 @@ func TestStore_UpdateIncome(t *testing.T) {
 							t.Fatalf("unexpected error: %v", err)
 						}
 
-						got, err := store.GetTransaction(t.Context(), id, tc.updateTenant)
+						got, err := store.GetTransaction(t.Context(), id)
 						if err != nil {
 							t.Fatalf("expected entry to be found, but got error: %v", err)
 						}
@@ -636,12 +630,6 @@ func TestStore_UpdateExpense(t *testing.T) {
 
 		// 🚨 Not found / Wrong tenant
 		{
-			name:         "wrong tenant",
-			updateTenant: tenant2,
-			updateInput:  ExpenseUpdate{Description: ptr("changed")},
-			wantErr:      "error updating transaction: transaction not found",
-		},
-		{
 			name:         "non-existing transaction",
 			updateTenant: tenant1,
 			updateInput:  ExpenseUpdate{Description: ptr("changed")},
@@ -664,7 +652,7 @@ func TestStore_UpdateExpense(t *testing.T) {
 
 					in := Expense{Description: "description", Amount: 10, AccountID: 1, CategoryID: 2,
 						Date: getDate("2025-01-02")}
-					id, err := store.CreateTransaction(t.Context(), in, tenant1)
+					id, err := store.CreateTransaction(t.Context(), in)
 					if err != nil {
 						t.Fatalf("failed to create baseTx: %v", err)
 					}
@@ -673,7 +661,7 @@ func TestStore_UpdateExpense(t *testing.T) {
 						id = tc.txId
 					}
 
-					err = store.UpdateExpense(t.Context(), tc.updateInput, id, tc.updateTenant)
+					err = store.UpdateExpense(t.Context(), tc.updateInput, id)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -686,7 +674,7 @@ func TestStore_UpdateExpense(t *testing.T) {
 							t.Fatalf("unexpected error: %v", err)
 						}
 
-						got, err := store.GetTransaction(t.Context(), id, tc.updateTenant)
+						got, err := store.GetTransaction(t.Context(), id)
 						if err != nil {
 							t.Fatalf("expected entry to be found, but got error: %v", err)
 						}
@@ -849,12 +837,6 @@ func TestStore_UpdateTransfer(t *testing.T) {
 
 		// 🚨 Not found / Wrong tenant
 		{
-			name:         "wrong tenant",
-			updateTenant: tenant2,
-			updateInput:  TransferUpdate{Description: ptr("changed")},
-			wantErr:      "error updating transaction: transaction not found",
-		},
-		{
 			name:         "non-existing transaction",
 			updateTenant: tenant1,
 			updateInput:  TransferUpdate{Description: ptr("changed")},
@@ -881,7 +863,7 @@ func TestStore_UpdateTransfer(t *testing.T) {
 						TargetAccountID: 2,
 						Date:            getDate("2025-01-02"),
 					}
-					id, err := store.CreateTransaction(t.Context(), in, tenant1)
+					id, err := store.CreateTransaction(t.Context(), in)
 					if err != nil {
 						t.Fatalf("failed to create baseTx: %v", err)
 					}
@@ -890,7 +872,7 @@ func TestStore_UpdateTransfer(t *testing.T) {
 						id = tc.txId
 					}
 
-					err = store.UpdateTransfer(t.Context(), tc.updateInput, id, tc.updateTenant)
+					err = store.UpdateTransfer(t.Context(), tc.updateInput, id)
 
 					if tc.wantErr != "" {
 						if err == nil {
@@ -905,7 +887,7 @@ func TestStore_UpdateTransfer(t *testing.T) {
 							t.Fatalf("unexpected error: %v", err)
 						}
 
-						got, err := store.GetTransaction(t.Context(), id, tc.updateTenant)
+						got, err := store.GetTransaction(t.Context(), id)
 						if err != nil {
 							t.Fatalf("expected baseTx but got error: %v", err)
 						}
@@ -1105,7 +1087,7 @@ func TestStore_ListTransactions(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
-					got, err := store.ListTransactions(t.Context(), tc.opts, tenant1)
+					got, err := store.ListTransactions(t.Context(), tc.opts)
 
 					if tc.wantErr != "" {
 						if err == nil {
@@ -1151,7 +1133,7 @@ var ignoreUnexportedAndIds = []cmp.Option{
 // setupStockBuySellTest creates provider, investment account, cash account and instrument for stock buy/sell tests.
 func setupStockBuySellTest(t *testing.T, ctx context.Context, store *Store, mktStore *marketdata.Store) (investmentAccountID, cashAccountID, instrumentID uint) {
 	t.Helper()
-	providerID, err := store.CreateAccountProvider(ctx, AccountProvider{Name: "Broker"}, tenant1)
+	providerID, err := store.CreateAccountProvider(ctx, AccountProvider{Name: "Broker"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1160,7 +1142,7 @@ func setupStockBuySellTest(t *testing.T, ctx context.Context, store *Store, mktS
 		Name:              "Broker account",
 		Currency:          currency.USD,
 		Type:              InvestmentAccountType,
-	}, tenant1)
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1169,7 +1151,7 @@ func setupStockBuySellTest(t *testing.T, ctx context.Context, store *Store, mktS
 		Name:              "Checking",
 		Currency:          currency.USD,
 		Type:              CheckinAccountType,
-	}, tenant1)
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1177,7 +1159,7 @@ func setupStockBuySellTest(t *testing.T, ctx context.Context, store *Store, mktS
 		Symbol:   "AAPL",
 		Name:     "Apple Inc.",
 		Currency: currency.USD,
-	}, tenant1)
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1233,14 +1215,14 @@ func TestStore_CreateStockBuy_CreateStockSell(t *testing.T) {
 				TotalAmount:         1500.0,
 				StockAmount:         1850.0,
 			}
-			buyID, err := store.CreateStockBuy(ctx, buy, tenant1)
+			buyID, err := store.CreateStockBuy(ctx, buy)
 			if err != nil {
 				t.Fatalf("CreateStockBuy: %v", err)
 			}
 			if buyID == 0 {
 				t.Fatal("expected non-zero transaction id")
 			}
-			gotBuy, err := store.GetTransaction(ctx, buyID, tenant1)
+			gotBuy, err := store.GetTransaction(ctx, buyID)
 			if err != nil {
 				t.Fatalf("GetTransaction(buy): %v", err)
 			}
@@ -1256,14 +1238,14 @@ func TestStore_CreateStockBuy_CreateStockSell(t *testing.T) {
 				TotalAmount:         465.0,
 				StockAmount:         585.0,
 			}
-			sellID, err := store.CreateStockSell(ctx, sell, tenant1)
+			sellID, err := store.CreateStockSell(ctx, sell)
 			if err != nil {
 				t.Fatalf("CreateStockSell: %v", err)
 			}
 			if sellID == 0 {
 				t.Fatal("expected non-zero transaction id")
 			}
-			gotSell, err := store.GetTransaction(ctx, sellID, tenant1)
+			gotSell, err := store.GetTransaction(ctx, sellID)
 			if err != nil {
 				t.Fatalf("GetTransaction(sell): %v", err)
 			}
@@ -1274,7 +1256,7 @@ func TestStore_CreateStockBuy_CreateStockSell(t *testing.T) {
 				EndDate:   getDate("2025-02-28"),
 				Types:     []TxType{StockBuyTransaction, StockSellTransaction},
 				Limit:     10,
-			}, tenant1)
+			})
 			if err != nil {
 				t.Fatalf("ListTransactions: %v", err)
 			}
@@ -1288,7 +1270,7 @@ func TestStore_CreateStockBuy_CreateStockSell(t *testing.T) {
 // setupStockGrantTransferTest creates provider, unvested account, investment account and instrument.
 func setupStockGrantTransferTest(t *testing.T, ctx context.Context, store *Store, mktStore *marketdata.Store) (grantAccountID, investmentAccountID, instrumentID uint) {
 	t.Helper()
-	providerID, err := store.CreateAccountProvider(ctx, AccountProvider{Name: "Broker"}, tenant1)
+	providerID, err := store.CreateAccountProvider(ctx, AccountProvider{Name: "Broker"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1297,7 +1279,7 @@ func setupStockGrantTransferTest(t *testing.T, ctx context.Context, store *Store
 		Name:              "RSU Unvested",
 		Currency:          currency.USD,
 		Type:              UnvestedAccountType,
-	}, tenant1)
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1306,7 +1288,7 @@ func setupStockGrantTransferTest(t *testing.T, ctx context.Context, store *Store
 		Name:              "Broker vested",
 		Currency:          currency.USD,
 		Type:              InvestmentAccountType,
-	}, tenant1)
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1314,7 +1296,7 @@ func setupStockGrantTransferTest(t *testing.T, ctx context.Context, store *Store
 		Symbol:   "RSU",
 		Name:     "Company RSU",
 		Currency: currency.USD,
-	}, tenant1)
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1360,14 +1342,14 @@ func TestStore_CreateStockGrant_CreateStockTransfer(t *testing.T) {
 				InstrumentID: instrumentID,
 				Quantity:     100,
 			}
-			grantID, err := store.CreateStockGrant(ctx, grant, tenant1)
+			grantID, err := store.CreateStockGrant(ctx, grant)
 			if err != nil {
 				t.Fatalf("CreateStockGrant: %v", err)
 			}
 			if grantID == 0 {
 				t.Fatal("expected non-zero transaction id")
 			}
-			gotGrant, err := store.GetTransaction(ctx, grantID, tenant1)
+			gotGrant, err := store.GetTransaction(ctx, grantID)
 			if err != nil {
 				t.Fatalf("GetTransaction(grant): %v", err)
 			}
@@ -1381,14 +1363,14 @@ func TestStore_CreateStockGrant_CreateStockTransfer(t *testing.T) {
 				InstrumentID:    instrumentID,
 				Quantity:        50,
 			}
-			transferID, err := store.CreateStockTransfer(ctx, transfer, tenant1)
+			transferID, err := store.CreateStockTransfer(ctx, transfer)
 			if err != nil {
 				t.Fatalf("CreateStockTransfer: %v", err)
 			}
 			if transferID == 0 {
 				t.Fatal("expected non-zero transaction id")
 			}
-			gotTransfer, err := store.GetTransaction(ctx, transferID, tenant1)
+			gotTransfer, err := store.GetTransaction(ctx, transferID)
 			if err != nil {
 				t.Fatalf("GetTransaction(transfer): %v", err)
 			}
@@ -1399,7 +1381,7 @@ func TestStore_CreateStockGrant_CreateStockTransfer(t *testing.T) {
 				EndDate:   getDate("2025-03-31"),
 				Types:     []TxType{StockGrantTransaction, StockTransferTransaction},
 				Limit:     10,
-			}, tenant1)
+			})
 			if err != nil {
 				t.Fatalf("ListTransactions: %v", err)
 			}
@@ -1416,11 +1398,11 @@ func TestStore_CreateStockBuy_validationErrors(t *testing.T) {
 			ctx := t.Context()
 			dbCon := db.ConnDbName("storeCreateStockValidation")
 			store, mktStore := newAccountingStoreWithMarketData(t, dbCon)
-			providerID, _ := store.CreateAccountProvider(ctx, AccountProvider{Name: "p"}, tenant1)
-			accountID, _ := store.CreateAccount(ctx, Account{AccountProviderID: providerID, Name: "inv", Currency: currency.USD, Type: InvestmentAccountType}, tenant1)
-			instrumentID, _ := mktStore.CreateInstrument(ctx, marketdata.Instrument{Symbol: "X", Name: "X", Currency: currency.USD}, tenant1)
+			providerID, _ := store.CreateAccountProvider(ctx, AccountProvider{Name: "p"})
+			accountID, _ := store.CreateAccount(ctx, Account{AccountProviderID: providerID, Name: "inv", Currency: currency.USD, Type: InvestmentAccountType})
+			instrumentID, _ := mktStore.CreateInstrument(ctx, marketdata.Instrument{Symbol: "X", Name: "X", Currency: currency.USD})
 
-			cashAccountID, _ := store.CreateAccount(ctx, Account{AccountProviderID: providerID, Name: "cash", Currency: currency.USD, Type: CashAccountType}, tenant1)
+			cashAccountID, _ := store.CreateAccount(ctx, Account{AccountProviderID: providerID, Name: "cash", Currency: currency.USD, Type: CashAccountType})
 
 			tcs := []struct {
 				name    string
@@ -1435,7 +1417,7 @@ func TestStore_CreateStockBuy_validationErrors(t *testing.T) {
 			}
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
-					_, err := store.CreateStockBuy(ctx, tc.input, tenant1)
+					_, err := store.CreateStockBuy(ctx, tc.input)
 					if err == nil {
 						t.Fatalf("expected error containing %q", tc.wantErr)
 					}
@@ -1467,7 +1449,7 @@ func transactionSampleData(t *testing.T, store *Store, data map[int]Transaction)
 	// create accounts providers
 	// =========================================
 
-	accProviderId, err := store.CreateAccountProvider(t.Context(), AccountProvider{Name: "p1"}, tenant1)
+	accProviderId, err := store.CreateAccountProvider(t.Context(), AccountProvider{Name: "p1"})
 	if err != nil {
 		t.Fatalf("error creating provider 1: %v", err)
 	}
@@ -1481,7 +1463,7 @@ func transactionSampleData(t *testing.T, store *Store, data map[int]Transaction)
 		{AccountProviderID: accProviderId, Name: "acc4", Currency: currency.CHF, Type: CashAccountType},
 	}
 	for _, acc := range Accs {
-		_, err = store.CreateAccount(t.Context(), acc, tenant1)
+		_, err = store.CreateAccount(t.Context(), acc)
 		if err != nil {
 			t.Fatalf("error creating account 1: %v", err)
 		}
@@ -1503,7 +1485,7 @@ func transactionSampleData(t *testing.T, store *Store, data map[int]Transaction)
 	}
 
 	for _, tx := range dataAr {
-		_, err = store.CreateTransaction(t.Context(), tx, tenant1)
+		_, err = store.CreateTransaction(t.Context(), tx)
 		if err != nil {
 			t.Fatalf("error creating account: %v", err)
 		}

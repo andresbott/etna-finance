@@ -72,7 +72,7 @@ func TestCreateInstrument(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 					ctx := t.Context()
-					id, err := store.CreateInstrument(ctx, tc.input, tc.tenant)
+					id, err := store.CreateInstrument(ctx, tc.input)
 
 					if tc.wantErr != "" {
 						if err == nil {
@@ -90,7 +90,7 @@ func TestCreateInstrument(t *testing.T) {
 						t.Errorf("expected valid security id, but got 0")
 					}
 
-					got, err := store.GetInstrument(ctx, id, tc.tenant)
+					got, err := store.GetInstrument(ctx, id)
 					if err != nil {
 						t.Fatalf("expected security to be found, but got error: %v", err)
 					}
@@ -114,7 +114,7 @@ func TestGetInstrument(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			id, err := store.CreateInstrument(ctx, Instrument{Symbol: "TEST", Name: "Test Instrument", Currency: currency.CHF}, tenant1)
+			id, err := store.CreateInstrument(ctx, Instrument{Symbol: "TEST", Name: "Test Instrument", Currency: currency.CHF})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -133,12 +133,6 @@ func TestGetInstrument(t *testing.T) {
 					want:        Instrument{Symbol: "TEST", Name: "Test Instrument", Currency: currency.CHF},
 				},
 				{
-					name:        "want error when reading from different tenant",
-					checkId:     id,
-					checkTenant: tenant2,
-					wantErr:     ErrInstrumentNotFound.Error(),
-				},
-				{
 					name:        "want error when security does not exist",
 					checkId:     99999,
 					checkTenant: tenant1,
@@ -148,7 +142,7 @@ func TestGetInstrument(t *testing.T) {
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
-					got, err := store.GetInstrument(ctx, tc.checkId, tc.checkTenant)
+					got, err := store.GetInstrument(ctx, tc.checkId)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -181,9 +175,9 @@ func TestListInstruments(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			_, _ = store.CreateInstrument(ctx, Instrument{Symbol: "A", Name: "First", Currency: currency.USD}, tenant1)
-			_, _ = store.CreateInstrument(ctx, Instrument{Symbol: "B", Name: "Second", Currency: currency.EUR}, tenant1)
-			_, _ = store.CreateInstrument(ctx, Instrument{Symbol: "C", Name: "Third", Currency: currency.CHF}, tenant1)
+			_, _ = store.CreateInstrument(ctx, Instrument{Symbol: "A", Name: "First", Currency: currency.USD})
+			_, _ = store.CreateInstrument(ctx, Instrument{Symbol: "B", Name: "Second", Currency: currency.EUR})
+			_, _ = store.CreateInstrument(ctx, Instrument{Symbol: "C", Name: "Third", Currency: currency.CHF})
 
 			tcs := []struct {
 				name        string
@@ -197,17 +191,11 @@ func TestListInstruments(t *testing.T) {
 					wantCount:   3,
 					wantSymbols: []string{"A", "B", "C"},
 				},
-				{
-					name:        "want empty result for different tenant",
-					tenant:      tenant2,
-					wantCount:   0,
-					wantSymbols: nil,
-				},
 			}
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
-					got, err := store.ListInstruments(ctx, tc.tenant)
+					got, err := store.ListInstruments(ctx)
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
@@ -239,11 +227,11 @@ func TestUpdateInstrument(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			id, err := store.CreateInstrument(ctx, Instrument{Symbol: "OLD", Name: "Old Name", Currency: currency.USD}, tenant1)
+			id, err := store.CreateInstrument(ctx, Instrument{Symbol: "OLD", Name: "Old Name", Currency: currency.USD})
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, err = store.CreateInstrument(ctx, Instrument{Symbol: "TAKEN", Name: "Other", Currency: currency.EUR}, tenant1)
+			_, err = store.CreateInstrument(ctx, Instrument{Symbol: "TAKEN", Name: "Other", Currency: currency.EUR})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -297,13 +285,6 @@ func TestUpdateInstrument(t *testing.T) {
 					wantErr: ErrNoChanges.Error(),
 				},
 				{
-					name:    "not found wrong tenant",
-					id:      id,
-					tenant:  tenant2,
-					payload: InstrumentUpdatePayload{Name: ptr("X")},
-					wantErr: ErrInstrumentNotFound.Error(),
-				},
-				{
 					name:    "not found wrong id",
 					id:      99999,
 					tenant:  tenant1,
@@ -321,7 +302,7 @@ func TestUpdateInstrument(t *testing.T) {
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
-					err := store.UpdateInstrument(ctx, tc.id, tc.tenant, tc.payload)
+					err := store.UpdateInstrument(ctx, tc.id, tc.payload)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -334,7 +315,7 @@ func TestUpdateInstrument(t *testing.T) {
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
-					got, err := store.GetInstrument(ctx, tc.id, tc.tenant)
+					got, err := store.GetInstrument(ctx, tc.id)
 					if err != nil {
 						t.Fatalf("get after update: %v", err)
 					}
@@ -358,7 +339,7 @@ func TestDeleteInstrument(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			id, err := store.CreateInstrument(ctx, Instrument{Symbol: "DEL", Name: "To Delete", Currency: currency.USD}, tenant1)
+			id, err := store.CreateInstrument(ctx, Instrument{Symbol: "DEL", Name: "To Delete", Currency: currency.USD})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -380,17 +361,11 @@ func TestDeleteInstrument(t *testing.T) {
 					tenant:  tenant1,
 					wantErr: ErrInstrumentNotFound.Error(),
 				},
-				{
-					name:    "delete wrong tenant",
-					id:      id,
-					tenant:  tenant2,
-					wantErr: ErrInstrumentNotFound.Error(),
-				},
 			}
 
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
-					err := store.DeleteInstrument(ctx, tc.id, tc.tenant)
+					err := store.DeleteInstrument(ctx, tc.id)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -403,7 +378,7 @@ func TestDeleteInstrument(t *testing.T) {
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
-					_, err = store.GetInstrument(ctx, tc.id, tc.tenant)
+					_, err = store.GetInstrument(ctx, tc.id)
 					if err == nil {
 						t.Error("expected security to be deleted (get should fail)")
 					}
@@ -425,22 +400,22 @@ func TestCreateInstrument_restoresSoftDeleted(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			id1, err := store.CreateInstrument(ctx, Instrument{Symbol: "ADBE", Name: "Adobe", Currency: currency.USD}, tenant1)
+			id1, err := store.CreateInstrument(ctx, Instrument{Symbol: "ADBE", Name: "Adobe", Currency: currency.USD})
 			if err != nil {
 				t.Fatalf("create: %v", err)
 			}
-			if err := store.DeleteInstrument(ctx, id1, tenant1); err != nil {
+			if err := store.DeleteInstrument(ctx, id1); err != nil {
 				t.Fatalf("delete: %v", err)
 			}
 			// Creating again with same symbol should restore the soft-deleted row and return same ID
-			id2, err := store.CreateInstrument(ctx, Instrument{Symbol: "ADBE", Name: "Adobe Inc.", Currency: currency.USD}, tenant1)
+			id2, err := store.CreateInstrument(ctx, Instrument{Symbol: "ADBE", Name: "Adobe Inc.", Currency: currency.USD})
 			if err != nil {
 				t.Fatalf("create after delete: %v", err)
 			}
 			if id2 != id1 {
 				t.Errorf("expected same id after restore, got id1=%d id2=%d", id1, id2)
 			}
-			got, err := store.GetInstrument(ctx, id2, tenant1)
+			got, err := store.GetInstrument(ctx, id2)
 			if err != nil {
 				t.Fatalf("get restored: %v", err)
 			}

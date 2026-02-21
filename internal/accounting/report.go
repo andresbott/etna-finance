@@ -34,15 +34,15 @@ type CategoryReportValues struct {
 // time of generating the report
 
 // ReportInOutByCategory generates a tree report of all incomes and expenses by grouped categories during the selected time frame
-func (store *Store) ReportInOutByCategory(ctx context.Context, startDate, endDate time.Time, tenant string) (CategoryReport, error) {
+func (store *Store) ReportInOutByCategory(ctx context.Context, startDate, endDate time.Time) (CategoryReport, error) {
 	report := CategoryReport{}
-	incomeReport, err := store.getCategoryReport(ctx, startDate, endDate, IncomeCategory, tenant)
+	incomeReport, err := store.getCategoryReport(ctx, startDate, endDate, IncomeCategory)
 	if err != nil {
 		return report, err
 	}
 	report.Income = incomeReport
 
-	expenseReport, err := store.getCategoryReport(ctx, startDate, endDate, ExpenseCategory, tenant)
+	expenseReport, err := store.getCategoryReport(ctx, startDate, endDate, ExpenseCategory)
 	if err != nil {
 		return report, err
 	}
@@ -51,15 +51,15 @@ func (store *Store) ReportInOutByCategory(ctx context.Context, startDate, endDat
 }
 
 // getCategoryReport generates a flat list of report entries, where every entry is one category + the associated report value
-func (store *Store) getCategoryReport(ctx context.Context, startDate, endDate time.Time, catType CategoryType, tenant string) ([]CategoryReportItem, error) {
-	categories, err := store.getCategoryChildren(ctx, catType, tenant)
+func (store *Store) getCategoryReport(ctx context.Context, startDate, endDate time.Time, catType CategoryType) ([]CategoryReportItem, error) {
+	categories, err := store.getCategoryChildren(ctx, catType)
 	if err != nil {
 		return nil, err
 	}
 	entrytype := mustCategory2Entry(catType)
 	reportItems := make([]CategoryReportItem, len(categories)+1)
 
-	accounts, err := store.ListAccounts(ctx, tenant)
+	accounts, err := store.ListAccounts(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +76,6 @@ func (store *Store) getCategoryReport(ctx context.Context, startDate, endDate ti
 				categoryIds: item.childrenIds,
 				accountIds:  accountIds,
 				entryTypes:  []entryType{entrytype},
-				tenant:      tenant,
 			}
 			sum, err := store.sumEntries(ctx, opts)
 			if err != nil {
@@ -111,7 +110,6 @@ func (store *Store) getCategoryReport(ctx context.Context, startDate, endDate ti
 			categoryIds: []uint{0},
 			accountIds:  accountIds,
 			entryTypes:  []entryType{entrytype},
-			tenant:      tenant,
 		}
 		sum, err := store.sumEntries(ctx, opts)
 		if err != nil {
@@ -171,12 +169,12 @@ type AccountBalance struct {
 var balanceEntryTypes = []entryType{incomeEntry, expenseEntry, transferInEntry, transferOutEntry, stockCashOutEntry, stockCashInEntry, stockBuyEntry, stockSellEntry}
 
 // AccountBalanceSingle get the balance of a single account on a given point in time
-func (store *Store) AccountBalanceSingle(ctx context.Context, accountID uint, endDate time.Time, tenant string) (AccountBalance, error) {
+func (store *Store) AccountBalanceSingle(ctx context.Context, accountID uint, endDate time.Time) (AccountBalance, error) {
 
 	// NOTE: it is intentional to call AccountBalance with modified props, this is done to align the behavior
 	// of a caller using the same props on AccountBalance instead of AccountBalanceSingle.
 	// in this sense, AccountBalanceSingle is just a convenience wrapper
-	got, err := store.AccountBalance(ctx, accountID, 0, time.Time{}, endDate, tenant)
+	got, err := store.AccountBalance(ctx, accountID, 0, time.Time{}, endDate)
 	if err != nil {
 		return AccountBalance{}, err
 	}
@@ -187,38 +185,37 @@ func (store *Store) AccountBalanceSingle(ctx context.Context, accountID uint, en
 // this allows to generate balance graphs.
 // If zero or 1 steps are selected, a slice with size 1 is returned that contains the balance at end date.
 // The implementation tries to be efficient to only sum the delta entries for every step.
-func (store *Store) AccountBalance(ctx context.Context, accountID uint, steps int, startDate, endDate time.Time, tenant string) ([]AccountBalance, error) {
+func (store *Store) AccountBalance(ctx context.Context, accountID uint, steps int, startDate, endDate time.Time) ([]AccountBalance, error) {
 
 	if endDate.Before(startDate) {
 		return nil, fmt.Errorf("end date must be after start date")
 	}
 	// check the account exists
-	_, err := store.GetAccount(ctx, accountID, tenant)
+	_, err := store.GetAccount(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}
 
 	if steps <= 1 {
 		// handle single result requests
-		return store.accountBalanceSingle(ctx, accountID, endDate, tenant)
+		return store.accountBalanceSingle(ctx, accountID, endDate)
 	} else {
 		if startDate.IsZero() {
-			return store.accountBalanceMultipleEmptyStartDate(ctx, accountID, steps, endDate, tenant)
+			return store.accountBalanceMultipleEmptyStartDate(ctx, accountID, steps, endDate)
 		} else {
-			return store.accountBalanceMultipleEqualSteps(ctx, accountID, steps, startDate, endDate, tenant)
+			return store.accountBalanceMultipleEqualSteps(ctx, accountID, steps, startDate, endDate)
 		}
 	}
 }
 
 // accountBalanceSingle internal function used to get a single account balance,
-func (store *Store) accountBalanceSingle(ctx context.Context, accountID uint, endDate time.Time, tenant string) ([]AccountBalance, error) {
+func (store *Store) accountBalanceSingle(ctx context.Context, accountID uint, endDate time.Time) ([]AccountBalance, error) {
 
 	opts := sumEntriesOpts{
 		startDate:  time.Time{},
 		endDate:    endDate,
 		accountIds: []uint{accountID},
 		entryTypes: balanceEntryTypes,
-		tenant:     tenant,
 	}
 	sum, err := store.sumEntries(ctx, opts)
 	if err != nil && !errors.Is(err, ErrEntryNotFound) {
@@ -234,7 +231,7 @@ func (store *Store) accountBalanceSingle(ctx context.Context, accountID uint, en
 
 // accountBalanceMultipleEmptyStartDate internal function used to get multiple account balances when no start date is
 // provided, this case the historical data is one day per step
-func (store *Store) accountBalanceMultipleEmptyStartDate(ctx context.Context, accountID uint, steps int, endDate time.Time, tenant string) ([]AccountBalance, error) {
+func (store *Store) accountBalanceMultipleEmptyStartDate(ctx context.Context, accountID uint, steps int, endDate time.Time) ([]AccountBalance, error) {
 
 	var prevSum float64
 	var results []AccountBalance
@@ -262,7 +259,6 @@ func (store *Store) accountBalanceMultipleEmptyStartDate(ctx context.Context, ac
 			endDate:    dateTo,
 			accountIds: []uint{accountID},
 			entryTypes: balanceEntryTypes,
-			tenant:     tenant,
 		}
 
 		sum, err := store.sumEntries(ctx, opts)
@@ -285,7 +281,7 @@ func (store *Store) accountBalanceMultipleEmptyStartDate(ctx context.Context, ac
 
 // accountBalanceMultipleEqualSteps internal function used to get multiple account balances where N amaunt of
 // steps are returned equialy spread over the time range
-func (store *Store) accountBalanceMultipleEqualSteps(ctx context.Context, accountID uint, steps int, startDate, endDate time.Time, tenant string) ([]AccountBalance, error) {
+func (store *Store) accountBalanceMultipleEqualSteps(ctx context.Context, accountID uint, steps int, startDate, endDate time.Time) ([]AccountBalance, error) {
 	var prevSum float64
 
 	var results []AccountBalance
@@ -296,7 +292,6 @@ func (store *Store) accountBalanceMultipleEqualSteps(ctx context.Context, accoun
 		endDate:    endOfDay(startDate), // sum everything up to 1 nanosecond before the start date
 		accountIds: []uint{accountID},
 		entryTypes: balanceEntryTypes,
-		tenant:     tenant,
 	}
 
 	sum, err := store.sumEntries(ctx, opts)
@@ -344,7 +339,6 @@ func (store *Store) accountBalanceMultipleEqualSteps(ctx context.Context, accoun
 			endDate:    dateTo,
 			accountIds: []uint{accountID},
 			entryTypes: balanceEntryTypes,
-			tenant:     tenant,
 		}
 
 		sum, err = store.sumEntries(ctx, opts)

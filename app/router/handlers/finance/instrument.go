@@ -38,12 +38,8 @@ func instrumentToPayload(s marketdata.Instrument) instrumentPayload {
 
 var instrumentValidationErr = marketdata.ErrValidation("")
 
-// checkUserAndBody writes 400 if userId is empty or r.Body is nil and returns false; otherwise returns true.
-func checkUserAndBody(w http.ResponseWriter, r *http.Request, userId string, userMsg string) bool {
-	if userId == "" {
-		http.Error(w, userMsg, http.StatusBadRequest)
-		return false
-	}
+// checkBody writes 400 if r.Body is nil and returns false; otherwise returns true.
+func checkBody(w http.ResponseWriter, r *http.Request) bool {
 	if r.Body == nil {
 		http.Error(w, "request had empty body", http.StatusBadRequest)
 		return false
@@ -51,18 +47,14 @@ func checkUserAndBody(w http.ResponseWriter, r *http.Request, userId string, use
 	return true
 }
 
-func (h *Handler) ListInstruments(userId string) http.Handler {
+func (h *Handler) ListInstruments() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if userId == "" {
-			http.Error(w, "unable to list instruments: user not provided", http.StatusBadRequest)
-			return
-		}
 		if h.InstrumentStore == nil {
 			http.Error(w, "instruments not available", http.StatusServiceUnavailable)
 			return
 		}
 
-		items, err := h.InstrumentStore.ListInstruments(r.Context(), userId)
+		items, err := h.InstrumentStore.ListInstruments(r.Context())
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to list instruments: %s", err.Error()), http.StatusInternalServerError)
 			return
@@ -83,12 +75,8 @@ func (h *Handler) ListInstruments(userId string) http.Handler {
 	})
 }
 
-func (h *Handler) CreateInstrument(userId string) http.Handler {
+func (h *Handler) CreateInstrument() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if userId == "" {
-			http.Error(w, "unable to create instrument: user not provided", http.StatusBadRequest)
-			return
-		}
 		if r.Body == nil {
 			http.Error(w, "request had empty body", http.StatusBadRequest)
 			return
@@ -116,7 +104,7 @@ func (h *Handler) CreateInstrument(userId string) http.Handler {
 			Currency: curr,
 		}
 
-		id, err := h.InstrumentStore.CreateInstrument(r.Context(), item, userId)
+		id, err := h.InstrumentStore.CreateInstrument(r.Context(), item)
 		if err != nil {
 			if errors.As(err, &instrumentValidationErr) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -142,18 +130,14 @@ func (h *Handler) CreateInstrument(userId string) http.Handler {
 	})
 }
 
-func (h *Handler) GetInstrument(id uint, userId string) http.Handler {
+func (h *Handler) GetInstrument(id uint) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if userId == "" {
-			http.Error(w, "unable to get instrument: user not provided", http.StatusBadRequest)
-			return
-		}
 		if h.InstrumentStore == nil {
 			http.Error(w, "instruments not available", http.StatusServiceUnavailable)
 			return
 		}
 
-		item, err := h.InstrumentStore.GetInstrument(r.Context(), id, userId)
+		item, err := h.InstrumentStore.GetInstrument(r.Context(), id)
 		if err != nil {
 			if errors.Is(err, marketdata.ErrInstrumentNotFound) {
 				http.Error(w, err.Error(), http.StatusNotFound)
@@ -175,9 +159,9 @@ type instrumentUpdatePayload struct {
 }
 
 //nolint:dupl // parallel to UpdateInstrumentProvider by design
-func (h *Handler) UpdateInstrument(id uint, userId string) http.Handler {
+func (h *Handler) UpdateInstrument(id uint) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !checkUserAndBody(w, r, userId, "unable to update instrument: user not provided") {
+		if !checkBody(w, r) {
 			return
 		}
 		if h.InstrumentStore == nil {
@@ -194,7 +178,7 @@ func (h *Handler) UpdateInstrument(id uint, userId string) http.Handler {
 			Name:     payload.Name,
 			Currency: payload.Currency,
 		}
-		err := h.InstrumentStore.UpdateInstrument(r.Context(), id, userId, item)
+		err := h.InstrumentStore.UpdateInstrument(r.Context(), id, item)
 		if err != nil {
 			if errors.As(err, &instrumentValidationErr) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -219,18 +203,14 @@ func (h *Handler) UpdateInstrument(id uint, userId string) http.Handler {
 	})
 }
 
-func (h *Handler) DeleteInstrument(id uint, userId string) http.Handler {
+func (h *Handler) DeleteInstrument(id uint) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if userId == "" {
-			http.Error(w, "unable to delete instrument: user not provided", http.StatusBadRequest)
-			return
-		}
 		if h.InstrumentStore == nil {
 			http.Error(w, "instruments not available", http.StatusServiceUnavailable)
 			return
 		}
 
-		err := h.InstrumentStore.DeleteInstrument(r.Context(), id, userId)
+		err := h.InstrumentStore.DeleteInstrument(r.Context(), id)
 		if err != nil {
 			if errors.Is(err, marketdata.ErrInstrumentNotFound) {
 				http.Error(w, err.Error(), http.StatusNotFound)

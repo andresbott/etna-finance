@@ -23,10 +23,9 @@ type dbInstrument struct {
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 	DeletedAt  gorm.DeletedAt `gorm:"index"`
-	OwnerId    string         `gorm:"uniqueIndex:idx_owner_symbol;index"`
 	ProviderID uint           `gorm:"index"`
 
-	Symbol   string `gorm:"uniqueIndex:idx_owner_symbol"`
+	Symbol   string `gorm:"uniqueIndex:idx_instrument_symbol"`
 	Name     string
 	Currency string
 }
@@ -44,7 +43,7 @@ func dbToInstrument(in dbInstrument) Instrument {
 }
 
 var ErrInstrumentNotFound = errors.New("instrument not found")
-var ErrInstrumentSymbolDuplicate = errors.New("instrument symbol already exists for this tenant")
+var ErrInstrumentSymbolDuplicate = errors.New("instrument symbol already exists")
 var ErrNoChanges = errors.New("no changes applied")
 
 // ErrValidation is a validation error that can be matched with errors.As.
@@ -59,17 +58,17 @@ type InstrumentUpdatePayload struct {
 	Currency *string
 }
 
-func (s *Store) CreateInstrument(ctx context.Context, item Instrument, tenant string) (uint, error) {
+func (s *Store) CreateInstrument(ctx context.Context, item Instrument) (uint, error) {
 	if item.Symbol == "" {
 		return 0, ErrValidation("symbol cannot be empty")
 	}
 	if item.Currency == (currency.Unit{}) {
 		return 0, ErrValidation("currency cannot be empty")
 	}
-	// Check including soft-deleted rows: duplicate (owner_id, symbol) would violate UNIQUE
+	// Check including soft-deleted rows: duplicate symbol would violate UNIQUE
 	var existing dbInstrument
 	err := s.db.WithContext(ctx).Unscoped().
-		Where("owner_id = ? AND symbol = ?", tenant, item.Symbol).
+		Where("symbol = ?", item.Symbol).
 		First(&existing).Error
 	if err == nil {
 		if existing.DeletedAt.Valid {
@@ -89,7 +88,6 @@ func (s *Store) CreateInstrument(ctx context.Context, item Instrument, tenant st
 		return 0, err
 	}
 	payload := dbInstrument{
-		OwnerId:    tenant,
 		ProviderID: item.InstrumentProviderID,
 		Symbol:     item.Symbol,
 		Name:       item.Name,
@@ -102,9 +100,9 @@ func (s *Store) CreateInstrument(ctx context.Context, item Instrument, tenant st
 	return payload.ID, nil
 }
 
-func (s *Store) GetInstrument(ctx context.Context, id uint, tenant string) (Instrument, error) {
+func (s *Store) GetInstrument(ctx context.Context, id uint) (Instrument, error) {
 	var payload dbInstrument
-	d := s.db.WithContext(ctx).Where("id = ? AND owner_id = ?", id, tenant).First(&payload)
+	d := s.db.WithContext(ctx).Where("id = ?", id).First(&payload)
 	if d.Error != nil {
 		if errors.Is(d.Error, gorm.ErrRecordNotFound) {
 			return Instrument{}, ErrInstrumentNotFound
@@ -114,10 +112,9 @@ func (s *Store) GetInstrument(ctx context.Context, id uint, tenant string) (Inst
 	return dbToInstrument(payload), nil
 }
 
-func (s *Store) ListInstruments(ctx context.Context, tenant string) ([]Instrument, error) {
+func (s *Store) ListInstruments(ctx context.Context) ([]Instrument, error) {
 	var results []dbInstrument
 	if err := s.db.WithContext(ctx).
-		Where("owner_id = ?", tenant).
 		Order("id ASC").
 		Find(&results).Error; err != nil {
 		return nil, err
@@ -129,7 +126,7 @@ func (s *Store) ListInstruments(ctx context.Context, tenant string) ([]Instrumen
 	return out, nil
 }
 
-func (s *Store) UpdateInstrument(ctx context.Context, id uint, tenant string, item InstrumentUpdatePayload) error {
+func (s *Store) UpdateInstrument(ctx context.Context, id uint, item InstrumentUpdatePayload) error {
 	updateStruct := dbInstrument{}
 	var selectedFields []string
 
@@ -158,7 +155,7 @@ func (s *Store) UpdateInstrument(ctx context.Context, id uint, tenant string, it
 	if item.Symbol != nil {
 		var count int64
 		if err := s.db.WithContext(ctx).Model(&dbInstrument{}).
-			Where("owner_id = ? AND symbol = ? AND id != ?", tenant, *item.Symbol, id).
+			Where("symbol = ? AND id != ?", *item.Symbol, id).
 			Count(&count).Error; err != nil {
 			return err
 		}
@@ -168,7 +165,7 @@ func (s *Store) UpdateInstrument(ctx context.Context, id uint, tenant string, it
 	}
 
 	res := s.db.WithContext(ctx).Model(&dbInstrument{}).
-		Where("id = ? AND owner_id = ?", id, tenant).
+		Where("id = ?", id).
 		Select(selectedFields).
 		Updates(updateStruct)
 	if res.Error != nil {
@@ -180,9 +177,9 @@ func (s *Store) UpdateInstrument(ctx context.Context, id uint, tenant string, it
 	return nil
 }
 
-func (s *Store) DeleteInstrument(ctx context.Context, id uint, tenant string) error {
+func (s *Store) DeleteInstrument(ctx context.Context, id uint) error {
 	res := s.db.WithContext(ctx).
-		Where("id = ? AND owner_id = ?", id, tenant).
+		Where("id = ?", id).
 		Delete(&dbInstrument{})
 	if res.Error != nil {
 		return res.Error
