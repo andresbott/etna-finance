@@ -109,20 +109,16 @@ const router = createRouter({
             component: () => import('@/views/tools/RealEstateSimulatorView.vue')
         },
         {
-            path: '/jobs',
-            name: 'jobs',
+            path: '/tasks',
+            name: 'tasks',
             meta: {
                 requiresAuth: true
             },
-            component: () => import('@/views/jobs/JobsView.vue')
+            component: () => import('@/views/tasks/TasksView.vue')
         },
         {
-            path: '/jobs/:id',
-            name: 'job-detail',
-            meta: {
-                requiresAuth: true
-            },
-            component: () => import('@/views/jobs/JobDetailView.vue')
+            path: '/tasks/:id',
+            redirect: () => ({ name: 'tasks' })
         },
         {
             path: '/setup/csv-profiles',

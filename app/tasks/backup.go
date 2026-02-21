@@ -1,0 +1,169 @@
+package tasks
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"log/slog"
+	"path/filepath"
+	"time"
+
+	"github.com/andresbott/etna/internal/accounting"
+	"github.com/andresbott/etna/internal/backup"
+	"github.com/andresbott/etna/internal/taskrunner"
+)
+
+// TaskDef describes an available task for the API (list and trigger).
+type TaskDef struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+const (
+	BackupTaskName      = "backup"
+	scheduledBackupName = "scheduled-backup"
+)
+
+// BackupTaskDef is the task definition for the backup task, used in the API task list.
+var BackupTaskDef = TaskDef{
+	ID:          BackupTaskName,
+	Name:        "Backup",
+	Description: "Export accounting and financial data to a ZIP file.",
+}
+
+// AvailableTasks is the full list of task definitions (including dev-only). Use AvailableTaskDefs(production) to filter.
+var AvailableTasks = []TaskDef{BackupTaskDef, FinancialImportTaskDef, LogOnlyTaskDef, LogOnlyLongTaskDef}
+
+// DevOnlyTaskIDs are task IDs hidden in production (non-prod only).
+var DevOnlyTaskIDs = map[string]bool{
+	LogOnlyTaskName:     true,
+	LogOnlyLongTaskName: true,
+}
+
+// AvailableTaskDefs returns task definitions visible for the given environment. When production is true, dev-only tasks are excluded.
+func AvailableTaskDefs(production bool) []TaskDef {
+	if !production {
+		return AvailableTasks
+	}
+	out := make([]TaskDef, 0, len(AvailableTasks))
+	for _, t := range AvailableTasks {
+		if !DevOnlyTaskIDs[t.ID] {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// TaskNameExists returns true if taskName is a known task ID visible in the given environment (for schedule API validation).
+func TaskNameExists(taskName string, production bool) bool {
+	for _, t := range AvailableTaskDefs(production) {
+		if t.ID == taskName {
+			return true
+		}
+	}
+	return false
+}
+
+// BackupTaskCfg holds the configuration for the scheduled backup task.
+type BackupTaskCfg struct {
+	// Store is the accounting store to export data from.
+	Store *accounting.Store
+	// Destination is the directory where backup ZIP files are written.
+	Destination string
+	// Interval is how often the backup runs. Defaults to 24 hours.
+	Interval time.Duration
+	// Logger for backup task messages.
+	Logger *slog.Logger
+}
+
+// ScheduleBackup starts a goroutine that periodically enqueues a backup task on the given runner.
+// It runs the first backup immediately, then repeats at the configured interval.
+// The goroutine stops when ctx is cancelled.
+func ScheduleBackup(ctx context.Context, r *taskrunner.Runner, cfg BackupTaskCfg) error {
+	if r == nil {
+		return fmt.Errorf("task runner is required")
+	}
+	if cfg.Store == nil {
+		return fmt.Errorf("accounting store is required")
+	}
+	if cfg.Destination == "" {
+		return fmt.Errorf("backup destination is required")
+	}
+	if cfg.Interval <= 0 {
+		cfg.Interval = 24 * time.Hour
+	}
+
+	l := cfg.Logger
+	if l == nil {
+		l = slog.New(slog.NewTextHandler(io.Discard, nil))
+	}
+
+	go func() {
+		ticker := time.NewTicker(cfg.Interval)
+		defer ticker.Stop()
+
+		enqueue := func() {
+			err := r.Enqueue(newBackupFunc(cfg.Store, cfg.Destination, l), scheduledBackupName)
+			if err != nil {
+				l.Error("failed to enqueue backup task",
+					slog.String("component", "tasks"),
+					slog.String("error", err.Error()),
+				)
+			}
+		}
+
+		enqueue()
+
+		for {
+			select {
+			case <-ctx.Done():
+				l.Info("scheduled backup stopped", slog.String("component", "tasks"))
+				return
+			case <-ticker.C:
+				enqueue()
+			}
+		}
+	}()
+
+	l.Info("scheduled backup configured",
+		slog.String("component", "tasks"),
+		slog.Duration("interval", cfg.Interval),
+		slog.String("destination", cfg.Destination),
+	)
+
+	return nil
+}
+
+// NewBackupTaskFn returns the task function that performs the actual backup export.
+// It can be used to enqueue a one-off backup from the API.
+func NewBackupTaskFn(store *accounting.Store, destination string, l *slog.Logger) func(ctx context.Context) error {
+	return newBackupFunc(store, destination, l)
+}
+
+func newBackupFunc(store *accounting.Store, destination string, l *slog.Logger) func(ctx context.Context) error {
+	return func(ctx context.Context) error {
+		now := time.Now().Format("2006-01-02_15-04")
+		zipFile := filepath.Join(destination, fmt.Sprintf("backup-%s.zip", now))
+
+		l.Info("starting backup",
+			slog.String("component", "tasks"),
+			slog.String("file", zipFile),
+		)
+
+		err := backup.ExportToFile(ctx, store, zipFile)
+		if err != nil {
+			l.Error("backup failed",
+				slog.String("component", "tasks"),
+				slog.String("error", err.Error()),
+			)
+			return fmt.Errorf("backup export failed: %w", err)
+		}
+
+		l.Info("backup completed",
+			slog.String("component", "tasks"),
+			slog.String("file", zipFile),
+		)
+		return nil
+	}
+}

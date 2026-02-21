@@ -84,6 +84,7 @@ require (
 	github.com/prometheus/common v0.64.0 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
+	github.com/reugn/go-quartz v0.15.2 // indirect
 	github.com/samber/lo v1.50.0 // indirect
 	github.com/samber/slog-multi v1.4.0 // indirect
 	github.com/shirou/gopsutil/v3 v3.23.12 // indirect

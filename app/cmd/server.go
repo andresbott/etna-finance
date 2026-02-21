@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"log/slog"
@@ -8,24 +9,71 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/andresbott/etna/app/metainfo"
 	"github.com/andresbott/etna/app/router"
 	handlers "github.com/andresbott/etna/app/router/handlers"
-
+	"github.com/andresbott/etna/app/tasks"
+	"github.com/andresbott/etna/internal/accounting"
+	"github.com/andresbott/etna/internal/marketdata"
+	"github.com/andresbott/etna/internal/taskrunner"
 	"github.com/glebarez/sqlite"
 	"github.com/go-bumbu/http/server"
 	"github.com/go-bumbu/userauth"
 	"github.com/go-bumbu/userauth/handlers/sessionauth"
 	"github.com/go-bumbu/userauth/userstore/staticusers"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
-
-	"github.com/andresbott/etna/app/metainfo"
 )
 
 const dbFile = "carbon.db"
 const sessionsDir = "sessions"
 const backupsDir = "backup"
+
+// buildTaskEnqueuers returns the map of task name -> enqueue func for the given runner and stores.
+// When production is true, dev-only tasks (log-only, log-only-long) are not included.
+func buildTaskEnqueuers(
+	runner *taskrunner.Runner,
+	finStore *accounting.Store,
+	marketStore *marketdata.Store,
+	backupDestination string,
+	logger *slog.Logger,
+	production bool,
+) map[string]func() (uuid.UUID, error) {
+	if runner == nil {
+		return nil
+	}
+	enqueuers := map[string]func() (uuid.UUID, error){
+		tasks.BackupTaskName: func() (uuid.UUID, error) {
+			return runner.EnqueueWithID(
+				tasks.NewBackupTaskFn(finStore, backupDestination, logger),
+				tasks.BackupTaskName,
+			)
+		},
+		tasks.FinancialImportTaskName: func() (uuid.UUID, error) {
+			return runner.EnqueueWithID(
+				tasks.NewFinancialImportTaskFn(marketStore, logger),
+				tasks.FinancialImportTaskName,
+			)
+		},
+	}
+	if !production {
+		enqueuers[tasks.LogOnlyTaskName] = func() (uuid.UUID, error) {
+			return runner.EnqueueWithID(
+				tasks.NewLogOnlyTaskFn(logger),
+				tasks.LogOnlyTaskName,
+			)
+		}
+		enqueuers[tasks.LogOnlyLongTaskName] = func() (uuid.UUID, error) {
+			return runner.EnqueueWithID(
+				tasks.NewLogOnlyLongTaskFn(logger),
+				tasks.LogOnlyLongTaskName,
+			)
+		}
+	}
+	return enqueuers
+}
 
 func serverCmd() *cobra.Command {
 	var configFile = "./config.yaml"
@@ -43,12 +91,12 @@ func serverCmd() *cobra.Command {
 }
 
 func runServer(configFile string) error {
+	// ——— Config and logger ———
 	cfg, err := getAppCfg(configFile)
 	if err != nil {
 		return err
 	}
 	_ = cfg
-	// setup the logger
 	l, err := defaultLogger(GetLogLevel(cfg.Env.LogLevel))
 	if err != nil {
 		return err
@@ -60,7 +108,6 @@ func runServer(configFile string) error {
 		slog.String("Build Date", metainfo.BuildTime),
 		slog.String("commit", metainfo.ShaVer),
 	)
-	// print config messages delayed
 	for _, m := range cfg.Msgs {
 		if m.Level == "info" {
 			l.Info(m.Msg, slog.String("component", "config"))
@@ -69,14 +116,14 @@ func runServer(configFile string) error {
 		}
 	}
 
-	// init data dir
+	// ——— Data directory ———
 	err = initDataDir(cfg.DataDir)
 	if err != nil {
 		return err
 	}
 	l.Info("using data directory", slog.String("path", cfg.DataDir))
 
-	// initialize DB
+	// ——— Database ———
 	gormLogger := gormlogger.New(
 		log.New(os.Stdout, "\r\n", log.LstdFlags),
 		gormlogger.Config{
@@ -91,14 +138,54 @@ func runServer(configFile string) error {
 		return err
 	}
 
+	// ——— Application stores (shared by router and task runner) ———
+	marketStore, err := marketdata.NewStore(db)
+	if err != nil {
+		return fmt.Errorf("market data store: %w", err)
+	}
+	finStore, err := accounting.NewStore(db, router.NewInstrumentGetter(marketStore))
+	if err != nil {
+		return fmt.Errorf("accounting store: %w", err)
+	}
+
+	// ——— Task runner and cron scheduler ———
+	taskRunner := taskrunner.NewRunner(taskrunner.Cfg{
+		Parallelism: 1,
+		QueueSize:   20,
+		Logger:      l,
+	})
+	taskRunner.Start()
+
+	backupDest := filepath.Join(cfg.DataDir, backupsDir)
+	scheduleStore, err := taskrunner.NewScheduleStore(db)
+	if err != nil {
+		return fmt.Errorf("schedule store: %w", err)
+	}
+	enqueuers := buildTaskEnqueuers(taskRunner, finStore, marketStore, backupDest, l, cfg.Env.Production)
+	enqueuer := taskrunner.FuncEnqueuer(func(_ context.Context, taskName string) error {
+		fn := enqueuers[taskName]
+		if fn == nil {
+			return fmt.Errorf("unknown task: %s", taskName)
+		}
+		_, err := fn()
+		return err
+	})
+	scheduler, err := taskrunner.NewScheduler(taskrunner.SchedulerCfg{
+		ScheduleStore: scheduleStore,
+		Enqueuer:      enqueuer,
+		Logger:        l,
+	})
+	if err != nil {
+		return fmt.Errorf("task scheduler: %w", err)
+	}
+	scheduler.Start(context.Background())
+
+	// ——— Auth: user store, session store, session manager ———
 	userStore, err := getUserStore(cfg, l)
 	if err != nil {
 		return err
 	}
-
-	//store, _ := sessionauth.NewFsStore("", securecookie.GenerateRandomKey(64), securecookie.GenerateRandomKey(32))
 	store, _ := sessionauth.NewFsStore(filepath.Join(cfg.DataDir, sessionsDir), cfg.Auth.HashKeyBytes, cfg.Auth.BlockKeyBytes)
-	// create an instance of session auth
 	sessionAuth, _ := sessionauth.New(sessionauth.Cfg{
 		Store:         store,
 		SessionDur:    time.Hour,       // time the user is logged in
@@ -106,6 +193,7 @@ func runServer(configFile string) error {
 		MinWriteSpace: 2 * time.Minute, // throttle write operations on the session
 	})
 
+	// ——— Router (API, SPA, handlers) ———
 	routerCfg := router.Cfg{
 		Db:          db,
 		SessionAuth: sessionAuth,
@@ -113,19 +201,27 @@ func runServer(configFile string) error {
 			UserStore: userStore,
 		},
 		Logger:            l,
-		BackupDestination: filepath.Join(cfg.DataDir, backupsDir),
+		BackupDestination: backupDest,
+		ProductionMode:    cfg.Env.Production,
 		AppSettings: handlers.AppSettings{
 			DateFormat:   cfg.Settings.DateFormat,
 			MainCurrency: cfg.Settings.MainCurrency,
 			Currencies:   cfg.Settings.Currencies,
 			Instruments:  cfg.Settings.Instruments,
 		},
+		TaskRunner:    taskRunner,
+		ScheduleStore: scheduleStore,
+		Scheduler:     scheduler,
+		Enqueuers:     enqueuers,
+		FinStore:      finStore,
+		MarketStore:   marketStore,
 	}
 	mainAppHandler, err := router.New(routerCfg)
 	if err != nil {
 		return fmt.Errorf("unable to create initialize main app handler:%v", err)
 	}
 
+	// ——— HTTP server ———
 	s, err := server.New(server.Cfg{
 		Addr:       cfg.Server.Addr(),
 		Handler:    mainAppHandler,

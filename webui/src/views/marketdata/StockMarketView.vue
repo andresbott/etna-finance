@@ -153,7 +153,7 @@ const onRowClick = (event) => {
                     v-model:visible="addDialogVisible"
                     header="Add market data"
                     modal
-                    :style="{ width: '28rem' }"
+                    class="entry-dialog"
                     @hide="addDialogVisible = false"
                 >
                     <div v-if="addDialogInstrument" class="flex flex-column gap-3 py-2">

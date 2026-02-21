@@ -386,7 +386,7 @@ function goBack() {
                         v-model:visible="dataDialogVisible"
                         :header="dataDialogMode === 'add' ? 'Add market data' : 'Edit market data'"
                         modal
-                        :style="{ width: '28rem' }"
+                        class="entry-dialog"
                         @hide="dataDialogVisible = false"
                     >
                         <div class="flex flex-column gap-3 py-2">

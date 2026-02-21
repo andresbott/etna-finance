@@ -42,7 +42,7 @@ async function handleConfirm() {
         :closable="true"
         :draggable="false"
         :header="title"
-        :style="{ width: '50vw' }"
+        class="entry-dialog"
         @keydown.enter="handleConfirm"
     >
         <span class="block mb-4">{{ message }} {{ name ? `"${name}"` : '' }}</span>

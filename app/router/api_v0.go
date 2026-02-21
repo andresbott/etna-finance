@@ -9,6 +9,7 @@ import (
 	"github.com/andresbott/etna/app/router/handlers/backup"
 	finHandler "github.com/andresbott/etna/app/router/handlers/finance"
 	mktHandler "github.com/andresbott/etna/app/router/handlers/marketdata"
+	taskHandler "github.com/andresbott/etna/app/router/handlers/tasks"
 	"github.com/go-bumbu/userauth/authenticator"
 	"github.com/go-bumbu/userauth/handlers/sessionauth"
 	"github.com/gorilla/mux"
@@ -26,6 +27,7 @@ func (h *MainAppHandler) attachApiV0(r *mux.Router) error {
 	h.accountingAPI(r)
 	h.marketDataAPI(r)
 	h.backupApi(r)
+	h.tasksApi(r)
 
 	// send a 400 error on everything else on the API
 	r.PathPrefix("").HandlerFunc(StatusErrText(http.StatusBadRequest, "wrong api call"))
@@ -467,6 +469,30 @@ func (h *MainAppHandler) marketDataAPI(r *mux.Router) {
 		}
 		mktHndlr.DeletePrice(itemId).ServeHTTP(w, r)
 	})
+}
+
+const tasksPath = "/tasks"
+const tasksExecutionsPath = "/tasks/executions"
+
+func (h *MainAppHandler) tasksApi(r *mux.Router) {
+	if h.taskRunner == nil || h.enqueuers == nil {
+		r.PathPrefix(tasksPath).HandlerFunc(StatusErr(http.StatusServiceUnavailable))
+		return
+	}
+	th := taskHandler.Handler{
+		Runner:         h.taskRunner,
+		Enqueuers:      h.enqueuers,
+		ScheduleStore:  h.scheduleStore,
+		Scheduler:      h.scheduler,
+		ProductionMode: h.productionMode,
+	}
+	r.Path(tasksPath).Methods(http.MethodGet).Handler(th.ListTasks())
+	r.Path(tasksExecutionsPath).Methods(http.MethodGet).Handler(th.ListExecutions())
+	r.Path(fmt.Sprintf("%s/{name}/trigger", tasksPath)).Methods(http.MethodPost).Handler(th.TriggerTask())
+	r.Path(fmt.Sprintf("%s/{name}", tasksPath)).Methods(http.MethodGet).Handler(th.GetTask())
+	r.Path(fmt.Sprintf("%s/{name}", tasksPath)).Methods(http.MethodPut).Handler(th.UpsertTask())
+	r.Path(fmt.Sprintf("%s/{name}", tasksPath)).Methods(http.MethodPatch).Handler(th.PatchTask())
+	r.Path(fmt.Sprintf("%s/{name}", tasksPath)).Methods(http.MethodDelete).Handler(th.DeleteTaskSchedule())
 }
 
 const backupPath = "/backup"

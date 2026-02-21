@@ -103,6 +103,10 @@ a {
         max-width: 700px;
     }
 
+    &.entry-dialog--xwide {
+        max-width: 1200px;
+    }
+
     /* Make all form inputs full width within dialogs */
     .p-inputtext,
     .p-inputnumber,

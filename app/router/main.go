@@ -10,9 +10,11 @@ import (
 	"github.com/andresbott/etna/app/spa"
 	"github.com/andresbott/etna/internal/accounting"
 	"github.com/andresbott/etna/internal/marketdata"
+	"github.com/andresbott/etna/internal/taskrunner"
 	"github.com/go-bumbu/http/middleware"
 	"github.com/go-bumbu/userauth"
 	"github.com/go-bumbu/userauth/handlers/sessionauth"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"gorm.io/gorm"
 )
@@ -25,6 +27,15 @@ type Cfg struct {
 	BackupDestination string
 	ProductionMode    bool
 	AppSettings       handlrs.AppSettings
+	TaskRunner        *taskrunner.Runner
+	// ScheduleStore and Scheduler: when set, used by the tasks API. Must be created and started by the caller (e.g. server).
+	ScheduleStore *taskrunner.ScheduleStore
+	Scheduler     *taskrunner.Scheduler
+	// Enqueuers: task name -> enqueue func; required for tasks API.
+	Enqueuers map[string]func() (uuid.UUID, error)
+	// FinStore and MarketStore: when set, used instead of creating from Db (e.g. when task runner is initialized in runServer).
+	FinStore    *accounting.Store
+	MarketStore *marketdata.Store
 }
 
 // MainAppHandler is the entrypoint http handler for the whole application
@@ -39,6 +50,10 @@ type MainAppHandler struct {
 	backupDestination string
 	productionMode    bool
 	appSettings       handlrs.AppSettings
+	taskRunner        *taskrunner.Runner
+	scheduler         *taskrunner.Scheduler
+	scheduleStore     *taskrunner.ScheduleStore
+	enqueuers         map[string]func() (uuid.UUID, error)
 }
 
 func (h *MainAppHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -56,20 +71,17 @@ func New(cfg Cfg) (*MainAppHandler, error) {
 		backupDestination: cfg.BackupDestination,
 		productionMode:    cfg.ProductionMode,
 		appSettings:       cfg.AppSettings,
+		taskRunner:        cfg.TaskRunner,
+		scheduleStore:     cfg.ScheduleStore,
+		scheduler:         cfg.Scheduler,
+		enqueuers:         cfg.Enqueuers,
 	}
 
-	mktStore, err := marketdata.NewStore(cfg.Db)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create market data Store: %v", err)
+	if cfg.MarketStore == nil || cfg.FinStore == nil {
+		return nil, fmt.Errorf("router Cfg: MarketStore and FinStore are required")
 	}
-	app.marketStore = mktStore
-
-	instrumentGetter := &marketDataInstrumentGetter{store: mktStore}
-	fineStore, err := accounting.NewStore(cfg.Db, instrumentGetter)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create accounting Store :%v", err)
-	}
-	app.finStore = fineStore
+	app.marketStore = cfg.MarketStore
+	app.finStore = cfg.FinStore
 
 	prodMid := middleware.New(middleware.Cfg{
 		JsonErrors:  false,
@@ -82,14 +94,12 @@ func New(cfg Cfg) (*MainAppHandler, error) {
 	app.attachUserAuth(app.router.PathPrefix("/auth").Subrouter())
 
 	// add a handler for /api/v0, this includes authentication on tasks
-	err = app.attachApiV0(app.router.PathPrefix("/api/v0").Subrouter())
-	if err != nil {
+	if err := app.attachApiV0(app.router.PathPrefix("/api/v0").Subrouter()); err != nil {
 		return nil, err
 	}
 
 	// add the spa to path /
-	err = app.attachSpa(app.router.PathPrefix("/").Subrouter(), "/")
-	if err != nil {
+	if err := app.attachSpa(app.router.PathPrefix("/").Subrouter(), "/"); err != nil {
 		return nil, err
 	}
 

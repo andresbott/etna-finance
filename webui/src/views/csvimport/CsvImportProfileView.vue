@@ -340,7 +340,7 @@ onMounted(() => {
                     :header="editingProfile ? 'Edit CSV Profile' : 'Create CSV Profile'"
                     :modal="true"
                     :closable="true"
-                    :style="{ width: '90vw', maxWidth: '1200px' }"
+                    class="entry-dialog entry-dialog--xwide"
                 >
                     <div class="profile-dialog-content">
                         <div class="profile-info">

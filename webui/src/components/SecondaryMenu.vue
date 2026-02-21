@@ -59,9 +59,9 @@ const sections = computed(() => {
                     route: '/backup-restore'
                 },
                 {
-                    label: 'Jobs',
+                    label: 'Tasks',
                     icon: 'pi pi-briefcase',
-                    route: '/jobs'
+                    route: '/tasks'
                 }
             ]
         }
