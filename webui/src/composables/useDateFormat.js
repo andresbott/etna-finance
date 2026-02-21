@@ -47,9 +47,22 @@ function formatDisplayDate(date, format) {
 }
 
 /**
+ * Format time part as HH:mm (24h) from a Date or ISO string.
+ */
+function formatTime(date) {
+    if (!date) return ''
+    const d = new Date(date)
+    if (isNaN(d.getTime())) return ''
+    const h = String(d.getHours()).padStart(2, '0')
+    const m = String(d.getMinutes()).padStart(2, '0')
+    return `${h}:${m}`
+}
+
+/**
  * Composable that provides date formatting helpers driven by the settings store.
  *
- * - `formatDate(date)` – formats a Date / ISO-string for display.
+ * - `formatDate(date)` – formats a Date / ISO-string for display (date only).
+ * - `formatDateTime(date)` – date and time (HH:mm) for display.
  * - `pickerDateFormat` – computed PrimeVue DatePicker format string.
  */
 export function useDateFormat() {
@@ -59,8 +72,15 @@ export function useDateFormat() {
 
     const formatDate = (date) => formatDisplayDate(date, settings.dateFormat)
 
+    const formatDateTime = (date) => {
+        const datePart = formatDisplayDate(date, settings.dateFormat)
+        const timePart = formatTime(date)
+        return datePart && timePart ? `${datePart} ${timePart}` : datePart || timePart || ''
+    }
+
     return {
         pickerDateFormat,
-        formatDate
+        formatDate,
+        formatDateTime
     }
 }

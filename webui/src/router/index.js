@@ -89,6 +89,42 @@ const router = createRouter({
             component: () => import('@/views/backup/BackupRestoreView.vue')
         },
         {
+            path: '/tools',
+            redirect: '/tools/portfolio-simulator'
+        },
+        {
+            path: '/tools/portfolio-simulator',
+            name: 'portfolio-simulator',
+            meta: {
+                requiresAuth: true
+            },
+            component: () => import('@/views/tools/PortfolioSimulatorView.vue')
+        },
+        {
+            path: '/tools/real-estate-simulator',
+            name: 'real-estate-simulator',
+            meta: {
+                requiresAuth: true
+            },
+            component: () => import('@/views/tools/RealEstateSimulatorView.vue')
+        },
+        {
+            path: '/jobs',
+            name: 'jobs',
+            meta: {
+                requiresAuth: true
+            },
+            component: () => import('@/views/jobs/JobsView.vue')
+        },
+        {
+            path: '/jobs/:id',
+            name: 'job-detail',
+            meta: {
+                requiresAuth: true
+            },
+            component: () => import('@/views/jobs/JobDetailView.vue')
+        },
+        {
             path: '/setup/csv-profiles',
             name: 'csv-profiles',
             meta: {

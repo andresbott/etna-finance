@@ -119,6 +119,25 @@
                             <span class="menu-label">Stock Market</span>
                         </router-link>
                     </li>
+
+                    <li class="menu-spacer"></li>
+
+                    <!-- TOOLS SECTION -->
+                    <li class="menu-section">
+                        <div class="menu-section-label">Tools</div>
+                    </li>
+                    <li>
+                        <router-link to="/tools/portfolio-simulator" class="menu-item">
+                            <i class="pi pi-chart-pie menu-icon"></i>
+                            <span class="menu-label">Portfolio Simulator</span>
+                        </router-link>
+                    </li>
+                    <li>
+                        <router-link to="/tools/real-estate-simulator" class="menu-item">
+                            <i class="pi pi-home menu-icon"></i>
+                            <span class="menu-label">Real Estate Simulator</span>
+                        </router-link>
+                    </li>
                 </ul>
             </div>
         </Transition>

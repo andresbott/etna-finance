@@ -103,7 +103,8 @@ const priceHistory = computed(() => priceHistoryData.value)
 
 const rawDataRows = computed(() => {
     const { records } = priceHistoryData.value
-    return (records ?? []).map((r: PriceRecord) => ({ id: r.id, date: r.time, price: r.price }))
+    const rows = (records ?? []).map((r: PriceRecord) => ({ id: r.id, date: r.time, price: r.price }))
+    return rows.sort((a, b) => b.date.localeCompare(a.date))
 })
 
 const dataDialogVisible = ref(false)

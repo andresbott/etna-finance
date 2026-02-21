@@ -127,7 +127,7 @@ const saveInstrument = async (payload) => {
                         <Column field="symbol" header="Symbol" />
                         <Column field="name" header="Name" />
                         <Column field="currency" header="Currency" />
-                        <Column header="Actions">
+                        <Column header="Actions" class="actions-column">
                             <template #body="{ data }">
                                 <div class="actions">
                                     <Button
@@ -199,9 +199,14 @@ const saveInstrument = async (payload) => {
     padding: 0.25rem;
 }
 
+:deep(.actions-column .p-datatable-column-title) {
+    margin-left: auto;
+}
+
 .info-message {
     padding: 1rem;
     text-align: center;
     color: var(--p-text-muted-color);
 }
+
 </style>

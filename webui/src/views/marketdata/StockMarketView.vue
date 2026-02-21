@@ -1,7 +1,7 @@
 <script setup>
 import { ResponsiveHorizontal } from '@go-bumbu/vue-layouts'
 import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
@@ -9,19 +9,48 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Tag from 'primevue/tag'
 import Message from 'primevue/message'
+import Dialog from 'primevue/dialog'
+import DatePicker from 'primevue/datepicker'
+import InputNumber from 'primevue/inputnumber'
 import { useDateFormat } from '@/composables/useDateFormat'
 import {
     useMarketInstruments,
+    useMarketDataMutations,
+    toLocalDateString,
     formatPrice,
     formatPct,
     getChangeSeverity
 } from '@/composables/useMarketData'
 
-const { formatDate } = useDateFormat()
+const { formatDate, pickerDateFormat } = useDateFormat()
 
 const router = useRouter()
 const { instruments, isLoading, isError, error, refetch } = useMarketInstruments()
 const leftSidebarCollapsed = ref(true)
+
+const addDialogInstrument = ref(null)
+const addDialogVisible = ref(false)
+const addDialogForm = ref({ date: '', price: 0 })
+const addDialogSymbol = computed(() => addDialogInstrument.value?.symbol ?? '')
+const { createPrice: createPriceMutation, isCreating: isCreatingPrice } = useMarketDataMutations(addDialogSymbol)
+
+function openAddDialog(inst) {
+    addDialogInstrument.value = inst
+    addDialogForm.value = { date: toLocalDateString(new Date()), price: 0 }
+    addDialogVisible.value = true
+}
+
+async function saveAddDialog() {
+    if (!addDialogInstrument.value) return
+    const { date, price } = addDialogForm.value
+    if (!date) return
+    const time = date.includes('T') ? toLocalDateString(new Date(date)) : date
+    try {
+        await createPriceMutation({ time, price })
+        addDialogVisible.value = false
+        refetch()
+    } catch (_) {}
+}
 
 const onRowClick = (event) => {
     router.push({ name: 'stock-detail', params: { id: event.data.id, tab: 'overview' } })
@@ -98,12 +127,68 @@ const onRowClick = (event) => {
                                     {{ data.lastUpdate ? formatDate(data.lastUpdate) : '-' }}
                                 </template>
                             </Column>
+                            <Column header="Actions" class="actions-column" style="width: 4rem; min-width: 4rem">
+                                <template #body="{ data }">
+                                    <div class="actions">
+                                        <Button
+                                            icon="pi pi-plus"
+                                            text
+                                            rounded
+                                            class="action-button"
+                                            v-tooltip.bottom="'Add price'"
+                                            :loading="isCreatingPrice && addDialogInstrument?.id === data.id"
+                                            @click.stop="openAddDialog(data)"
+                                        />
+                                    </div>
+                                </template>
+                            </Column>
                         </DataTable>
                         <p class="text-color-secondary text-sm mt-2 mb-0">
-                            <i class="pi pi-info-circle"></i> Click a row to open details, chart and edit data.
+                            <i class="pi pi-info-circle"></i> Click a row to open details, chart and edit data. Use + to add a price.
                         </p>
                     </template>
                 </Card>
+
+                <Dialog
+                    v-model:visible="addDialogVisible"
+                    header="Add market data"
+                    modal
+                    :style="{ width: '28rem' }"
+                    @hide="addDialogVisible = false"
+                >
+                    <div v-if="addDialogInstrument" class="flex flex-column gap-3 py-2">
+                        <p class="text-color-secondary mt-0 mb-0">
+                            {{ addDialogInstrument.symbol }} – {{ addDialogInstrument.name }}
+                        </p>
+                        <div class="field">
+                            <label for="add-data-date">Date</label>
+                            <DatePicker
+                                id="add-data-date"
+                                :modelValue="addDialogForm.date ? new Date(addDialogForm.date + 'T12:00:00') : null"
+                                @update:modelValue="(d) => { addDialogForm.date = d ? toLocalDateString(d) : '' }"
+                                :dateFormat="pickerDateFormat"
+                                showIcon
+                                class="w-full"
+                            />
+                        </div>
+                        <div class="field">
+                            <label for="add-data-price">Price</label>
+                            <InputNumber
+                                id="add-data-price"
+                                v-model="addDialogForm.price"
+                                mode="decimal"
+                                :minFractionDigits="2"
+                                :maxFractionDigits="2"
+                                :min="0"
+                                class="w-full"
+                            />
+                        </div>
+                    </div>
+                    <template #footer>
+                        <Button label="Save" icon="pi pi-check" :loading="isCreatingPrice" @click="saveAddDialog" />
+                        <Button label="Cancel" text severity="secondary" @click="addDialogVisible = false" />
+                    </template>
+                </Dialog>
             </div>
         </template>
     </ResponsiveHorizontal>
@@ -152,5 +237,26 @@ const onRowClick = (event) => {
 
 :deep(.stock-table .p-datatable-thead th.last-update-cell .p-datatable-column-header-content) {
     justify-content: flex-end;
+}
+
+:deep(.actions-column .p-datatable-column-title) {
+    margin-left: auto;
+}
+
+.actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+}
+
+.action-button {
+    padding: 0.25rem;
+}
+
+.field label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+    font-size: 0.9rem;
 }
 </style>

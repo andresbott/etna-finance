@@ -57,6 +57,11 @@ const sections = computed(() => {
                     label: 'Backup/Restore',
                     icon: 'pi pi-database',
                     route: '/backup-restore'
+                },
+                {
+                    label: 'Jobs',
+                    icon: 'pi pi-briefcase',
+                    route: '/jobs'
                 }
             ]
         }

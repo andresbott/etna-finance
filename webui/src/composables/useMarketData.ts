@@ -183,11 +183,12 @@ export function useMarketDataMutations(symbol: MaybeRefOrGetter<string>) {
 
     const getSymbol = () => (typeof symbol === 'function' ? symbol() : unref(symbol))
 
-    // Invalidate only this instrument's price history (not the full market instruments list).
-    // Do not refetch here — the view (e.g. StockDetailView) calls refetchPriceHistory() once after save/delete.
+    // Invalidate this instrument's price history and the market instruments list so the list view
+    // and detail overview (lastPrice, lastUpdate) stay in sync after create/update/delete.
     const invalidateMarketData = () => {
         const sym = getSymbol()
         queryClient.invalidateQueries({ queryKey: ['priceHistory', sym] })
+        queryClient.invalidateQueries({ queryKey: MARKET_INSTRUMENTS_QUERY_KEY })
     }
 
     const createPriceMutation = useMutation({
