@@ -33,6 +33,8 @@ type Cfg struct {
 	Scheduler     *taskrunner.Scheduler
 	// Enqueuers: task name -> enqueue func; required for tasks API.
 	Enqueuers map[string]func() (uuid.UUID, error)
+	// TaskLogGetter: when set, tasks API serves execution logs (GET /tasks/executions/:id/logs).
+	TaskLogGetter taskrunner.TaskLogGetter
 	// FinStore and MarketStore: when set, used instead of creating from Db (e.g. when task runner is initialized in runServer).
 	FinStore    *accounting.Store
 	MarketStore *marketdata.Store
@@ -54,6 +56,7 @@ type MainAppHandler struct {
 	scheduler         *taskrunner.Scheduler
 	scheduleStore     *taskrunner.ScheduleStore
 	enqueuers         map[string]func() (uuid.UUID, error)
+	taskLogGetter     taskrunner.TaskLogGetter
 }
 
 func (h *MainAppHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -75,6 +78,7 @@ func New(cfg Cfg) (*MainAppHandler, error) {
 		scheduleStore:     cfg.ScheduleStore,
 		scheduler:         cfg.Scheduler,
 		enqueuers:         cfg.Enqueuers,
+		taskLogGetter:     cfg.TaskLogGetter,
 	}
 
 	if cfg.MarketStore == nil || cfg.FinStore == nil {

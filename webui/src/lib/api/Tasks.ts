@@ -85,6 +85,15 @@ export async function cancelExecution(executionId: string): Promise<void> {
     )
 }
 
+/** Fetches plain-text task log for an execution. Returns empty string if no logs. */
+export async function getExecutionLog(executionId: string): Promise<string> {
+    const { data } = await apiClient.get<string>(
+        `${TASKS_PATH}/executions/${encodeURIComponent(executionId)}/logs`,
+        { responseType: 'text' }
+    )
+    return data ?? ''
+}
+
 export async function upsertTask(
     name: string,
     body: UpsertTaskBody

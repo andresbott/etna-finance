@@ -35,6 +35,15 @@ type Cfg struct {
 	// DB, when set, is used to persist task executions (task_executions table).
 	// If nil, tasks are kept in memory only and are lost on restart.
 	DB *gorm.DB
+	// LogSink, when set, receives log lines from tasks (tempo.Logger(ctx).InfoContext(ctx, "msg")).
+	// Use tempo.NewMemTaskLogSink() for in-memory or implement tempo.TaskLogSink for DB.
+	// If LogDir is set, a FileTaskLogSink is created and used (and LogSink is ignored).
+	LogSink tempo.TaskLogSink
+	// LogLevel is the minimum level sent to LogSink (e.g. slog.LevelInfo). Zero is Info. Use the system log level.
+	LogLevel slog.Level
+	// LogDir, when set, enables a file log sink: task logs are written to plain text files under this directory (one file per task).
+	// RemoveTasks deletes the corresponding log files. LogLevel is used as the minimum level for the file sink.
+	LogDir string
 }
 
 // NewRunner creates a new task runner with the given configuration.
@@ -47,13 +56,24 @@ func NewRunner(cfg Cfg) (*Runner, error) {
 		cfg.QueueSize = 20
 	}
 
+	var logSink tempo.TaskLogSink = cfg.LogSink
+	var logCleaner TaskLogCleaner
+	if cfg.LogDir != "" {
+		fileSink, err := NewFileTaskLogSink(cfg.LogDir)
+		if err != nil {
+			return nil, fmt.Errorf("task log sink: %w", err)
+		}
+		logSink = fileSink
+		logCleaner = fileSink
+	}
+
 	var persistence tempo.TaskStatePersistence
 	if cfg.DB != nil {
 		l := cfg.Logger
 		if l == nil {
 			l = slog.New(slog.DiscardHandler)
 		}
-		store, err := NewTaskExecutionStore(cfg.DB, l)
+		store, err := NewTaskExecutionStore(cfg.DB, l, logCleaner)
 		if err != nil {
 			return nil, fmt.Errorf("task execution store: %w", err)
 		}
@@ -67,6 +87,8 @@ func NewRunner(cfg Cfg) (*Runner, error) {
 		QueueSize:   cfg.QueueSize,
 		HistorySize: 50,
 		Persistence: persistence,
+		LogSink:     logSink,
+		LogLevel:    cfg.LogLevel,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("queue runner: %w", err)
@@ -95,20 +117,22 @@ func (r *Runner) Shutdown(ctx context.Context) error {
 	return r.queue.ShutDown(ctx)
 }
 
-// Enqueue adds a named task to the queue for execution.
-func (r *Runner) Enqueue(fn func(ctx context.Context) error, name string) error {
-	_, err := r.EnqueueWithID(fn, name)
-	return err
+// RegisterTask registers the task function for the name (if not already or overwrites) and adds a run to the queue.
+// Returns the execution ID. Aligns with tempo: RegisterTask(def) + Add(name).
+// Per-task max parallelism is unlimited (0).
+func (r *Runner) RegisterTask(fn func(ctx context.Context) error, name string) (uuid.UUID, error) {
+	return r.RegisterTaskWithMaxParallelism(fn, name, 0)
 }
 
-// EnqueueWithID registers the task function for the name (if not already or overwrites) and adds a run to the queue.
-func (r *Runner) EnqueueWithID(fn func(ctx context.Context) error, name string) (uuid.UUID, error) {
-	r.queue.RegisterTask(tempo.TaskDef{Name: name, Run: fn})
+// RegisterTaskWithMaxParallelism is like RegisterTask but sets tempo's MaxParallelism for this task name.
+// maxParallelism 0 means no per-task limit (only the runner's global worker count applies).
+func (r *Runner) RegisterTaskWithMaxParallelism(fn func(ctx context.Context) error, name string, maxParallelism int) (uuid.UUID, error) {
+	r.queue.RegisterTask(tempo.TaskDef{Name: name, Run: fn, MaxParallelism: maxParallelism})
 	id, err := r.queue.Add(name)
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("failed to enqueue task %q: %w", name, err)
+		return uuid.Nil, fmt.Errorf("failed to register task %q: %w", name, err)
 	}
-	r.logger.Info("task enqueued", slog.String("component", "taskrunner"), slog.String("task", name), slog.String("id", id.String()))
+	r.logger.Info("task registered", slog.String("component", "taskrunner"), slog.String("task", name), slog.String("id", id.String()))
 	return id, nil
 }
 

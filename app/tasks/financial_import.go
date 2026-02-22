@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/andresbott/etna/internal/marketdata"
+	"github.com/go-bumbu/tempo"
 )
 
 const FinancialImportTaskName = "financial-import"
@@ -30,6 +31,7 @@ func NewFinancialImportTaskFn(store *marketdata.Store, l *slog.Logger) func(ctx 
 				slog.String("task", FinancialImportTaskName),
 			)
 		}
+		tempo.Info(ctx, "starting financial import (maintenance)")
 		err := store.Maintenance(ctx)
 		if err != nil {
 			if l != nil {
@@ -39,6 +41,7 @@ func NewFinancialImportTaskFn(store *marketdata.Store, l *slog.Logger) func(ctx 
 					slog.String("error", err.Error()),
 				)
 			}
+			tempo.Error(ctx, fmt.Sprintf("financial import failed: %v", err))
 			return fmt.Errorf("financial import failed: %w", err)
 		}
 		if l != nil {
@@ -47,6 +50,7 @@ func NewFinancialImportTaskFn(store *marketdata.Store, l *slog.Logger) func(ctx 
 				slog.String("task", FinancialImportTaskName),
 			)
 		}
+		tempo.Info(ctx, "financial import completed")
 		return nil
 	}
 }

@@ -6,6 +6,7 @@ import {
     listExecutions,
     triggerTask as triggerTaskApi,
     cancelExecution as cancelExecutionApi,
+    getExecutionLog as getExecutionLogApi,
     upsertTask as upsertTaskApi,
     patchTask as patchTaskApi,
     deleteTaskSchedule as deleteTaskScheduleApi
@@ -212,6 +213,10 @@ export function useTasks() {
         return tasks.value.find((t) => t.id === id)
     }
 
+    const getExecutionLog = (executionId: string): Promise<string> => {
+        return getExecutionLogApi(executionId)
+    }
+
     const getStatusSeverity = (status: string): string => {
         if (
             status === EXECUTION_STATUS.complete ||
@@ -258,6 +263,7 @@ export function useTasks() {
         deleteTaskScheduleMutation,
         getStatusSeverity,
         getStatusLabel,
+        getExecutionLog,
         refetchTasks: () => queryClient.invalidateQueries({ queryKey: TASKS_QUERY_KEY }),
         refetchExecutions: () =>
             queryClient.invalidateQueries({ queryKey: EXECUTIONS_QUERY_KEY })

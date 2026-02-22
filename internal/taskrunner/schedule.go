@@ -154,9 +154,11 @@ func (s *ScheduleStore) DeleteByTaskName(ctx context.Context, taskName string) e
 }
 
 // UpsertByTaskName creates or updates the schedule for the given task name (one schedule per task).
+// If a schedule was soft-deleted, it is restored and updated.
 func (s *ScheduleStore) UpsertByTaskName(ctx context.Context, taskName, cronExpression string, enabled bool) (Schedule, error) {
 	var d dbSchedule
-	err := s.db.WithContext(ctx).Where("task_name = ?", taskName).First(&d).Error
+	// Unscoped so we find the row even when soft-deleted (avoids UNIQUE constraint on create).
+	err := s.db.WithContext(ctx).Unscoped().Where("task_name = ?", taskName).First(&d).Error
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return Schedule{}, err
 	}
@@ -171,7 +173,8 @@ func (s *ScheduleStore) UpsertByTaskName(ctx context.Context, taskName, cronExpr
 	}
 	d.CronExpression = cronExpression
 	d.Enabled = enabled
-	if err := s.db.WithContext(ctx).Save(&d).Error; err != nil {
+	d.DeletedAt = gorm.DeletedAt{} // restore if was soft-deleted
+	if err := s.db.WithContext(ctx).Unscoped().Save(&d).Error; err != nil {
 		return Schedule{}, err
 	}
 	return dbToSchedule(d), nil

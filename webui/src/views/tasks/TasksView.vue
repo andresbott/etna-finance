@@ -1,7 +1,7 @@
 <script setup>
 import { ResponsiveHorizontal } from '@go-bumbu/vue-layouts'
 import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import Card from 'primevue/card'
 import Message from 'primevue/message'
 import DataTable from 'primevue/datatable'
@@ -13,7 +13,7 @@ import InputText from 'primevue/inputtext'
 import Checkbox from 'primevue/checkbox'
 import ProgressSpinner from 'primevue/progressspinner'
 import { useDateFormat } from '@/composables/useDateFormat'
-import { useTasks } from '@/composables/useTasks'
+import { useTasks, EXECUTION_STATUS } from '@/composables/useTasks'
 
 const { formatDateTime } = useDateFormat()
 const leftSidebarCollapsed = ref(true)
@@ -29,10 +29,27 @@ const {
     deleteTaskSchedule,
     getStatusSeverity,
     getStatusLabel,
+    getExecutionLog,
     triggeringTaskId,
     tasksQuery,
     executionsQuery
 } = useTasks()
+
+const queueCounts = computed(() => {
+    const list = executions.value ?? []
+    const total = list.length
+    const byStatus = (s) => list.filter((e) => e.status === s).length
+    return {
+        total,
+        waiting: byStatus(EXECUTION_STATUS.waiting),
+        running: byStatus(EXECUTION_STATUS.running),
+        complete: byStatus(EXECUTION_STATUS.complete),
+        failed: byStatus(EXECUTION_STATUS.failed),
+        panicked: byStatus(EXECUTION_STATUS.panicked),
+        canceled: byStatus(EXECUTION_STATUS.canceled),
+        cancel_error: byStatus(EXECUTION_STATUS.cancel_error)
+    }
+})
 
 function isExecutionCancelable(status) {
     return status === 'waiting' || status === 'running'
@@ -152,6 +169,36 @@ function formatDuration(executionStartedAt, finishedAt) {
 function taskDisplayName(taskName) {
     const t = tasks.value.find((x) => x.id === taskName)
     return t ? t.name : taskName
+}
+
+// Log popup: show plain-text task log for an execution
+const logDialogVisible = ref(false)
+const logDialogExecution = ref(null)
+const logDialogContent = ref('')
+const logDialogLoading = ref(false)
+const logDialogError = ref('')
+
+async function openLogDialog(execution) {
+    logDialogExecution.value = execution
+    logDialogContent.value = ''
+    logDialogError.value = ''
+    logDialogVisible.value = true
+    logDialogLoading.value = true
+    try {
+        logDialogContent.value = await getExecutionLog(execution.id)
+    } catch (e) {
+        const msg = e.response?.status === 503 ? 'Task logs not available' : (e.response?.data || e.message || 'Failed to load log')
+        logDialogError.value = typeof msg === 'string' ? msg : 'Failed to load log'
+    } finally {
+        logDialogLoading.value = false
+    }
+}
+
+function closeLogDialog() {
+    logDialogVisible.value = false
+    logDialogExecution.value = null
+    logDialogContent.value = ''
+    logDialogError.value = ''
 }
 </script>
 
@@ -323,6 +370,27 @@ function taskDisplayName(taskName) {
                                 </div>
                             </template>
                             <template #content>
+                                <p
+                                    v-if="!executionsQuery.isLoading.value"
+                                    class="queue-summary text-color-secondary text-sm mt-0 mb-2"
+                                >
+                                    <strong>Total: {{ queueCounts.total }}</strong>
+                                    <span v-if="queueCounts.total > 0">
+                                        · Waiting: {{ queueCounts.waiting }} · Running:
+                                        {{ queueCounts.running }} · Complete:
+                                        {{ queueCounts.complete }} · Failed:
+                                        {{ queueCounts.failed }}
+                                        <template v-if="queueCounts.panicked > 0">
+                                            · Panicked: {{ queueCounts.panicked }}
+                                        </template>
+                                        <template v-if="queueCounts.canceled > 0">
+                                            · Canceled: {{ queueCounts.canceled }}
+                                        </template>
+                                        <template v-if="queueCounts.cancel_error > 0">
+                                            · Cancel error: {{ queueCounts.cancel_error }}
+                                        </template>
+                                    </span>
+                                </p>
                                 <ProgressSpinner
                                     v-if="executionsQuery.isLoading.value"
                                     style="width: 3rem; height: 3rem"
@@ -373,8 +441,16 @@ function taskDisplayName(taskName) {
                                             />
                                         </template>
                                     </Column>
-                                    <Column header="Actions" style="width: 8rem" :sortable="false">
+                                    <Column header="Actions" style="width: 12rem" :sortable="false">
                                         <template #body="{ data }">
+                                            <Button
+                                                icon="pi pi-file"
+                                                size="small"
+                                                severity="secondary"
+                                                text
+                                                title="View log"
+                                                @click.stop="openLogDialog(data)"
+                                            />
                                             <Button
                                                 v-if="isExecutionCancelable(data.status)"
                                                 label="Cancel"
@@ -400,6 +476,36 @@ function taskDisplayName(taskName) {
                             </template>
                         </Card>
                     </div>
+
+                    <Dialog
+                        v-model:visible="logDialogVisible"
+                        :header="logDialogExecution ? `Log: ${taskDisplayName(logDialogExecution.task_name)} (${logDialogExecution.id})` : 'Task log'"
+                        modal
+                        class="log-dialog"
+                        :style="{ width: '42rem' }"
+                        :closable="true"
+                        @hide="closeLogDialog"
+                    >
+                        <ProgressSpinner
+                            v-if="logDialogLoading"
+                            style="width: 2rem; height: 2rem"
+                            stroke-width="4"
+                        />
+                        <Message
+                            v-else-if="logDialogError"
+                            severity="error"
+                            :closable="false"
+                        >
+                            {{ logDialogError }}
+                        </Message>
+                        <pre
+                            v-else
+                            class="task-log-content"
+                        >{{ logDialogContent || 'No log output.' }}</pre>
+                        <template #footer>
+                            <Button label="Close" @click="closeLogDialog" />
+                        </template>
+                    </Dialog>
                 </div>
             </div>
         </template>
@@ -417,5 +523,17 @@ function taskDisplayName(taskName) {
 
 .schedule-summary {
     font-size: 0.875rem;
+}
+
+.task-log-content {
+    margin: 0;
+    padding: 0.75rem;
+    max-height: 24rem;
+    overflow: auto;
+    font-size: 0.8125rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: var(--p-surface-100);
+    border-radius: var(--p-border-radius);
 }
 </style>

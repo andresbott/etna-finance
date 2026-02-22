@@ -2,11 +2,16 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"log/slog"
+	"net"
+	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/andresbott/etna/app/metainfo"
@@ -17,7 +22,7 @@ import (
 	"github.com/andresbott/etna/internal/marketdata"
 	"github.com/andresbott/etna/internal/taskrunner"
 	"github.com/glebarez/sqlite"
-	"github.com/go-bumbu/http/server"
+	"github.com/go-bumbu/tempo"
 	"github.com/go-bumbu/userauth"
 	"github.com/go-bumbu/userauth/handlers/sessionauth"
 	"github.com/go-bumbu/userauth/userstore/staticusers"
@@ -31,9 +36,9 @@ const dbFile = "carbon.db"
 const sessionsDir = "sessions"
 const backupsDir = "backup"
 
-// buildTaskEnqueuers returns the map of task name -> enqueue func for the given runner and stores.
+// buildTaskRegisterFuncs returns the map of task name -> register func for the given runner and stores.
 // When production is true, dev-only tasks (log-only, log-only-long) are not included.
-func buildTaskEnqueuers(
+func buildTaskRegisterFuncs(
 	runner *taskrunner.Runner,
 	finStore *accounting.Store,
 	marketStore *marketdata.Store,
@@ -44,41 +49,43 @@ func buildTaskEnqueuers(
 	if runner == nil {
 		return nil
 	}
-	enqueuers := map[string]func() (uuid.UUID, error){
+	registerFuncs := map[string]func() (uuid.UUID, error){
 		tasks.BackupTaskName: func() (uuid.UUID, error) {
-			return runner.EnqueueWithID(
+			return runner.RegisterTask(
 				tasks.NewBackupTaskFn(finStore, backupDestination, logger),
 				tasks.BackupTaskName,
 			)
 		},
 		tasks.FinancialImportTaskName: func() (uuid.UUID, error) {
-			return runner.EnqueueWithID(
+			return runner.RegisterTask(
 				tasks.NewFinancialImportTaskFn(marketStore, logger),
 				tasks.FinancialImportTaskName,
 			)
 		},
 	}
 	if !production {
-		enqueuers[tasks.LogOnlyTaskName] = func() (uuid.UUID, error) {
-			return runner.EnqueueWithID(
+		registerFuncs[tasks.LogOnlyTaskName] = func() (uuid.UUID, error) {
+			return runner.RegisterTaskWithMaxParallelism(
 				tasks.NewLogOnlyTaskFn(logger),
 				tasks.LogOnlyTaskName,
+				4, // short demo task: up to 4 concurrent
 			)
 		}
-		enqueuers[tasks.LogOnlyLongTaskName] = func() (uuid.UUID, error) {
-			return runner.EnqueueWithID(
+		registerFuncs[tasks.LogOnlyLongTaskName] = func() (uuid.UUID, error) {
+			return runner.RegisterTaskWithMaxParallelism(
 				tasks.NewLogOnlyLongTaskFn(logger),
 				tasks.LogOnlyLongTaskName,
+				1, // long demo task: only 1 at a time
 			)
 		}
-		enqueuers[tasks.DebugFailTaskName] = func() (uuid.UUID, error) {
-			return runner.EnqueueWithID(
+		registerFuncs[tasks.DebugFailTaskName] = func() (uuid.UUID, error) {
+			return runner.RegisterTask(
 				tasks.NewDebugFailTaskFn(logger),
 				tasks.DebugFailTaskName,
 			)
 		}
 	}
-	return enqueuers
+	return registerFuncs
 }
 
 func serverCmd() *cobra.Command {
@@ -154,26 +161,27 @@ func runServer(configFile string) error {
 		return fmt.Errorf("accounting store: %w", err)
 	}
 
-	// ——— Task runner and cron scheduler ———
+	// ——— Task runner and cron scheduler (started inside GroupRunner task) ———
 	taskRunner, err := taskrunner.NewRunner(taskrunner.Cfg{
-		Parallelism: 1,
+		Parallelism: 6,
 		QueueSize:   20,
 		Logger:      l,
 		DB:          db,
+		LogDir:      filepath.Join(cfg.DataDir, "tasklogs"),
+		LogLevel:    GetLogLevel(cfg.Env.LogLevel),
 	})
 	if err != nil {
 		return fmt.Errorf("task runner: %w", err)
 	}
-	taskRunner.Start()
 
 	backupDest := filepath.Join(cfg.DataDir, backupsDir)
 	scheduleStore, err := taskrunner.NewScheduleStore(db)
 	if err != nil {
 		return fmt.Errorf("schedule store: %w", err)
 	}
-	enqueuers := buildTaskEnqueuers(taskRunner, finStore, marketStore, backupDest, l, cfg.Env.Production)
+	registerFuncs := buildTaskRegisterFuncs(taskRunner, finStore, marketStore, backupDest, l, cfg.Env.Production)
 	enqueuer := taskrunner.FuncEnqueuer(func(_ context.Context, taskName string) error {
-		fn := enqueuers[taskName]
+		fn := registerFuncs[taskName]
 		if fn == nil {
 			return fmt.Errorf("unknown task: %s", taskName)
 		}
@@ -188,7 +196,6 @@ func runServer(configFile string) error {
 	if err != nil {
 		return fmt.Errorf("task scheduler: %w", err)
 	}
-	scheduler.Start(context.Background())
 
 	// ——— Auth: user store, session store, session manager ———
 	userStore, err := getUserStore(cfg, l)
@@ -222,7 +229,8 @@ func runServer(configFile string) error {
 		TaskRunner:    taskRunner,
 		ScheduleStore: scheduleStore,
 		Scheduler:     scheduler,
-		Enqueuers:     enqueuers,
+		Enqueuers:     registerFuncs,
+		TaskLogGetter: taskrunner.NewFileTaskLogReader(filepath.Join(cfg.DataDir, "tasklogs")),
 		FinStore:      finStore,
 		MarketStore:   marketStore,
 	}
@@ -231,31 +239,81 @@ func runServer(configFile string) error {
 		return fmt.Errorf("unable to create initialize main app handler:%v", err)
 	}
 
-	// ——— HTTP server ———
-	s, err := server.New(server.Cfg{
-		Addr:       cfg.Server.Addr(),
-		Handler:    mainAppHandler,
-		SkipObs:    false,
-		ObsAddr:    cfg.Obs.Addr(),
-		ObsHandler: handlers.Admin(),
-		Logger: func(msg string, isErr bool) {
-			// TODO use slogger ?
-			if isErr {
-				l.Warn(msg, slog.String("component", "server"))
-			} else {
-				l.Info(msg, slog.String("component", "server"))
-			}
-		},
-		BeforeShutdown: func(ctx context.Context) error {
-			return taskRunner.Shutdown(ctx)
-		},
-	})
-	if err != nil {
-		return err
+	// ——— GroupRunner: main server, observability server, task runner ———
+	mainSrv := &http.Server{
+		Addr:              cfg.Server.Addr(),
+		Handler:           mainAppHandler,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+	obsSrv := &http.Server{
+		Addr:              cfg.Obs.Addr(),
+		Handler:           handlers.Admin(),
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	return s.Start()
+	rg := tempo.NewGroupRunner()
+	rg.Add(tempo.TaskDef{
+		Name: "main-http",
+		Run:  runHTTPServerUntilContextDone(mainSrv, cfg.Server.Addr(), l, "server"),
+	})
+	rg.Add(tempo.TaskDef{
+		Name: "obs-http",
+		Run:  runHTTPServerUntilContextDone(obsSrv, cfg.Obs.Addr(), l, "observability"),
+	})
+	rg.Add(tempo.TaskDef{
+		Name: "taskrunner",
+		Run: func(ctx context.Context) error {
+			taskRunner.Start()
+			scheduler.Start(ctx)
+			<-ctx.Done()
+			scheduler.Stop()
+			// Use a fresh context with timeout so Shutdown actually waits for running tasks
+			// to finish. The GroupRunner already cancelled ctx, so passing it would make
+			// tempo.ShutDown return immediately without waiting for workers.
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+			defer cancel()
+			return taskRunner.Shutdown(shutdownCtx)
+		},
+	})
 
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigCh
+		ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+		defer cancel()
+		if err := rg.Stop(ctx); err != nil {
+			l.Warn("group runner stop", slog.String("component", "server"), slog.String("error", err.Error()))
+		}
+	}()
+
+	return rg.Run()
+}
+
+// runHTTPServerUntilContextDone starts srv on addr (using net.Listen), logs, serves until ctx is done, then shuts down.
+func runHTTPServerUntilContextDone(srv *http.Server, addr string, l *slog.Logger, component string) func(ctx context.Context) error {
+	return func(ctx context.Context) error {
+		ln, err := net.Listen("tcp", addr)
+		if err != nil {
+			return fmt.Errorf("%s listen: %w", component, err)
+		}
+		serveErr := make(chan error, 1)
+		go func() {
+			serveErr <- srv.Serve(ln)
+		}()
+		l.Info(fmt.Sprintf("%s server started", component), slog.String("component", component), slog.String("addr", addr))
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			l.Warn(fmt.Sprintf("%s server shutdown", component), slog.String("component", component), slog.String("error", err.Error()))
+		}
+		l.Info(fmt.Sprintf("%s server stopped", component), slog.String("component", component))
+		if err := <-serveErr; err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return err
+		}
+		return nil
+	}
 }
 
 func getUserStore(cfg AppCfg, l *slog.Logger) (userauth.UserGetter, error) {

@@ -18,7 +18,8 @@ type Handler struct {
 	Enqueuers      map[string]func() (uuid.UUID, error)
 	ScheduleStore  *taskrunner.ScheduleStore
 	Scheduler      *taskrunner.Scheduler
-	ProductionMode bool // when true, dev-only tasks (e.g. log-only) are hidden from list and not runnable
+	TaskLogGetter  taskrunner.TaskLogGetter // optional; when set, GetExecutionLog returns task log text
+	ProductionMode bool                    // when true, dev-only tasks (e.g. log-only) are hidden from list and not runnable
 }
 
 // TaskWithSchedule is a task definition with its schedule (if any) for the combined API.
@@ -119,6 +120,35 @@ func (h *Handler) CancelExecution() http.Handler {
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
+	})
+}
+
+// GetExecutionLog returns a handler that returns the plain-text log for a task execution (path var "id").
+// Returns 503 if TaskLogGetter is not set, 404 if execution is unknown, or 200 with text/plain body.
+func (h *Handler) GetExecutionLog() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if h.TaskLogGetter == nil {
+			http.Error(w, "task logs not available", http.StatusServiceUnavailable)
+			return
+		}
+		idStr := mux.Vars(r)["id"]
+		if idStr == "" {
+			http.Error(w, "execution id required", http.StatusBadRequest)
+			return
+		}
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			http.Error(w, "invalid execution id: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		text, err := h.TaskLogGetter.GetTaskLog(r.Context(), id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(text))
 	})
 }
 

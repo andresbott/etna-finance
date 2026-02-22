@@ -9,6 +9,7 @@ import (
 
 	"github.com/andresbott/etna/internal/accounting"
 	"github.com/andresbott/etna/internal/backup"
+	"github.com/go-bumbu/tempo"
 )
 
 // TaskDef describes an available task for the API (list and trigger).
@@ -91,6 +92,7 @@ func newBackupFunc(store *accounting.Store, destination string, l *slog.Logger) 
 			slog.String("component", "tasks"),
 			slog.String("file", zipFile),
 		)
+		tempo.Info(ctx, fmt.Sprintf("starting backup: %s", zipFile))
 
 		err := backup.ExportToFile(ctx, store, zipFile)
 		if err != nil {
@@ -98,6 +100,7 @@ func newBackupFunc(store *accounting.Store, destination string, l *slog.Logger) 
 				slog.String("component", "tasks"),
 				slog.String("error", err.Error()),
 			)
+			tempo.Error(ctx, fmt.Sprintf("backup failed: %v", err))
 			return fmt.Errorf("backup export failed: %w", err)
 		}
 
@@ -105,6 +108,7 @@ func newBackupFunc(store *accounting.Store, destination string, l *slog.Logger) 
 			slog.String("component", "tasks"),
 			slog.String("file", zipFile),
 		)
+		tempo.Info(ctx, fmt.Sprintf("backup completed: %s", zipFile))
 		return nil
 	}
 }

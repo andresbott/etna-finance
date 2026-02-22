@@ -27,15 +27,17 @@ func (dbTaskExecution) TableName() string { return "task_executions" }
 // tempo.TaskStatePersistence and tempo.RecoverablePersistence so the queue
 // can mirror state and recover after restart.
 type TaskExecutionStore struct {
-	db     *gorm.DB
-	logger *slog.Logger
+	db      *gorm.DB
+	logger  *slog.Logger
+	cleaner TaskLogCleaner // optional; called from RemoveTasks to delete task log files
 }
 
 // NewTaskExecutionStore creates a store and runs AutoMigrate for task_executions.
 // On startup, any task left in Running status (e.g. after a crash) is marked Failed
 // so it can be cleared and does not block stop/cancel.
 // Logger is used for startup warnings; if nil, a discard logger is used.
-func NewTaskExecutionStore(db *gorm.DB, logger *slog.Logger) (*TaskExecutionStore, error) {
+// cleaner, when set, is called from RemoveTasks so task log files (e.g. FileTaskLogSink) can be deleted.
+func NewTaskExecutionStore(db *gorm.DB, logger *slog.Logger, cleaner TaskLogCleaner) (*TaskExecutionStore, error) {
 	if db == nil {
 		return nil, nil
 	}
@@ -61,7 +63,7 @@ func NewTaskExecutionStore(db *gorm.DB, logger *slog.Logger) (*TaskExecutionStor
 			slog.String("component", "taskrunner"),
 			slog.Int64("count", res.RowsAffected))
 	}
-	return &TaskExecutionStore{db: db, logger: logger}, nil
+	return &TaskExecutionStore{db: db, logger: logger, cleaner: cleaner}, nil
 }
 
 // SaveTask implements tempo.TaskStatePersistence. Upserts by id.
@@ -77,16 +79,25 @@ func (s *TaskExecutionStore) SaveTask(ctx context.Context, task tempo.TaskInfo) 
 	return s.db.WithContext(ctx).Save(&row).Error
 }
 
-// RemoveTasks implements tempo.TaskStatePersistence.
+// RemoveTasks implements tempo.TaskStatePersistence. Also calls the optional TaskLogCleaner to delete task log files.
 func (s *TaskExecutionStore) RemoveTasks(ctx context.Context, ids []uuid.UUID) error {
 	if len(ids) == 0 {
 		return nil
 	}
+	s.logger.Debug("RemoveTasks called", slog.String("component", "taskrunner"), slog.Int("count", len(ids)), slog.Any("ids", ids))
 	strIDs := make([]string, len(ids))
 	for i, id := range ids {
 		strIDs[i] = id.String()
 	}
-	return s.db.WithContext(ctx).Where("id IN ?", strIDs).Delete(&dbTaskExecution{}).Error
+	if err := s.db.WithContext(ctx).Where("id IN ?", strIDs).Delete(&dbTaskExecution{}).Error; err != nil {
+		return err
+	}
+	if s.cleaner != nil {
+		if err := s.cleaner.RemoveTaskLogs(ctx, ids); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // List implements tempo.RecoverablePersistence. Returns all stored tasks for queue recovery.

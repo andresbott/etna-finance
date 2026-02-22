@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"math/rand"
 	"time"
+
+	"github.com/go-bumbu/tempo"
 )
 
 const LogOnlyTaskName = "log-only"
@@ -34,6 +36,7 @@ func NewLogOnlyTaskFn(l *slog.Logger) func(ctx context.Context) error {
 				slog.String("task", LogOnlyTaskName),
 			)
 		}
+		tempo.Info(ctx, "log-only job executed")
 		return nil
 	}
 }
@@ -77,6 +80,7 @@ func NewLogOnlyLongTaskFn(l *slog.Logger) func(ctx context.Context) error {
 				slog.Int("items", numItems),
 			)
 		}
+		tempo.Info(ctx, fmt.Sprintf("log-only-long started, items=%d", numItems))
 		for i := 1; i <= numItems; i++ {
 			if err := ctx.Err(); err != nil {
 				return err
@@ -89,6 +93,7 @@ func NewLogOnlyLongTaskFn(l *slog.Logger) func(ctx context.Context) error {
 					slog.Int("total", numItems),
 				)
 			}
+			tempo.Info(ctx, fmt.Sprintf("processing item %d/%d", i, numItems))
 			d := time.Duration(rand.Int63n(int64(maxSleepPerItem)))
 			if err := sleepContext(ctx, d); err != nil {
 				return err
@@ -101,6 +106,7 @@ func NewLogOnlyLongTaskFn(l *slog.Logger) func(ctx context.Context) error {
 				slog.Int("items_processed", numItems),
 			)
 		}
+		tempo.Info(ctx, fmt.Sprintf("log-only-long completed, items=%d", numItems))
 		return nil
 	}
 }
@@ -126,6 +132,7 @@ func NewDebugFailTaskFn(l *slog.Logger) func(ctx context.Context) error {
 				slog.Duration("delay", d),
 			)
 		}
+		tempo.Info(ctx, fmt.Sprintf("debug-fail started, will error after %v", d))
 		if err := sleepContext(ctx, d); err != nil {
 			return err
 		}
@@ -137,6 +144,7 @@ func NewDebugFailTaskFn(l *slog.Logger) func(ctx context.Context) error {
 				slog.String("error", err.Error()),
 			)
 		}
+		tempo.Error(ctx, fmt.Sprintf("debug-fail erroring: %v", err))
 		return err
 	}
 }
