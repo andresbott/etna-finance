@@ -14,17 +14,22 @@ require (
 	github.com/go-bumbu/userauth v0.2.1
 	github.com/go-rod/rod v0.116.2
 	github.com/google/go-cmp v0.7.0
+	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/securecookie v1.1.2
 	github.com/hashicorp/go-multierror v1.1.1
+	github.com/massive-com/client-go/v2 v2.0.0
 	github.com/mattn/go-isatty v0.0.20
 	github.com/phsym/console-slog v0.3.1
 	github.com/prometheus/client_golang v1.22.0
+	github.com/reugn/go-quartz v0.15.2
 	github.com/samber/slog-formatter v1.2.0
 	github.com/spf13/cobra v1.9.1
 	golang.org/x/text v0.34.0
 	gorm.io/gorm v1.31.1
 )
+
+replace github.com/go-bumbu/http => ../http
 
 replace github.com/go-bumbu/tempo => /home/odo/datos/edit/programacion/bumbu/tempo
 
@@ -35,7 +40,7 @@ require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
+	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/containerd/containerd v1.7.18 // indirect
 	github.com/containerd/log v0.1.0 // indirect
@@ -47,13 +52,18 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
+	github.com/gabriel-vasile/mimetype v1.4.3 // indirect
 	github.com/glebarez/go-sqlite v1.22.0 // indirect
 	github.com/go-logr/logr v1.4.1 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
+	github.com/go-playground/form/v4 v4.2.1 // indirect
+	github.com/go-playground/locales v0.14.1 // indirect
+	github.com/go-playground/universal-translator v0.18.1 // indirect
+	github.com/go-playground/validator/v10 v10.23.0 // indirect
+	github.com/go-resty/resty/v2 v2.13.1 // indirect
 	github.com/go-sql-driver/mysql v1.7.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/sessions v1.4.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
@@ -64,6 +74,7 @@ require (
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
+	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mattn/go-sqlite3 v1.14.22 // indirect
@@ -84,7 +95,6 @@ require (
 	github.com/prometheus/common v0.64.0 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	github.com/reugn/go-quartz v0.15.2 // indirect
 	github.com/samber/lo v1.50.0 // indirect
 	github.com/samber/slog-multi v1.4.0 // indirect
 	github.com/shirou/gopsutil/v3 v3.23.12 // indirect

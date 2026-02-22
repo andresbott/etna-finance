@@ -3,14 +3,12 @@ package tasks
 import (
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
 	"path/filepath"
 	"time"
 
 	"github.com/andresbott/etna/internal/accounting"
 	"github.com/andresbott/etna/internal/backup"
-	"github.com/andresbott/etna/internal/taskrunner"
 )
 
 // TaskDef describes an available task for the API (list and trigger).
@@ -33,12 +31,13 @@ var BackupTaskDef = TaskDef{
 }
 
 // AvailableTasks is the full list of task definitions (including dev-only). Use AvailableTaskDefs(production) to filter.
-var AvailableTasks = []TaskDef{BackupTaskDef, FinancialImportTaskDef, LogOnlyTaskDef, LogOnlyLongTaskDef}
+var AvailableTasks = []TaskDef{BackupTaskDef, FinancialImportTaskDef, LogOnlyTaskDef, LogOnlyLongTaskDef, DebugFailTaskDef}
 
 // DevOnlyTaskIDs are task IDs hidden in production (non-prod only).
 var DevOnlyTaskIDs = map[string]bool{
 	LogOnlyTaskName:     true,
 	LogOnlyLongTaskName: true,
+	DebugFailTaskName:   true,
 }
 
 // AvailableTaskDefs returns task definitions visible for the given environment. When production is true, dev-only tasks are excluded.
@@ -75,64 +74,6 @@ type BackupTaskCfg struct {
 	Interval time.Duration
 	// Logger for backup task messages.
 	Logger *slog.Logger
-}
-
-// ScheduleBackup starts a goroutine that periodically enqueues a backup task on the given runner.
-// It runs the first backup immediately, then repeats at the configured interval.
-// The goroutine stops when ctx is cancelled.
-func ScheduleBackup(ctx context.Context, r *taskrunner.Runner, cfg BackupTaskCfg) error {
-	if r == nil {
-		return fmt.Errorf("task runner is required")
-	}
-	if cfg.Store == nil {
-		return fmt.Errorf("accounting store is required")
-	}
-	if cfg.Destination == "" {
-		return fmt.Errorf("backup destination is required")
-	}
-	if cfg.Interval <= 0 {
-		cfg.Interval = 24 * time.Hour
-	}
-
-	l := cfg.Logger
-	if l == nil {
-		l = slog.New(slog.NewTextHandler(io.Discard, nil))
-	}
-
-	go func() {
-		ticker := time.NewTicker(cfg.Interval)
-		defer ticker.Stop()
-
-		enqueue := func() {
-			err := r.Enqueue(newBackupFunc(cfg.Store, cfg.Destination, l), scheduledBackupName)
-			if err != nil {
-				l.Error("failed to enqueue backup task",
-					slog.String("component", "tasks"),
-					slog.String("error", err.Error()),
-				)
-			}
-		}
-
-		enqueue()
-
-		for {
-			select {
-			case <-ctx.Done():
-				l.Info("scheduled backup stopped", slog.String("component", "tasks"))
-				return
-			case <-ticker.C:
-				enqueue()
-			}
-		}
-	}()
-
-	l.Info("scheduled backup configured",
-		slog.String("component", "tasks"),
-		slog.Duration("interval", cfg.Interval),
-		slog.String("destination", cfg.Destination),
-	)
-
-	return nil
 }
 
 // NewBackupTaskFn returns the task function that performs the actual backup export.

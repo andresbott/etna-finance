@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/andresbott/etna/internal/marketdata/importer"
 	"github.com/go-bumbu/timeseries"
 )
 
@@ -145,6 +146,19 @@ func (s *Store) UpdatePrice(_ context.Context, id uint, in PriceUpdate) error {
 // DeletePrice removes a price record by its ID.
 func (s *Store) DeletePrice(_ context.Context, id uint) error {
 	return s.registry.DeleteRecord(id)
+}
+
+// PricePointsFromImporter converts points yielded by marketdata/importer into the form
+// expected by IngestPricesBulk. Use this when writing importer results to the store.
+func PricePointsFromImporter(pts []importer.PricePoint) []PricePoint {
+	if len(pts) == 0 {
+		return nil
+	}
+	out := make([]PricePoint, len(pts))
+	for i, p := range pts {
+		out[i] = PricePoint{Time: p.Time, Price: p.Price}
+	}
+	return out
 }
 
 // Maintenance runs retention cleanup and bucket aggregation for all registered series.

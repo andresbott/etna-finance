@@ -73,6 +73,12 @@ func (h *Handler) TriggerTask() http.Handler {
 		}
 		id, err := enqueue()
 		if err != nil {
+			if errors.Is(err, taskrunner.ErrQueueFull) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusTooManyRequests)
+				_ = json.NewEncoder(w).Encode(map[string]string{"message": "Task queue is full. Try again later."})
+				return
+			}
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -90,6 +96,29 @@ func (h *Handler) ListExecutions() http.Handler {
 		if err := json.NewEncoder(w).Encode(map[string][]taskrunner.ExecutionInfo{"executions": executions}); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
+	})
+}
+
+// CancelExecution returns a handler that cancels a task execution by ID (path var "id").
+// The ID must be a valid UUID of a waiting or running execution.
+func (h *Handler) CancelExecution() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		idStr := mux.Vars(r)["id"]
+		if idStr == "" {
+			http.Error(w, "execution id required", http.StatusBadRequest)
+			return
+		}
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			http.Error(w, "invalid execution id: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		ctx := r.Context()
+		if err := h.Runner.Cancel(ctx, id); err != nil {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	})
 }
 

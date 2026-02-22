@@ -1,9 +1,11 @@
 import { ref, computed, unref, type MaybeRefOrGetter } from 'vue'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
+import { useToast } from 'primevue/usetoast'
 import {
     listTasks as listTasksApi,
     listExecutions,
     triggerTask as triggerTaskApi,
+    cancelExecution as cancelExecutionApi,
     upsertTask as upsertTaskApi,
     patchTask as patchTaskApi,
     deleteTaskSchedule as deleteTaskScheduleApi
@@ -17,6 +19,14 @@ import type {
 
 export const TASKS_QUERY_KEY = ['tasks'] as const
 export const EXECUTIONS_QUERY_KEY = ['tasks', 'executions'] as const
+
+/**
+ * Polling: we poll the executions list only while any execution is waiting or running.
+ * - refetchInterval: 500ms when hasActiveExecutions(data), false otherwise (no polling when all terminal).
+ * - refetchIntervalInBackground: false so we don't poll when the tab is hidden.
+ * Trigger/cancel mutations still invalidate the query so the first update after user action is immediate.
+ */
+const EXECUTIONS_POLL_INTERVAL_MS = 500
 
 export const TASK_STATUS = {
     idle: 'idle',
@@ -44,7 +54,10 @@ export interface Task extends TaskWithSchedule {
 /** Execution for UI (API uses snake_case; we keep id as string) */
 export interface TaskExecution {
     id: string
-    startedAt: string
+    /** When the task was queued (for "Queued at" column) */
+    queuedAt: string
+    /** When the task actually started running; null if it never ran (duration is then empty) */
+    executionStartedAt: string | null
     finishedAt: string | null
     status: string
     task_name: string
@@ -53,11 +66,20 @@ export interface TaskExecution {
 function executionToUi(ex: ExecutionInfo): TaskExecution {
     return {
         id: ex.id,
-        startedAt: ex.started_at || ex.queued_at,
+        queuedAt: ex.queued_at,
+        executionStartedAt: ex.started_at ?? null,
         finishedAt: ex.ended_at || null,
         status: ex.status,
         task_name: ex.task_name
     }
+}
+
+/** True if any execution is waiting or running (non-terminal). */
+function hasActiveExecutions(executions: ExecutionInfo[] | undefined): boolean {
+    if (!executions?.length) return false
+    return executions.some(
+        (e) => e.status === EXECUTION_STATUS.waiting || e.status === EXECUTION_STATUS.running
+    )
 }
 
 function deriveTasksWithLastExecution(
@@ -84,8 +106,18 @@ function deriveTasksWithLastExecution(
     })
 }
 
+function triggerErrorMessage(error: unknown): string {
+    if (error && typeof error === 'object' && 'response' in error) {
+        const res = (error as { response?: { data?: { message?: string }; status?: number } }).response
+        if (res?.data?.message) return res.data.message
+        if (typeof res?.data === 'string') return res.data
+    }
+    return error instanceof Error ? error.message : 'Failed to start task'
+}
+
 export function useTasks() {
     const queryClient = useQueryClient()
+    const toast = useToast()
     const triggeringTaskId = ref<string | null>(null)
 
     const tasksQuery = useQuery({
@@ -95,7 +127,10 @@ export function useTasks() {
 
     const executionsQuery = useQuery({
         queryKey: EXECUTIONS_QUERY_KEY,
-        queryFn: listExecutions
+        queryFn: listExecutions,
+        refetchInterval: (query) =>
+            hasActiveExecutions(query.state.data) ? EXECUTIONS_POLL_INTERVAL_MS : false,
+        refetchIntervalInBackground: false
     })
 
     const tasks = computed<Task[]>(() => {
@@ -114,14 +149,33 @@ export function useTasks() {
         onMutate: (name) => {
             triggeringTaskId.value = name
         },
+        onError: (error) => {
+            toast.add({
+                severity: 'error',
+                summary: 'Task trigger failed',
+                detail: triggerErrorMessage(error),
+                life: 5000
+            })
+        },
         onSettled: () => {
             triggeringTaskId.value = null
             queryClient.invalidateQueries({ queryKey: EXECUTIONS_QUERY_KEY })
         }
     })
 
+    const cancelMutation = useMutation({
+        mutationFn: (executionId: string) => cancelExecutionApi(executionId),
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: EXECUTIONS_QUERY_KEY })
+        }
+    })
+
     const triggerTask = (task: Task) => {
         triggerMutation.mutate(task.id)
+    }
+
+    const cancelTaskExecution = (executionId: string) => {
+        cancelMutation.mutate(executionId)
     }
 
     const upsertTaskMutation = useMutation({
@@ -171,14 +225,19 @@ export function useTasks() {
             status === TASK_STATUS.error
         )
             return 'danger'
+        if (status === EXECUTION_STATUS.waiting) return 'warn'
         if (
             status === EXECUTION_STATUS.running ||
-            status === EXECUTION_STATUS.waiting ||
             status === TASK_STATUS.running
         )
             return 'info'
-        if (status === EXECUTION_STATUS.canceled) return 'secondary'
+        if (status === EXECUTION_STATUS.canceled) return 'contrast'
         return 'secondary'
+    }
+
+    const getStatusLabel = (status: string): string => {
+        if (status === EXECUTION_STATUS.waiting) return 'queued'
+        return status
     }
 
     return {
@@ -189,6 +248,8 @@ export function useTasks() {
         executionsQuery,
         getTaskById,
         triggerTask,
+        cancelTaskExecution,
+        cancelMutation,
         upsertTask,
         patchTask,
         deleteTaskSchedule,
@@ -196,6 +257,7 @@ export function useTasks() {
         patchTaskMutation,
         deleteTaskScheduleMutation,
         getStatusSeverity,
+        getStatusLabel,
         refetchTasks: () => queryClient.invalidateQueries({ queryKey: TASKS_QUERY_KEY }),
         refetchExecutions: () =>
             queryClient.invalidateQueries({ queryKey: EXECUTIONS_QUERY_KEY })
@@ -214,7 +276,7 @@ export function useTaskExecutions(
         const filtered = list.filter((e) => e.task_name === id)
         return [...filtered].sort(
             (a, b) =>
-                new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+                new Date(b.queuedAt).getTime() - new Date(a.queuedAt).getTime()
         )
     })
 }

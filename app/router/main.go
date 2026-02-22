@@ -87,7 +87,7 @@ func New(cfg Cfg) (*MainAppHandler, error) {
 		JsonErrors:  false,
 		GenericErrs: cfg.ProductionMode,
 		Logger:      cfg.Logger,
-		Histogram:   middleware.NewPromHistogram("", nil, nil),
+		PromHisto:   middleware.NewPromHistogram("", nil, nil),
 	})
 	r.Use(prodMid.Middleware)
 

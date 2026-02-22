@@ -481,6 +481,7 @@ func (h *MainAppHandler) tasksApi(r *mux.Router) {
 	}
 	r.Path(tasksPath).Methods(http.MethodGet).Handler(th.ListTasks())
 	r.Path(tasksExecutionsPath).Methods(http.MethodGet).Handler(th.ListExecutions())
+	r.Path(fmt.Sprintf("%s/executions/{id}/cancel", tasksPath)).Methods(http.MethodPost).Handler(th.CancelExecution())
 	r.Path(fmt.Sprintf("%s/{name}/trigger", tasksPath)).Methods(http.MethodPost).Handler(th.TriggerTask())
 	r.Path(fmt.Sprintf("%s/{name}", tasksPath)).Methods(http.MethodGet).Handler(th.GetTask())
 	r.Path(fmt.Sprintf("%s/{name}", tasksPath)).Methods(http.MethodPut).Handler(th.UpsertTask())

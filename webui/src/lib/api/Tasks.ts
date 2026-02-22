@@ -28,7 +28,8 @@ export interface ExecutionInfo {
     task_name: string
     status: string
     queued_at: string
-    started_at: string
+    /** Set only when the task actually ran; omitted for e.g. canceled-before-run so duration is empty. */
+    started_at?: string
     ended_at: string
 }
 
@@ -76,6 +77,12 @@ export async function triggerTask(name: string): Promise<string> {
         `${TASKS_PATH}/${encodeURIComponent(name)}/trigger`
     )
     return data.execution_id
+}
+
+export async function cancelExecution(executionId: string): Promise<void> {
+    await apiClient.post(
+        `${TASKS_PATH}/executions/${encodeURIComponent(executionId)}/cancel`
+    )
 }
 
 export async function upsertTask(

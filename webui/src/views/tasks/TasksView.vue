@@ -1,7 +1,7 @@
 <script setup>
 import { ResponsiveHorizontal } from '@go-bumbu/vue-layouts'
 import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import Card from 'primevue/card'
 import Message from 'primevue/message'
 import DataTable from 'primevue/datatable'
@@ -22,14 +22,25 @@ const {
     tasks,
     executions,
     triggerTask,
+    cancelTaskExecution,
+    cancelMutation,
     upsertTask,
     patchTask,
     deleteTaskSchedule,
     getStatusSeverity,
+    getStatusLabel,
     triggeringTaskId,
     tasksQuery,
     executionsQuery
 } = useTasks()
+
+function isExecutionCancelable(status) {
+    return status === 'waiting' || status === 'running'
+}
+
+function isCancelingExecution(id) {
+    return cancelMutation.isPending.value && cancelMutation.variables.value === id
+}
 
 // Quartz format: second minute hour day-of-month month day-of-week (6 fields)
 const SCHEDULE_PRESETS = [
@@ -117,25 +128,21 @@ function closeScheduleDialog() {
     scheduleDialogError.value = ''
 }
 
-// Executions sorted newest first for the main list
-const executionsSorted = computed(() => {
-    const list = [...executions.value]
-    return list.sort(
-        (a, b) =>
-            new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
-    )
-})
-
+// Queue order is defined by the backend (waiting → running → terminal, newest first within each).
 function formatExecutionTime(isoString) {
     if (!isoString) return '-'
     return formatDateTime(isoString)
 }
 
-function formatDuration(startedAt, finishedAt) {
-    if (!finishedAt) return '—'
-    const start = new Date(startedAt).getTime()
+function formatDuration(executionStartedAt, finishedAt) {
+    if (!executionStartedAt || !finishedAt) return ''
+    const start = new Date(executionStartedAt).getTime()
     const end = new Date(finishedAt).getTime()
     const sec = Math.round((end - start) / 1000)
+    if (sec < 0) return ''
+    // Guard against zero/unset start (e.g. canceled before run) producing huge duration
+    const MAX_REASONABLE_SEC = 86400 * 365 // 1 year
+    if (sec > MAX_REASONABLE_SEC) return ''
     if (sec < 60) return `${sec}s`
     const m = Math.floor(sec / 60)
     const s = sec % 60
@@ -308,11 +315,11 @@ function taskDisplayName(taskName) {
                     </Dialog>
 
                     <div class="col-12">
-                        <Card class="executions-card">
+                        <Card class="queue-card">
                             <template #title>
                                 <div class="flex align-items-center gap-2">
-                                    <i class="pi pi-history"></i>
-                                    <span>Executions</span>
+                                    <i class="pi pi-list"></i>
+                                    <span>Queue</span>
                                 </div>
                             </template>
                             <template #content>
@@ -323,41 +330,41 @@ function taskDisplayName(taskName) {
                                 />
                                 <DataTable
                                     v-else
-                                    :value="executionsSorted"
+                                    :value="executions"
                                     dataKey="id"
                                     stripedRows
-                                    class="p-datatable-sm executions-table"
-                                    :paginator="executionsSorted.length > 10"
-                                    :rows="10"
+                                    class="p-datatable-sm queue-table"
+                                    :paginator="executions.length > 50"
+                                    :rows="50"
                                 >
-                                    <Column header="Task">
+                                    <Column header="Task" :sortable="false">
                                         <template #body="{ data }">
                                             {{ taskDisplayName(data.task_name) }}
                                         </template>
                                     </Column>
-                                    <Column header="Started">
+                                    <Column header="Queued at" :sortable="false">
                                         <template #body="{ data }">
                                             {{
                                                 formatExecutionTime(
-                                                    data.startedAt
+                                                    data.queuedAt
                                                 )
                                             }}
                                         </template>
                                     </Column>
-                                    <Column header="Duration">
+                                    <Column header="Duration" :sortable="false">
                                         <template #body="{ data }">
                                             {{
                                                 formatDuration(
-                                                    data.startedAt,
+                                                    data.executionStartedAt,
                                                     data.finishedAt
                                                 )
                                             }}
                                         </template>
                                     </Column>
-                                    <Column header="Status">
+                                    <Column header="Status" :sortable="false">
                                         <template #body="{ data }">
                                             <Tag
-                                                :value="data.status"
+                                                :value="getStatusLabel(data.status)"
                                                 :severity="
                                                     getStatusSeverity(
                                                         data.status
@@ -366,15 +373,29 @@ function taskDisplayName(taskName) {
                                             />
                                         </template>
                                     </Column>
+                                    <Column header="Actions" style="width: 8rem" :sortable="false">
+                                        <template #body="{ data }">
+                                            <Button
+                                                v-if="isExecutionCancelable(data.status)"
+                                                label="Cancel"
+                                                icon="pi pi-times"
+                                                size="small"
+                                                severity="secondary"
+                                                :loading="isCancelingExecution(data.id)"
+                                                :disabled="cancelMutation.isPending.value"
+                                                @click.stop="cancelTaskExecution(data.id)"
+                                            />
+                                        </template>
+                                    </Column>
                                 </DataTable>
                                 <p
                                     v-if="
                                         !executionsQuery.isLoading.value &&
-                                        !executionsSorted.length
+                                        !executions.length
                                     "
                                     class="text-color-secondary mt-2 mb-0 text-sm"
                                 >
-                                    No executions yet.
+                                    Queue is empty.
                                 </p>
                             </template>
                         </Card>
@@ -390,7 +411,7 @@ function taskDisplayName(taskName) {
     margin-bottom: 1rem;
 }
 
-.executions-card {
+.queue-card {
     margin-top: 1.5rem;
 }
 

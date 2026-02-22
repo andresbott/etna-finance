@@ -71,6 +71,12 @@ func buildTaskEnqueuers(
 				tasks.LogOnlyLongTaskName,
 			)
 		}
+		enqueuers[tasks.DebugFailTaskName] = func() (uuid.UUID, error) {
+			return runner.EnqueueWithID(
+				tasks.NewDebugFailTaskFn(logger),
+				tasks.DebugFailTaskName,
+			)
+		}
 	}
 	return enqueuers
 }
@@ -149,11 +155,15 @@ func runServer(configFile string) error {
 	}
 
 	// ——— Task runner and cron scheduler ———
-	taskRunner := taskrunner.NewRunner(taskrunner.Cfg{
+	taskRunner, err := taskrunner.NewRunner(taskrunner.Cfg{
 		Parallelism: 1,
 		QueueSize:   20,
 		Logger:      l,
+		DB:          db,
 	})
+	if err != nil {
+		return fmt.Errorf("task runner: %w", err)
+	}
 	taskRunner.Start()
 
 	backupDest := filepath.Join(cfg.DataDir, backupsDir)
@@ -235,6 +245,9 @@ func runServer(configFile string) error {
 			} else {
 				l.Info(msg, slog.String("component", "server"))
 			}
+		},
+		BeforeShutdown: func(ctx context.Context) error {
+			return taskRunner.Shutdown(ctx)
 		},
 	})
 	if err != nil {
