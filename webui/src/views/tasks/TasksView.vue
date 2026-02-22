@@ -401,9 +401,10 @@ function closeLogDialog() {
                                     :value="executions"
                                     dataKey="id"
                                     stripedRows
-                                    class="p-datatable-sm queue-table"
+                                    class="p-datatable-sm queue-table queue-table--clickable"
                                     :paginator="executions.length > 50"
                                     :rows="50"
+                                    @rowClick="(e) => openLogDialog(e.data)"
                                 >
                                     <Column header="Task" :sortable="false">
                                         <template #body="{ data }">
@@ -429,7 +430,7 @@ function closeLogDialog() {
                                             }}
                                         </template>
                                     </Column>
-                                    <Column header="Status" :sortable="false">
+                                    <Column header="Status" bodyClass="queue-status-column" headerClass="queue-status-column" :sortable="false">
                                         <template #body="{ data }">
                                             <Tag
                                                 :value="getStatusLabel(data.status)"
@@ -441,16 +442,8 @@ function closeLogDialog() {
                                             />
                                         </template>
                                     </Column>
-                                    <Column header="Actions" style="width: 12rem" :sortable="false">
+                                    <Column header="Actions" style="width: 8rem" :sortable="false">
                                         <template #body="{ data }">
-                                            <Button
-                                                icon="pi pi-file"
-                                                size="small"
-                                                severity="secondary"
-                                                text
-                                                title="View log"
-                                                @click.stop="openLogDialog(data)"
-                                            />
                                             <Button
                                                 v-if="isExecutionCancelable(data.status)"
                                                 label="Cancel"
@@ -482,7 +475,7 @@ function closeLogDialog() {
                         :header="logDialogExecution ? `Log: ${taskDisplayName(logDialogExecution.task_name)} (${logDialogExecution.id})` : 'Task log'"
                         modal
                         class="log-dialog"
-                        :style="{ width: '42rem' }"
+                        :style="{ width: 'min(90vw, 80rem)' }"
                         :closable="true"
                         @hide="closeLogDialog"
                     >
@@ -521,6 +514,21 @@ function closeLogDialog() {
     margin-top: 1.5rem;
 }
 
+.queue-table--clickable :deep(.p-datatable-tbody > tr) {
+    cursor: pointer;
+}
+
+.queue-table--clickable :deep(.p-datatable-tbody > tr:hover),
+.queue-table--clickable :deep(.p-datatable-tbody > tr:hover > td) {
+    background-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+.queue-table :deep(.queue-status-column),
+.queue-table :deep(td.queue-status-column) {
+    width: 1%;
+    white-space: nowrap;
+}
+
 .schedule-summary {
     font-size: 0.875rem;
 }
@@ -531,8 +539,7 @@ function closeLogDialog() {
     max-height: 24rem;
     overflow: auto;
     font-size: 0.8125rem;
-    white-space: pre-wrap;
-    word-break: break-word;
+    white-space: pre;
     background: var(--p-surface-100);
     border-radius: var(--p-border-radius);
 }

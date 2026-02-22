@@ -13,13 +13,24 @@ import (
 )
 
 type AppCfg struct {
-	Server   serverCfg
-	Obs      serverCfg `config:"Observability"`
-	Auth     authConfig
-	Env      Env
-	Settings AppSettings
-	Msgs     []Msg
-	DataDir  string
+	Server              serverCfg
+	Obs                 serverCfg `config:"Observability"`
+	Auth                authConfig
+	Env                 Env
+	Settings            AppSettings
+	MarketDataImporters MarketDataImportersCfg
+	Msgs                []Msg
+	DataDir             string
+}
+
+// MarketDataImportersCfg holds named importer configs. Supported importers: Massive.
+type MarketDataImportersCfg struct {
+	Massive MarketDataImporterConfig
+}
+
+// MarketDataImporterConfig holds per-importer settings (e.g. API keys).
+type MarketDataImporterConfig struct {
+	ApiKeys []string
 }
 
 type AppSettings struct {
@@ -102,6 +113,7 @@ var defaultCfg = AppCfg{
 		Currencies:   []string{"CHF"},
 		Instruments:  false,
 	},
+	MarketDataImporters: MarketDataImportersCfg{}, // set Massive with ApiKeys in YAML to enable backfill
 }
 
 type Msg struct {

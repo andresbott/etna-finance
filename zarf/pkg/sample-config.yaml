@@ -30,3 +30,10 @@ Env:
 #  Currencies:                 # must include MainCurrency
 #    - "CHF"
 #  Instruments: false
+
+# Market data importers (named). Supported: Massive. Each can have a list of API keys.
+#MarketDataImporters:
+#  Massive:
+#    ApiKeys:
+#      - "your-api-key-1"
+#      - "your-api-key-2"

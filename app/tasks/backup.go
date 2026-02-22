@@ -32,7 +32,7 @@ var BackupTaskDef = TaskDef{
 }
 
 // AvailableTasks is the full list of task definitions (including dev-only). Use AvailableTaskDefs(production) to filter.
-var AvailableTasks = []TaskDef{BackupTaskDef, FinancialImportTaskDef, LogOnlyTaskDef, LogOnlyLongTaskDef, DebugFailTaskDef}
+var AvailableTasks = []TaskDef{BackupTaskDef, FinancialImportTaskDef, FinancialBackfillTaskDef, LogOnlyTaskDef, LogOnlyLongTaskDef, DebugFailTaskDef}
 
 // DevOnlyTaskIDs are task IDs hidden in production (non-prod only).
 var DevOnlyTaskIDs = map[string]bool{

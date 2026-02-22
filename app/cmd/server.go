@@ -20,6 +20,7 @@ import (
 	"github.com/andresbott/etna/app/tasks"
 	"github.com/andresbott/etna/internal/accounting"
 	"github.com/andresbott/etna/internal/marketdata"
+	"github.com/andresbott/etna/internal/marketdata/importer"
 	"github.com/andresbott/etna/internal/taskrunner"
 	"github.com/glebarez/sqlite"
 	"github.com/go-bumbu/tempo"
@@ -38,6 +39,7 @@ const backupsDir = "backup"
 
 // buildTaskRegisterFuncs returns the map of task name -> register func for the given runner and stores.
 // When production is true, dev-only tasks (log-only, log-only-long) are not included.
+// marketDataClient is optional; when set (e.g. pool from config), the financial-import task backfills 1 week per instrument.
 func buildTaskRegisterFuncs(
 	runner *taskrunner.Runner,
 	finStore *accounting.Store,
@@ -45,6 +47,7 @@ func buildTaskRegisterFuncs(
 	backupDestination string,
 	logger *slog.Logger,
 	production bool,
+	marketDataClient importer.Client,
 ) map[string]func() (uuid.UUID, error) {
 	if runner == nil {
 		return nil
@@ -58,8 +61,14 @@ func buildTaskRegisterFuncs(
 		},
 		tasks.FinancialImportTaskName: func() (uuid.UUID, error) {
 			return runner.RegisterTask(
-				tasks.NewFinancialImportTaskFn(marketStore, logger),
+				tasks.NewFinancialImportTaskFn(marketStore, logger, marketDataClient),
 				tasks.FinancialImportTaskName,
+			)
+		},
+		tasks.FinancialBackfillTaskName: func() (uuid.UUID, error) {
+			return runner.RegisterTask(
+				tasks.NewFinancialBackfillTaskFn(marketStore, logger, marketDataClient),
+				tasks.FinancialBackfillTaskName,
 			)
 		},
 	}
@@ -165,6 +174,7 @@ func runServer(configFile string) error {
 	taskRunner, err := taskrunner.NewRunner(taskrunner.Cfg{
 		Parallelism: 6,
 		QueueSize:   20,
+		HistorySize: 20,
 		Logger:      l,
 		DB:          db,
 		LogDir:      filepath.Join(cfg.DataDir, "tasklogs"),
@@ -179,7 +189,15 @@ func runServer(configFile string) error {
 	if err != nil {
 		return fmt.Errorf("schedule store: %w", err)
 	}
-	registerFuncs := buildTaskRegisterFuncs(taskRunner, finStore, marketStore, backupDest, l, cfg.Env.Production)
+	var marketDataClient importer.Client
+	if len(cfg.MarketDataImporters.Massive.ApiKeys) > 0 {
+		pool, err := importer.NewMassivePool(cfg.MarketDataImporters.Massive.ApiKeys)
+		if err != nil {
+			return fmt.Errorf("market data importer pool (massive): %w", err)
+		}
+		marketDataClient = pool
+	}
+	registerFuncs := buildTaskRegisterFuncs(taskRunner, finStore, marketStore, backupDest, l, cfg.Env.Production, marketDataClient)
 	enqueuer := taskrunner.FuncEnqueuer(func(_ context.Context, taskName string) error {
 		fn := registerFuncs[taskName]
 		if fn == nil {

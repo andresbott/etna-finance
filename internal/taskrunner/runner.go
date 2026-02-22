@@ -30,6 +30,8 @@ type Cfg struct {
 	Parallelism int
 	// QueueSize is the maximum number of pending tasks. Defaults to 20.
 	QueueSize int
+	// HistorySize is the maximum number of completed tasks to keep when doing cleanup Defaults to 20.
+	HistorySize int
 	// Logger is used for task lifecycle logging. If nil, logging is disabled.
 	Logger *slog.Logger
 	// DB, when set, is used to persist task executions (task_executions table).
@@ -54,6 +56,10 @@ func NewRunner(cfg Cfg) (*Runner, error) {
 	}
 	if cfg.QueueSize <= 0 {
 		cfg.QueueSize = 20
+	}
+
+	if cfg.HistorySize <= 0 {
+		cfg.HistorySize = 20
 	}
 
 	var logSink tempo.TaskLogSink = cfg.LogSink
@@ -85,7 +91,7 @@ func NewRunner(cfg Cfg) (*Runner, error) {
 	qr, err := tempo.NewQueueRunner(tempo.RunnerCfg{
 		Parallelism: cfg.Parallelism,
 		QueueSize:   cfg.QueueSize,
-		HistorySize: 50,
+		HistorySize: cfg.HistorySize,
 		Persistence: persistence,
 		LogSink:     logSink,
 		LogLevel:    cfg.LogLevel,

@@ -42,3 +42,9 @@ Settings:
     - "EUR"
     - "JPY"
   Instruments: true
+
+# Market data importers (named). Supported: Massive. Each can have a list of API keys.
+MarketDataImporters:
+  Massive:
+    ApiKeys:
+      - "Mljc370zrEjPYUnFg6MBHHYAfHRbNVpS"
