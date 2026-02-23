@@ -1,0 +1,49 @@
+# Minimal config. App runs without this file using built-in defaults.
+# Optional: copy to config.yaml and customize. Env vars override (prefix ETNA_).
+
+Server:
+  BindIp: ""
+  Port:    8085
+
+Observability:
+  BindIp: ""
+  Port:    9090
+
+DataDir: "./data"
+
+# Auth disabled: no login, all operations use DefaultUser. WARNING: do not use in production when exposed.
+Auth:
+  Enabled:     false
+  DefaultUser: "default"
+  # To enable auth, uncomment and set:
+  # Enabled: true
+  # HashKey:  "64-char-hex-string"   # required when Enabled
+  # BlockKey: "32-char-hex-string"  # required when Enabled
+  # UserStore:
+  #   Type: static
+  #   Users:
+  #     - Name: "demo"
+  #       Pw:   "demo"
+  #     - Name: "admin"
+  #       Pw:   "admin"
+
+Env:
+  LogLevel:   "info"
+  Production: false
+
+# App settings (date format, currencies) — exposed to frontend
+Settings:
+  DateFormat:   "YYYY-MM-DD"  # tokens: YYYY, YY, MM, DD; separators: - / .
+  MainCurrency: "CHF"        # main currency is implicit; do not repeat in AdditionalCurrencies
+  AdditionalCurrencies: []   # extra currencies to track, e.g. ["USD", "EUR"]
+  Instruments: false
+  # Alternatives:
+  # DateFormat: "DD/MM/YYYY"
+  # AdditionalCurrencies: ["USD", "EUR"]
+  # Instruments: true
+
+# Market data importers (e.g. Massive). Prefer API keys via .env: ETNA_MARKETDATAIMPORTERS_MASSIVE_APIKEYS_0=key
+# MarketDataImporters:
+#   Massive:
+#     ApiKeys:
+#       - "your-api-key"
