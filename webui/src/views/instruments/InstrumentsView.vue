@@ -97,7 +97,7 @@ const saveInstrument = async (payload) => {
     <div class="main-app-content">
         <div class="view-container w-full">
             <div class="flex justify-content-between align-items-center mb-2">
-                <h1 class="m-0">Investment Instruments</h1>
+                <h1 class="m-0">Investment Products</h1>
                 <Button
                     label="Add Instrument"
                     icon="pi pi-plus"
@@ -105,7 +105,7 @@ const saveInstrument = async (payload) => {
                 />
             </div>
             <p class="text-color-secondary mt-0 mb-3">
-                Manage your investment instruments such as stocks, ETFs, forex, and commodities.
+                Manage your investment products such as stocks, ETFs, forex, and commodities.
             </p>
 
             <Card v-if="!instruments.length && !isLoading">

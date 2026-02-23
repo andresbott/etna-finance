@@ -3,6 +3,7 @@ package tasks
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/andresbott/etna/internal/marketdata"
@@ -58,16 +59,13 @@ func NewFXImportTaskFn(store *marketdata.Store, mainCurrency string, currencies 
 
 		if client != nil && mainCurrency != "" && len(currencies) > 0 {
 			now := time.Now().UTC()
-			end := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).Add(24 * time.Hour)
-			start := end.Add(-FXBackfillDays * 24 * time.Hour)
-			dateFmt := "2006-01-02"
-
+			end := dateRangeEnd(now)
+			start := dateRangeStart(end, FXBackfillDays)
 			pairs := 0
 			for _, c := range currencies {
-				if c == mainCurrency {
-					continue
+				if c != mainCurrency {
+					pairs++
 				}
-				pairs++
 			}
 			tempo.Info(ctx, fmt.Sprintf("fx import: backfill range %s to %s, %d pairs", start.Format(dateFmt), end.Format(dateFmt), pairs))
 			deadline := time.Now().Add(MaxFXTaskDuration)
@@ -81,47 +79,21 @@ func NewFXImportTaskFn(store *marketdata.Store, mainCurrency string, currencies 
 					tempo.Info(ctx, fmt.Sprintf("fx import: skip %s/%s — rate history failed: %v", mainCurrency, secondary, err))
 					continue
 				}
-				existingTimes := make(map[time.Time]struct{}, len(existing))
-				for _, r := range existing {
-					day := time.Date(r.Time.Year(), r.Time.Month(), r.Time.Day(), 0, 0, 0, 0, time.UTC)
-					existingTimes[day] = struct{}{}
-				}
+				existingTimes := daySetFromRecords(existing, func(r marketdata.RateRecord) time.Time { return r.Time })
 
-				var points []importer.RatePoint
-				var fetchErr error
-				for {
-					points, fetchErr = client.FetchDailyRates(ctx, mainCurrency, secondary, start, end)
-					if fetchErr == nil {
-						break
-					}
-					if !importer.IsRateLimit429(fetchErr) {
-						break
-					}
-					retryAfter := importer.RetryAfterFrom429Err(fetchErr, importer.Default429RetryAfter)
-					if time.Now().Add(retryAfter).After(deadline) {
-						tempo.Error(ctx, fmt.Sprintf("fx import: 429 for %s/%s — retry would exceed deadline", mainCurrency, secondary))
-						return fmt.Errorf("429 rate limit for %s/%s: %w", mainCurrency, secondary, fetchErr)
-					}
-					tempo.Info(ctx, fmt.Sprintf("fx import: 429 for %s/%s — waiting %v before retry", mainCurrency, secondary, retryAfter))
-					select {
-					case <-ctx.Done():
-						return ctx.Err()
-					case <-time.After(retryAfter):
-					}
-				}
+				pairLabel := mainCurrency + "/" + secondary
+				points, fetchErr := FetchWith429Retry(ctx, deadline, "fx import: "+pairLabel, func() ([]importer.RatePoint, error) {
+					return client.FetchDailyRates(ctx, mainCurrency, secondary, start, end)
+				})
 				if fetchErr != nil {
+					if strings.Contains(fetchErr.Error(), "429") {
+						return fmt.Errorf("429 rate limit for %s: %w", pairLabel, fetchErr)
+					}
 					tempo.Info(ctx, fmt.Sprintf("fx import: skip %s/%s — fetch failed: %v", mainCurrency, secondary, fetchErr))
 					continue
 				}
 
-				var newPoints []marketdata.RatePoint
-				for _, p := range points {
-					day := time.Date(p.Time.Year(), p.Time.Month(), p.Time.Day(), 0, 0, 0, 0, time.UTC)
-					if _, exists := existingTimes[day]; !exists {
-						newPoints = append(newPoints, marketdata.RatePoint{Time: p.Time, Rate: p.Rate})
-						existingTimes[day] = struct{}{}
-					}
-				}
+				newPoints := ratePointsNewDays(points, existingTimes)
 				if len(newPoints) == 0 {
 					tempo.Info(ctx, fmt.Sprintf("fx import: skip %s/%s — no new points (fetched %d)", mainCurrency, secondary, len(points)))
 					continue

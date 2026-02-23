@@ -83,7 +83,7 @@ const onRowClick = (event) => {
                     <template #content>
                         <div class="empty-message">
                             No instruments configured. Add instruments in
-                            <router-link to="/instruments">Investment Instruments</router-link>
+                            <router-link to="/instruments">Investment Products</router-link>
                             to see market data here.
                         </div>
                     </template>

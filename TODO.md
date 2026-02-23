@@ -14,15 +14,14 @@ Track items to verify, refactor, or implement later.
 
 ## To check / verify
 
-- [ ] Verify that the client for stocks and for forex is the same (not a separate client)
+
 
 ---
 
 ## Refactor / improve
 
 - [ ] **Reporting backend** — Use historical values as of report date: value financial instruments at market price at reported time; use historical currency rates for both cash and investment items
-- [ ] Update financial instruments tables: do not print the amount (it is irrelevant)
-- [ ] Simplify the stock and forex tasks
+- [ ] Simplify the stock and forex tasks, implementation wise
 - [ ] Handler should rely on list tasks from the runner instead of listing them separately
 - [ ] See how we can unify the scheduler and the runner in an easier way
 

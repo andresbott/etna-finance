@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/andresbott/etna/internal/marketdata"
@@ -71,9 +72,8 @@ func NewFinancialImportTaskFn(store *marketdata.Store, client importer.Client) f
 				return fmt.Errorf("list instruments: %w", err)
 			}
 			now := time.Now().UTC()
-			end := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).Add(24 * time.Hour)
-			start := end.Add(-BackfillDays * 24 * time.Hour)
-			dateFmt := "2006-01-02"
+			end := dateRangeEnd(now)
+			start := dateRangeStart(end, BackfillDays)
 			tempo.Info(ctx, fmt.Sprintf("financial import: backfill range %s to %s, %d instruments", start.Format(dateFmt), end.Format(dateFmt), len(instruments)))
 			deadline := time.Now().Add(MaxTaskDuration)
 			for _, inst := range instruments {
@@ -82,11 +82,7 @@ func NewFinancialImportTaskFn(store *marketdata.Store, client importer.Client) f
 					tempo.Info(ctx, fmt.Sprintf("financial import: skip %s — price history failed: %v", inst.Symbol, err))
 					continue
 				}
-				existingTimes := make(map[time.Time]struct{}, len(existing))
-				for _, r := range existing {
-					day := time.Date(r.Time.Year(), r.Time.Month(), r.Time.Day(), 0, 0, 0, 0, time.UTC)
-					existingTimes[day] = struct{}{}
-				}
+				existingTimes := daySetFromRecords(existing, func(r marketdata.PriceRecord) time.Time { return r.Time })
 				tradingDays := tradingDaysInRange(start, end)
 				if tradingDays == 0 {
 					tempo.Info(ctx, fmt.Sprintf("financial import: skip %s — no trading days in range", inst.Symbol))
@@ -108,41 +104,17 @@ func NewFinancialImportTaskFn(store *marketdata.Store, client importer.Client) f
 					tempo.Info(ctx, fmt.Sprintf("financial import: skip %s — already have data through %s (last trading day)", inst.Symbol, lastTrading.Format(dateFmt)))
 					continue
 				}
-				var points []importer.PricePoint
-				var fetchErr error
-				for {
-					points, fetchErr = client.FetchDailyPrices(ctx, inst.Symbol, start, end)
-					if fetchErr == nil {
-						break
-					}
-					if !importer.IsRateLimit429(fetchErr) {
-						break
-					}
-					retryAfter := importer.RetryAfterFrom429Err(fetchErr, importer.Default429RetryAfter)
-					if time.Now().Add(retryAfter).After(deadline) {
-						tempo.Error(ctx, fmt.Sprintf("financial import: 429 for %s — retry would exceed 1h deadline (retry after %v)", inst.Symbol, retryAfter))
-						return fmt.Errorf("429 rate limit for %s: retry would exceed task deadline (%v): %w", inst.Symbol, retryAfter, fetchErr)
-					}
-					tempo.Info(ctx, fmt.Sprintf("financial import: 429 for %s — waiting %v before retry", inst.Symbol, retryAfter))
-					select {
-					case <-ctx.Done():
-						return ctx.Err()
-					case <-time.After(retryAfter):
-						// continue loop and retry
-					}
-				}
+				points, fetchErr := FetchWith429Retry(ctx, deadline, "financial import: "+inst.Symbol, func() ([]importer.PricePoint, error) {
+					return client.FetchDailyPrices(ctx, inst.Symbol, start, end)
+				})
 				if fetchErr != nil {
+					if strings.Contains(fetchErr.Error(), "429") {
+						return fmt.Errorf("429 rate limit for %s: %w", inst.Symbol, fetchErr)
+					}
 					tempo.Info(ctx, fmt.Sprintf("financial import: skip %s — fetch failed: %v", inst.Symbol, fetchErr))
 					continue
 				}
-				var newPoints []marketdata.PricePoint
-				for _, p := range points {
-					day := time.Date(p.Time.Year(), p.Time.Month(), p.Time.Day(), 0, 0, 0, 0, time.UTC)
-					if _, exists := existingTimes[day]; !exists {
-						newPoints = append(newPoints, marketdata.PricePoint{Time: p.Time, Price: p.Price})
-						existingTimes[day] = struct{}{}
-					}
-				}
+				newPoints := pricePointsNewDays(points, existingTimes)
 				if len(newPoints) == 0 {
 					tempo.Info(ctx, fmt.Sprintf("financial import: skip %s — no new points (fetched %d, all already stored)", inst.Symbol, len(points)))
 					continue

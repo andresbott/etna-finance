@@ -55,6 +55,15 @@ const router = createRouter({
             component: () => import('@/views/reports/IncomeExpenseView.vue')
         },
         {
+            path: '/reports/investment',
+            name: 'reports-investment',
+            meta: {
+                requiresAuth: true,
+                requiresInstruments: true
+            },
+            component: () => import('@/views/reports/InvestmentReportView.vue')
+        },
+        {
             path: '/reports',
             redirect: '/reports/income-expense' // Redirect old reports to new route
         },
@@ -72,7 +81,7 @@ const router = createRouter({
             meta: {
                 requiresAuth: true,
                 requiresInstruments: true,
-                title: 'Investment Instruments'
+                title: 'Investment Products'
             },
             component: () => import('@/views/instruments/InstrumentsView.vue')
         },

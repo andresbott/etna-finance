@@ -122,7 +122,7 @@ const settings = useSettingsStore()
                                     <div class="setting-item">
                                         <div class="setting-label">
                                             <i class="pi pi-chart-line mr-2"></i>
-                                            <span>Investment Instruments</span>
+                                            <span>Investment Products</span>
                                         </div>
                                         <div class="setting-value">
                                             <Tag

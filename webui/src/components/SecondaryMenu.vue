@@ -36,7 +36,7 @@ const sections = computed(() => {
     ]
 
     if (settings.instruments) {
-        appDataItems.push({ label: 'Investment Instruments', icon: 'pi pi-chart-bar', route: '/instruments' })
+        appDataItems.push({ label: 'Investment Products', icon: 'pi pi-chart-bar', route: '/instruments' })
     }
 
     return [

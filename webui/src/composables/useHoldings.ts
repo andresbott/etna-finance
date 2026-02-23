@@ -13,6 +13,7 @@ export interface Holding {
     quantity: number
     lastPrice: number | null
     value: number // quantity * lastPrice (or 0 if no price)
+    costBasis: number // invested amount (sum of purchase costs, average-cost method)
 }
 
 export interface AccountWithHoldings {
@@ -92,6 +93,109 @@ function aggregatePositionsFromEntries(
     return positions
 }
 
+type EntryLike = {
+    date: string
+    type: string
+    instrumentId?: number
+    quantity?: number
+    StockAmount?: number
+    investmentAccountId?: number
+    accountId?: number
+    originAccountId?: number
+    targetAccountId?: number
+}
+
+/**
+ * Computes cost basis per (accountId, instrumentId) using average-cost method.
+ * Processes entries in date order. Returns Map<accountId, Map<instrumentId, costBasis>>.
+ */
+function aggregateCostBasisFromEntries(entries: EntryLike[]): Map<number, Map<number, number>> {
+    const costMap = new Map<number, Map<number, number>>()
+    // running state: accountId -> instrumentId -> { quantity, costBasis }
+    const state = new Map<number, Map<number, { quantity: number; costBasis: number }>>()
+
+    function get(accountId: number, instrumentId: number) {
+        let acc = state.get(accountId)
+        if (!acc) {
+            acc = new Map()
+            state.set(accountId, acc)
+        }
+        let row = acc.get(instrumentId)
+        if (!row) {
+            row = { quantity: 0, costBasis: 0 }
+            acc.set(instrumentId, row)
+        }
+        return row
+    }
+
+    const sorted = [...entries].sort(
+        (a, b) => (a.date || '').localeCompare(b.date || '', undefined, { numeric: true })
+    )
+
+    for (const e of sorted) {
+        const instId = e.instrumentId
+        const qty = e.quantity ?? 0
+        if (!instId || qty <= 0) continue
+
+        switch (e.type) {
+            case 'stockbuy': {
+                const accId = e.investmentAccountId
+                if (!accId) break
+                const stockAmt = e.StockAmount ?? 0
+                const row = get(accId, instId)
+                row.quantity += qty
+                row.costBasis += stockAmt
+                break
+            }
+            case 'stocksell': {
+                const accId = e.investmentAccountId
+                if (!accId) break
+                const row = get(accId, instId)
+                if (row.quantity > 0) {
+                    const ratio = qty / row.quantity
+                    row.costBasis *= 1 - ratio
+                    row.quantity -= qty
+                }
+                break
+            }
+            case 'stockgrant': {
+                const accId = e.accountId
+                if (!accId) break
+                const row = get(accId, instId)
+                row.quantity += qty
+                break
+            }
+            case 'stocktransfer': {
+                const origId = e.originAccountId
+                const tgtId = e.targetAccountId
+                if (!origId || !tgtId) break
+                const orig = get(origId, instId)
+                if (orig.quantity > 0) {
+                    const ratio = qty / orig.quantity
+                    const movedCost = orig.costBasis * ratio
+                    orig.costBasis -= movedCost
+                    orig.quantity -= qty
+                    const tgt = get(tgtId, instId)
+                    tgt.quantity += qty
+                    tgt.costBasis += movedCost
+                }
+                break
+            }
+        }
+    }
+
+    for (const [accId, accMap] of state) {
+        const out = new Map<number, number>()
+        for (const [instId, row] of accMap) {
+            if (row.quantity > 0 && row.costBasis !== 0) {
+                out.set(instId, row.costBasis)
+            }
+        }
+        if (out.size > 0) costMap.set(accId, out)
+    }
+    return costMap
+}
+
 export function useHoldings() {
     const { accounts: accountProviders } = useAccounts()
     const { instruments } = useInstruments()
@@ -152,6 +256,11 @@ export function useHoldings() {
         return aggregatePositionsFromEntries(items as Parameters<typeof aggregatePositionsFromEntries>[0])
     })
 
+    const costBasisMap = computed(() => {
+        const items = entriesQuery.data.value ?? []
+        return aggregateCostBasisFromEntries(items as EntryLike[])
+    })
+
     const symbolSet = computed(() => {
         const symbols = new Set<string>()
         const instMap = instrumentsMap.value
@@ -186,6 +295,7 @@ export function useHoldings() {
         const provs = accountProviders.value ?? []
         const instMap = instrumentsMap.value
         const positions = positionsMap.value
+        const costBasis = costBasisMap.value
         const prices = pricesQuery.data.value ?? {}
 
         return provs
@@ -203,6 +313,7 @@ export function useHoldings() {
                     let totalValue = 0
 
                     if (accPos) {
+                        const accCost = costBasis.get(account.id)
                         for (const [instrumentId, quantity] of accPos) {
                             if (quantity <= 0) continue
                             const inst = instMap[instrumentId]
@@ -210,6 +321,7 @@ export function useHoldings() {
                             const currency = inst?.currency ?? 'CHF'
                             const lastPrice = symbol ? (prices[symbol] ?? null) : null
                             const value = lastPrice != null ? quantity * lastPrice : 0
+                            const costBasisVal = accCost?.get(instrumentId) ?? 0
                             totalValue += value
                             holdings.push({
                                 instrumentId,
@@ -217,7 +329,8 @@ export function useHoldings() {
                                 currency,
                                 quantity,
                                 lastPrice,
-                                value
+                                value,
+                                costBasis: costBasisVal
                             })
                         }
                     }

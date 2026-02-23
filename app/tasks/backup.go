@@ -12,13 +12,6 @@ import (
 	"github.com/go-bumbu/tempo"
 )
 
-// TaskDef describes an available task for the API (list and trigger).
-type TaskDef struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-}
-
 const (
 	BackupTaskName      = "backup"
 	scheduledBackupName = "scheduled-backup"
@@ -29,40 +22,6 @@ var BackupTaskDef = TaskDef{
 	ID:          BackupTaskName,
 	Name:        "Backup",
 	Description: "Export accounting and financial data to a ZIP file.",
-}
-
-// AvailableTasks is the full list of task definitions (including dev-only). Use AvailableTaskDefs(production) to filter.
-var AvailableTasks = []TaskDef{BackupTaskDef, FinancialImportTaskDef, FinancialBackfillTaskDef, FXImportTaskDef, FXBackfillTaskDef, LogOnlyTaskDef, LogOnlyLongTaskDef, DebugFailTaskDef}
-
-// DevOnlyTaskIDs are task IDs hidden in production (non-prod only).
-var DevOnlyTaskIDs = map[string]bool{
-	LogOnlyTaskName:     true,
-	LogOnlyLongTaskName: true,
-	DebugFailTaskName:   true,
-}
-
-// AvailableTaskDefs returns task definitions visible for the given environment. When production is true, dev-only tasks are excluded.
-func AvailableTaskDefs(production bool) []TaskDef {
-	if !production {
-		return AvailableTasks
-	}
-	out := make([]TaskDef, 0, len(AvailableTasks))
-	for _, t := range AvailableTasks {
-		if !DevOnlyTaskIDs[t.ID] {
-			out = append(out, t)
-		}
-	}
-	return out
-}
-
-// TaskNameExists returns true if taskName is a known task ID visible in the given environment (for schedule API validation).
-func TaskNameExists(taskName string, production bool) bool {
-	for _, t := range AvailableTaskDefs(production) {
-		if t.ID == taskName {
-			return true
-		}
-	}
-	return false
 }
 
 // BackupTaskCfg holds the configuration for the scheduled backup task.

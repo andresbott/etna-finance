@@ -9,7 +9,7 @@ const { providersWithHoldings, isLoading } = useHoldings()
 
 <template>
     <Card>
-        <template #title>Financial Instruments</template>
+        <template #title>Investment Products</template>
         <template #content>
             <div v-if="providersWithHoldings.length === 0 && !isLoading" class="text-center p-3 text-500">
                 No investment or unvested accounts
@@ -65,7 +65,7 @@ const { providersWithHoldings, isLoading } = useHoldings()
                                     class="flex justify-content-between align-items-center py-1 px-2 border-round text-sm"
                                     style="background: var(--surface-50)"
                                 >
-                                    <span class="text-600">{{ h.symbol || 'Instrument #' + h.instrumentId }}</span>
+                                    <span class="text-600">{{ h.symbol || 'Product #' + h.instrumentId }}</span>
                                     <div class="flex align-items-center gap-3">
                                         <span>{{ h.quantity }} shares</span>
                                         <span class="font-semibold">{{ formatAmount(h.value) }} {{ h.currency }}</span>

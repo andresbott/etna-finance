@@ -184,12 +184,12 @@ watch(
                         style="height: 450px"
                     />
                 </TabPanel>
-                <TabPanel v-if="settings.instruments" header="Instruments">
+                <TabPanel v-if="settings.instruments" header="Investment Products">
                     <div
                         class="instruments-placeholder"
                         style="height: 450px; display: flex; align-items: center; justify-content: center; color: var(--c-text-muted-color, #6b7280);"
                     >
-                        <span>Evolution of all financial instruments — chart coming soon.</span>
+                        <span>Evolution of all investment products — chart coming soon.</span>
                     </div>
                 </TabPanel>
             </TabView>

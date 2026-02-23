@@ -60,7 +60,7 @@ export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
     [ACCOUNT_TYPES.CHECKING]: 'Checking',
     [ACCOUNT_TYPES.SAVINGS]: 'Savings',
     [ACCOUNT_TYPES.INVESTMENT]: 'Investment',
-    [ACCOUNT_TYPES.UNVESTED]: 'Unvested instruments',
+    [ACCOUNT_TYPES.UNVESTED]: 'Unvested products',
 }
 
 /**

@@ -19,6 +19,12 @@
                             <span class="menu-label">Income/Expense</span>
                         </router-link>
                     </li>
+                    <li v-if="settings.instruments">
+                        <router-link to="/reports/investment" class="menu-item">
+                            <i class="pi pi-chart-pie menu-icon"></i>
+                            <span class="menu-label">Investment Report</span>
+                        </router-link>
+                    </li>
 
                     <li class="menu-spacer"></li>
 
