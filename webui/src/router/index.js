@@ -137,6 +137,26 @@ const router = createRouter({
             component: () => import('@/views/marketdata/CurrencyExchangeView.vue')
         },
         {
+            path: '/market-data/currency-exchange/:currency',
+            redirect: (to) => ({ path: `/market-data/currency-exchange/${to.params.currency}/overview` })
+        },
+        {
+            path: '/market-data/currency-exchange/:currency/:tab',
+            name: 'currency-detail',
+            meta: {
+                requiresAuth: true
+            },
+            component: () => import('@/views/marketdata/CurrencyDetailView.vue'),
+            beforeEnter: (to, _from, next) => {
+                const validTabs = ['overview', 'raw-data']
+                if (to.params.tab && !validTabs.includes(to.params.tab)) {
+                    next({ path: `/market-data/currency-exchange/${to.params.currency}/overview` })
+                } else {
+                    next()
+                }
+            }
+        },
+        {
             path: '/market-data/stock-market',
             name: 'stock-market',
             meta: {

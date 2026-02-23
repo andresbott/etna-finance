@@ -19,19 +19,17 @@ const leftSidebarCollapsed = ref(true)
                     <TimeBalance />
                 </div>
 
-                <!-- Account Types List -->
-                <div class="col-12">
+                <!-- Account Types List + Account Distribution (same row, 50% each) -->
+                <div class="col-12 lg:col-6">
                     <AccountTypesList />
+                </div>
+                <div class="col-12 lg:col-6">
+                    <AccountDistribution />
                 </div>
 
                 <!-- Accounts List -->
-                <div class="col-12 lg:col-6">
+                <div class="col-12">
                     <AccountsList />
-                </div>
-
-                <!-- Account Distribution -->
-                <div class="col-12 lg:col-6">
-                    <AccountDistribution />
                 </div>
             </div>
         </template>

@@ -1,111 +1,38 @@
 <script setup>
-import { computed, watch } from 'vue'
+import { computed } from 'vue'
 import Card from 'primevue/card'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
-import { useAccounts } from '@/composables/useAccounts.js'
-import { useBalance } from '@/composables/useGetBalanceReport'
+import { useAccountTypesData } from '@/composables/useAccountTypesData'
 import { formatAmount } from '@/utils/currency'
-import { getAccountTypeIcon, getAccountTypeLabel } from '@/types/account'
+import { getAccountTypeIcon, getAccountTypeLabel, ACCOUNT_TYPES } from '@/types/account'
 
-const { accounts: accountProviders } = useAccounts()
-const { balanceReport: balanceReportMutation } = useBalance()
-const { mutate, data: balanceReport } = balanceReportMutation
+const { accountsByType, totalInMainCurrency, mainCurrency } = useAccountTypesData()
 
-// Gather all accounts from all providers
-const allAccounts = computed(() => {
-    if (!accountProviders.value) return []
-    
-    const accounts = []
-    for (const provider of accountProviders.value) {
-        if (provider.accounts && Array.isArray(provider.accounts)) {
-            accounts.push(...provider.accounts)
-        }
-    }
-    return accounts
+// Sum of all account types except unvested (converted to main currency)
+const totalExcludingUnvested = computed(() => {
+    const rows = accountsByType.value ?? []
+    return rows
+        .filter((row) => row.type !== ACCOUNT_TYPES.UNVESTED)
+        .reduce((sum, row) => sum + totalInMainCurrency(row), 0)
 })
 
-// Group accounts by type and currency with balance data
-const accountsByType = computed(() => {
-    if (!allAccounts.value || !balanceReport.value) return []
-    
-    // First, create a map of accounts with their balance data
-    const accountsWithBalances = allAccounts.value
-        .map((account) => {
-            const reportData = balanceReport.value?.accounts?.[account.id]
-            if (!reportData) return null
-            
-            return {
-                ...account,
-                reportData
-            }
-        })
-        .filter(Boolean)
-    
-    // Group by account type and aggregate by currency
-    const grouped = {}
-    for (const account of accountsWithBalances) {
-        const type = account.type || 'Other'
-        const currency = account.currency || 'CHF'
-        
-        if (!grouped[type]) {
-            grouped[type] = {
-                type,
-                currencies: {}
-            }
-        }
-        
-        if (!grouped[type].currencies[currency]) {
-            grouped[type].currencies[currency] = 0
-        }
-        
-        grouped[type].currencies[currency] += getLatestBalance(account)
-    }
-    
-    return Object.values(grouped)
-})
-
-// Get all unique currencies across all account types
-const allCurrencies = computed(() => {
-    const currencies = new Set()
-    accountsByType.value.forEach(typeGroup => {
-        Object.keys(typeGroup.currencies).forEach(currency => currencies.add(currency))
-    })
-    return Array.from(currencies).sort()
-})
-
-const getLatestBalance = (account) => {
-    if (!account.reportData || account.reportData.length === 0) {
-        return 0
-    }
-    // Get the last entry without mutating the array
-    const latestEntry = account.reportData[account.reportData.length - 1]
-    return latestEntry?.Sum || 0
-}
-
-// Fetch balance reports when accounts are loaded
-watch(
-    allAccounts,
-    (accounts) => {
-        if (accounts && accounts.length > 0) {
-            const accountIds = accounts.map((account) => account.id).filter(Boolean)
-            
-            if (accountIds.length > 0) {
-                mutate({
-                    accountIds,
-                    steps: 30,
-                    startDate: '2025-01-03'
-                })
-            }
-        }
-    },
-    { immediate: true }
-)
+const totalTooltipText = 'Values are converted to the main currency. Unvested (e.g. RSUs not yet accessible) is not included in this total.'
 </script>
 
 <template>
     <Card>
-        <template #title>Account Types</template>
+        <template #title>
+            <div class="flex align-items-center gap-2">
+                <span>Account Types</span>
+                <i
+                    class="pi pi-question-circle text-400 cursor-help"
+                    style="font-size: 1rem"
+                    v-tooltip.bottom="totalTooltipText"
+                    aria-label="Info"
+                />
+            </div>
+        </template>
         <template #content>
             <div v-if="accountsByType.length === 0" class="text-center p-3 text-500">
                 No accounts available
@@ -120,30 +47,46 @@ watch(
                         </div>
                     </template>
                 </Column>
-                
-                <!-- Dynamic Currency Columns -->
-                <Column 
-                    v-for="currency in allCurrencies" 
-                    :key="currency" 
-                    :header="currency"
-                    class="amount-column"
+
+                <!-- Total in main currency -->
+                <Column
+                    :header="`Total (${mainCurrency})`"
+                    class="amount-column total-column"
                     style="min-width: 150px"
                 >
                     <template #body="slotProps">
-                        <div v-if="slotProps.data.currencies[currency]">
-                            <span>{{ formatAmount(slotProps.data.currencies[currency]) }}</span>
-                        </div>
-                        <div v-else class="text-400">
-                            —
-                        </div>
+                        <span class="font-semibold">{{ formatAmount(totalInMainCurrency(slotProps.data)) }}</span>
                     </template>
                 </Column>
             </DataTable>
+            <div v-if="accountsByType.length > 0" class="total-row mt-3 pt-3">
+                <span class="total-label">Total (excl. unvested)</span>
+                <span class="total-value">{{ formatAmount(totalExcludingUnvested) }} {{ mainCurrency }}</span>
+            </div>
         </template>
     </Card>
 </template>
 
 <style scoped>
+.total-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    border-top: 1px solid var(--p-surface-border);
+    padding: 0.75rem 0.5rem 0;
+}
+
+.total-label {
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.total-value {
+    font-weight: 700;
+    font-size: 1.25rem;
+}
+
 :deep(.amount-column .p-datatable-column-title) {
     margin-left: auto;
 }

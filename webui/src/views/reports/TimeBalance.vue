@@ -158,7 +158,7 @@ watch(
                 
                 mutate({
                     accountIds,
-                    steps: 15,
+                    steps: 90,
                     startDate
                 })
             }

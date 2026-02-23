@@ -6,22 +6,39 @@ import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { PieChart } from 'echarts/charts'
 import { TooltipComponent, LegendComponent } from 'echarts/components'
+import { useAccountTypesData } from '@/composables/useAccountTypesData'
+import { getAccountTypeLabel } from '@/types/account'
+import { formatAmount } from '@/utils/currency'
 
 use([CanvasRenderer, PieChart, TooltipComponent, LegendComponent])
 
-// Get computed colors from CSS variables
+const { accountsByType, totalInMainCurrency, mainCurrency } = useAccountTypesData()
+
+const colors = [
+    '#22c55e', '#3b82f6', '#eab308', '#ef4444',
+    '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'
+]
+
 const getTextColor = () => {
     return getComputedStyle(document.documentElement).getPropertyValue('--c-text-color').trim() || '#495057'
 }
 
-// Mock data - to be replaced with real data later
 const chartOption = computed(() => {
     const textColor = getTextColor()
+    const rows = accountsByType.value ?? []
+    const data = rows.map((row, index) => ({
+        value: totalInMainCurrency(row),
+        name: getAccountTypeLabel(row.type),
+        itemStyle: { color: colors[index % colors.length] }
+    })).filter((d) => d.value > 0)
 
     return {
         tooltip: {
             trigger: 'item',
-            formatter: '{b}: {c} ({d}%)'
+            formatter: (params) => {
+                const pct = params.percent != null ? params.percent.toFixed(1) : '0'
+                return `${params.name}: ${formatAmount(params.value)} ${mainCurrency.value} (${pct}%)`
+            }
         },
         legend: {
             bottom: 0,
@@ -46,12 +63,7 @@ const chartOption = computed(() => {
                 labelLine: {
                     show: false
                 },
-                data: [
-                    { value: 3000, name: 'Cash', itemStyle: { color: '#22c55e' } },
-                    { value: 5000, name: 'Bank', itemStyle: { color: '#3b82f6' } },
-                    { value: 10000, name: 'Investment', itemStyle: { color: '#eab308' } },
-                    { value: 2000, name: 'Credit', itemStyle: { color: '#ef4444' } }
-                ]
+                data
             }
         ]
     }
@@ -60,16 +72,13 @@ const chartOption = computed(() => {
 
 <template>
     <Card>
-        <template #title>
-            <div>
-                <div>Account Distribution</div>
-                <div class="text-sm font-normal mt-1" style="color: red">
-                    This is just a mock component
-                </div>
-            </div>
-        </template>
+        <template #title>Account Distribution</template>
         <template #content>
+            <div v-if="!accountsByType?.length" class="text-center p-3 text-500">
+                No data available
+            </div>
             <VChart
+                v-else
                 :option="chartOption"
                 autoresize
                 style="height: 300px"

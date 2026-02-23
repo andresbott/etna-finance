@@ -11,7 +11,9 @@ import (
 
 // Handler serves market data HTTP endpoints backed by a marketdata.Store.
 type Handler struct {
-	Store *marketdata.Store
+	Store        *marketdata.Store
+	MainCurrency string   // for FX: main currency from settings
+	Currencies   []string // for FX: all configured currencies (includes main)
 }
 
 type pricePayload struct {
@@ -266,6 +268,255 @@ func (h *Handler) DeletePrice(id uint) http.Handler {
 			return
 		}
 
+		w.WriteHeader(http.StatusOK)
+	})
+}
+
+// =============================================================================
+// Currency exchange (FX) endpoints
+// =============================================================================
+
+type fxPairPayload struct {
+	Pair string `json:"pair"` // "MAIN/SECONDARY"
+}
+
+type fxRatePayload struct {
+	ID        uint    `json:"id"`
+	Main      string  `json:"main"`
+	Secondary string  `json:"secondary"`
+	Time      string  `json:"time"`
+	Rate      float64 `json:"rate"`
+}
+
+type fxRateCreatePayload struct {
+	Time string  `json:"time"`
+	Rate float64 `json:"rate"`
+}
+
+type fxRateUpdatePayload struct {
+	Time *string  `json:"time,omitempty"`
+	Rate *float64 `json:"rate,omitempty"`
+}
+
+type fxBulkCreatePayload struct {
+	Points []fxRateCreatePayload `json:"points"`
+}
+
+// ListFXPairs returns configured currency pairs (main + each secondary from settings).
+// Response: { "pairs": ["CHF/USD", "CHF/EUR", ...] }
+func (h *Handler) ListFXPairs() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		main := h.MainCurrency
+		if main == "" {
+			main = "CHF"
+		}
+		currencies := h.Currencies
+		if len(currencies) == 0 {
+			currencies = []string{"CHF"}
+		}
+		var pairs []string
+		for _, c := range currencies {
+			if c != main {
+				pairs = append(pairs, main+"/"+c)
+			}
+		}
+		type response struct {
+			Pairs []string `json:"pairs"`
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(response{Pairs: pairs})
+	})
+}
+
+func fxRecordToPayload(rec marketdata.RateRecord) fxRatePayload {
+	return fxRatePayload{
+		ID:        rec.ID,
+		Main:      rec.Main,
+		Secondary: rec.Secondary,
+		Time:      rec.Time.Format(timeLayout),
+		Rate:      rec.Rate,
+	}
+}
+
+// ListFXRates returns rate history for a pair. Path: {main}/{secondary}/rates?start=...&end=...
+func (h *Handler) ListFXRates(main, secondary string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if main == "" || secondary == "" {
+			http.Error(w, "main and secondary currency are required", http.StatusBadRequest)
+			return
+		}
+		var start, end time.Time
+		if v := r.URL.Query().Get("start"); v != "" {
+			t, err := time.Parse(timeLayout, v)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("invalid start date: %s", err.Error()), http.StatusBadRequest)
+				return
+			}
+			start = t
+		}
+		if v := r.URL.Query().Get("end"); v != "" {
+			t, err := time.Parse(timeLayout, v)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("invalid end date: %s", err.Error()), http.StatusBadRequest)
+				return
+			}
+			// Treat end as inclusive of that calendar day: end of day so time <= end includes records on that date
+			end = t.Add(24*time.Hour - time.Nanosecond)
+		}
+		records, err := h.Store.RateHistory(r.Context(), main, secondary, start, end)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to list rates: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		out := make([]fxRatePayload, len(records))
+		for i, rec := range records {
+			out[i] = fxRecordToPayload(rec)
+		}
+		type response struct {
+			Items []fxRatePayload `json:"items"`
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(response{Items: out})
+	})
+}
+
+// LatestFXRate returns the most recent rate for the pair.
+func (h *Handler) LatestFXRate(main, secondary string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if main == "" || secondary == "" {
+			http.Error(w, "main and secondary currency are required", http.StatusBadRequest)
+			return
+		}
+		rec, err := h.Store.LatestRate(r.Context(), main, secondary)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to get latest rate: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		if rec == nil {
+			http.Error(w, "no rate data found", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(fxRecordToPayload(*rec))
+	})
+}
+
+// CreateFXRate ingests a single rate for the pair.
+func (h *Handler) CreateFXRate(main, secondary string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if main == "" || secondary == "" {
+			http.Error(w, "main and secondary currency are required", http.StatusBadRequest)
+			return
+		}
+		if r.Body == nil {
+			http.Error(w, "request had empty body", http.StatusBadRequest)
+			return
+		}
+		var payload fxRateCreatePayload
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, fmt.Sprintf("unable to decode json: %s", err.Error()), http.StatusBadRequest)
+			return
+		}
+		t, err := time.Parse(timeLayout, payload.Time)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("invalid time: %s", err.Error()), http.StatusBadRequest)
+			return
+		}
+		if err := h.Store.IngestRate(r.Context(), main, secondary, t, payload.Rate); err != nil {
+			http.Error(w, fmt.Sprintf("unable to ingest rate: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(fxRatePayload{
+			Main: main, Secondary: secondary,
+			Time: t.Format(timeLayout), Rate: payload.Rate,
+		})
+	})
+}
+
+// CreateFXRatesBulk ingests multiple rate points for the pair.
+func (h *Handler) CreateFXRatesBulk(main, secondary string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if main == "" || secondary == "" {
+			http.Error(w, "main and secondary currency are required", http.StatusBadRequest)
+			return
+		}
+		if r.Body == nil {
+			http.Error(w, "request had empty body", http.StatusBadRequest)
+			return
+		}
+		var payload fxBulkCreatePayload
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, fmt.Sprintf("unable to decode json: %s", err.Error()), http.StatusBadRequest)
+			return
+		}
+		if len(payload.Points) == 0 {
+			http.Error(w, "no rate points provided", http.StatusBadRequest)
+			return
+		}
+		points := make([]marketdata.RatePoint, len(payload.Points))
+		for i, p := range payload.Points {
+			t, err := time.Parse(timeLayout, p.Time)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("invalid time at index %d: %s", i, err.Error()), http.StatusBadRequest)
+				return
+			}
+			points[i] = marketdata.RatePoint{Time: t, Rate: p.Rate}
+		}
+		if err := h.Store.IngestRatesBulk(r.Context(), main, secondary, points); err != nil {
+			http.Error(w, fmt.Sprintf("unable to bulk ingest rates: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+	})
+}
+
+// UpdateFXRate applies a partial update to a rate record.
+func (h *Handler) UpdateFXRate(id uint) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if id == 0 {
+			http.Error(w, "valid record id is required", http.StatusBadRequest)
+			return
+		}
+		if r.Body == nil {
+			http.Error(w, "request had empty body", http.StatusBadRequest)
+			return
+		}
+		var payload fxRateUpdatePayload
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, fmt.Sprintf("unable to decode json: %s", err.Error()), http.StatusBadRequest)
+			return
+		}
+		var update marketdata.RateUpdate
+		if payload.Time != nil {
+			t, err := time.Parse(timeLayout, *payload.Time)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("invalid time: %s", err.Error()), http.StatusBadRequest)
+				return
+			}
+			update.Time = &t
+		}
+		update.Rate = payload.Rate
+		if err := h.Store.UpdateRate(r.Context(), id, update); err != nil {
+			http.Error(w, fmt.Sprintf("unable to update rate: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+}
+
+// DeleteFXRate removes a rate record by ID.
+func (h *Handler) DeleteFXRate(id uint) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if id == 0 {
+			http.Error(w, "valid record id is required", http.StatusBadRequest)
+			return
+		}
+		if err := h.Store.DeleteRate(r.Context(), id); err != nil {
+			http.Error(w, fmt.Sprintf("unable to delete rate: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
 		w.WriteHeader(http.StatusOK)
 	})
 }

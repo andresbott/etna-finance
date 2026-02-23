@@ -123,22 +123,36 @@ func (r *Runner) Shutdown(ctx context.Context) error {
 	return r.queue.ShutDown(ctx)
 }
 
-// RegisterTask registers the task function for the name (if not already or overwrites) and adds a run to the queue.
-// Returns the execution ID. Aligns with tempo: RegisterTask(def) + Add(name).
-// Per-task max parallelism is unlimited (0).
-func (r *Runner) RegisterTask(fn func(ctx context.Context) error, name string) (uuid.UUID, error) {
-	return r.RegisterTaskWithMaxParallelism(fn, name, 0)
+// RegisterTask registers the task function for the name (if not already or overwrites).
+// maxParallelism limits concurrent runs of this task (0 = no limit). Use AddRun(name) to enqueue a run.
+// The runner logs when the task starts, finishes, or fails.
+func (r *Runner) RegisterTask(fn func(ctx context.Context) error, name string, maxParallelism int) {
+	wrapped := r.wrapTaskRun(name, fn)
+	r.queue.RegisterTask(tempo.TaskDef{Name: name, Run: wrapped, MaxParallelism: maxParallelism})
+	r.logger.Info("task registered", slog.String("component", "taskrunner"), slog.String("task", name))
 }
 
-// RegisterTaskWithMaxParallelism is like RegisterTask but sets tempo's MaxParallelism for this task name.
-// maxParallelism 0 means no per-task limit (only the runner's global worker count applies).
-func (r *Runner) RegisterTaskWithMaxParallelism(fn func(ctx context.Context) error, name string, maxParallelism int) (uuid.UUID, error) {
-	r.queue.RegisterTask(tempo.TaskDef{Name: name, Run: fn, MaxParallelism: maxParallelism})
+// wrapTaskRun returns a function that logs start/finish/error then runs fn.
+func (r *Runner) wrapTaskRun(name string, fn func(ctx context.Context) error) func(ctx context.Context) error {
+	return func(ctx context.Context) error {
+		r.logger.Info("task started", slog.String("component", "taskrunner"), slog.String("task", name))
+		err := fn(ctx)
+		if err != nil {
+			r.logger.Error("task failed", slog.String("component", "taskrunner"), slog.String("task", name), slog.String("error", err.Error()))
+			return err
+		}
+		r.logger.Info("task finished", slog.String("component", "taskrunner"), slog.String("task", name))
+		return nil
+	}
+}
+
+// AddRun enqueues one run of the task by name. Returns the execution ID or an error (e.g. ErrQueueFull).
+// The task must have been registered previously with RegisterTask.
+func (r *Runner) AddRun(name string) (uuid.UUID, error) {
 	id, err := r.queue.Add(name)
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("failed to register task %q: %w", name, err)
+		return uuid.Nil, fmt.Errorf("enqueue task %q: %w", name, err)
 	}
-	r.logger.Info("task registered", slog.String("component", "taskrunner"), slog.String("task", name), slog.String("id", id.String()))
 	return id, nil
 }
 

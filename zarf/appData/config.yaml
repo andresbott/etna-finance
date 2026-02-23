@@ -43,8 +43,10 @@ Settings:
     - "JPY"
   Instruments: true
 
-# Market data importers (named). Supported: Massive. Each can have a list of API keys.
-MarketDataImporters:
-  Massive:
-    ApiKeys:
-      - "Mljc370zrEjPYUnFg6MBHHYAfHRbNVpS"
+# Market data importers (named). Supported: Massive.
+# For development, prefer setting API keys via .env (see .env.example) so they are not committed.
+# Example: ETNA_MARKETDATAIMPORTERS_MASSIVE_APIKEYS_0=your_key
+# MarketDataImporters:
+#   Massive:
+#     ApiKeys:
+#       - "your_api_key_here"

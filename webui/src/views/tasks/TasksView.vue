@@ -62,7 +62,7 @@ function isCancelingExecution(id) {
 // Quartz format: second minute hour day-of-month month day-of-week (6 fields)
 const SCHEDULE_PRESETS = [
     { label: 'Daily', cron: '0 0 0 * * *' },
-    { label: 'Weekly', cron: '0 0 0 * * 0' },
+    { label: 'Weekly', cron: '0 0 0 * * 1' },
     { label: 'Monthly', cron: '0 0 0 1 * *' }
 ]
 

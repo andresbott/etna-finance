@@ -190,6 +190,7 @@ func getAppCfg(file string) (AppCfg, error) {
 	var err error
 	_, err = config.Load(
 		config.Defaults{Item: defaultCfg},
+		config.EnvFile{Path: ".env", Mandatory: false},
 		config.CfgFile{Path: file, Mandatory: false},
 		config.EnvVar{Prefix: EnvBarPrefix},
 		config.Unmarshal{Item: &cfg},

@@ -47,8 +47,6 @@ github.com/glebarez/sqlite v1.11.0 h1:wSG0irqzP6VurnMEpFGer5Li19RpIRi2qvQz++w0GM
 github.com/glebarez/sqlite v1.11.0/go.mod h1:h8/o8j5wiAsqSPoWELDUdJXhjAhsVliSn7bWZjOhrgQ=
 github.com/go-bumbu/closure-tree v0.8.2 h1:9PHR1igBeE5rRulaHWh7JLTgI9TojW9oyuL4Fv8Iu3w=
 github.com/go-bumbu/closure-tree v0.8.2/go.mod h1:ZUGWYBTSguYPWNu4l5S9N0bZoa57lpfTNTySsBM3jbs=
-github.com/go-bumbu/config v0.2.0 h1:aqX7Y0pY6jRdB8e5V9byltFLsjvSph6yuid4my83Sqg=
-github.com/go-bumbu/config v0.2.0/go.mod h1:+7x+YHBelQapKLZX5wTp23TSb8SRlk2KIXoQjCPXWjI=
 github.com/go-bumbu/testdbs v0.2.3 h1:URAynEmNGXYsoPS9Lqgs1gWWtixBWTIJE9jJWptIf8E=
 github.com/go-bumbu/testdbs v0.2.3/go.mod h1:LMxlGGgHiCTa44KPD5KbUc3CIU3gzcGKjCcXI/6ZXuQ=
 github.com/go-bumbu/userauth v0.2.1 h1:/xcYk7UX6j3bfLxP/2f4OyKg66QzCTid4IoMxTY51d4=

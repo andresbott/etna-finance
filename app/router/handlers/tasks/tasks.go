@@ -15,11 +15,10 @@ import (
 // Handler serves task list, trigger, executions, and schedules API using the task runner and app task definitions.
 type Handler struct {
 	Runner         *taskrunner.Runner
-	Enqueuers      map[string]func() (uuid.UUID, error)
 	ScheduleStore  *taskrunner.ScheduleStore
 	Scheduler      *taskrunner.Scheduler
 	TaskLogGetter  taskrunner.TaskLogGetter // optional; when set, GetExecutionLog returns task log text
-	ProductionMode bool                    // when true, dev-only tasks (e.g. log-only) are hidden from list and not runnable
+	ProductionMode bool                     // when true, dev-only tasks (e.g. log-only) are hidden from list and not runnable
 }
 
 // TaskWithSchedule is a task definition with its schedule (if any) for the combined API.
@@ -67,12 +66,19 @@ func (h *Handler) TriggerTask() http.Handler {
 			http.Error(w, "task name required", http.StatusBadRequest)
 			return
 		}
-		enqueue, ok := h.Enqueuers[name]
-		if !ok {
+		avail := tasks.AvailableTaskDefs(h.ProductionMode)
+		var allowed bool
+		for _, t := range avail {
+			if t.ID == name {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
 			http.Error(w, "unknown task: "+name, http.StatusNotFound)
 			return
 		}
-		id, err := enqueue()
+		id, err := h.Runner.AddRun(name)
 		if err != nil {
 			if errors.Is(err, taskrunner.ErrQueueFull) {
 				w.Header().Set("Content-Type", "application/json")

@@ -14,7 +14,6 @@ import (
 	"github.com/go-bumbu/http/middleware"
 	"github.com/go-bumbu/userauth"
 	"github.com/go-bumbu/userauth/handlers/sessionauth"
-	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"gorm.io/gorm"
 )
@@ -31,8 +30,6 @@ type Cfg struct {
 	// ScheduleStore and Scheduler: when set, used by the tasks API. Must be created and started by the caller (e.g. server).
 	ScheduleStore *taskrunner.ScheduleStore
 	Scheduler     *taskrunner.Scheduler
-	// Enqueuers: task name -> enqueue func; required for tasks API.
-	Enqueuers map[string]func() (uuid.UUID, error)
 	// TaskLogGetter: when set, tasks API serves execution logs (GET /tasks/executions/:id/logs).
 	TaskLogGetter taskrunner.TaskLogGetter
 	// FinStore and MarketStore: when set, used instead of creating from Db (e.g. when task runner is initialized in runServer).
@@ -55,7 +52,6 @@ type MainAppHandler struct {
 	taskRunner        *taskrunner.Runner
 	scheduler         *taskrunner.Scheduler
 	scheduleStore     *taskrunner.ScheduleStore
-	enqueuers         map[string]func() (uuid.UUID, error)
 	taskLogGetter     taskrunner.TaskLogGetter
 }
 
@@ -77,7 +73,6 @@ func New(cfg Cfg) (*MainAppHandler, error) {
 		taskRunner:        cfg.TaskRunner,
 		scheduleStore:     cfg.ScheduleStore,
 		scheduler:         cfg.Scheduler,
-		enqueuers:         cfg.Enqueuers,
 		taskLogGetter:     cfg.TaskLogGetter,
 	}
 

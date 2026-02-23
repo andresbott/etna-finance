@@ -27,7 +27,6 @@ import (
 	"github.com/go-bumbu/userauth"
 	"github.com/go-bumbu/userauth/handlers/sessionauth"
 	"github.com/go-bumbu/userauth/userstore/staticusers"
-	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
@@ -36,66 +35,6 @@ import (
 const dbFile = "carbon.db"
 const sessionsDir = "sessions"
 const backupsDir = "backup"
-
-// buildTaskRegisterFuncs returns the map of task name -> register func for the given runner and stores.
-// When production is true, dev-only tasks (log-only, log-only-long) are not included.
-// marketDataClient is optional; when set (e.g. pool from config), the financial-import task backfills 1 week per instrument.
-func buildTaskRegisterFuncs(
-	runner *taskrunner.Runner,
-	finStore *accounting.Store,
-	marketStore *marketdata.Store,
-	backupDestination string,
-	logger *slog.Logger,
-	production bool,
-	marketDataClient importer.Client,
-) map[string]func() (uuid.UUID, error) {
-	if runner == nil {
-		return nil
-	}
-	registerFuncs := map[string]func() (uuid.UUID, error){
-		tasks.BackupTaskName: func() (uuid.UUID, error) {
-			return runner.RegisterTask(
-				tasks.NewBackupTaskFn(finStore, backupDestination, logger),
-				tasks.BackupTaskName,
-			)
-		},
-		tasks.FinancialImportTaskName: func() (uuid.UUID, error) {
-			return runner.RegisterTask(
-				tasks.NewFinancialImportTaskFn(marketStore, logger, marketDataClient),
-				tasks.FinancialImportTaskName,
-			)
-		},
-		tasks.FinancialBackfillTaskName: func() (uuid.UUID, error) {
-			return runner.RegisterTask(
-				tasks.NewFinancialBackfillTaskFn(marketStore, logger, marketDataClient),
-				tasks.FinancialBackfillTaskName,
-			)
-		},
-	}
-	if !production {
-		registerFuncs[tasks.LogOnlyTaskName] = func() (uuid.UUID, error) {
-			return runner.RegisterTaskWithMaxParallelism(
-				tasks.NewLogOnlyTaskFn(logger),
-				tasks.LogOnlyTaskName,
-				4, // short demo task: up to 4 concurrent
-			)
-		}
-		registerFuncs[tasks.LogOnlyLongTaskName] = func() (uuid.UUID, error) {
-			return runner.RegisterTaskWithMaxParallelism(
-				tasks.NewLogOnlyLongTaskFn(logger),
-				tasks.LogOnlyLongTaskName,
-				1, // long demo task: only 1 at a time
-			)
-		}
-		registerFuncs[tasks.DebugFailTaskName] = func() (uuid.UUID, error) {
-			return runner.RegisterTask(
-				tasks.NewDebugFailTaskFn(logger),
-				tasks.DebugFailTaskName,
-			)
-		}
-	}
-	return registerFuncs
-}
 
 func serverCmd() *cobra.Command {
 	var configFile = "./config.yaml"
@@ -190,20 +129,34 @@ func runServer(configFile string) error {
 		return fmt.Errorf("schedule store: %w", err)
 	}
 	var marketDataClient importer.Client
+	var fxClient importer.FXClient
 	if len(cfg.MarketDataImporters.Massive.ApiKeys) > 0 {
 		pool, err := importer.NewMassivePool(cfg.MarketDataImporters.Massive.ApiKeys)
 		if err != nil {
 			return fmt.Errorf("market data importer pool (massive): %w", err)
 		}
 		marketDataClient = pool
-	}
-	registerFuncs := buildTaskRegisterFuncs(taskRunner, finStore, marketStore, backupDest, l, cfg.Env.Production, marketDataClient)
-	enqueuer := taskrunner.FuncEnqueuer(func(_ context.Context, taskName string) error {
-		fn := registerFuncs[taskName]
-		if fn == nil {
-			return fmt.Errorf("unknown task: %s", taskName)
+		fxPool, err := importer.NewMassiveFXPool(cfg.MarketDataImporters.Massive.ApiKeys)
+		if err != nil {
+			return fmt.Errorf("FX importer pool (massive): %w", err)
 		}
-		_, err := fn()
+		fxClient = fxPool
+	}
+
+	// Register tasks once; enqueue later via runner.AddRun(name) (scheduler and API).
+	taskRunner.RegisterTask(tasks.NewBackupTaskFn(finStore, backupDest, l), tasks.BackupTaskName, 0)
+	taskRunner.RegisterTask(tasks.NewFinancialImportTaskFn(marketStore, marketDataClient), tasks.FinancialImportTaskName, 0)
+	taskRunner.RegisterTask(tasks.NewFinancialBackfillTaskFn(marketStore, l, marketDataClient), tasks.FinancialBackfillTaskName, 0)
+	taskRunner.RegisterTask(tasks.NewFXImportTaskFn(marketStore, cfg.Settings.MainCurrency, cfg.Settings.Currencies, fxClient), tasks.FXImportTaskName, 0)
+	taskRunner.RegisterTask(tasks.NewFXBackfillTaskFn(marketStore, l, cfg.Settings.MainCurrency, cfg.Settings.Currencies, fxClient), tasks.FXBackfillTaskName, 0)
+	if !cfg.Env.Production {
+		taskRunner.RegisterTask(tasks.NewLogOnlyTaskFn(l), tasks.LogOnlyTaskName, 4)
+		taskRunner.RegisterTask(tasks.NewLogOnlyLongTaskFn(l), tasks.LogOnlyLongTaskName, 1)
+		taskRunner.RegisterTask(tasks.NewDebugFailTaskFn(l), tasks.DebugFailTaskName, 0)
+	}
+
+	enqueuer := taskrunner.FuncEnqueuer(func(_ context.Context, taskName string) error {
+		_, err := taskRunner.AddRun(taskName)
 		return err
 	})
 	scheduler, err := taskrunner.NewScheduler(taskrunner.SchedulerCfg{
@@ -247,7 +200,6 @@ func runServer(configFile string) error {
 		TaskRunner:    taskRunner,
 		ScheduleStore: scheduleStore,
 		Scheduler:     scheduler,
-		Enqueuers:     registerFuncs,
 		TaskLogGetter: taskrunner.NewFileTaskLogReader(filepath.Join(cfg.DataDir, "tasklogs")),
 		FinStore:      finStore,
 		MarketStore:   marketStore,

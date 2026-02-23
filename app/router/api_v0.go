@@ -412,9 +412,14 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 // ==========================================================================
 
 const finMarketDataPath = "/fin/marketdata"
+const finFXPath = "/fin/fx"
 
 func (h *MainAppHandler) marketDataAPI(r *mux.Router) {
-	mktHndlr := mktHandler.Handler{Store: h.marketStore}
+	mktHndlr := mktHandler.Handler{
+		Store:        h.marketStore,
+		MainCurrency: h.appSettings.MainCurrency,
+		Currencies:   h.appSettings.Currencies,
+	}
 
 	// GET /fin/marketdata/symbols (list symbols with price data; must be before {symbol} routes)
 	r.Path(fmt.Sprintf("%s/symbols", finMarketDataPath)).Methods(http.MethodGet).Handler(mktHndlr.ListSymbols())
@@ -462,19 +467,64 @@ func (h *MainAppHandler) marketDataAPI(r *mux.Router) {
 		}
 		mktHndlr.DeletePrice(itemId).ServeHTTP(w, r)
 	})
+
+	// ==========================================================================
+	// Currency exchange (FX) rates — main currency + secondary currencies from settings
+	// ==========================================================================
+
+	// GET /fin/fx/pairs (list configured pairs, e.g. CHF/USD, CHF/EUR)
+	r.Path(fmt.Sprintf("%s/pairs", finFXPath)).Methods(http.MethodGet).Handler(mktHndlr.ListFXPairs())
+
+	// GET /fin/fx/{main}/{secondary}/rates/latest (must be before /rates to avoid "latest" as segment)
+	r.Path(fmt.Sprintf("%s/{main}/{secondary}/rates/latest", finFXPath)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		v := mux.Vars(r)
+		mktHndlr.LatestFXRate(v["main"], v["secondary"]).ServeHTTP(w, r)
+	})
+	// POST /fin/fx/{main}/{secondary}/rates/bulk
+	r.Path(fmt.Sprintf("%s/{main}/{secondary}/rates/bulk", finFXPath)).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		v := mux.Vars(r)
+		mktHndlr.CreateFXRatesBulk(v["main"], v["secondary"]).ServeHTTP(w, r)
+	})
+	// GET /fin/fx/{main}/{secondary}/rates?start=YYYY-MM-DD&end=YYYY-MM-DD
+	r.Path(fmt.Sprintf("%s/{main}/{secondary}/rates", finFXPath)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		v := mux.Vars(r)
+		mktHndlr.ListFXRates(v["main"], v["secondary"]).ServeHTTP(w, r)
+	})
+	// POST /fin/fx/{main}/{secondary}/rates (single rate)
+	r.Path(fmt.Sprintf("%s/{main}/{secondary}/rates", finFXPath)).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		v := mux.Vars(r)
+		mktHndlr.CreateFXRate(v["main"], v["secondary"]).ServeHTTP(w, r)
+	})
+	// PUT /fin/fx/rates/{id}
+	r.Path(fmt.Sprintf("%s/rates/{id}", finFXPath)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		mktHndlr.UpdateFXRate(itemId).ServeHTTP(w, r)
+	})
+	// DELETE /fin/fx/rates/{id}
+	r.Path(fmt.Sprintf("%s/rates/{id}", finFXPath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		mktHndlr.DeleteFXRate(itemId).ServeHTTP(w, r)
+	})
 }
 
 const tasksPath = "/tasks"
 const tasksExecutionsPath = "/tasks/executions"
 
 func (h *MainAppHandler) tasksApi(r *mux.Router) {
-	if h.taskRunner == nil || h.enqueuers == nil {
+	if h.taskRunner == nil {
 		r.PathPrefix(tasksPath).HandlerFunc(StatusErr(http.StatusServiceUnavailable))
 		return
 	}
 	th := taskHandler.Handler{
 		Runner:         h.taskRunner,
-		Enqueuers:      h.enqueuers,
 		ScheduleStore:  h.scheduleStore,
 		Scheduler:      h.scheduler,
 		TaskLogGetter:  h.taskLogGetter,

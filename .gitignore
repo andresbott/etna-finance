@@ -33,3 +33,6 @@ app/spa/files/ui/*
 carbon.db
 zarf/appData/session
 !zarf/appData/session/.gitkeep
+
+# local env (secrets, API keys)
+.env

@@ -6,7 +6,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/glebarez/sqlite v1.11.0
 	github.com/go-bumbu/closure-tree v0.8.2
-	github.com/go-bumbu/config v0.2.0
+	github.com/go-bumbu/config v0.3.1
 	github.com/go-bumbu/http v0.3.0
 	github.com/go-bumbu/tempo v0.0.0
 	github.com/go-bumbu/testdbs v0.2.3
@@ -34,6 +34,8 @@ replace github.com/go-bumbu/http => ../http
 replace github.com/go-bumbu/tempo => /home/odo/datos/edit/programacion/bumbu/tempo
 
 replace github.com/go-bumbu/timeseries => /home/odo/datos/edit/programacion/bumbu/timeseries
+
+replace github.com/go-bumbu/config => ../config
 
 require (
 	dario.cat/mergo v1.0.0 // indirect
