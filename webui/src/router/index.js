@@ -160,7 +160,8 @@ const router = createRouter({
             path: '/market-data/stock-market',
             name: 'stock-market',
             meta: {
-                requiresAuth: true
+                requiresAuth: true,
+                requiresInstruments: true
             },
             component: () => import('@/views/marketdata/StockMarketView.vue')
         },
@@ -172,7 +173,8 @@ const router = createRouter({
             path: '/market-data/stock-market/:id/:tab',
             name: 'stock-detail',
             meta: {
-                requiresAuth: true
+                requiresAuth: true,
+                requiresInstruments: true
             },
             component: () => import('@/views/marketdata/StockDetailView.vue'),
             beforeEnter: (to, _from, next) => {

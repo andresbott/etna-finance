@@ -113,7 +113,7 @@
                             <span class="menu-label">Currency Exchange</span>
                         </router-link>
                     </li>
-                    <li>
+                    <li v-if="settings.instruments">
                         <router-link to="/market-data/stock-market" class="menu-item">
                             <i class="pi pi-chart-line menu-icon"></i>
                             <span class="menu-label">Stock Market</span>

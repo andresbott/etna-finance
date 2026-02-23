@@ -60,8 +60,8 @@ coverage-report: ## generate a coverage report
 #==========================================================================================
 ##@ Running
 #==========================================================================================
-run: ## start the GO service
-	@APP_LOG_LEVEL="debug" go run main.go start -c zarf/appData/config.yaml
+run: ## start the GO service (uses built-in defaults; optional -c config.yaml)
+	@APP_LOG_LEVEL="debug" go run main.go start
 
 run-ui: package-ui run## build the UI and start the GO service
 

@@ -1,7 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
-import AccountProvider from '@/models/AccountProvider'
-import Account from '@/models/Account'
-import type { ProviderItem, AccountItem } from '@/lib/api/Account'
+import type { AccountProvider } from '@/types/account'
+import type { ProviderItem } from '@/lib/api/Account'
 import {
     getProviders,
     createAccountProvider as createProviderApi,
@@ -13,26 +12,12 @@ import {
 } from '@/lib/api/Account'
 import { invalidateAndRefetch } from '@/composables/queryUtils'
 
-function transformProviders(data: ProviderItem[]): AccountProvider[] {
-    return data.map(
-        (item) =>
-            new AccountProvider({
-                id: item.id,
-                name: item.name,
-                description: item.description,
-                icon: item.icon,
-                accounts: (item.accounts ?? []).map(
-                    (acc: AccountItem) =>
-                        new Account({
-                            id: acc.id,
-                            name: acc.name,
-                            currency: acc.currency,
-                            type: acc.type,
-                            icon: acc.icon
-                        })
-                )
-            })
-    )
+/** Normalize API response: ensure accounts is always an array. */
+function normalizeProviders(data: ProviderItem[]): AccountProvider[] {
+    return (data ?? []).map((item) => ({
+        ...item,
+        accounts: item.accounts ?? []
+    })) as AccountProvider[]
 }
 
 export function useAccounts() {
@@ -44,7 +29,7 @@ export function useAccounts() {
     const accountsQuery = useQuery({
         queryKey: QUERY_KEY,
         queryFn: getProviders,
-        select: transformProviders
+        select: normalizeProviders
     })
 
     const createAccountProviderMutation = useMutation({

@@ -39,6 +39,7 @@ Track items to verify, refactor, or implement later.
 - [ ] Store JSONs in the DB and be able to retrieve them
 - [ ] Add a Sankey graph to income/expense
 - [ ] **Backend API card** — Generate graph data for stock price adjusted instruments
+- [ ] **User auth** — Improve login mechanism with better user authentication features
 
 ---
 

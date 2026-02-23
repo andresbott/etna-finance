@@ -20,6 +20,8 @@ coverage.out
 
 # build output
 dist/
+# local builds
+etna
 # application data
 data
 

@@ -1,10 +1,32 @@
 /**
  * Account types and their allowed operations configuration.
- * 
+ *
  * This file provides a centralized mapping of which entry operations
  * are permitted for each account type. Update this file to modify
  * the allowed operations for any account type.
  */
+
+/**
+ * Account domain type (API response shape).
+ */
+export interface Account {
+    id: number
+    name: string
+    currency: string
+    type: string
+    icon?: string
+}
+
+/**
+ * Account provider with nested accounts (API response shape).
+ */
+export interface AccountProvider {
+    id: number
+    name: string
+    description?: string
+    icon?: string
+    accounts: Account[]
+}
 
 /**
  * Account types available in the system

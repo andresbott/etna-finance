@@ -6,10 +6,10 @@ import (
 
 func TestValidateSettings(t *testing.T) {
 	valid := AppSettings{
-		DateFormat:   "YYYY-MM-DD",
-		MainCurrency: "CHF",
-		Currencies:   []string{"CHF"},
-		Instruments:  false,
+		DateFormat:           "YYYY-MM-DD",
+		MainCurrency:         "CHF",
+		AdditionalCurrencies: nil,
+		Instruments:          false,
 	}
 
 	tests := []struct {
@@ -83,54 +83,53 @@ func TestValidateSettings(t *testing.T) {
 			modify:  func(s AppSettings) AppSettings { s.DateFormat = "hello"; return s },
 			wantErr: true,
 		},
-		// Currencies
+		// Currencies (MainCurrency is implicit; AdditionalCurrencies must not repeat it)
 		{
-			name:    "valid multiple currencies",
-			modify:  func(s AppSettings) AppSettings { s.Currencies = []string{"CHF", "USD", "EUR"}; return s },
+			name:    "valid multiple additional currencies",
+			modify:  func(s AppSettings) AppSettings { s.AdditionalCurrencies = []string{"USD", "EUR"}; return s },
 			wantErr: false,
 		},
 		{
-			name:    "invalid currency lowercase",
-			modify:  func(s AppSettings) AppSettings { s.Currencies = []string{"chf"}; s.MainCurrency = "chf"; return s },
+			name:    "invalid main currency lowercase",
+			modify:  func(s AppSettings) AppSettings { s.MainCurrency = "chf"; return s },
 			wantErr: true,
 		},
 		{
-			name:    "invalid currency too short",
-			modify:  func(s AppSettings) AppSettings { s.Currencies = []string{"CH"}; s.MainCurrency = "CH"; return s },
+			name:    "invalid main currency too short",
+			modify:  func(s AppSettings) AppSettings { s.MainCurrency = "CH"; return s },
 			wantErr: true,
 		},
 		{
-			name:    "invalid currency too long",
-			modify:  func(s AppSettings) AppSettings { s.Currencies = []string{"CHFF"}; s.MainCurrency = "CHFF"; return s },
+			name:    "invalid main currency too long",
+			modify:  func(s AppSettings) AppSettings { s.MainCurrency = "CHFF"; return s },
 			wantErr: true,
 		},
 		{
-			name:    "invalid currency with numbers",
-			modify:  func(s AppSettings) AppSettings { s.Currencies = []string{"CH1"}; s.MainCurrency = "CH1"; return s },
+			name:    "invalid main currency with numbers",
+			modify:  func(s AppSettings) AppSettings { s.MainCurrency = "CH1"; return s },
 			wantErr: true,
 		},
 		{
-			name:    "invalid currency empty string",
-			modify:  func(s AppSettings) AppSettings { s.Currencies = []string{""}; s.MainCurrency = ""; return s },
+			name:    "invalid main currency empty string",
+			modify:  func(s AppSettings) AppSettings { s.MainCurrency = ""; return s },
 			wantErr: true,
 		},
 		{
-			name:    "invalid empty currencies list",
-			modify:  func(s AppSettings) AppSettings { s.Currencies = []string{}; return s },
-			wantErr: true,
+			name:    "valid empty additional currencies",
+			modify:  func(s AppSettings) AppSettings { s.AdditionalCurrencies = []string{}; return s },
+			wantErr: false,
 		},
 		{
-			name: "invalid main currency not in list",
+			name: "invalid additional contains main currency",
 			modify: func(s AppSettings) AppSettings {
-				s.MainCurrency = "USD"
-				s.Currencies = []string{"CHF", "EUR"}
+				s.AdditionalCurrencies = []string{"CHF", "EUR"}
 				return s
 			},
 			wantErr: true,
 		},
 		{
-			name:    "invalid one bad currency in list",
-			modify:  func(s AppSettings) AppSettings { s.Currencies = []string{"CHF", "bad", "EUR"}; return s },
+			name:    "invalid one bad currency in additional",
+			modify:  func(s AppSettings) AppSettings { s.AdditionalCurrencies = []string{"bad", "EUR"}; return s },
 			wantErr: true,
 		},
 		{
@@ -140,18 +139,18 @@ func TestValidateSettings(t *testing.T) {
 		},
 		// ISO 4217 specific: valid format but not a real currency
 		{
-			name:    "invalid currency not in ISO 4217",
-			modify:  func(s AppSettings) AppSettings { s.Currencies = []string{"ZZZ"}; s.MainCurrency = "ZZZ"; return s },
+			name:    "invalid main currency not in ISO 4217",
+			modify:  func(s AppSettings) AppSettings { s.MainCurrency = "ZZZ"; return s },
 			wantErr: true,
 		},
 		{
 			name:    "valid historical currency BAM",
-			modify:  func(s AppSettings) AppSettings { s.Currencies = []string{"CHF", "BAM"}; return s },
+			modify:  func(s AppSettings) AppSettings { s.AdditionalCurrencies = []string{"BAM"}; return s },
 			wantErr: false,
 		},
 		{
-			name:    "valid currency JPY",
-			modify:  func(s AppSettings) AppSettings { s.Currencies = []string{"CHF", "JPY", "GBP"}; return s },
+			name:    "valid additional JPY and GBP",
+			modify:  func(s AppSettings) AppSettings { s.AdditionalCurrencies = []string{"JPY", "GBP"}; return s },
 			wantErr: false,
 		},
 	}

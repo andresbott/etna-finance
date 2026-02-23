@@ -7,8 +7,10 @@ import CashAccountsCard from './CashAccountsCard.vue'
 import InvestmentAccountsCard from './InvestmentAccountsCard.vue'
 import AccountTypesList from './AccountTypesList.vue'
 import AccountDistribution from './AccountDistribution.vue'
+import { useSettingsStore } from '@/store/settingsStore.js'
 
 const leftSidebarCollapsed = ref(true)
+const settings = useSettingsStore()
 </script>
 
 <template>
@@ -29,10 +31,10 @@ const leftSidebarCollapsed = ref(true)
                 </div>
 
                 <!-- Account Balances: Cash (left) + Investment (right) -->
-                <div class="col-12 lg:col-6">
+                <div :class="settings.instruments ? 'col-12 lg:col-6' : 'col-12'">
                     <CashAccountsCard />
                 </div>
-                <div class="col-12 lg:col-6">
+                <div v-if="settings.instruments" class="col-12 lg:col-6">
                     <InvestmentAccountsCard />
                 </div>
             </div>

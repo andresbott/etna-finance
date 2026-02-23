@@ -22,6 +22,8 @@ type Cfg struct {
 	Db                *gorm.DB
 	SessionAuth       *sessionauth.Manager
 	UserMngr          userauth.LoginHandler
+	AuthDisabled      bool   // when true, no login required; all operations use DefaultUser
+	DefaultUser       string // used when AuthDisabled=true
 	Logger            *slog.Logger
 	BackupDestination string
 	ProductionMode    bool
@@ -45,6 +47,8 @@ type MainAppHandler struct {
 	marketStore       *marketdata.Store
 	SessionAuth       *sessionauth.Manager
 	userMngr          userauth.LoginHandler
+	authDisabled      bool
+	defaultUser       string
 	logger            *slog.Logger
 	backupDestination string
 	productionMode    bool
@@ -66,6 +70,8 @@ func New(cfg Cfg) (*MainAppHandler, error) {
 		db:                cfg.Db,
 		SessionAuth:       cfg.SessionAuth,
 		userMngr:          cfg.UserMngr,
+		authDisabled:      cfg.AuthDisabled,
+		defaultUser:       cfg.DefaultUser,
 		logger:            cfg.Logger,
 		backupDestination: cfg.BackupDestination,
 		productionMode:    cfg.ProductionMode,
@@ -117,20 +123,29 @@ func (h *MainAppHandler) attachSpa(r *mux.Router, path string) error {
 }
 
 func (h *MainAppHandler) attachUserAuth(r *mux.Router) {
+	if h.authDisabled {
+		// Auth disabled: no-op login/logout, status returns default user as logged in
+		r.Path("/login").Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+		r.Path("/login").Methods(http.MethodOptions).Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+		r.Path("/login").HandlerFunc(StatusErr(http.StatusMethodNotAllowed))
+		r.Path("/logout").Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+		r.Path("/status").Methods(http.MethodGet).Handler(handlrs.AuthStatusHandler(nil, true, h.defaultUser))
+		r.Path("/status").HandlerFunc(StatusErr(http.StatusMethodNotAllowed))
+	} else {
+		// LOGIN
+		r.Path("/login").Methods(http.MethodPost).Handler(h.SessionAuth.JsonAuthHandler(h.userMngr))
+		r.Path("/login").Methods(http.MethodOptions).Handler(
+			http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {}))
+		// TODO add a basic form login here to the GET method
+		r.Path("/login").HandlerFunc(StatusErr(http.StatusMethodNotAllowed))
 
-	//  LOGIN
-	r.Path("/login").Methods(http.MethodPost).Handler(h.SessionAuth.JsonAuthHandler(h.userMngr))
-	r.Path("/login").Methods(http.MethodOptions).Handler(
-		http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {}))
-	// TODO add a basic form login here to the GET method
-	r.Path("/login").HandlerFunc(StatusErr(http.StatusMethodNotAllowed))
+		// LOGOUT
+		r.Path("/logout").Handler(h.SessionAuth.LogoutHandler("/"))
 
-	// LOGOUT
-	r.Path("/logout").Handler(h.SessionAuth.LogoutHandler("/"))
-
-	// STATUS
-	r.Path("/status").Methods(http.MethodGet).Handler(handlrs.UserStatusHandler(h.SessionAuth))
-	r.Path("/status").HandlerFunc(StatusErr(http.StatusMethodNotAllowed))
+		// STATUS
+		r.Path("/status").Methods(http.MethodGet).Handler(handlrs.AuthStatusHandler(h.SessionAuth, false, ""))
+		r.Path("/status").HandlerFunc(StatusErr(http.StatusMethodNotAllowed))
+	}
 
 	// OPTIONS
 	//r.Path("/user/options").Methods(http.MethodGet).Handler(handlers.StatusErr(http.StatusNotImplemented))

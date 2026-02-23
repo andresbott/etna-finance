@@ -26,10 +26,12 @@ It builds on top of https://github.com/go-bumbu
 ### Starting the backend
 
 ```
-APP_LOG_LEVEL="debug" go run main.go start -c zarf/appData/config.yaml
+go run main.go start
 ```
 
-note: there is a convenient make target `make run`
+Runs without a config file using built-in defaults (auth disabled, no login). Optional: copy `zarf/pkg/deb-config.yaml` to `config.yaml` and customize.
+
+There is a convenient make target `make run`.
 
 
 ### Starting the frontend
@@ -39,11 +41,8 @@ npm run dev
 ```
 
 ### Install sample content
-while the backend is up and running (on localhost:8085) run
+While the backend is up and running (localhost:8085), run:
 ```
-@go run zarf/sampleData/*.go
+go run zarf/sampleData/*.go
 ```
-this will install sample content for the user demo
-
-### Accessing 
-now you can login with demo:demo or admin:admin
+This installs sample content. With auth disabled (default), the app is immediately accessible. If auth is enabled, use demo:demo or admin:admin to log in.

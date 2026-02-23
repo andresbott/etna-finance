@@ -16,11 +16,17 @@ import (
 )
 
 func (h *MainAppHandler) attachApiV0(r *mux.Router) error {
-	// this sub router does enforce authentication
-	authHandlers := []authenticator.AuthHandler{h.SessionAuth}
-	auth := authenticator.New(authHandlers, h.logger, nil, nil)
-
-	r.Use(auth.Middleware)
+	var authMiddleware func(http.Handler) http.Handler
+	if h.authDisabled {
+		authMiddleware = authenticator.New(
+			[]authenticator.AuthHandler{NewNoAuthHandler(h.defaultUser)},
+			h.logger, nil, nil,
+		).Middleware
+	} else {
+		auth := authenticator.New([]authenticator.AuthHandler{h.SessionAuth}, h.logger, nil, nil)
+		authMiddleware = auth.Middleware
+	}
+	r.Use(authMiddleware)
 
 	// attach api paths to api/v0
 	h.settingsApi(r)

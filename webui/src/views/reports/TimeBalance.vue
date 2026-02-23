@@ -4,6 +4,7 @@ import Card from 'primevue/card'
 import TabView from 'primevue/tabview'
 import TabPanel from 'primevue/tabpanel'
 import VChart from 'vue-echarts'
+import { useSettingsStore } from '@/store/settingsStore.js'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart } from 'echarts/charts'
@@ -20,6 +21,7 @@ import { useDateFormat } from '@/composables/useDateFormat'
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent, DataZoomComponent])
 
+const settings = useSettingsStore()
 const { accounts } = useAccounts()
 const { balanceReport: balanceReportMutation } = useBalance()
 const { mutate, data: balanceReport } = balanceReportMutation
@@ -182,7 +184,7 @@ watch(
                         style="height: 450px"
                     />
                 </TabPanel>
-                <TabPanel header="Instruments">
+                <TabPanel v-if="settings.instruments" header="Instruments">
                     <div
                         class="instruments-placeholder"
                         style="height: 450px; display: flex; align-items: center; justify-content: center; color: var(--c-text-muted-color, #6b7280);"

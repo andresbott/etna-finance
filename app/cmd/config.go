@@ -34,10 +34,21 @@ type MarketDataImporterConfig struct {
 }
 
 type AppSettings struct {
-	DateFormat   string
-	MainCurrency string
-	Currencies   []string
-	Instruments  bool
+	DateFormat           string
+	MainCurrency         string
+	AdditionalCurrencies []string // currencies to track; main currency is implicit, do not repeat
+	Instruments          bool
+}
+
+// AllCurrencies returns MainCurrency plus AdditionalCurrencies (main is implicit, not repeated in config).
+func (s AppSettings) AllCurrencies() []string {
+	out := []string{s.MainCurrency}
+	for _, c := range s.AdditionalCurrencies {
+		if c != s.MainCurrency {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 type Env struct {
@@ -58,6 +69,8 @@ func (c serverCfg) Addr() string {
 }
 
 type authConfig struct {
+	Enabled       bool   // when false, no login required; all operations use DefaultUser
+	DefaultUser   string `config:"DefaultUser"` // used when Enabled=false; default "default"
 	HashKeyBytes  []byte
 	BlockKeyBytes []byte
 	HashKey       string
@@ -87,8 +100,10 @@ var defaultCfg = AppCfg{
 		Port:   9090,
 	},
 	Auth: authConfig{
-		HashKey:  "", // cookie store encryption key
-		BlockKey: "", // cookie value encryption
+		Enabled:     false, // no login required; all operations use DefaultUser
+		DefaultUser: "default",
+		HashKey:     "",
+		BlockKey:    "",
 		UserStore: userStore{
 			StoreType: "static",
 			Users: []User{
@@ -105,13 +120,13 @@ var defaultCfg = AppCfg{
 	},
 	Env: Env{
 		LogLevel:   "info",
-		Production: true,
+		Production: false,
 	},
 	Settings: AppSettings{
-		DateFormat:   "YYYY-MM-DD",
-		MainCurrency: "CHF",
-		Currencies:   []string{"CHF"},
-		Instruments:  false,
+		DateFormat:           "YYYY-MM-DD",
+		MainCurrency:         "CHF",
+		AdditionalCurrencies: nil, // empty = main currency only
+		Instruments:          false,
 	},
 	MarketDataImporters: MarketDataImportersCfg{}, // set Massive with ApiKeys in YAML to enable backfill
 }
@@ -159,26 +174,14 @@ func validateSettings(s AppSettings) error {
 		return fmt.Errorf("main currency: %w", err)
 	}
 
-	// Validate currencies list
-	if len(s.Currencies) == 0 {
-		return fmt.Errorf("currencies list must not be empty")
-	}
-	for _, c := range s.Currencies {
+	// Validate additional currencies (main is implicit; do not repeat)
+	for _, c := range s.AdditionalCurrencies {
 		if err := validateCurrency(c); err != nil {
-			return fmt.Errorf("currencies list: %w", err)
+			return fmt.Errorf("additional currencies: %w", err)
 		}
-	}
-
-	// Ensure main currency is included in the currencies list
-	found := false
-	for _, c := range s.Currencies {
 		if c == s.MainCurrency {
-			found = true
-			break
+			return fmt.Errorf("additional currencies must not include main currency %q (it is implicit)", s.MainCurrency)
 		}
-	}
-	if !found {
-		return fmt.Errorf("main currency %q must be included in the currencies list %v", s.MainCurrency, s.Currencies)
 	}
 
 	return nil
@@ -214,21 +217,27 @@ func getAppCfg(file string) (AppCfg, error) {
 	}
 	cfg.DataDir = absPath
 
-	// handle auth cookie hash
-	if cfg.Auth.HashKey == "" || cfg.Auth.BlockKey == "" {
-		cfg.Auth.HashKeyBytes = securecookie.GenerateRandomKey(64)
-		cfg.Auth.BlockKeyBytes = securecookie.GenerateRandomKey(32)
+	// handle auth config
+	if !cfg.Auth.Enabled {
+		// Auth disabled: HashKey, BlockKey, UserStore not needed; use placeholder for DefaultUser if empty
+		if cfg.Auth.DefaultUser == "" {
+			cfg.Auth.DefaultUser = "default"
+		}
+	} else {
+		// Auth enabled: require HashKey and BlockKey
+		if cfg.Auth.HashKey == "" || cfg.Auth.BlockKey == "" {
+			cfg.Auth.HashKeyBytes = securecookie.GenerateRandomKey(64)
+			cfg.Auth.BlockKeyBytes = securecookie.GenerateRandomKey(32)
+		}
+		if len(cfg.Auth.HashKey) != 64 {
+			return cfg, fmt.Errorf("hashkey must be 64 chars long")
+		}
+		if len(cfg.Auth.BlockKey) != 32 {
+			return cfg, fmt.Errorf("blockKey must be 32 chars long")
+		}
+		cfg.Auth.HashKeyBytes = []byte(cfg.Auth.HashKey)
+		cfg.Auth.BlockKeyBytes = []byte(cfg.Auth.BlockKey)
 	}
-
-	if len(cfg.Auth.HashKey) != 64 {
-		return cfg, fmt.Errorf("hashkey must be 64 chars long")
-	}
-	if len(cfg.Auth.BlockKey) != 32 {
-		return cfg, fmt.Errorf("blockKey must be 32 chars long")
-	}
-
-	cfg.Auth.HashKeyBytes = []byte(cfg.Auth.HashKey)
-	cfg.Auth.BlockKeyBytes = []byte(cfg.Auth.BlockKey)
 
 	// Validate application settings
 	if err := validateSettings(cfg.Settings); err != nil {

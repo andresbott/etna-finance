@@ -109,6 +109,27 @@ func runServer(configFile string) error {
 		return fmt.Errorf("accounting store: %w", err)
 	}
 
+	// ——— Instruments config vs DB consistency ———
+	// If config has Instruments: false but DB contains investment/unvested accounts, override to true.
+	ctx := context.Background()
+	accounts, err := finStore.ListAccounts(ctx)
+	if err != nil {
+		return fmt.Errorf("listing accounts at startup: %w", err)
+	}
+	hasInvestmentAccounts := false
+	for _, acc := range accounts {
+		if acc.Type == accounting.InvestmentAccountType || acc.Type == accounting.UnvestedAccountType {
+			hasInvestmentAccounts = true
+			break
+		}
+	}
+	if hasInvestmentAccounts && !cfg.Settings.Instruments {
+		cfg.Settings.Instruments = true
+		l.Warn("config discrepancy: Settings.Instruments is false but database contains investment or unvested accounts; enabling Instruments",
+			slog.String("component", "startup"),
+			slog.String("reason", "db_has_investment_accounts"))
+	}
+
 	// ——— Task runner and cron scheduler (started inside GroupRunner task) ———
 	taskRunner, err := taskrunner.NewRunner(taskrunner.Cfg{
 		Parallelism: 6,
@@ -147,8 +168,8 @@ func runServer(configFile string) error {
 	taskRunner.RegisterTask(tasks.NewBackupTaskFn(finStore, backupDest, l), tasks.BackupTaskName, 0)
 	taskRunner.RegisterTask(tasks.NewFinancialImportTaskFn(marketStore, marketDataClient), tasks.FinancialImportTaskName, 0)
 	taskRunner.RegisterTask(tasks.NewFinancialBackfillTaskFn(marketStore, l, marketDataClient), tasks.FinancialBackfillTaskName, 0)
-	taskRunner.RegisterTask(tasks.NewFXImportTaskFn(marketStore, cfg.Settings.MainCurrency, cfg.Settings.Currencies, fxClient), tasks.FXImportTaskName, 0)
-	taskRunner.RegisterTask(tasks.NewFXBackfillTaskFn(marketStore, l, cfg.Settings.MainCurrency, cfg.Settings.Currencies, fxClient), tasks.FXBackfillTaskName, 0)
+	taskRunner.RegisterTask(tasks.NewFXImportTaskFn(marketStore, cfg.Settings.MainCurrency, cfg.Settings.AllCurrencies(), fxClient), tasks.FXImportTaskName, 0)
+	taskRunner.RegisterTask(tasks.NewFXBackfillTaskFn(marketStore, l, cfg.Settings.MainCurrency, cfg.Settings.AllCurrencies(), fxClient), tasks.FXBackfillTaskName, 0)
 	if !cfg.Env.Production {
 		taskRunner.RegisterTask(tasks.NewLogOnlyTaskFn(l), tasks.LogOnlyTaskName, 4)
 		taskRunner.RegisterTask(tasks.NewLogOnlyLongTaskFn(l), tasks.LogOnlyLongTaskName, 1)
@@ -168,33 +189,43 @@ func runServer(configFile string) error {
 		return fmt.Errorf("task scheduler: %w", err)
 	}
 
-	// ——— Auth: user store, session store, session manager ———
-	userStore, err := getUserStore(cfg, l)
-	if err != nil {
-		return err
+	// ——— Auth: user store, session store, session manager (or none when disabled) ———
+	var sessionAuth *sessionauth.Manager
+	var userMngr userauth.LoginHandler
+	if !cfg.Auth.Enabled {
+		l.Info("authentication disabled", slog.String("component", "auth"), slog.String("defaultUser", cfg.Auth.DefaultUser))
+		if cfg.Env.Production {
+			l.Warn("auth disabled in production mode", slog.String("component", "auth"))
+		}
+	} else {
+		userStore, err := getUserStore(cfg, l)
+		if err != nil {
+			return err
+		}
+		store, _ := sessionauth.NewFsStore(filepath.Join(cfg.DataDir, sessionsDir), cfg.Auth.HashKeyBytes, cfg.Auth.BlockKeyBytes)
+		sessionAuth, _ = sessionauth.New(sessionauth.Cfg{
+			Store:         store,
+			SessionDur:    time.Hour,       // time the user is logged in
+			MaxSessionDur: 24 * time.Hour,  // time after the user is forced to re-login anyway
+			MinWriteSpace: 2 * time.Minute, // throttle write operations on the session
+		})
+		userMngr = userauth.LoginHandler{UserStore: userStore}
 	}
-	store, _ := sessionauth.NewFsStore(filepath.Join(cfg.DataDir, sessionsDir), cfg.Auth.HashKeyBytes, cfg.Auth.BlockKeyBytes)
-	sessionAuth, _ := sessionauth.New(sessionauth.Cfg{
-		Store:         store,
-		SessionDur:    time.Hour,       // time the user is logged in
-		MaxSessionDur: 24 * time.Hour,  // time after the user is forced to re-login anyway
-		MinWriteSpace: 2 * time.Minute, // throttle write operations on the session
-	})
 
 	// ——— Router (API, SPA, handlers) ———
 	routerCfg := router.Cfg{
-		Db:          db,
-		SessionAuth: sessionAuth,
-		UserMngr: userauth.LoginHandler{
-			UserStore: userStore,
-		},
+		Db:                db,
+		SessionAuth:       sessionAuth,
+		UserMngr:          userMngr,
+		AuthDisabled:      !cfg.Auth.Enabled,
+		DefaultUser:       cfg.Auth.DefaultUser,
 		Logger:            l,
 		BackupDestination: backupDest,
 		ProductionMode:    cfg.Env.Production,
 		AppSettings: handlers.AppSettings{
 			DateFormat:   cfg.Settings.DateFormat,
 			MainCurrency: cfg.Settings.MainCurrency,
-			Currencies:   cfg.Settings.Currencies,
+			Currencies:   cfg.Settings.AllCurrencies(),
 			Instruments:  cfg.Settings.Instruments,
 		},
 		TaskRunner:    taskRunner,
