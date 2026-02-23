@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, nextTick } from 'vue'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
 import { Form } from '@primevue/forms'
@@ -26,8 +26,10 @@ import {
     getSubmitValues
 } from '@/composables/useEntryDialogForm'
 import { accountValidation } from '@/utils/entryValidation'
+import { getApiErrorMessage } from '@/utils/apiError'
 
 const queryClient = useQueryClient()
+const backendError = ref('')
 const { instruments: instrumentsData } = useInstruments()
 const { updateEntry } = useEntries({})
 
@@ -64,10 +66,12 @@ const props = defineProps({
     investmentAccountId: { type: Number, default: null },
     cashAccountId: { type: Number, default: null },
     cashAmount: { type: Number, default: null },
+    fees: { type: Number, default: 0 },
     autofocusAmount: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['update:visible'])
+watch(() => props.visible, (v) => { if (!v) backendError.value = '' })
 
 const initialOriginAmount = () => {
     if (props.cashAmount != null && props.cashAmount > 0) return props.cashAmount
@@ -78,7 +82,7 @@ const initialOriginAmount = () => {
 }
 
 const initialTargetAmount = () => {
-    if (props.cashAmount != null && props.cashAmount > 0) return props.cashAmount
+    if (props.operationType === 'sell' && props.cashAmount != null && props.cashAmount >= 0) return props.cashAmount
     const q = props.quantity
     const p = props.pricePerShare
     if (q != null && p != null && !Number.isNaN(q) && !Number.isNaN(p) && p > 0) return q * p
@@ -93,14 +97,17 @@ const formValues = ref({
     date: getDateOnly(props.date),
     originAmount: initialOriginAmount(),
     targetAmount: initialTargetAmount(),
+    fees: 0,
     InvestmentAccountId: getFormattedAccountId(props.investmentAccountId),
     CashAccountId: getFormattedAccountId(props.cashAccountId)
 })
 
+// When dialog opens, always sync form from props so edit shows the same values you entered (e.g. net + fees for sell).
 watch(
-    () => [props.visible, props.instrumentId, props.description, props.quantity, props.pricePerShare, props.date, props.investmentAccountId, props.cashAccountId],
-    () => {
+    () => [props.visible, props.instrumentId, props.description, props.quantity, props.pricePerShare, props.date, props.investmentAccountId, props.cashAccountId, props.cashAmount, props.fees],
+    async () => {
         if (props.visible) {
+            await nextTick()
             formValues.value = {
                 instrumentId: props.instrumentId,
                 description: props.description,
@@ -109,6 +116,7 @@ watch(
                 date: getDateOnly(props.date),
                 originAmount: initialOriginAmount(),
                 targetAmount: initialTargetAmount(),
+                fees: props.operationType === 'sell' ? (props.fees ?? 0) : 0,
                 InvestmentAccountId: getFormattedAccountId(props.investmentAccountId),
                 CashAccountId: getFormattedAccountId(props.cashAccountId)
             }
@@ -162,6 +170,7 @@ const resolver = computed(() => {
     }
     if (props.operationType === 'sell') {
         base.targetAmount = z.number().min(0.01, { message: 'Amount must be greater than 0' })
+        base.fees = z.number().min(0, { message: 'Fees cannot be negative' }).optional().default(0)
     }
     return zodResolver(z.object(base))
 })
@@ -181,28 +190,33 @@ const handleSubmit = async (e) => {
     const date = values.date ?? v.date
     const invId = extractAccountId(values.InvestmentAccountId ?? v.InvestmentAccountId)
     const cashId = extractAccountId(values.CashAccountId ?? v.CashAccountId)
+    const netAmount = props.operationType === 'sell' ? Number(values.targetAmount ?? v.targetAmount ?? 0) : 0
+    const fees = props.operationType === 'sell' ? Number(values.fees ?? v.fees ?? 0) : 0
     const total =
         props.operationType === 'buy'
             ? Number(values.originAmount ?? v.originAmount ?? 0)
-            : Number(values.targetAmount ?? v.targetAmount ?? 0)
+            : netAmount + fees
     const pricePerShare = Number(values.pricePerShare ?? v.pricePerShare ?? 0)
     const stockAmount = quantity * pricePerShare
 
-    if (!description || !(instrumentId >= 1) || !(quantity > 0) || invId == null || cashId == null || !(total > 0) || !(stockAmount > 0)) return
+    if (!description || !(instrumentId >= 1) || !(quantity > 0) || invId == null || cashId == null || !(total > 0)) return
+    if (props.operationType === 'buy' && !(stockAmount > 0)) return
 
+    backendError.value = ''
     try {
         if (props.isEdit && props.entryId != null) {
-            await updateEntry({
+            const updatePayload = {
                 id: String(props.entryId),
                 description,
                 date: toDateString(date),
                 instrumentId,
                 quantity,
                 totalAmount: total,
-                StockAmount: stockAmount,
                 investmentAccountId: invId,
-                cashAccountId: cashId
-            })
+                cashAccountId: cashId,
+                ...(props.operationType === 'buy' ? { StockAmount: stockAmount } : { fees })
+            }
+            await updateEntry(updatePayload)
         } else {
             const payload = {
                 type: props.operationType === 'sell' ? 'stocksell' : 'stockbuy',
@@ -211,14 +225,15 @@ const handleSubmit = async (e) => {
                 instrumentId,
                 quantity,
                 totalAmount: total,
-                StockAmount: stockAmount,
                 investmentAccountId: invId,
-                cashAccountId: cashId
+                cashAccountId: cashId,
+                ...(props.operationType === 'buy' ? { StockAmount: stockAmount } : { fees })
             }
             await createMutation.mutateAsync(payload)
         }
         emit('update:visible', false)
     } catch (err) {
+        backendError.value = getApiErrorMessage(err)
         console.error(props.isEdit ? 'Failed to update stock operation:' : 'Failed to create stock operation:', err)
     }
 }
@@ -241,6 +256,7 @@ const handleSubmit = async (e) => {
             :validateOnBlur="false"
             @submit="handleSubmit"
         >
+            <Message v-if="backendError" severity="error" :closable="false" class="mb-2">{{ backendError }}</Message>
             <div v-focustrap class="flex flex-column gap-3">
                 <!-- Top section: instrument, description, date, quantity -->
                 <div class="flex flex-column gap-3">
@@ -403,7 +419,7 @@ const handleSubmit = async (e) => {
                                 </Message>
                             </div>
                             <div>
-                                <label for="targetAmount" class="form-label">Amount</label>
+                                <label for="targetAmount" class="form-label">Net amount (after fees)</label>
                                 <InputNumber
                                     id="targetAmount"
                                     v-model="formValues.targetAmount"
@@ -413,6 +429,19 @@ const handleSubmit = async (e) => {
                                 />
                                 <Message v-if="$form.targetAmount?.invalid" severity="error" size="small">
                                     {{ $form.targetAmount?.error?.message }}
+                                </Message>
+                            </div>
+                            <div>
+                                <label for="fees" class="form-label">Fees (optional)</label>
+                                <InputNumber
+                                    id="fees"
+                                    v-model="formValues.fees"
+                                    name="fees"
+                                    :minFractionDigits="2"
+                                    :maxFractionDigits="2"
+                                />
+                                <Message v-if="$form.fees?.invalid" severity="error" size="small">
+                                    {{ $form.fees?.error?.message }}
                                 </Message>
                             </div>
                         </template>

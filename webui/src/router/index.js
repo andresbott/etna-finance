@@ -39,6 +39,15 @@ const router = createRouter({
             component: () => import('@/views/entries/EntriesView.vue')
         },
         {
+            path: '/financial-transactions',
+            name: 'financial-transactions',
+            meta: {
+                requiresAuth: true
+            },
+            component: () => import('@/views/entries/EntriesView.vue'),
+            props: { financialOnly: true }
+        },
+        {
             path: '/entries/:id',
             name: 'entries-by-account',
             meta: {

@@ -10,17 +10,25 @@ import DeleteDialog from '@/components/common/confirmDialog.vue'
 import EntriesTable from './EntriesTable.vue'
 
 import { useEntries } from '@/composables/useEntries.ts'
+import { getEntry } from '@/lib/api/Entry'
 import IncomeExpenseDialog from '@/views/entries/dialogs/IncomeExpenseDialog.vue'
 import AddEntryMenu from '@/views/entries/AddEntryMenu.vue'
 
+const props = defineProps({
+    /** When true, show only financial types: transfer, stockbuy, stocksell, stockgrant, stocktransfer (excludes income/expense). */
+    financialOnly: { type: Boolean, default: false }
+})
+
+const FINANCIAL_ENTRY_TYPES = ['transfer', 'stockbuy', 'stocksell', 'stockgrant', 'stocktransfer']
+
 /* --- Reactive State --- */
 const today = new Date()
-const startDate = ref(new Date(today.setDate(today.getDate() - 35)))
+const startDate = ref(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 35))
 const endDate = ref(new Date())
 
 /* --- Pagination State --- */
 const page = ref(1)
-const limit = ref(25)
+const limit = ref(props.financialOnly ? 500 : 25)
 const first = ref(0) // First row index for DataTable
 
 const { entries, totalRecords, isLoading, isFetching, deleteEntry, isDeleting, refetch } = useEntries({
@@ -30,16 +38,31 @@ const { entries, totalRecords, isLoading, isFetching, deleteEntry, isDeleting, r
     limit
 })
 
+const filteredEntries = computed(() => {
+    const list = entries.value ?? []
+    if (!props.financialOnly) return list
+    return list.filter((e) => FINANCIAL_ENTRY_TYPES.includes(e.type))
+})
+
+const displayedEntries = computed(() => {
+    if (!props.financialOnly) return filteredEntries.value
+    const start = first.value
+    const rows = limit.value
+    return filteredEntries.value.slice(start, start + rows)
+})
+
 /* --- Computed pagination values for template --- */
 const paginationRows = computed(() => limit.value)
 const paginationFirst = computed(() => first.value)
-const paginationTotal = computed(() => totalRecords.value || 0)
+const paginationTotal = computed(() =>
+    props.financialOnly ? filteredEntries.value.length : (totalRecords.value || 0)
+)
 
 /* --- Pagination Handler --- */
 const handlePage = (event) => {
-    page.value = event.page + 1 // PrimeVue uses 0-based page, API uses 1-based
-    limit.value = event.rows
     first.value = event.first
+    limit.value = event.rows
+    if (!props.financialOnly) page.value = event.page + 1 // Server-side: API uses 1-based page
 }
 
 /* --- Reset pagination when date range changes --- */
@@ -47,6 +70,16 @@ watch([startDate, endDate], () => {
     page.value = 1
     first.value = 0
 })
+
+watch(
+    () => props.financialOnly,
+    (financialOnly) => {
+        limit.value = financialOnly ? 500 : 25
+        first.value = 0
+        page.value = 1
+    },
+    { immediate: true }
+)
 
 const selectedEntry = ref(null)
 const isEditMode = ref(false)
@@ -69,14 +102,23 @@ const dialogs = {
 }
 
 /* --- Entry Actions --- */
-const openEditEntryDialog = (entry) => {
+const openEditEntryDialog = async (entry) => {
     isEditMode.value = true
     isDuplicateMode.value = false
-    selectedEntry.value = entry
-    console.log(entry)
+    // For sells, list API does not include fees; fetch full entry so dialog shows correct net + fees
+    if (entry.type === 'stocksell') {
+        try {
+            const full = await getEntry(entry.id)
+            selectedEntry.value = full
+        } catch (e) {
+            console.error('Failed to load sell entry for edit', e)
+            selectedEntry.value = entry
+        }
+    } else {
+        selectedEntry.value = entry
+    }
 
     if (entry.type === 'expense' || entry.type === 'income') {
-        // Use IncomeExpenseDialog for income and expense entries
         dialogs.incomeExpense.value = true
     } else if (entry.type === 'transfer') {
         dialogs.transfer.value = true
@@ -148,12 +190,13 @@ const handleDeleteEntry = async () => {
 
             <div class="entries-view">
                 <EntriesTable
-                    :entries="entries"
+                    :entries="displayedEntries"
                     :isLoading="isLoading || isFetching"
                     :isDeleting="isDeleting"
                     :totalRecords="paginationTotal"
                     :rows="paginationRows"
                     :first="paginationFirst"
+                    :financial-columns="financialOnly"
                     @edit="openEditEntryDialog"
                     @duplicate="openDuplicateEntryDialog"
                     @delete="openDeleteDialog"
@@ -217,8 +260,9 @@ const handleDeleteEntry = async () => {
         :instrument-id="selectedEntry?.instrumentId"
         :description="selectedEntry?.description"
         :quantity="selectedEntry?.quantity"
-        :price-per-share="selectedEntry?.StockAmount && selectedEntry?.quantity ? selectedEntry.StockAmount / selectedEntry.quantity : undefined"
-        :cash-amount="isDuplicateMode ? undefined : selectedEntry?.totalAmount"
+        :price-per-share="(selectedEntry?.quantity && (selectedEntry?.costBasis != null || selectedEntry?.StockAmount != null)) ? ((selectedEntry?.costBasis ?? selectedEntry?.StockAmount) / selectedEntry.quantity) : undefined"
+        :cash-amount="isDuplicateMode ? undefined : (selectedEntry?.totalAmount ?? 0) - (selectedEntry?.fees ?? 0)"
+        :fees="isDuplicateMode ? 0 : (selectedEntry?.fees ?? 0)"
         :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
         :investment-account-id="selectedEntry?.investmentAccountId"
         :cash-account-id="selectedEntry?.cashAccountId"
@@ -232,6 +276,7 @@ const handleDeleteEntry = async () => {
         :instrument-id="selectedEntry?.instrumentId"
         :description="selectedEntry?.description"
         :quantity="selectedEntry?.quantity"
+        :fair-market-value="selectedEntry?.fairMarketValue ?? 0"
         :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
         :account-id="selectedEntry?.accountId"
         @update:visible="dialogs.grantStock.value = $event"

@@ -279,6 +279,20 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 		finHndlr.ListTx().ServeHTTP(w, r)
 	})
 
+	r.Path(fmt.Sprintf("%s/{id}", finEntries)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err := sessionauth.CtxGetUserData(r)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		finHndlr.GetTx(itemId).ServeHTTP(w, r)
+	})
+
 	r.Path(finEntries).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, err := sessionauth.CtxGetUserData(r)
 		if err != nil {

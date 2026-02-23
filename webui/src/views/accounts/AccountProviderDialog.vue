@@ -8,9 +8,11 @@ import Message from 'primevue/message'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
 import { useAccounts } from '@/composables/useAccounts'
+import { getApiErrorMessage } from '@/utils/apiError'
 import IconSelect from '@/components/common/IconSelect.vue'
 
 const { createAccountProvider, updateAccountProvider, isCreating, isUpdating } = useAccounts()
+const backendError = ref('')
 
 const props = defineProps({
     isEdit: { type: Boolean, default: false },
@@ -22,6 +24,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:visible'])
+watch(() => props.visible, (v) => { if (!v) backendError.value = '' })
 
 // Separate ref for icon since it's not managed by the Form
 const selectedIcon = ref(props.icon)
@@ -55,6 +58,7 @@ const onFormSubmit = async (e) => {
             providerId: props.providerId
         }
 
+        backendError.value = ''
         if (props.isEdit) {
             try {
                 await updateAccountProvider({
@@ -65,6 +69,7 @@ const onFormSubmit = async (e) => {
                 })
                 emit('update:visible', false)
             } catch (error) {
+                backendError.value = getApiErrorMessage(error)
                 console.error('Failed to update account provider:', error)
             }
         } else {
@@ -76,6 +81,7 @@ const onFormSubmit = async (e) => {
                 })
                 emit('update:visible', false)
             } catch (error) {
+                backendError.value = getApiErrorMessage(error)
                 console.error('Failed to create account provider:', error)
             }
         }
@@ -92,6 +98,7 @@ const onFormSubmit = async (e) => {
         :header="isEdit ? 'Edit Account Provider' : 'Add New Account Provider'"
         class="entry-dialog"
     >
+        <Message v-if="backendError" severity="error" :closable="false" class="mb-2 mx-3 mt-2">{{ backendError }}</Message>
         <Form
             v-slot="$form"
             :resolver="resolver"

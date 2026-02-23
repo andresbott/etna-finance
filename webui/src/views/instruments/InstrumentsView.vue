@@ -8,8 +8,11 @@ import InstrumentDialog from './dialogs/InstrumentDialog.vue'
 import ConfirmDialog from '@/components/common/confirmDialog.vue'
 import { useInstruments } from '@/composables/useInstruments'
 import { useSettingsStore } from '@/store/settingsStore'
+import { useToast } from 'primevue/usetoast'
+import { getApiErrorMessage } from '@/utils/apiError'
 
 const settingsStore = useSettingsStore()
+const toast = useToast()
 const defaultCurrency = computed(() => settingsStore.mainCurrency || 'CHF')
 const {
     instruments: instrumentsData,
@@ -64,6 +67,7 @@ const confirmDeleteInstrument = async () => {
         deleteInstrumentDialogVisible.value = false
         instrumentToDelete.value = null
     } catch (err) {
+        toast.add({ severity: 'error', summary: 'Error', detail: getApiErrorMessage(err), life: 5000 })
         console.error('Failed to delete instrument:', err)
     }
 }
@@ -88,6 +92,7 @@ const saveInstrument = async (payload) => {
         }
         instrumentDialogVisible.value = false
     } catch (err) {
+        toast.add({ severity: 'error', summary: 'Error', detail: getApiErrorMessage(err), life: 5000 })
         console.error('Failed to save instrument:', err)
     }
 }

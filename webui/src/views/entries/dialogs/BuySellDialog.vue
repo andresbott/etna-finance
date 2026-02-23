@@ -23,8 +23,10 @@ import { useInstruments } from '@/composables/useInstruments'
 import { useDateFormat } from '@/composables/useDateFormat'
 import { useMutation } from '@tanstack/vue-query'
 import { createStockTransaction } from '@/lib/api/Entry'
+import { getApiErrorMessage } from '@/utils/apiError'
 
 const queryClient = useQueryClient()
+const backendError = ref('')
 const { instruments: instrumentsData } = useInstruments()
 
 const createMutation = useMutation({
@@ -58,6 +60,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:visible'])
+watch(() => props.visible, (v) => { if (!v) backendError.value = '' })
 
 const formValues = ref({
     instrumentId: props.instrumentId,
@@ -137,10 +140,12 @@ const handleSubmit = async (e) => {
         cashAccountId: cashId
     }
 
+    backendError.value = ''
     try {
         await createMutation.mutateAsync(payload)
         emit('update:visible', false)
     } catch (err) {
+        backendError.value = getApiErrorMessage(err)
         console.error('Failed to create stock operation:', err)
     }
 }
@@ -163,6 +168,7 @@ const handleSubmit = async (e) => {
             :validateOnBlur="false"
             @submit="handleSubmit"
         >
+            <Message v-if="backendError" severity="error" :closable="false" class="mb-2">{{ backendError }}</Message>
             <div v-focustrap class="flex flex-column gap-3">
                 <!-- Top section: description and date (same as transfer) -->
                 <div class="flex flex-column gap-3">

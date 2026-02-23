@@ -1,7 +1,7 @@
 <script setup>
+import { ref } from 'vue'
 import { ResponsiveHorizontal } from '@go-bumbu/vue-layouts'
 import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
-import { ref } from 'vue'
 import Card from 'primevue/card'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
@@ -9,7 +9,7 @@ import { useInvestmentReport } from '@/composables/useInvestmentReport'
 import { formatAmount } from '@/utils/currency'
 
 const leftSidebarCollapsed = ref(true)
-const { productPositions, totalByCurrency, isLoading } = useInvestmentReport()
+const { productPositions, totalByCurrency, totalInMainCurrency, mainCurrency, isLoading } = useInvestmentReport()
 </script>
 
 <template>
@@ -20,11 +20,8 @@ const { productPositions, totalByCurrency, isLoading } = useInvestmentReport()
                     <template #title>
                         <div class="flex align-items-center gap-2">
                             <i class="pi pi-chart-line"></i>
-                            <span>Investment Report</span>
+                            <span>Current position</span>
                         </div>
-                    </template>
-                    <template #subtitle>
-                        All investment products and current positions
                     </template>
                     <template #content>
                         <div v-if="isLoading" class="text-center p-4 text-500">
@@ -72,9 +69,9 @@ const { productPositions, totalByCurrency, isLoading } = useInvestmentReport()
                                     <span class="font-semibold">{{ formatAmount(data.totalValue) }} {{ data.currency }}</span>
                                 </template>
                             </Column>
-                            <Column header="Win/Loss" style="min-width: 130px">
+                            <Column header="Gain/Loss" style="min-width: 130px">
                                 <template #body="{ data }">
-                                    <span :class="data.winLoss >= 0 ? 'text-green-600' : 'text-red-600'">
+                                    <span class="amount" :class="data.winLoss >= 0 ? 'amount-positive' : 'amount-negative'">
                                         {{ data.winLoss >= 0 ? '+' : '' }}{{ formatAmount(data.winLoss) }} {{ data.currency }}
                                     </span>
                                 </template>
@@ -87,11 +84,15 @@ const { productPositions, totalByCurrency, isLoading } = useInvestmentReport()
                             <span class="text-500">
                                 {{ productPositions.length }} product{{ productPositions.length === 1 ? '' : 's' }} with positions
                             </span>
-                            <div class="flex gap-4 flex-wrap">
+                            <div class="flex align-items-center gap-3 flex-wrap">
+                                <span class="font-semibold text-lg">
+                                    {{ formatAmount(totalInMainCurrency) }} {{ mainCurrency }}
+                                </span>
                                 <span
                                     v-for="t in totalByCurrency"
+                                    v-show="totalByCurrency.length > 1"
                                     :key="t.currency"
-                                    class="font-semibold"
+                                    class="text-500 text-sm"
                                 >
                                     {{ formatAmount(t.value) }} {{ t.currency }}
                                 </span>

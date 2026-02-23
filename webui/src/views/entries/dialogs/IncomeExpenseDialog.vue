@@ -23,8 +23,10 @@ import DatePicker from 'primevue/datepicker'
 import CategorySelect from '@/components/common/categorySelect.vue'
 import { useDateFormat } from '@/composables/useDateFormat'
 import { accountValidation } from '@/utils/entryValidation'
+import { getApiErrorMessage } from '@/utils/apiError'
 
 const { createEntry, updateEntry, isCreating, isUpdating } = useEntries({})
+const backendError = ref('')
 const { accounts } = useAccounts()
 const { pickerDateFormat } = useDateFormat()
 
@@ -47,6 +49,7 @@ const categoryId = ref(props.categoryId)
 const amountInputRef = ref(null)
 
 // Watch for visibility and autofocusAmount to focus the amount field
+watch(() => props.visible, (v) => { if (!v) backendError.value = '' })
 watch(() => [props.visible, props.autofocusAmount], ([visible, autofocus]) => {
     if (visible && autofocus) {
         // Use multiple delays to ensure dialog is fully ready
@@ -179,6 +182,7 @@ const handleSubmit = async (e) => {
         entryData.stockAmount = Number(stockAmount)
     }
 
+    backendError.value = ''
     try {
         if (props.isEdit) {
             await updateEntry({ id: props.entryId, ...entryData })
@@ -187,6 +191,7 @@ const handleSubmit = async (e) => {
         }
         emit('update:visible', false)
     } catch (error) {
+        backendError.value = getApiErrorMessage(error)
         console.error(`Failed to ${props.isEdit ? 'update' : 'create'} ${props.entryType}:`, error)
     }
 }
@@ -212,6 +217,7 @@ const emit = defineEmits(['update:visible'])
             :validateOnBlur="false"
             @submit="handleSubmit"
         >
+            <Message v-if="backendError" severity="error" :closable="false" class="mb-2">{{ backendError }}</Message>
             <div class="flex flex-column gap-3">
                 <!-- Description Field -->
                 <div>

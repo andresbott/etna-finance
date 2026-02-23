@@ -72,6 +72,14 @@ export const updateEntry = async (payload: UpdateEntryDTO): Promise<Entry> => {
 }
 
 /**
+ * Fetches a single entry by id. Use when the list response is incomplete (e.g. sell fees not in list).
+ */
+export const getEntry = async (id: string | number): Promise<Record<string, unknown>> => {
+    const { data } = await apiClient.get(`/fin/entries/${id}`)
+    return data as Record<string, unknown>
+}
+
+/**
  * Deletes an entry
  */
 export const deleteEntry = async (id: string): Promise<void> => {
@@ -111,6 +119,7 @@ export interface CreateStockGrantPayload {
     date: string
     instrumentId: number
     quantity: number
+    fairMarketValue?: number
     accountId: number // Investment or Unvested account that receives the shares
 }
 

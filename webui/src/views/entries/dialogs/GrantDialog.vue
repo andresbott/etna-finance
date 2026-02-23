@@ -24,8 +24,10 @@ import {
     toDateString
 } from '@/composables/useEntryDialogForm'
 import { accountValidation } from '@/utils/entryValidation'
+import { getApiErrorMessage } from '@/utils/apiError'
 
 const queryClient = useQueryClient()
+const backendError = ref('')
 const { instruments: instrumentsData } = useInstruments()
 const { updateEntry } = useEntries({})
 
@@ -55,28 +57,32 @@ const props = defineProps({
     instrumentId: { type: Number, default: null },
     description: { type: String, default: '' },
     quantity: { type: Number, default: 0 },
+    fairMarketValue: { type: Number, default: 0 },
     date: { type: Date, default: () => new Date() },
     accountId: { type: Number, default: null }
 })
 
 const emit = defineEmits(['update:visible'])
+watch(() => props.visible, (v) => { if (!v) backendError.value = '' })
 
 const formValues = ref({
     instrumentId: props.instrumentId,
     description: props.description,
     quantity: props.quantity,
+    fairMarketValue: props.fairMarketValue,
     date: getDateOnly(props.date),
     AccountId: getFormattedAccountId(props.accountId)
 })
 
 watch(
-    () => [props.visible, props.instrumentId, props.description, props.quantity, props.date, props.accountId],
+    () => [props.visible, props.instrumentId, props.description, props.quantity, props.fairMarketValue, props.date, props.accountId],
     () => {
         if (props.visible) {
             formValues.value = {
                 instrumentId: props.instrumentId,
                 description: props.description,
                 quantity: props.quantity,
+                fairMarketValue: props.fairMarketValue,
                 date: getDateOnly(props.date),
                 AccountId: getFormattedAccountId(props.accountId)
             }
@@ -107,6 +113,7 @@ const resolver = computed(() =>
             instrumentId: z.number().min(1, { message: 'Instrument is required' }),
             description: z.string().min(1, { message: 'Description is required' }),
             quantity: z.number().min(0.0001, { message: 'Quantity must be greater than 0' }),
+            fairMarketValue: z.number().min(0, { message: 'FMV cannot be negative' }).optional().default(0),
             date: z.date(),
             AccountId: accountValidation
         })
@@ -122,12 +129,14 @@ const handleSubmit = async (e) => {
     const quantity = Number(v.quantity)
     const date = v.date ? new Date(v.date) : new Date()
     const accountId = extractAccountId(v.AccountId)
+    const fairMarketValue = Number(v.fairMarketValue ?? 0)
 
     if (!description) return
     if (!instrumentId || instrumentId < 1) return
     if (!(quantity > 0)) return
     if (!accountId) return
 
+    backendError.value = ''
     try {
         if (props.isEdit && props.entryId != null) {
             await updateEntry({
@@ -136,6 +145,7 @@ const handleSubmit = async (e) => {
                 date: toDateString(date),
                 instrumentId,
                 quantity,
+                fairMarketValue,
                 accountId
             })
         } else {
@@ -145,12 +155,14 @@ const handleSubmit = async (e) => {
                 date: toDateString(date),
                 instrumentId,
                 quantity,
+                fairMarketValue,
                 accountId
             }
             await createMutation.mutateAsync(payload)
         }
         emit('update:visible', false)
     } catch (err) {
+        backendError.value = getApiErrorMessage(err)
         console.error(props.isEdit ? 'Failed to update grant:' : 'Failed to create grant:', err)
     }
 }
@@ -173,6 +185,7 @@ const handleSubmit = async (e) => {
             :validateOnBlur="false"
             @submit="handleSubmit"
         >
+            <Message v-if="backendError" severity="error" :closable="false" class="mb-2">{{ backendError }}</Message>
             <div v-focustrap class="flex flex-column gap-3">
                 <div>
                     <label for="instrumentId" class="form-label">Investment instrument</label>
@@ -227,6 +240,19 @@ const handleSubmit = async (e) => {
                     />
                     <Message v-if="$form.quantity?.invalid" severity="error" size="small">
                         {{ $form.quantity?.error?.message }}
+                    </Message>
+                </div>
+                <div>
+                    <label for="fairMarketValue" class="form-label">Fair market value per share (optional)</label>
+                    <InputNumber
+                        id="fairMarketValue"
+                        v-model="formValues.fairMarketValue"
+                        name="fairMarketValue"
+                        :minFractionDigits="2"
+                        :maxFractionDigits="4"
+                    />
+                    <Message v-if="$form.fairMarketValue?.invalid" severity="error" size="small">
+                        {{ $form.fairMarketValue?.error?.message }}
                     </Message>
                 </div>
                 <div>

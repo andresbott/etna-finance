@@ -72,6 +72,12 @@
                             </li>
                         </ul>
                     </li>
+                    <li>
+                        <router-link to="/financial-transactions" class="menu-item">
+                            <i class="pi pi-wallet menu-icon"></i>
+                            <span class="menu-label">Financial Transactions</span>
+                        </router-link>
+                    </li>
                     <li v-if="settings.instruments">
                         <a
                             @click="expandAllInvestment"

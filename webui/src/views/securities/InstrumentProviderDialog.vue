@@ -8,10 +8,12 @@ import Message from 'primevue/message'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
 import { useInstruments } from '@/composables/useInstruments'
+import { getApiErrorMessage } from '@/utils/apiError'
 import IconSelect from '@/components/common/IconSelect.vue'
 
 const { createInstrumentProvider, updateInstrumentProvider, isCreatingProvider, isUpdatingProvider } =
     useInstruments()
+const backendError = ref('')
 
 const props = defineProps({
     isEdit: { type: Boolean, default: false },
@@ -23,6 +25,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:visible'])
+watch(() => props.visible, (v) => { if (!v) backendError.value = '' })
 
 const selectedIcon = ref(props.icon)
 
@@ -54,6 +57,7 @@ const onFormSubmit = async (e) => {
             providerId: props.providerId
         }
 
+        backendError.value = ''
         if (props.isEdit) {
             try {
                 await updateInstrumentProvider({
@@ -66,6 +70,7 @@ const onFormSubmit = async (e) => {
                 })
                 emit('update:visible', false)
             } catch (error) {
+                backendError.value = getApiErrorMessage(error)
                 console.error('Failed to update instrument provider:', error)
             }
         } else {
@@ -77,6 +82,7 @@ const onFormSubmit = async (e) => {
                 })
                 emit('update:visible', false)
             } catch (error) {
+                backendError.value = getApiErrorMessage(error)
                 console.error('Failed to create instrument provider:', error)
             }
         }
@@ -93,6 +99,7 @@ const onFormSubmit = async (e) => {
         :header="isEdit ? 'Edit Instrument Provider' : 'Add New Instrument Provider'"
         class="entry-dialog"
     >
+        <Message v-if="backendError" severity="error" :closable="false" class="mb-2 mx-3 mt-2">{{ backendError }}</Message>
         <Form
             v-slot="$form"
             :resolver="resolver"

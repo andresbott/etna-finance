@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"slices"
+	"sort"
 	"time"
 
 	"golang.org/x/text/currency"
@@ -99,7 +101,8 @@ type StockBuy struct {
 }
 
 // StockSell represents a stock sale.
-// It creates two entries: one on the investment account (securities), one on the cash account (money in).
+// Creates 2–4 entries: position decrease at cost, capital repatriation, optional P&L, optional fees.
+// CostBasis and RealizedGainLoss are computed from replay; Fees is user input.
 type StockSell struct {
 	Id                  uint
 	Description         string
@@ -108,20 +111,24 @@ type StockSell struct {
 	CashAccountID       uint
 	InstrumentID        uint
 	Quantity            float64
-	TotalAmount         float64 // total cash received (positive), in cash account currency
-	StockAmount         float64 // monetary value of shares (positive), in investment account / instrument currency
+	TotalAmount         float64 // gross proceeds (positive)
+	Fees                float64 // sell-side fees (optional, default 0)
+	CostBasis           float64 // allocated cost from replay (computed)
+	RealizedGainLoss    float64 // P&L = totalAmount - costBasis - fees (computed)
 	baseTx
 }
 
 // StockGrant represents a position increase without a cash leg (RSU vest, gift, award, etc.).
 // Single entry on a position account (Investment or Grant).
+// FairMarketValue is per-share FMV at grant/vest; used for cost basis when shares are sold or transferred.
 type StockGrant struct {
-	Id           uint
-	Description  string
-	Date         time.Time
-	AccountID    uint // Investment or Unvested account that receives the shares
-	InstrumentID uint
-	Quantity     float64
+	Id              uint
+	Description     string
+	Date            time.Time
+	AccountID       uint // Investment or Unvested account that receives the shares
+	InstrumentID    uint
+	Quantity        float64
+	FairMarketValue float64 // per-share FMV at grant/vest; 0 if omitted (cost basis = 0 for those shares)
 	baseTx
 }
 
@@ -472,6 +479,196 @@ func (store *Store) CreateStockBuy(ctx context.Context, item StockBuy) (uint, er
 	return tx.Id, nil
 }
 
+// positionTx represents a transaction that affects a stock position for cost basis replay.
+type positionTx struct {
+	id        uint
+	date      time.Time
+	createdAt time.Time
+	txType    TxType
+	// buy
+	buyInvestAccountID uint
+	buyCashAccountID   uint
+	buyQty             float64
+	buyStockAmount     float64
+	// sell
+	sellInvestAccountID uint
+	sellCashAccountID   uint
+	sellQty             float64
+	// grant
+	grantAccountID uint
+	grantQty       float64
+	grantAmount    float64 // FMV * qty for cost basis
+	// transfer
+	transferSourceID uint
+	transferTargetID uint
+	transferQty      float64
+}
+
+// ListStockPositionTransactions returns all buy/sell/grant/transfer affecting (accountID, instrumentID) on or before the given date.
+func (store *Store) ListStockPositionTransactions(ctx context.Context, accountID, instrumentID uint, onOrBeforeDate time.Time) ([]positionTx, error) {
+	var txs []dbTransaction
+	cutoff := endOfDay(onOrBeforeDate)
+	err := store.db.WithContext(ctx).
+		Where("date <= ? AND type IN ?", cutoff, []TxType{StockBuyTransaction, StockSellTransaction, StockGrantTransaction, StockTransferTransaction}).
+		Preload("Entries").
+		FindInBatches(&txs, 500, func(tx *gorm.DB, batch int) error { return nil }).Error
+	if err != nil {
+		return nil, err
+	}
+	var result []positionTx
+	for i := range txs {
+		t := &txs[i]
+		pt := positionTx{id: t.Id, date: t.Date, createdAt: t.CreatedAt, txType: t.Type}
+		switch t.Type {
+		case StockBuyTransaction:
+			var posEntry, cashEntry *dbEntry
+			for j := range t.Entries {
+				e := &t.Entries[j]
+				switch e.EntryType {
+				case stockBuyEntry:
+					posEntry = e
+				case stockCashOutEntry:
+					cashEntry = e
+				}
+			}
+			if posEntry != nil && posEntry.AccountID == accountID && posEntry.InstrumentID == instrumentID {
+				pt.buyInvestAccountID = posEntry.AccountID
+				pt.buyQty = posEntry.Quantity
+				pt.buyStockAmount = posEntry.Amount
+				if cashEntry != nil {
+					pt.buyCashAccountID = cashEntry.AccountID
+				}
+				result = append(result, pt)
+			}
+		case StockSellTransaction:
+			var posEntry *dbEntry
+			for j := range t.Entries {
+				e := &t.Entries[j]
+				if e.EntryType == stockSellEntry && e.AccountID == accountID && e.InstrumentID == instrumentID {
+					posEntry = e
+					break
+				}
+			}
+			if posEntry != nil {
+				pt.sellInvestAccountID = posEntry.AccountID
+				pt.sellQty = posEntry.Quantity
+				for j := range t.Entries {
+					if t.Entries[j].EntryType == stockCashInEntry {
+						pt.sellCashAccountID = t.Entries[j].AccountID
+						break
+					}
+				}
+				result = append(result, pt)
+			}
+		case StockGrantTransaction:
+			for j := range t.Entries {
+				e := &t.Entries[j]
+				if e.EntryType == stockGrantEntry && e.AccountID == accountID && e.InstrumentID == instrumentID {
+					pt.grantAccountID = e.AccountID
+					pt.grantQty = e.Quantity
+					pt.grantAmount = e.Amount
+					result = append(result, pt)
+					break
+				}
+			}
+		case StockTransferTransaction:
+			var srcID, tgtID uint
+			var qty float64
+			for j := range t.Entries {
+				e := &t.Entries[j]
+				if e.EntryType == stockTransferOutEntry && e.InstrumentID == instrumentID {
+					srcID = e.AccountID
+					qty = e.Quantity
+				}
+				if e.EntryType == stockTransferInEntry && e.InstrumentID == instrumentID {
+					tgtID = e.AccountID
+				}
+			}
+			if (srcID == accountID || tgtID == accountID) && qty > 0 {
+				pt.transferSourceID = srcID
+				pt.transferTargetID = tgtID
+				pt.transferQty = qty
+				result = append(result, pt)
+			}
+		}
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if !result[i].date.Equal(result[j].date) {
+			return result[i].date.Before(result[j].date)
+		}
+		return result[i].id < result[j].id
+	})
+	return result, nil
+}
+
+// computeCostBasisForSell replays position transactions and returns the allocated cost basis for selling sellQty shares.
+// excludeTxID: when set, excludes that tx from replay (used for transfer-in to get source state before transfer).
+func (store *Store) computeCostBasisForSell(ctx context.Context, accountID, instrumentID uint, sellDate time.Time, sellQty float64, excludeTxID uint) (float64, error) {
+	txs, err := store.ListStockPositionTransactions(ctx, accountID, instrumentID, sellDate)
+	if err != nil {
+		return 0, err
+	}
+	var qty, costBasis float64
+	for _, pt := range txs {
+		if pt.id == excludeTxID {
+			continue
+		}
+		switch pt.txType {
+		case StockBuyTransaction:
+			qty += pt.buyQty
+			costBasis += pt.buyStockAmount
+		case StockSellTransaction:
+			if qty <= 0 {
+				return 0, ErrValidation("insufficient quantity: sell before any buy or position already closed")
+			}
+			ratio := pt.sellQty / qty
+			allocCost := math.Round((ratio*costBasis)*100) / 100
+			costBasis -= allocCost
+			qty -= pt.sellQty
+			if qty <= 0 {
+				qty = 0
+				costBasis = 0
+			}
+		case StockGrantTransaction:
+			qty += pt.grantQty
+			costBasis += pt.grantAmount
+		case StockTransferTransaction:
+			if pt.transferSourceID == accountID {
+				if qty <= 0 {
+					return 0, ErrValidation("insufficient quantity for transfer out")
+				}
+				ratio := pt.transferQty / qty
+				allocCost := math.Round((ratio*costBasis)*100) / 100
+				costBasis -= allocCost
+				qty -= pt.transferQty
+				if qty <= 0 {
+					qty = 0
+					costBasis = 0
+				}
+			} else if pt.transferTargetID == accountID {
+				srcCost, err := store.computeCostBasisForSell(ctx, pt.transferSourceID, instrumentID, pt.date, pt.transferQty, pt.id)
+				if err != nil {
+					return 0, err
+				}
+				qty += pt.transferQty
+				costBasis += srcCost
+			}
+		}
+	}
+	if qty < sellQty {
+		return 0, ErrValidation("insufficient quantity")
+	}
+	allocCost := 0.0
+	if qty > 0 {
+		allocCost = math.Round((sellQty/qty)*costBasis*100) / 100
+	}
+	return allocCost, nil
+}
+
+func roundMoney(v float64) float64 {
+	return math.Round(v*100) / 100
+}
+
 func (store *Store) CreateStockSell(ctx context.Context, item StockSell) (uint, error) {
 	if item.InvestmentAccountID == 0 {
 		return 0, ErrValidation("investment account id is required")
@@ -488,8 +685,9 @@ func (store *Store) CreateStockSell(ctx context.Context, item StockSell) (uint, 
 	if item.TotalAmount <= 0 {
 		return 0, ErrValidation("total amount must be positive")
 	}
-	if item.StockAmount <= 0 {
-		return 0, ErrValidation("stock amount must be positive")
+	fees := roundMoney(item.Fees)
+	if fees < 0 {
+		return 0, ErrValidation("fees cannot be negative")
 	}
 
 	invAcc, err := store.GetAccount(ctx, item.InvestmentAccountID)
@@ -522,25 +720,53 @@ func (store *Store) CreateStockSell(ctx context.Context, item StockSell) (uint, 
 			instrument.Currency, invAcc.Currency))
 	}
 
-	// Two entries: position on investment account (negative monetary value), cash in on cash account
+	costBasis, err := store.computeCostBasisForSell(ctx, item.InvestmentAccountID, item.InstrumentID, item.Date, item.Quantity, 0)
+	if err != nil {
+		return 0, err
+	}
+	costBasis = roundMoney(costBasis)
+	realizedGainLoss := roundMoney(item.TotalAmount - fees - costBasis)
+
+	entries := []dbEntry{
+		{
+			AccountID:    item.InvestmentAccountID,
+			InstrumentID: item.InstrumentID,
+			Quantity:     item.Quantity,
+			Amount:       -costBasis,
+			EntryType:    stockSellEntry,
+		},
+		{
+			AccountID: item.CashAccountID,
+			Amount:    costBasis,
+			EntryType: stockCashInEntry,
+		},
+	}
+	if realizedGainLoss > 0 {
+		entries = append(entries, dbEntry{
+			AccountID: item.CashAccountID,
+			Amount:    realizedGainLoss,
+			EntryType: incomeEntry,
+		})
+	} else if realizedGainLoss < 0 {
+		entries = append(entries, dbEntry{
+			AccountID: item.CashAccountID,
+			Amount:    -realizedGainLoss,
+			EntryType: expenseEntry,
+		})
+	}
+	if fees > 0 {
+		entries = append(entries, dbEntry{
+			AccountID: item.CashAccountID,
+			Amount:    fees,
+			EntryType: expenseEntry,
+		})
+	}
+
 	tx := dbTransaction{
 		Description: item.Description,
 		Date:        item.Date,
 		Type:        StockSellTransaction,
-		Entries: []dbEntry{
-			{
-				AccountID:    item.InvestmentAccountID,
-				InstrumentID: item.InstrumentID,
-				Quantity:     item.Quantity,
-				Amount:       -item.StockAmount,
-				EntryType:    stockSellEntry,
-			},
-			{
-				AccountID: item.CashAccountID,
-				Amount:    item.TotalAmount,
-				EntryType: stockCashInEntry,
-			},
-		},
+		Entries:     entries,
 	}
 
 	if err := validateTransaction(tx); err != nil {
@@ -586,6 +812,12 @@ func (store *Store) CreateStockGrant(ctx context.Context, item StockGrant) (uint
 			instrument.Currency, acc.Currency))
 	}
 
+	// Store cost basis (FMV * quantity) in Amount for replay logic; 0 when FairMarketValue is 0
+	grantCostBasis := item.FairMarketValue * item.Quantity
+	if item.FairMarketValue < 0 {
+		return 0, ErrValidation("fair market value cannot be negative")
+	}
+
 	tx := dbTransaction{
 		Description: item.Description,
 		Date:        item.Date,
@@ -595,7 +827,7 @@ func (store *Store) CreateStockGrant(ctx context.Context, item StockGrant) (uint
 				AccountID:    item.AccountID,
 				InstrumentID: item.InstrumentID,
 				Quantity:     item.Quantity,
-				Amount:       0,
+				Amount:       grantCostBasis,
 				EntryType:    stockGrantEntry,
 			},
 		},
@@ -824,29 +1056,55 @@ func stockBuyFromDb(in dbTransaction) (Transaction, error) {
 }
 
 func stockSellFromDb(in dbTransaction) (Transaction, error) {
-	var positionEntry, cashEntry *dbEntry
+	var positionEntry, capitalCashEntry *dbEntry
+	var incomeAmount float64
+	var expenseAmounts []float64
 	for i := range in.Entries {
 		e := &in.Entries[i]
 		switch e.EntryType {
 		case stockSellEntry:
 			positionEntry = e
 		case stockCashInEntry:
-			cashEntry = e
+			capitalCashEntry = e
+		case incomeEntry:
+			incomeAmount += e.Amount
+		case expenseEntry:
+			expenseAmounts = append(expenseAmounts, e.Amount)
 		}
 	}
-	if positionEntry == nil || cashEntry == nil {
+	if positionEntry == nil || capitalCashEntry == nil {
 		return nil, fmt.Errorf("stock sell transaction must have position and cash entries")
 	}
+	costBasis := -positionEntry.Amount
+	var fees float64
+	var lossAmount float64
+	if len(expenseAmounts) == 2 {
+		if expenseAmounts[0] >= expenseAmounts[1] {
+			lossAmount, fees = expenseAmounts[0], expenseAmounts[1]
+		} else {
+			lossAmount, fees = expenseAmounts[1], expenseAmounts[0]
+		}
+	} else if len(expenseAmounts) == 1 {
+		if incomeAmount > 0 {
+			fees = expenseAmounts[0]
+		} else {
+			lossAmount = expenseAmounts[0]
+		}
+	}
+	realizedGainLoss := incomeAmount - lossAmount
+	totalAmount := costBasis + realizedGainLoss + fees
 	return StockSell{
 		Id:                  in.Id,
 		Description:         in.Description,
 		Date:                in.Date,
 		InvestmentAccountID: positionEntry.AccountID,
-		CashAccountID:       cashEntry.AccountID,
+		CashAccountID:       capitalCashEntry.AccountID,
 		InstrumentID:        positionEntry.InstrumentID,
 		Quantity:            positionEntry.Quantity,
-		TotalAmount:         cashEntry.Amount,
-		StockAmount:         -positionEntry.Amount,
+		TotalAmount:         totalAmount,
+		CostBasis:           costBasis,
+		RealizedGainLoss:    realizedGainLoss,
+		Fees:                fees,
 	}, nil
 }
 
@@ -858,13 +1116,18 @@ func stockGrantFromDb(in dbTransaction) (Transaction, error) {
 	if e.EntryType != stockGrantEntry {
 		return nil, fmt.Errorf("stock grant transaction has unexpected entry type %v", e.EntryType)
 	}
+	fmv := 0.0
+	if e.Quantity > 0 {
+		fmv = e.Amount / e.Quantity
+	}
 	return StockGrant{
-		Id:           in.Id,
-		Description:  in.Description,
-		Date:         in.Date,
-		AccountID:    e.AccountID,
-		InstrumentID: e.InstrumentID,
-		Quantity:     e.Quantity,
+		Id:              in.Id,
+		Description:     in.Description,
+		Date:            in.Date,
+		AccountID:       e.AccountID,
+		InstrumentID:    e.InstrumentID,
+		Quantity:        e.Quantity,
+		FairMarketValue: fmv,
 	}, nil
 }
 
@@ -980,7 +1243,7 @@ type StockSellUpdate struct {
 	InstrumentID        *uint
 	Quantity            *float64
 	TotalAmount         *float64
-	StockAmount         *float64
+	Fees                *float64
 	InvestmentAccountID *uint
 	CashAccountID       *uint
 
@@ -988,11 +1251,12 @@ type StockSellUpdate struct {
 }
 
 type StockGrantUpdate struct {
-	Description  *string
-	Date         *time.Time
-	InstrumentID *uint
-	Quantity     *float64
-	AccountID    *uint
+	Description     *string
+	Date            *time.Time
+	InstrumentID    *uint
+	Quantity        *float64
+	AccountID       *uint
+	FairMarketValue *float64
 
 	txUpdate
 }
@@ -1445,26 +1709,28 @@ func (store *Store) UpdateStockBuy(ctx context.Context, input StockBuyUpdate, id
 }
 
 func (store *Store) UpdateStockSell(ctx context.Context, input StockSellUpdate, id uint) error {
-	var selectedFields []string
-	var updateStruct dbTransaction
+	existing, err := store.GetTransaction(ctx, id)
+	if err != nil {
+		return err
+	}
+	sell, ok := existing.(StockSell)
+	if !ok {
+		return ErrTransactionNotFound
+	}
 
+	merged := sell
 	if input.Description != nil {
 		if *input.Description == "" {
 			return NewValidationErr("description cannot be empty")
 		}
-		updateStruct.Description = *input.Description
-		selectedFields = append(selectedFields, "Description")
+		merged.Description = *input.Description
 	}
 	if input.Date != nil {
 		if input.Date.IsZero() {
 			return NewValidationErr("date cannot be zero")
 		}
-		updateStruct.Date = *input.Date
-		selectedFields = append(selectedFields, "Date")
+		merged.Date = *input.Date
 	}
-
-	var positionEntry dbEntry
-	var positionFields []string
 	if input.InvestmentAccountID != nil {
 		if *input.InvestmentAccountID == 0 {
 			return NewValidationErr("investment account is required")
@@ -1476,47 +1742,8 @@ func (store *Store) UpdateStockSell(ctx context.Context, input StockSellUpdate, 
 		if !slices.Contains(allowedPositionAccountTypes, acc.Type) {
 			return NewValidationErr("investment account must be Investment or Unvested")
 		}
-		positionEntry.AccountID = *input.InvestmentAccountID
-		positionFields = append(positionFields, "AccountID")
+		merged.InvestmentAccountID = *input.InvestmentAccountID
 	}
-	var newInstrument *InstrumentInfo
-	if input.InstrumentID != nil {
-		if *input.InstrumentID == 0 {
-			return NewValidationErr("instrument is required")
-		}
-		inst, err := store.GetInstrument(ctx, *input.InstrumentID)
-		if err != nil {
-			if errors.Is(err, ErrInstrumentNotFound) {
-				return ErrValidation("instrument not found")
-			}
-			return fmt.Errorf("error updating stock sell: %w", err)
-		}
-		newInstrument = &inst
-		positionEntry.InstrumentID = *input.InstrumentID
-		positionFields = append(positionFields, "InstrumentID")
-	}
-	if input.Quantity != nil {
-		if *input.Quantity <= 0 {
-			return NewValidationErr("quantity must be positive")
-		}
-		positionEntry.Quantity = *input.Quantity
-		positionFields = append(positionFields, "Quantity")
-	}
-	if input.StockAmount != nil {
-		if *input.StockAmount <= 0 {
-			return NewValidationErr("stock amount must be positive")
-		}
-		positionEntry.Amount = -*input.StockAmount
-		positionFields = append(positionFields, "Amount")
-	}
-
-	// Validate instrument/account currency match when either changes
-	if err := store.validateStockCurrencyMatch(ctx, id, input.InvestmentAccountID, input.InstrumentID, newInstrument, StockSellTransaction); err != nil {
-		return err
-	}
-
-	var cashEntry dbEntry
-	var cashFields []string
 	if input.CashAccountID != nil {
 		if *input.CashAccountID == 0 {
 			return NewValidationErr("cash account is required")
@@ -1528,36 +1755,88 @@ func (store *Store) UpdateStockSell(ctx context.Context, input StockSellUpdate, 
 		if !slices.Contains(allowedCashAccountTypes, acc.Type) {
 			return NewValidationErr("cash account must be Cash, Checkin or Savings")
 		}
-		cashEntry.AccountID = *input.CashAccountID
-		cashFields = append(cashFields, "AccountID")
+		merged.CashAccountID = *input.CashAccountID
+	}
+	if input.InstrumentID != nil {
+		if *input.InstrumentID == 0 {
+			return NewValidationErr("instrument is required")
+		}
+		if _, err := store.GetInstrument(ctx, *input.InstrumentID); err != nil {
+			if errors.Is(err, ErrInstrumentNotFound) {
+				return ErrValidation("instrument not found")
+			}
+			return fmt.Errorf("error updating stock sell: %w", err)
+		}
+		merged.InstrumentID = *input.InstrumentID
+	}
+	if input.Quantity != nil {
+		if *input.Quantity <= 0 {
+			return NewValidationErr("quantity must be positive")
+		}
+		merged.Quantity = *input.Quantity
 	}
 	if input.TotalAmount != nil {
 		if *input.TotalAmount <= 0 {
 			return NewValidationErr("total amount must be positive")
 		}
-		cashEntry.Amount = *input.TotalAmount
-		cashFields = append(cashFields, "Amount")
+		merged.TotalAmount = *input.TotalAmount
+	}
+	if input.Fees != nil {
+		if *input.Fees < 0 {
+			return NewValidationErr("fees cannot be negative")
+		}
+		merged.Fees = *input.Fees
 	}
 
-	if len(selectedFields) == 0 && len(positionFields) == 0 && len(cashFields) == 0 {
-		return ErrNoChanges
+	if err := store.validateStockCurrencyMatch(ctx, id, &merged.InvestmentAccountID, &merged.InstrumentID, nil, StockSellTransaction); err != nil {
+		return err
 	}
 
-	wParams := writeTxUpdateParams{
-		selectedFields:   selectedFields,
-		updateStruct:     updateStruct,
-		txType:           StockSellTransaction,
-		entryType1Fields: positionFields,
-		entryType1Values: positionEntry,
-		entryType1:       stockSellEntry,
-		entryType2Fields: cashFields,
-		entryType2Values: cashEntry,
-		entryType2:       stockCashInEntry,
+	needsRecreate := input.Quantity != nil || input.TotalAmount != nil || input.Fees != nil || input.Date != nil ||
+		input.InvestmentAccountID != nil || input.CashAccountID != nil || input.InstrumentID != nil
+
+	if needsRecreate {
+		return store.recreateStockSellEntries(ctx, id, merged)
 	}
-	if err := store.writeTxUpdate(wParams, id); err != nil {
-		return fmt.Errorf("error updating stock sell: %w", err)
+
+	if input.Description != nil {
+		return store.db.WithContext(ctx).Model(&dbTransaction{}).
+			Where("id = ? AND type = ?", id, StockSellTransaction).
+			Update("Description", merged.Description).Error
 	}
-	return nil
+	return ErrNoChanges
+}
+
+func (store *Store) recreateStockSellEntries(ctx context.Context, id uint, sell StockSell) error {
+	return store.db.Transaction(func(tx *gorm.DB) error {
+		costBasis, err := store.computeCostBasisForSell(ctx, sell.InvestmentAccountID, sell.InstrumentID, sell.Date, sell.Quantity, id)
+		if err != nil {
+			return err
+		}
+		if err := tx.WithContext(ctx).Where("transaction_id = ?", id).Delete(&dbEntry{}).Error; err != nil {
+			return err
+		}
+		costBasis = roundMoney(costBasis)
+		fees := roundMoney(sell.Fees)
+		realizedGainLoss := roundMoney(sell.TotalAmount - fees - costBasis)
+
+		entries := []dbEntry{
+			{TransactionID: id, AccountID: sell.InvestmentAccountID, InstrumentID: sell.InstrumentID, Quantity: sell.Quantity, Amount: -costBasis, EntryType: stockSellEntry},
+			{TransactionID: id, AccountID: sell.CashAccountID, Amount: costBasis, EntryType: stockCashInEntry},
+		}
+		if realizedGainLoss > 0 {
+			entries = append(entries, dbEntry{TransactionID: id, AccountID: sell.CashAccountID, Amount: realizedGainLoss, EntryType: incomeEntry})
+		} else if realizedGainLoss < 0 {
+			entries = append(entries, dbEntry{TransactionID: id, AccountID: sell.CashAccountID, Amount: -realizedGainLoss, EntryType: expenseEntry})
+		}
+		if fees > 0 {
+			entries = append(entries, dbEntry{TransactionID: id, AccountID: sell.CashAccountID, Amount: fees, EntryType: expenseEntry})
+		}
+		for i := range entries {
+			entries[i].TransactionID = id
+		}
+		return tx.WithContext(ctx).Create(&entries).Error
+	})
 }
 
 func (store *Store) UpdateStockGrant(ctx context.Context, input StockGrantUpdate, id uint) error {
@@ -1614,6 +1893,23 @@ func (store *Store) UpdateStockGrant(ctx context.Context, input StockGrantUpdate
 		}
 		grantEntry.Quantity = *input.Quantity
 		grantFields = append(grantFields, "Quantity")
+	}
+	if input.FairMarketValue != nil {
+		if *input.FairMarketValue < 0 {
+			return NewValidationErr("fair market value cannot be negative")
+		}
+		qty := grantEntry.Quantity
+		if qty == 0 {
+			existing, err := store.GetTransaction(ctx, id)
+			if err != nil {
+				return fmt.Errorf("error updating stock grant: %w", err)
+			}
+			if sg, ok := existing.(StockGrant); ok {
+				qty = sg.Quantity
+			}
+		}
+		grantEntry.Amount = *input.FairMarketValue * qty
+		grantFields = append(grantFields, "Amount")
 	}
 
 	if len(selectedFields) == 0 && len(grantFields) == 0 {
@@ -1785,6 +2081,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
         CAST(MAX(CASE WHEN db_entries.entry_type = 9 THEN db_entries.security_id END) AS INTEGER) AS stock_grant_instrument_id,
         CAST(MAX(CASE WHEN db_entries.entry_type = 9 THEN db_entries.quantity END) AS REAL) AS stock_grant_quantity,
         CAST(MAX(CASE WHEN db_entries.entry_type = 9 THEN db_entries.account_id END) AS INTEGER) AS stock_grant_account_id,
+        CAST(MAX(CASE WHEN db_entries.entry_type = 9 THEN db_entries.amount END) AS REAL) AS stock_grant_amount,
         -- stock transfer (out=10, in=11)
         CAST(MAX(CASE WHEN db_entries.entry_type = 10 THEN db_entries.account_id END) AS INTEGER) AS stock_transfer_source_id,
         CAST(MAX(CASE WHEN db_entries.entry_type = 11 THEN db_entries.account_id END) AS INTEGER) AS stock_transfer_target_id,
@@ -1849,6 +2146,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 		StockGrantInstrumentId uint
 		StockGrantQuantity     float64
 		StockGrantAccountId    uint
+		StockGrantAmount       float64
 
 		StockTransferSourceId     uint
 		StockTransferTargetId     uint
@@ -1924,13 +2222,14 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 				StockAmount:         stockAmount,
 			})
 		case StockSellTransaction:
-			totalAmount := item.StockCashAmount
-			if totalAmount < 0 {
-				totalAmount = -totalAmount
+			costBasis := item.StockPositionAmount
+			if costBasis < 0 {
+				costBasis = -costBasis
 			}
-			stockAmount := item.StockPositionAmount
-			if stockAmount < 0 {
-				stockAmount = -stockAmount
+			realizedGainLoss := item.IncomeAmount - item.ExpenseAmount
+			totalAmount := costBasis + realizedGainLoss
+			if item.StockCashAmount > 0 && item.IncomeAmount == 0 && item.ExpenseAmount == 0 {
+				totalAmount = item.StockCashAmount
 			}
 			txs = append(txs, StockSell{
 				Id:                  item.TransactionId,
@@ -1941,16 +2240,22 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 				InstrumentID:        item.StockInstrumentId,
 				Quantity:            item.StockQuantity,
 				TotalAmount:         totalAmount,
-				StockAmount:         stockAmount,
+				CostBasis:           costBasis,
+				RealizedGainLoss:    realizedGainLoss,
 			})
 		case StockGrantTransaction:
+			fmv := 0.0
+			if item.StockGrantQuantity > 0 {
+				fmv = item.StockGrantAmount / item.StockGrantQuantity
+			}
 			txs = append(txs, StockGrant{
-				Id:           item.TransactionId,
-				Description:  item.Description,
-				Date:         item.Date,
-				AccountID:    item.StockGrantAccountId,
-				InstrumentID: item.StockGrantInstrumentId,
-				Quantity:     item.StockGrantQuantity,
+				Id:              item.TransactionId,
+				Description:     item.Description,
+				Date:            item.Date,
+				AccountID:       item.StockGrantAccountId,
+				InstrumentID:    item.StockGrantInstrumentId,
+				Quantity:        item.StockGrantQuantity,
+				FairMarketValue: fmv,
 			})
 		case StockTransferTransaction:
 			txs = append(txs, StockTransfer{

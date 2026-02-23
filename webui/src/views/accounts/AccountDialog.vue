@@ -9,12 +9,14 @@ import Select from 'primevue/select'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
 import { useAccounts } from '@/composables/useAccounts'
+import { getApiErrorMessage } from '@/utils/apiError'
 import IconSelect from '@/components/common/IconSelect.vue'
 import { ACCOUNT_TYPES, ACCOUNT_TYPE_LABELS, getAccountTypeLabel } from '@/types/account'
 import { useSettingsStore } from '@/store/settingsStore'
 
 const { createAccount, updateAccount, isCreating, isUpdating } = useAccounts()
 const settingsStore = useSettingsStore()
+const backendError = ref('')
 
 const props = defineProps({
     isEdit: { type: Boolean, default: false },
@@ -28,6 +30,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:visible'])
+watch(() => props.visible, (v) => { if (!v) backendError.value = '' })
 
 const currencies = computed(() => settingsStore.currencies.length > 0 ? settingsStore.currencies : ['CHF'])
 
@@ -80,6 +83,7 @@ const onFormSubmit = async (e) => {
             providerId: props.providerId
         }
 
+        backendError.value = ''
         if (props.isEdit) {
             try {
                 await updateAccount({
@@ -92,8 +96,8 @@ const onFormSubmit = async (e) => {
                 })
                 emit('update:visible', false)
             } catch (error) {
+                backendError.value = getApiErrorMessage(error)
                 console.error('Failed to update account:', error)
-                // Handle error (maybe show a toast notification)
             }
         } else {
             try {
@@ -106,8 +110,8 @@ const onFormSubmit = async (e) => {
                 })
                 emit('update:visible', false)
             } catch (error) {
+                backendError.value = getApiErrorMessage(error)
                 console.error('Failed to create account:', error)
-                // Handle error (maybe show a toast notification)
             }
         }
     }
@@ -124,6 +128,7 @@ const onFormSubmit = async (e) => {
             :header="isEdit ? 'Edit Account' : 'Add New Account'"
             class="entry-dialog"
         >
+            <Message v-if="backendError" severity="error" :closable="false" class="mb-2 mx-3 mt-2">{{ backendError }}</Message>
             <Form
                 v-slot="$form"
                 :resolver="resolver"

@@ -1,6 +1,9 @@
 import { computed } from 'vue'
+import { useQuery } from '@tanstack/vue-query'
 import { useHoldings } from '@/composables/useHoldings'
 import { useInstruments } from '@/composables/useInstruments'
+import { useSettingsStore } from '@/store/settingsStore'
+import { getLatestRate } from '@/lib/api/CurrencyRates'
 
 export interface ProductPosition {
     instrumentId: number
@@ -11,13 +14,15 @@ export interface ProductPosition {
     lastPrice: number | null
     totalValue: number
     investedAmount: number
-    winLoss: number // totalValue - investedAmount (positive = gain, negative = loss)
+    winLoss: number // totalValue - investedAmount (unrealized gain when positive, loss when negative)
 }
 
 /**
  * Aggregates holdings by investment product for the investment report.
  */
 export function useInvestmentReport() {
+    const settingsStore = useSettingsStore()
+    const mainCurrency = computed(() => settingsStore.mainCurrency || 'CHF')
     const { providersWithHoldings, isLoading } = useHoldings()
     const { instruments } = useInstruments()
 
@@ -90,9 +95,46 @@ export function useInvestmentReport() {
             .sort((a, b) => a.currency.localeCompare(b.currency))
     })
 
+    const currenciesInPositions = computed(() => {
+        const set = new Set<string>()
+        for (const p of productPositions.value) set.add(p.currency)
+        return Array.from(set).sort()
+    })
+
+    const { data: latestRatesMap } = useQuery({
+        queryKey: computed(() => ['fxLatestRates', 'investmentReport', mainCurrency.value, currenciesInPositions.value.join(',')]),
+        queryFn: async () => {
+            const main = mainCurrency.value
+            const map: Record<string, number> = {}
+            for (const currency of currenciesInPositions.value) {
+                if (currency === main) continue
+                const r = await getLatestRate(main, currency)
+                if (r?.rate) map[currency] = r.rate
+            }
+            return map
+        },
+        enabled: computed(() => mainCurrency.value !== '' && productPositions.value.length > 0)
+    })
+
+    const totalInMainCurrency = computed(() => {
+        const main = mainCurrency.value
+        const rates = latestRatesMap.value ?? {}
+        let total = 0
+        for (const p of productPositions.value) {
+            if (p.currency === main) {
+                total += p.totalValue
+            } else if (rates[p.currency]) {
+                total += p.totalValue / rates[p.currency]
+            }
+        }
+        return total
+    })
+
     return {
         productPositions,
         totalByCurrency,
+        totalInMainCurrency,
+        mainCurrency,
         isLoading
     }
 }

@@ -11,6 +11,7 @@ import DeleteDialog from '@/components/common/confirmDialog.vue'
 import AccountEntriesTable from './AccountEntriesTable.vue'
 
 import { useEntries } from '@/composables/useEntries.ts'
+import { getEntry } from '@/lib/api/Entry'
 import IncomeExpenseDialog from '@/views/entries/dialogs/IncomeExpenseDialog.vue'
 import AddEntryMenu from '@/views/entries/AddEntryMenu.vue'
 import { useAccounts } from '@/composables/useAccounts'
@@ -196,14 +197,23 @@ const dialogs = {
 }
 
 /* --- Entry Actions --- */
-const openEditEntryDialog = (entry) => {
+const openEditEntryDialog = async (entry) => {
     isEditMode.value = true
     isDuplicateMode.value = false
-    selectedEntry.value = entry
-    console.log(entry)
+    // For sells, list API does not include fees; fetch full entry so dialog shows correct net + fees
+    if (entry.type === 'stocksell') {
+        try {
+            const full = await getEntry(entry.id)
+            selectedEntry.value = full
+        } catch (e) {
+            console.error('Failed to load sell entry for edit', e)
+            selectedEntry.value = entry
+        }
+    } else {
+        selectedEntry.value = entry
+    }
 
     if (entry.type === 'expense' || entry.type === 'income') {
-        // Use IncomeExpenseDialog for income and expense entries
         dialogs.incomeExpense.value = true
     } else if (entry.type === 'transfer') {
         dialogs.transfer.value = true
@@ -353,8 +363,9 @@ const handleDeleteEntry = async () => {
         :instrument-id="selectedEntry?.instrumentId"
         :description="selectedEntry?.description"
         :quantity="selectedEntry?.quantity"
-        :price-per-share="selectedEntry?.StockAmount && selectedEntry?.quantity ? selectedEntry.StockAmount / selectedEntry.quantity : undefined"
-        :cash-amount="isDuplicateMode ? undefined : selectedEntry?.totalAmount"
+        :price-per-share="(selectedEntry?.quantity && (selectedEntry?.costBasis != null || selectedEntry?.StockAmount != null)) ? ((selectedEntry?.costBasis ?? selectedEntry?.StockAmount) / selectedEntry.quantity) : undefined"
+        :cash-amount="isDuplicateMode ? undefined : (selectedEntry?.totalAmount ?? 0) - (selectedEntry?.fees ?? 0)"
+        :fees="isDuplicateMode ? 0 : (selectedEntry?.fees ?? 0)"
         :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
         :investment-account-id="selectedEntry?.investmentAccountId"
         :cash-account-id="selectedEntry?.cashAccountId"
@@ -368,6 +379,7 @@ const handleDeleteEntry = async () => {
         :instrument-id="selectedEntry?.instrumentId"
         :description="selectedEntry?.description"
         :quantity="selectedEntry?.quantity"
+        :fair-market-value="selectedEntry?.fairMarketValue ?? 0"
         :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
         :account-id="selectedEntry?.accountId"
         @update:visible="dialogs.grantStock.value = $event"

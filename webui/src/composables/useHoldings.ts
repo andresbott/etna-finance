@@ -99,6 +99,7 @@ type EntryLike = {
     instrumentId?: number
     quantity?: number
     StockAmount?: number
+    fairMarketValue?: number
     investmentAccountId?: number
     accountId?: number
     originAccountId?: number
@@ -161,8 +162,10 @@ function aggregateCostBasisFromEntries(entries: EntryLike[]): Map<number, Map<nu
             case 'stockgrant': {
                 const accId = e.accountId
                 if (!accId) break
+                const fmv = e.fairMarketValue ?? 0
                 const row = get(accId, instId)
                 row.quantity += qty
+                row.costBasis += fmv * qty
                 break
             }
             case 'stocktransfer': {

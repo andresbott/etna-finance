@@ -57,10 +57,14 @@ type transactionPayload struct {
 	InstrumentID        uint    `json:"instrumentId"`
 	Quantity            float64 `json:"quantity"`
 	TotalAmount         float64 `json:"totalAmount"`
+	Fees                float64 `json:"fees"`
 	InvestmentAccountID uint    `json:"investmentAccountId"`
 	CashAccountID       uint    `json:"cashAccountId"`
+	CostBasis           float64 `json:"costBasis"`
+	RealizedGainLoss    float64 `json:"realizedGainLoss"`
 
 	// used for stock grant (instruments added for free; no cash account) - reuses accountId
+	FairMarketValue float64 `json:"fairMarketValue"`
 }
 
 func (h *Handler) CreateTx() http.Handler {
@@ -124,15 +128,16 @@ func (h *Handler) CreateTx() http.Handler {
 				InstrumentID:        payload.InstrumentID,
 				Quantity:            payload.Quantity,
 				TotalAmount:         payload.TotalAmount,
-				StockAmount:         payload.StockAmount,
+				Fees:                payload.Fees,
 			}
 		case accounting.StockGrantTransaction:
 			entry = accounting.StockGrant{
-				Description:  payload.Description,
-				Date:         payload.Date.Time,
-				AccountID:    payload.AccountId,
-				InstrumentID: payload.InstrumentID,
-				Quantity:     payload.Quantity,
+				Description:     payload.Description,
+				Date:            payload.Date.Time,
+				AccountID:       payload.AccountId,
+				InstrumentID:    payload.InstrumentID,
+				Quantity:        payload.Quantity,
+				FairMarketValue: payload.FairMarketValue,
 			}
 		case accounting.StockTransferTransaction:
 			entry = accounting.StockTransfer{
@@ -160,6 +165,13 @@ func (h *Handler) CreateTx() http.Handler {
 		}
 
 		payload.Id = entryID
+		if created, err := h.Store.GetTransaction(r.Context(), entryID); err == nil {
+			if sell, ok := created.(accounting.StockSell); ok {
+				payload.CostBasis = sell.CostBasis
+				payload.RealizedGainLoss = sell.RealizedGainLoss
+				payload.Fees = sell.Fees
+			}
+		}
 		respJson, err := json.Marshal(payload)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -208,6 +220,7 @@ type entryUpdatePayload struct {
 	Date        *dateOnlyTimePtr `json:"date"`
 
 	StockAmount *float64 `json:"stockAmount"`
+	Fees        *float64 `json:"fees"`
 
 	// used for income / expense
 	Amount     *float64 `json:"Amount"`
@@ -223,6 +236,7 @@ type entryUpdatePayload struct {
 	InstrumentID        *uint    `json:"instrumentId"`
 	Quantity            *float64 `json:"quantity"`
 	TotalAmount         *float64 `json:"totalAmount"`
+	FairMarketValue     *float64 `json:"fairMarketValue"`
 	InvestmentAccountID *uint    `json:"investmentAccountId"`
 	CashAccountID       *uint    `json:"cashAccountId"`
 }
@@ -293,17 +307,18 @@ func (h *Handler) UpdateTx(Id uint) http.Handler {
 				InstrumentID:        payload.InstrumentID,
 				Quantity:            payload.Quantity,
 				TotalAmount:         payload.TotalAmount,
-				StockAmount:         payload.StockAmount,
+				Fees:                payload.Fees,
 				InvestmentAccountID: payload.InvestmentAccountID,
 				CashAccountID:       payload.CashAccountID,
 			}
 		case accounting.StockGrant:
 			entry = accounting.StockGrantUpdate{
-				Description:  payload.Description,
-				Date:         datePtr,
-				InstrumentID: payload.InstrumentID,
-				Quantity:     payload.Quantity,
-				AccountID:    payload.AccountId,
+				Description:     payload.Description,
+				Date:            datePtr,
+				InstrumentID:    payload.InstrumentID,
+				Quantity:        payload.Quantity,
+				AccountID:       payload.AccountId,
+				FairMarketValue: payload.FairMarketValue,
 			}
 		case accounting.StockTransfer:
 			entry = accounting.StockTransferUpdate{
@@ -352,6 +367,118 @@ type listEntriesResponse struct {
 	Items []transactionPayload `json:"items"`
 }
 
+// transactionToPayload converts an accounting.Transaction to the API payload shape.
+func transactionToPayload(entry accounting.Transaction) transactionPayload {
+	switch entry := entry.(type) {
+	case accounting.Income:
+		return transactionPayload{
+			Id:          entry.Id,
+			Description: entry.Description,
+			Date:        dateOnlyTime{Time: entry.Date},
+			Type:        incomeTxStr,
+			Amount:      entry.Amount,
+			AccountId:   entry.AccountID,
+			CategoryId:  entry.CategoryID,
+		}
+	case accounting.Expense:
+		return transactionPayload{
+			Id:          entry.Id,
+			Description: entry.Description,
+			Date:        dateOnlyTime{Time: entry.Date},
+			Type:        expenseTxStr,
+			Amount:      entry.Amount,
+			AccountId:   entry.AccountID,
+			CategoryId:  entry.CategoryID,
+		}
+	case accounting.Transfer:
+		return transactionPayload{
+			Id:              entry.Id,
+			Description:     entry.Description,
+			Date:            dateOnlyTime{Time: entry.Date},
+			Type:            transferTxStr,
+			TargetAmount:    entry.TargetAmount,
+			TargetAccountID: entry.TargetAccountID,
+			OriginAmount:    entry.OriginAmount,
+			OriginAccountID: entry.OriginAccountID,
+		}
+	case accounting.StockBuy:
+		return transactionPayload{
+			Id:                  entry.Id,
+			Description:         entry.Description,
+			Date:                dateOnlyTime{Time: entry.Date},
+			Type:                stockBuyTxStr,
+			StockAmount:         entry.StockAmount,
+			InstrumentID:        entry.InstrumentID,
+			Quantity:            entry.Quantity,
+			TotalAmount:         entry.TotalAmount,
+			InvestmentAccountID: entry.InvestmentAccountID,
+			CashAccountID:       entry.CashAccountID,
+		}
+	case accounting.StockSell:
+		return transactionPayload{
+			Id:                  entry.Id,
+			Description:         entry.Description,
+			Date:                dateOnlyTime{Time: entry.Date},
+			Type:                stockSellTxStr,
+			InstrumentID:        entry.InstrumentID,
+			Quantity:            entry.Quantity,
+			TotalAmount:         entry.TotalAmount,
+			CostBasis:           entry.CostBasis,
+			RealizedGainLoss:    entry.RealizedGainLoss,
+			Fees:                entry.Fees,
+			InvestmentAccountID: entry.InvestmentAccountID,
+			CashAccountID:       entry.CashAccountID,
+		}
+	case accounting.StockGrant:
+		return transactionPayload{
+			Id:              entry.Id,
+			Description:     entry.Description,
+			Date:            dateOnlyTime{Time: entry.Date},
+			Type:            stockGrantTxStr,
+			AccountId:       entry.AccountID,
+			InstrumentID:    entry.InstrumentID,
+			Quantity:        entry.Quantity,
+			FairMarketValue: entry.FairMarketValue,
+		}
+	case accounting.StockTransfer:
+		return transactionPayload{
+			Id:              entry.Id,
+			Description:     entry.Description,
+			Date:            dateOnlyTime{Time: entry.Date},
+			Type:            stockTransferTxStr,
+			OriginAccountID: entry.SourceAccountID,
+			TargetAccountID: entry.TargetAccountID,
+			InstrumentID:    entry.InstrumentID,
+			Quantity:        entry.Quantity,
+		}
+	default:
+		return transactionPayload{Type: unknownTxStr}
+	}
+}
+
+func (h *Handler) GetTx(id uint) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tr, err := h.Store.GetTransaction(r.Context(), id)
+		if err != nil {
+			if errors.Is(err, accounting.ErrTransactionNotFound) {
+				http.Error(w, "entry not found", http.StatusNotFound)
+			} else {
+				http.Error(w, fmt.Sprintf("unable to get entry: %s", err.Error()), http.StatusInternalServerError)
+			}
+			return
+		}
+		payload := transactionToPayload(tr)
+		respJSON, err := json.Marshal(payload)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(respJSON)
+	})
+}
+
 func (h *Handler) ListTx() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		now := time.Now()
@@ -383,20 +510,20 @@ func (h *Handler) ListTx() http.Handler {
 			}
 		}
 
-		// parse account ids
+		// parse account ids (support multiple ?accountIds=1&accountIds=2 and comma-separated)
 		var accountIds []int
-		accountIdsQuery := r.URL.Query().Get("accountIds")
-		if accountIdsQuery != "" {
-			ids := strings.Split(accountIdsQuery, ",")
-			if len(ids) > 0 {
-				for _, id := range ids {
-					var idInt int
-					if _, err := fmt.Sscanf(id, "%d", &idInt); err != nil {
-						http.Error(w, "invalid account ID format", http.StatusBadRequest)
-						return
-					}
-					accountIds = append(accountIds, idInt)
+		for _, raw := range r.URL.Query()["accountIds"] {
+			for _, id := range strings.Split(raw, ",") {
+				id = strings.TrimSpace(id)
+				if id == "" {
+					continue
 				}
+				var idInt int
+				if _, err := fmt.Sscanf(id, "%d", &idInt); err != nil {
+					http.Error(w, "invalid account ID format", http.StatusBadRequest)
+					return
+				}
+				accountIds = append(accountIds, idInt)
 			}
 		}
 
@@ -417,95 +544,8 @@ func (h *Handler) ListTx() http.Handler {
 		response := listEntriesResponse{
 			Items: make([]transactionPayload, len(entries)),
 		}
-
 		for i, entry := range entries {
-			switch entry := entry.(type) {
-			case accounting.Income:
-				item := entry
-				response.Items[i] = transactionPayload{
-					Id:          item.Id,
-					Description: item.Description,
-					Date:        dateOnlyTime{Time: item.Date},
-					Type:        incomeTxStr,
-					Amount:      item.Amount,
-					AccountId:   item.AccountID,
-					CategoryId:  item.CategoryID,
-				}
-			case accounting.Expense:
-				item := entry
-				response.Items[i] = transactionPayload{
-					Id:          item.Id,
-					Description: item.Description,
-					Date:        dateOnlyTime{Time: item.Date},
-					Type:        expenseTxStr,
-					Amount:      item.Amount,
-					AccountId:   item.AccountID,
-					CategoryId:  item.CategoryID,
-				}
-			case accounting.Transfer:
-				item := entry
-				response.Items[i] = transactionPayload{
-					Id:              item.Id,
-					Description:     item.Description,
-					Date:            dateOnlyTime{Time: item.Date},
-					Type:            transferTxStr,
-					TargetAmount:    item.TargetAmount,
-					TargetAccountID: item.TargetAccountID,
-					OriginAmount:    item.OriginAmount,
-					OriginAccountID: item.OriginAccountID,
-				}
-			case accounting.StockBuy:
-				item := entry
-				response.Items[i] = transactionPayload{
-					Id:                  item.Id,
-					Description:         item.Description,
-					Date:                dateOnlyTime{Time: item.Date},
-					Type:                stockBuyTxStr,
-					StockAmount:         item.StockAmount,
-					InstrumentID:        item.InstrumentID,
-					Quantity:            item.Quantity,
-					TotalAmount:         item.TotalAmount,
-					InvestmentAccountID: item.InvestmentAccountID,
-					CashAccountID:       item.CashAccountID,
-				}
-			case accounting.StockSell:
-				item := entry
-				response.Items[i] = transactionPayload{
-					Id:                  item.Id,
-					Description:         item.Description,
-					Date:                dateOnlyTime{Time: item.Date},
-					Type:                stockSellTxStr,
-					StockAmount:         item.StockAmount,
-					InstrumentID:        item.InstrumentID,
-					Quantity:            item.Quantity,
-					TotalAmount:         item.TotalAmount,
-					InvestmentAccountID: item.InvestmentAccountID,
-					CashAccountID:       item.CashAccountID,
-				}
-			case accounting.StockGrant:
-				item := entry
-				response.Items[i] = transactionPayload{
-					Id:           item.Id,
-					Description:  item.Description,
-					Date:         dateOnlyTime{Time: item.Date},
-					Type:         stockGrantTxStr,
-					AccountId:    item.AccountID,
-					InstrumentID: item.InstrumentID,
-					Quantity:     item.Quantity,
-				}
-			case accounting.StockTransfer:
-				item := entry
-				response.Items[i] = transactionPayload{
-					Id:              item.Id,
-					Description:     item.Description,
-					Date:            dateOnlyTime{Time: item.Date},
-					Type:            stockTransferTxStr,
-					OriginAccountID: item.SourceAccountID,
-					TargetAccountID: item.TargetAccountID,
-					InstrumentID:    item.InstrumentID,
-					Quantity:        item.Quantity,
-				}
-			}
+			response.Items[i] = transactionToPayload(entry)
 		}
 
 		respJson, err := json.Marshal(response)

@@ -25,8 +25,10 @@ import {
     getSubmitValues
 } from '@/composables/useEntryDialogForm'
 import { accountValidation } from '@/utils/entryValidation'
+import { getApiErrorMessage } from '@/utils/apiError'
 
 const queryClient = useQueryClient()
+const backendError = ref('')
 const { instruments: instrumentsData } = useInstruments()
 const { updateEntry } = useEntries({})
 
@@ -62,6 +64,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:visible'])
+watch(() => props.visible, (v) => { if (!v) backendError.value = '' })
 
 const formValues = ref({
     instrumentId: props.instrumentId,
@@ -139,6 +142,7 @@ const handleSubmit = async (e) => {
 
     if (!description || !(instrumentId >= 1) || !(quantity > 0) || originId == null || targetId == null) return
 
+    backendError.value = ''
     try {
         if (props.isEdit && props.entryId != null) {
             await updateEntry({
@@ -164,6 +168,7 @@ const handleSubmit = async (e) => {
         }
         emit('update:visible', false)
     } catch (err) {
+        backendError.value = getApiErrorMessage(err)
         console.error(props.isEdit ? 'Failed to update instrument transfer:' : 'Failed to create instrument transfer:', err)
     }
 }
@@ -186,6 +191,7 @@ const handleSubmit = async (e) => {
             :validateOnBlur="false"
             @submit="handleSubmit"
         >
+            <Message v-if="backendError" severity="error" :closable="false" class="mb-2">{{ backendError }}</Message>
             <div v-focustrap class="flex flex-column gap-3">
                 <div>
                     <label for="instrumentId" class="form-label">Investment instrument</label>

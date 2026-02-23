@@ -35,6 +35,11 @@ const props = defineProps({
     first: {
         type: Number,
         default: 0
+    },
+    /** When true, show simplified columns: Description, Date, Amount, Price, Actions (for Financial Transactions view). */
+    financialColumns: {
+        type: Boolean,
+        default: false
     }
 })
 
@@ -65,6 +70,36 @@ const isStockSell = (data) => {
 
 /** Amount to show for stock trade total: negative for buy (cash out), positive for sell (cash in). */
 const stockTradeTotalAmount = (data) => (isStockSell(data) ? (data.totalAmount || 0) : -(data.totalAmount || 0))
+
+/** Price per share/unit for financial view (stock buy/sell/grant); null if not applicable. */
+const financialPrice = (data) => {
+    if (data.type === 'stockbuy' || data.type === 'stocksell') {
+        if (data.quantity && (data.costBasis != null || data.StockAmount != null))
+            return (data.costBasis ?? data.StockAmount) / data.quantity
+        if (data.quantity && data.totalAmount != null) return data.totalAmount / data.quantity
+        return null
+    }
+    if (data.type === 'stockgrant') return data.fairMarketValue ?? null
+    return null
+}
+
+const financialPriceCurrency = (data) => {
+    if (data.type === 'stockgrant' || data.type === 'stockbuy' || data.type === 'stocksell')
+        return getInstrumentCurrency(data.instrumentId)
+    return ''
+}
+
+/** Gain/loss for financial view: only for stocksell (net proceeds - cost basis). Returns { value, currency } or null. */
+const financialGainLoss = (data) => {
+    if (data.type !== 'stocksell') return null
+    const costBasis = data.costBasis ?? data.StockAmount ?? null
+    if (costBasis == null) return null
+    const netProceeds = (data.totalAmount ?? 0) - (data.fees ?? 0)
+    return {
+        value: netProceeds - costBasis,
+        currency: getAccountCurrency(data.cashAccountId)
+    }
+}
 
 /* --- Helpers --- */
 const getRowClass = (data) => ({
@@ -113,60 +148,150 @@ const handlePage = (event) => {
                 :rowClass="getRowClass"
                 @page="handlePage"
             >
-                <Column header="" style="width: 40px">
-                    <template #body="{ data }">
-                        <i :class="getEntryTypeIcon(data.type)" style="font-size: 0.8rem" />
-                    </template>
-                </Column>
+                <!-- Financial Transactions view: Description, Account, Date, Amount, Price, Actions -->
+                <template v-if="financialColumns">
+                    <Column field="description" header="Description" class="description-column">
+                        <template #body="{ data }">
+                            {{ data.description || '—' }}
+                        </template>
+                    </Column>
+                    <Column header="Account">
+                        <template #body="{ data }">
+                            <span v-if="data.type === 'transfer'">
+                                {{ getAccountName(data.originAccountId) }}
+                                <i class="pi pi-arrow-right" style="font-size: 0.9rem; margin: 0 8px" />
+                                {{ getAccountName(data.targetAccountId) }}
+                            </span>
+                            <span v-else-if="data.type === 'stockbuy' || data.type === 'stocksell'">
+                                {{ getAccountName(data.cashAccountId) }}
+                                <i class="pi pi-arrow-right" style="font-size: 0.9rem; margin: 0 8px" />
+                                {{ getAccountName(data.investmentAccountId) }}
+                            </span>
+                            <span v-else-if="data.type === 'stocktransfer'">
+                                {{ getAccountName(data.originAccountId) }}
+                                <i class="pi pi-arrow-right" style="font-size: 0.9rem; margin: 0 8px" />
+                                {{ getAccountName(data.targetAccountId) }}
+                            </span>
+                            <span v-else-if="data.type === 'stockgrant'">
+                                {{ getAccountName(data.accountId) }}
+                            </span>
+                            <span v-else>—</span>
+                        </template>
+                    </Column>
+                    <Column header="Date">
+                        <template #body="{ data }">
+                            {{ formatDate(data.date) }}
+                        </template>
+                    </Column>
+                    <Column header="Amount" bodyStyle="text-align: right" class="amount-column">
+                        <template #body="{ data }">
+                            <div v-if="data.type === 'transfer'" class="amount transfer">
+                                {{ data.originAmount?.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00' }}
+                                {{ getAccountCurrency(data.originAccountId) }}
+                                <i class="pi pi-arrow-right" style="font-size: 0.9rem; margin: 0 8px" />
+                                {{ (data.targetAmount ?? 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                                {{ getAccountCurrency(data.targetAccountId) }}
+                            </div>
+                            <div v-else-if="data.type === 'stockbuy' || data.type === 'stocksell'" class="amount" :class="isStockSell(data) ? 'amount-positive' : 'amount-negative'">
+                                {{ isStockSell(data) ? '+' : '' }}{{ stockTradeTotalAmount(data).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                                {{ getAccountCurrency(data.cashAccountId) }}
+                                <span v-if="isStockSell(data) && (data.fees ?? 0) > 0" class="text-color-secondary text-sm ml-1">(fee: {{ (data.fees).toLocaleString('es-ES', { minimumFractionDigits: 2 }) }})</span>
+                            </div>
+                            <div v-else-if="data.type === 'stockgrant'" class="amount">
+                                {{ ((data.fairMarketValue ?? 0) * (data.quantity ?? 0)).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                                {{ getInstrumentCurrency(data.instrumentId) }}
+                            </div>
+                            <div v-else-if="data.type === 'stocktransfer'" class="amount">
+                                {{ data.quantity ?? 0 }} (transfer)
+                            </div>
+                            <div v-else class="amount">—</div>
+                        </template>
+                    </Column>
+                    <Column header="Price" bodyStyle="text-align: right">
+                        <template #body="{ data }">
+                            <span v-if="financialPrice(data) != null">
+                                {{ (financialPrice(data)).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                                {{ financialPriceCurrency(data) }}
+                            </span>
+                            <span v-else class="text-500">—</span>
+                        </template>
+                    </Column>
+                    <Column header="Gain/Loss" bodyStyle="text-align: right">
+                        <template #body="{ data }">
+                            <span v-if="financialGainLoss(data)" :class="financialGainLoss(data).value >= 0 ? 'amount amount-positive' : 'amount amount-negative'">
+                                {{ financialGainLoss(data).value >= 0 ? '+' : '' }}{{ financialGainLoss(data).value.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                                {{ financialGainLoss(data).currency }}
+                            </span>
+                            <span v-else class="text-500">—</span>
+                        </template>
+                    </Column>
+                    <Column header="Actions" style="width: 150px">
+                        <template #body="{ data }">
+                            <div class="flex gap-2 justify-content-start">
+                                <Button icon="pi pi-pencil" text rounded class="p-1" @click="handleEdit(data)" v-tooltip.bottom="'Edit'" />
+                                <Button icon="pi pi-copy" text rounded class="p-1" @click="handleDuplicate(data)" v-tooltip.bottom="'Duplicate'" />
+                                <Button icon="pi pi-trash" text rounded severity="danger" class="p-1" :loading="isDeleting" @click="handleDelete(data)" v-tooltip.bottom="'Delete'" />
+                            </div>
+                        </template>
+                    </Column>
+                </template>
 
-                <Column field="description" header="Description" class="description-column">
-                    <template #body="{ data }">
-                        <span 
-                            v-if="data.type === 'expense' || data.type === 'income'"
-                            v-tooltip.bottom="`Category: ${getCategoryPath(data?.categoryId, data.type)}`"
-                        >
-                            {{ data.description }}
-                        </span>
-                        <span v-else>{{ data.description }}</span>
-                    </template>
-                </Column>
+                <!-- All Transactions view: Icon, Description, Account, Date, Amount, Actions -->
+                <template v-else>
+                    <Column header="" style="width: 40px">
+                        <template #body="{ data }">
+                            <i :class="getEntryTypeIcon(data.type)" style="font-size: 0.8rem" />
+                        </template>
+                    </Column>
 
-                <Column header="Account">
-                    <template #body="{ data }">
-                        <span v-if="data.type === 'transfer'">
-                            {{ getAccountName(data.originAccountId)
-                            }}<i
-                                class="pi pi-arrow-right"
-                                style="font-size: 0.9rem; margin: 0 8px"
-                            />{{ getAccountName(data.targetAccountId) }}
-                        </span>
-                        <span v-else-if="data.type === 'stockbuy' || data.type === 'stocksell'">
-                            {{ getAccountName(data.cashAccountId)
-                            }}<i
-                                class="pi pi-arrow-right"
-                                style="font-size: 0.9rem; margin: 0 8px"
-                            />{{ getAccountName(data.investmentAccountId) }}
-                        </span>
-                        <span v-else-if="data.type === 'stocktransfer'">
-                            {{ getAccountName(data.originAccountId)
-                            }}<i
-                                class="pi pi-arrow-right"
-                                style="font-size: 0.9rem; margin: 0 8px"
-                            />{{ getAccountName(data.targetAccountId) }}
-                        </span>
-                        <span v-else>
-                            {{ getAccountName(data.accountId) }}
-                        </span>
-                    </template>
-                </Column>
+                    <Column field="description" header="Description" class="description-column">
+                        <template #body="{ data }">
+                            <span 
+                                v-if="data.type === 'expense' || data.type === 'income'"
+                                v-tooltip.bottom="`Category: ${getCategoryPath(data?.categoryId, data.type)}`"
+                            >
+                                {{ data.description }}
+                            </span>
+                            <span v-else>{{ data.description }}</span>
+                        </template>
+                    </Column>
 
-                <Column field="date" header="Date">
-                    <template #body="{ data }">
-                        {{ formatDate(data.date) }}
-                    </template>
-                </Column>
+                    <Column header="Account">
+                        <template #body="{ data }">
+                            <span v-if="data.type === 'transfer'">
+                                {{ getAccountName(data.originAccountId)
+                                }}<i
+                                    class="pi pi-arrow-right"
+                                    style="font-size: 0.9rem; margin: 0 8px"
+                                />{{ getAccountName(data.targetAccountId) }}
+                            </span>
+                            <span v-else-if="data.type === 'stockbuy' || data.type === 'stocksell'">
+                                {{ getAccountName(data.cashAccountId)
+                                }}<i
+                                    class="pi pi-arrow-right"
+                                    style="font-size: 0.9rem; margin: 0 8px"
+                                />{{ getAccountName(data.investmentAccountId) }}
+                            </span>
+                            <span v-else-if="data.type === 'stocktransfer'">
+                                {{ getAccountName(data.originAccountId)
+                                }}<i
+                                    class="pi pi-arrow-right"
+                                    style="font-size: 0.9rem; margin: 0 8px"
+                                />{{ getAccountName(data.targetAccountId) }}
+                            </span>
+                            <span v-else>
+                                {{ getAccountName(data.accountId) }}
+                            </span>
+                        </template>
+                    </Column>
 
-                <Column field="Amount" header="Amount" bodyStyle="text-align: right" class="amount-column">
+                    <Column field="date" header="Date">
+                        <template #body="{ data }">
+                            {{ formatDate(data.date) }}
+                        </template>
+                    </Column>
+
+                    <Column field="Amount" header="Amount" bodyStyle="text-align: right" class="amount-column">
                     <template #body="{ data }">
                         <div v-if="data.type === 'expense'" class="amount expense">
                             -{{
@@ -207,14 +332,22 @@ const handlePage = (event) => {
                             {{ getAccountCurrency(data.targetAccountId) }}
                         </div>
                         <div v-else-if="data.type === 'stockbuy' || data.type === 'stocksell'" class="amount stock-trade">
-                            <template v-if="data.quantity && data.StockAmount != null">
+                            <template v-if="data.quantity && (data.StockAmount != null || data.costBasis != null)">
                                 ({{ getInstrumentSymbol(data.instrumentId) }}) {{ data.quantity }}
-                                @ {{ (data.StockAmount / data.quantity).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                                @ {{ ((data.costBasis ?? data.StockAmount) / data.quantity).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
                                 {{ getInstrumentCurrency(data.instrumentId) }}
                                 <i
                                     class="pi pi-arrow-right"
                                     style="font-size: 0.9rem; margin: 0 8px"
                                 />
+                                <span :class="isStockSell(data) ? 'stock-trade-total sell' : 'stock-trade-total buy'">{{ isStockSell(data) ? '+' : '' }}{{ stockTradeTotalAmount(data).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ getAccountCurrency(data.cashAccountId) }}</span>
+                                <span v-if="isStockSell(data) && data.fees > 0" class="text-color-secondary text-sm ml-1">
+                                    (fee: {{ (data.fees).toLocaleString('es-ES', { minimumFractionDigits: 2 }) }})
+                                </span>
+                            </template>
+                            <template v-else-if="data.quantity && data.totalAmount != null">
+                                ({{ getInstrumentSymbol(data.instrumentId) }}) {{ data.quantity }}
+                                <i class="pi pi-arrow-right" style="font-size: 0.9rem; margin: 0 8px" />
                                 <span :class="isStockSell(data) ? 'stock-trade-total sell' : 'stock-trade-total buy'">{{ isStockSell(data) ? '+' : '' }}{{ stockTradeTotalAmount(data).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ getAccountCurrency(data.cashAccountId) }}</span>
                             </template>
                             <template v-else>—</template>
@@ -222,7 +355,7 @@ const handlePage = (event) => {
                         <div v-else-if="data.type === 'stockgrant'" class="amount stock-trade">
                             <template v-if="data.quantity != null && data.instrumentId != null">
                                 ({{ getInstrumentSymbol(data.instrumentId) }}) {{ data.quantity }}
-                                @ {{ (0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ getInstrumentCurrency(data.instrumentId) }}
+                                @ {{ ((data.fairMarketValue ?? 0)).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ getInstrumentCurrency(data.instrumentId) }}
                             </template>
                             <template v-else>—</template>
                         </div>
@@ -240,38 +373,39 @@ const handlePage = (event) => {
                     </template>
                 </Column>
 
-                <Column header="Actions" style="width: 150px">
-                    <template #body="{ data }">
-                        <div class="flex gap-2 justify-content-start">
-                            <Button
-                                icon="pi pi-pencil"
-                                text
-                                rounded
-                                class="p-1"
-                                @click="handleEdit(data)"
-                                v-tooltip.bottom="'Edit'"
-                            />
-                            <Button
-                                icon="pi pi-copy"
-                                text
-                                rounded
-                                class="p-1"
-                                @click="handleDuplicate(data)"
-                                v-tooltip.bottom="'Duplicate'"
-                            />
-                            <Button
-                                icon="pi pi-trash"
-                                text
-                                rounded
-                                severity="danger"
-                                class="p-1"
-                                :loading="isDeleting"
-                                @click="handleDelete(data)"
-                                v-tooltip.bottom="'Delete'"
-                            />
-                        </div>
-                    </template>
-                </Column>
+                    <Column header="Actions" style="width: 150px">
+                        <template #body="{ data }">
+                            <div class="flex gap-2 justify-content-start">
+                                <Button
+                                    icon="pi pi-pencil"
+                                    text
+                                    rounded
+                                    class="p-1"
+                                    @click="handleEdit(data)"
+                                    v-tooltip.bottom="'Edit'"
+                                />
+                                <Button
+                                    icon="pi pi-copy"
+                                    text
+                                    rounded
+                                    class="p-1"
+                                    @click="handleDuplicate(data)"
+                                    v-tooltip.bottom="'Duplicate'"
+                                />
+                                <Button
+                                    icon="pi pi-trash"
+                                    text
+                                    rounded
+                                    severity="danger"
+                                    class="p-1"
+                                    :loading="isDeleting"
+                                    @click="handleDelete(data)"
+                                    v-tooltip.bottom="'Delete'"
+                                />
+                            </div>
+                        </template>
+                    </Column>
+                </template>
             </DataTable>
         </template>
     </Card>

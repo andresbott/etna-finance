@@ -23,8 +23,10 @@ import DatePicker from 'primevue/datepicker'
 import Divider from 'primevue/divider'
 import { useDateFormat } from '@/composables/useDateFormat'
 import { accountValidation } from '@/utils/entryValidation'
+import { getApiErrorMessage } from '@/utils/apiError'
 
 const { createEntry, updateEntry, isCreating, isUpdating } = useEntries({})
+const backendError = ref('')
 const { accounts } = useAccounts()
 const { pickerDateFormat } = useDateFormat()
 
@@ -44,6 +46,7 @@ const props = defineProps({
 const originAmountInputRef = ref(null)
 
 // Watch for visibility and autofocusAmount to focus the origin amount field
+watch(() => props.visible, (v) => { if (!v) backendError.value = '' })
 watch(() => [props.visible, props.autofocusAmount], ([visible, autofocus]) => {
     if (visible && autofocus) {
         // Use a longer delay to ensure dialog is fully ready
@@ -206,6 +209,7 @@ const handleSubmit = async (e) => {
         type: 'transfer'
     }
 
+    backendError.value = ''
     try {
         if (props.isEdit) {
             await updateEntry({ id: props.entryId, ...entryData })
@@ -214,6 +218,7 @@ const handleSubmit = async (e) => {
         }
         emit('update:visible', false)
     } catch (error) {
+        backendError.value = getApiErrorMessage(error)
         console.error(`Failed to ${props.isEdit ? 'update' : 'create'} transfer:`, error)
     }
 }
@@ -239,6 +244,7 @@ const emit = defineEmits(['update:visible'])
             :validateOnBlur="false"
             @submit="handleSubmit"
         >
+            <Message v-if="backendError" severity="error" :closable="false" class="mb-2">{{ backendError }}</Message>
             <div class="flex flex-column gap-3">
                 <!-- Top section with common fields -->
                 <div class="flex flex-column gap-3">
