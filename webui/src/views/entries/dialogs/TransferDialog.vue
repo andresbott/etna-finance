@@ -6,7 +6,7 @@ import { Form } from '@primevue/forms'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
 import { useEntries } from '@/composables/useEntries.ts'
-import { useAccounts } from '@/composables/useAccounts.js'
+import { useAccounts } from '@/composables/useAccounts'
 import {
     getFormattedAccountId,
     getDateOnly,
@@ -22,6 +22,7 @@ import InputNumber from 'primevue/inputnumber'
 import DatePicker from 'primevue/datepicker'
 import Divider from 'primevue/divider'
 import { useDateFormat } from '@/composables/useDateFormat'
+import { accountValidation } from '@/utils/entryValidation'
 
 const { createEntry, updateEntry, isCreating, isUpdating } = useEntries({})
 const { accounts } = useAccounts()
@@ -165,11 +166,6 @@ watch(
 
 // Build the resolver for transfer entries
 const resolver = computed(() => {
-    // Account validation - handles {id: true} format from AccountSelector
-    const accountValidation = z
-        .union([z.null(), z.record(z.boolean())])
-        .refine((obj) => obj !== null, { message: 'Account must be selected' })
-
     // Schema for transfers between cash/bank accounts
     const baseSchema = {
         description: z.string().min(1, { message: 'Description is required' }),

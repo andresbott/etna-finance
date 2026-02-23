@@ -5,6 +5,12 @@ import Button from 'primevue/button'
 import { Form } from '@primevue/forms'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
+import { accountValidation } from '@/utils/entryValidation'
+import {
+    getFormattedAccountId,
+    getDateOnly,
+    extractAccountId
+} from '@/composables/useEntryDialogForm'
 import Message from 'primevue/message'
 import Divider from 'primevue/divider'
 import InputText from 'primevue/inputtext'
@@ -53,27 +59,6 @@ const props = defineProps({
 
 const emit = defineEmits(['update:visible'])
 
-const getFormattedAccountId = (accountId) => {
-    if (accountId == null) return null
-    return { [accountId]: true }
-}
-
-const getDateOnly = (date) => {
-    if (!date) return new Date(new Date().setHours(0, 0, 0, 0))
-    const d = new Date(date)
-    return new Date(d.getFullYear(), d.getMonth(), d.getDate())
-}
-
-const extractAccountId = (formValue) => {
-    if (!formValue) return null
-    if (typeof formValue === 'number') return formValue
-    if (typeof formValue === 'object') {
-        const keys = Object.keys(formValue)
-        if (keys.length > 0) return parseInt(keys[0], 10)
-    }
-    return null
-}
-
 const formValues = ref({
     instrumentId: props.instrumentId,
     description: props.description,
@@ -112,10 +97,6 @@ const totalAmountDisplay = computed(() => {
     const t = totalAmount.value
     return t != null && !Number.isNaN(t) ? t.toFixed(2) : ''
 })
-
-const accountValidation = z
-    .union([z.null(), z.record(z.boolean())])
-    .refine((obj) => obj != null, { message: 'Account must be selected' })
 
 const resolver = computed(() =>
     zodResolver(

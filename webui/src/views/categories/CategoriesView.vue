@@ -234,7 +234,7 @@ const deleteCategory = () => {
                 <TreeTable :value="ExpenseTreeData" :expandedKeys="expandedExpenseKeys">
                     <Column field="name" header="Name" expander>
                         <template #body="slotProps">
-                            <span class="category-name">
+                            <span class="inline-flex align-items-center gap-2">
                                 <i :class="['pi', slotProps.node.data.icon || 'pi-tag']"></i>
                                 {{ slotProps.node.data.name }}
                             </span>
@@ -243,7 +243,7 @@ const deleteCategory = () => {
                     <Column field="description" header="Description"></Column>
                     <Column>
                         <template #header>
-                            <div class="actions-header">
+                            <div class="flex gap-1 justify-content-end w-full">
                                 <Button
                                     label="Add new parent category"
                                     icon="pi pi-plus"
@@ -252,32 +252,32 @@ const deleteCategory = () => {
                             </div>
                         </template>
                         <template #body="slotProps">
-                            <div class="actions">
+                            <div class="flex gap-1 justify-content-end w-full">
                                 <Button
                                     icon="pi pi-plus"
                                     text
                                     rounded
+                                    class="p-1"
                                     @click="
                                         handleAddEditIncome(slotProps.node.data, 'add', 'expense')
                                     "
-                                    class="action-button"
                                 />
                                 <Button
                                     icon="pi pi-pencil"
                                     text
                                     rounded
+                                    class="p-1"
                                     @click="
                                         handleAddEditIncome(slotProps.node.data, 'edit', 'expense')
                                     "
-                                    class="action-button"
                                 />
                                 <Button
                                     icon="pi pi-trash"
                                     text
                                     rounded
                                     severity="danger"
+                                    class="p-1"
                                     @click="confirmDelete(slotProps.node.data, 'expense')"
-                                    class="action-button"
                                 />
                             </div>
                         </template>
@@ -288,7 +288,7 @@ const deleteCategory = () => {
                 <TreeTable :value="IncomeTreeData" :expandedKeys="expandedIncomeKeys">
                     <Column field="name" header="Name" expander>
                         <template #body="slotProps">
-                            <span class="category-name">
+                            <span class="inline-flex align-items-center gap-2">
                                 <i :class="['pi', slotProps.node.data.icon || 'pi-tag']"></i>
                                 {{ slotProps.node.data.name }}
                             </span>
@@ -297,7 +297,7 @@ const deleteCategory = () => {
                     <Column field="description" header="Description"></Column>
                     <Column>
                         <template #header>
-                            <div class="actions-header">
+                            <div class="flex gap-1 justify-content-end w-full">
                                 <Button
                                     label="Add new parent category"
                                     icon="pi pi-plus"
@@ -306,32 +306,32 @@ const deleteCategory = () => {
                             </div>
                         </template>
                         <template #body="slotProps">
-                            <div class="actions">
+                            <div class="flex gap-1 justify-content-end w-full">
                                 <Button
                                     icon="pi pi-plus"
                                     text
                                     rounded
+                                    class="p-1"
                                     @click="
                                         handleAddEditIncome(slotProps.node.data, 'add', 'income')
                                     "
-                                    class="action-button"
                                 />
                                 <Button
                                     icon="pi pi-pencil"
                                     text
                                     rounded
+                                    class="p-1"
                                     @click="
                                         handleAddEditIncome(slotProps.node.data, 'edit', 'income')
                                     "
-                                    class="action-button"
                                 />
                                 <Button
                                     icon="pi pi-trash"
                                     text
                                     rounded
                                     severity="danger"
+                                    class="p-1"
                                     @click="confirmDelete(slotProps.node.data, 'income')"
-                                    class="action-button"
                                 />
                             </div>
                         </template>
@@ -355,31 +355,7 @@ const deleteCategory = () => {
         :name="selectedItem.name"
         title="Delete Category"
         message="Are you sure you want to delete this category?"
-        :onConfirm="deleteCategory"
+        @confirm="deleteCategory"
     />
 </template>
 
-<style scoped>
-.actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 4px;
-    width: 100%;
-}
-.actions-header {
-    display: flex;
-    justify-content: flex-end;
-    gap: 4px;
-    width: 100%;
-}
-
-.action-button {
-    padding: 0.25rem;
-}
-
-.category-name {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-</style>

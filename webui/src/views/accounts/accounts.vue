@@ -12,7 +12,7 @@ import AccountDialog from '@/views/accounts/AccountDialog.vue'
 import DeleteDialog from '@/components/common/confirmDialog.vue'
 import AccountProviderDialog from './AccountProviderDialog.vue'
 
-import { useAccounts } from '@/composables/useAccounts.js'
+import { useAccounts } from '@/composables/useAccounts'
 import { getAccountTypeLabel, ACCOUNT_TYPES } from '@/types/account'
 import { useSettingsStore } from '@/store/settingsStore.js'
 
@@ -134,15 +134,15 @@ const handleDeleteProvider = async () => {
 
 <template>
     <div class="main-app-content">
-        <div class="accounts-view">
-            <div class="header">
-                <div class="header-title-row">
-                    <h1>Accounts</h1>
+        <div class="view-container">
+            <div class="flex justify-content-between align-items-center mb-4">
+                <div class="flex align-items-center gap-2">
+                    <h1 class="m-0">Accounts</h1>
                     <a
                         :href="ACCOUNTS_DOCS_URL"
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="docs-link"
+                        class="inline-flex link-unstyled"
                         aria-label="About accounts"
                         v-tooltip.top="'About accounts'"
                     >
@@ -206,20 +206,23 @@ const handleDeleteProvider = async () => {
 
                         <Column>
                             <template #body="{ node }">
-                                <div class="actions" :class="{ childless: !node.children }">
+                                <div
+                                    class="flex gap-2 justify-content-end w-full"
+                                    :class="{ 'actions-row--indent': !node.children }"
+                                >
                                     <Button
                                         icon="pi pi-plus"
                                         v-if="node.children"
                                         text
                                         rounded
-                                        class="action-button"
+                                        class="p-1"
                                         @click="addAccountToProvider(node)"
                                     />
                                     <Button
                                         icon="pi pi-pencil"
                                         text
                                         rounded
-                                        class="action-button"
+                                        class="p-1"
                                         @click="
                                             node.children ? editProvider(node.data) : editAccount(node.data)
                                         "
@@ -229,7 +232,7 @@ const handleDeleteProvider = async () => {
                                         text
                                         rounded
                                         severity="danger"
-                                        class="action-button"
+                                        class="p-1"
                                         :disabled="node.children && node.children.length > 0"
                                         @click="
                                             node.children
@@ -266,7 +269,7 @@ const handleDeleteProvider = async () => {
         :name="selectedItem.name"
         title="Delete Account"
         message="Are you sure you want to delete this account?"
-        :onConfirm="handleDeleteAccount"
+        @confirm="handleDeleteAccount"
     />
 
     <DeleteDialog
@@ -275,7 +278,7 @@ const handleDeleteProvider = async () => {
         :name="selectedItem.name"
         title="Delete Account Provider"
         message="Are you sure you want to delete this account provider?"
-        :onConfirm="handleDeleteProvider"
+        @confirm="handleDeleteProvider"
     />
 
     <AccountProviderDialog
@@ -287,53 +290,3 @@ const handleDeleteProvider = async () => {
         :icon="selectedProvider?.icon"
     />
 </template>
-
-<style scoped>
-.accounts-view {
-    padding: 2rem;
-}
-
-.header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2rem;
-}
-
-.header-title-row {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.header-title-row h1 {
-    margin: 0;
-}
-
-.docs-link {
-    color: inherit;
-    text-decoration: none;
-    display: inline-flex;
-}
-
-.actions {
-    display: flex;
-    justify-content: flex-start;
-}
-
-.actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 4px;
-    width: 100%;
-}
-
-.actions.childless {
-    margin-left: 38px; /* keeps the indentation */
-    width: calc(100% - 38px); /* ensures full width minus the margin */
-}
-
-.action-button {
-    padding: 0.25rem;
-}
-</style>

@@ -1,4 +1,5 @@
 import { ref, type Ref } from 'vue'
+import { toLocalDateString } from '@/utils/date'
 
 /**
  * Shared form helpers for entry dialogs.
@@ -46,12 +47,10 @@ export function getDateOnly(date: Date | string | null | undefined): Date {
 }
 
 /**
- * Format date for API as YYYY-MM-DD.
+ * Format date for API as YYYY-MM-DD (local date to avoid UTC shift).
  */
 export function toDateString(date: Date | string | null | undefined): string {
-    if (!date) return new Date().toISOString().slice(0, 10)
-    const d = new Date(date)
-    return d.toISOString().slice(0, 10)
+    return toLocalDateString(date)
 }
 
 /**

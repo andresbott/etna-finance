@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import TreeSelect from 'primevue/treeselect'
-import { useAccounts } from '@/composables/useAccounts.js'
+import { useAccounts } from '@/composables/useAccounts'
 
 /**
  * AccountSelector Component

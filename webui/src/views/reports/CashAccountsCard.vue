@@ -1,70 +1,28 @@
 <script setup>
-import { computed, onMounted, watch } from 'vue'
+import { computed, watch } from 'vue'
 import Card from 'primevue/card'
 import { useAccounts } from '@/composables/useAccounts'
 import { useBalance } from '@/composables/useGetBalanceReport'
 import { formatAmount } from '@/utils/currency'
+import { ACCOUNT_TYPES } from '@/types/account'
+
+const CASH_ACCOUNT_TYPES = [ACCOUNT_TYPES.CASH, ACCOUNT_TYPES.CHECKING, ACCOUNT_TYPES.SAVINGS]
 
 const { accounts: accountProviders } = useAccounts()
 const { balanceReport: balanceReportMutation } = useBalance()
 const { mutate, data: balanceReport } = balanceReportMutation
 
-// Group accounts by provider with balance data
-const accountsByProvider = computed(() => {
-    if (!accountProviders.value || !balanceReport.value) return []
-    
-    return accountProviders.value
-        .map((provider) => {
-            if (!provider.accounts || !Array.isArray(provider.accounts)) return null
-            
-            // Get accounts with their balance data for this provider
-            const accountsWithBalances = provider.accounts
-                .map((account) => {
-                    const reportData = balanceReport.value?.accounts?.[account.id]
-                    if (!reportData) return null
-                    
-                    return {
-                        ...account,
-                        reportData
-                    }
-                })
-                .filter(Boolean)
-            
-            // Only include provider if it has accounts with balance data
-            if (accountsWithBalances.length === 0) return null
-            
-            return {
-                id: provider.id,
-                name: provider.name,
-                icon: provider.icon,
-                accounts: accountsWithBalances
-            }
-        })
-        .filter(Boolean)
-})
-
-const getLatestBalance = (account) => {
-    if (!account.reportData || account.reportData.length === 0) {
-        return 0
-    }
-    // Get the last entry without mutating the array
-    const latestEntry = account.reportData[account.reportData.length - 1]
-    return latestEntry?.Sum || 0
-}
-
-// Fetch balance reports when accounts are loaded
+// Ensure balance report is fetched (shared with TimeBalance/AccountTypesList; must include all accounts)
 watch(
     accountProviders,
     (providers) => {
         if (providers && providers.length > 0) {
-            // Collect all account IDs from all providers
             const accountIds = []
             for (const provider of providers) {
                 if (provider.accounts && Array.isArray(provider.accounts)) {
-                    accountIds.push(...provider.accounts.map(account => account.id).filter(Boolean))
+                    accountIds.push(...provider.accounts.map((a) => a.id).filter(Boolean))
                 }
             }
-            
             if (accountIds.length > 0) {
                 mutate({
                     accountIds,
@@ -76,29 +34,63 @@ watch(
     },
     { immediate: true }
 )
+
+// Group only cash-type accounts by provider
+const accountsByProvider = computed(() => {
+    if (!accountProviders.value || !balanceReport.value) return []
+
+    return accountProviders.value
+        .map((provider) => {
+            if (!provider.accounts || !Array.isArray(provider.accounts)) return null
+
+            const accountsWithBalances = provider.accounts
+                .filter((acc) => CASH_ACCOUNT_TYPES.includes(acc.type))
+                .map((account) => {
+                    const reportData = balanceReport.value?.accounts?.[account.id]
+                    if (!reportData) return null
+                    return { ...account, reportData }
+                })
+                .filter(Boolean)
+
+            if (accountsWithBalances.length === 0) return null
+
+            return {
+                id: provider.id,
+                name: provider.name,
+                icon: provider.icon,
+                accounts: accountsWithBalances
+            }
+        })
+        .filter(Boolean)
+})
+
+const getLatestBalance = (account) => {
+    if (!account.reportData || account.reportData.length === 0) return 0
+    const latestEntry = account.reportData[account.reportData.length - 1]
+    return latestEntry?.Sum || 0
+}
 </script>
 
 <template>
     <Card>
-        <template #title>Account Balances</template>
+        <template #title>Cash Accounts</template>
         <template #content>
             <div v-if="accountsByProvider.length === 0" class="text-center p-3 text-500">
-                No accounts available
+                No cash accounts available
             </div>
             <div v-else class="flex flex-column gap-4">
-                <!-- Group by Provider -->
                 <div
                     v-for="provider in accountsByProvider"
                     :key="provider.id"
                     class="flex flex-column gap-2"
                 >
-                    <!-- Provider Header -->
-                    <div class="flex align-items-center gap-2 pb-2" style="border-bottom: 1px solid rgba(0, 0, 0, 0.06)">
+                    <div
+                        class="flex align-items-center gap-2 pb-2"
+                        style="border-bottom: 1px solid rgba(0, 0, 0, 0.06)"
+                    >
                         <i :class="['pi', provider.icon || 'pi-building', 'text-primary']"></i>
                         <span class="font-bold text-lg">{{ provider.name }}</span>
                     </div>
-                    
-                    <!-- Accounts under this provider -->
                     <div class="flex flex-column gap-2 ml-3">
                         <div
                             v-for="account in provider.accounts"
@@ -121,4 +113,3 @@ watch(
         </template>
     </Card>
 </template>
-

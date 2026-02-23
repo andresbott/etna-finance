@@ -1,4 +1,9 @@
 <script setup>
+/**
+ * Category add/edit dialog. Uses local state + emit (parent persists) rather than
+ * PrimeVue Form + Zod like AccountDialog/AccountProviderDialog. Intentional for
+ * simpler category CRUD; align with Form+Zod if validation/consistency is needed.
+ */
 import { ref, watch, computed } from 'vue'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'

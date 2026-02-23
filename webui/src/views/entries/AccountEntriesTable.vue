@@ -6,7 +6,10 @@ import Button from 'primevue/button'
 import Card from 'primevue/card'
 import { useCategoryUtils } from '@/utils/categoryUtils'
 import { useAccountUtils } from '@/utils/accountUtils'
+import { useInstruments } from '@/composables/useInstruments'
 import { useDateFormat } from '@/composables/useDateFormat'
+import { getEntryTypeIcon } from '@/utils/entryDisplay'
+import { ACCOUNT_TYPES } from '@/types/account'
 
 /* --- Props --- */
 const props = defineProps({
@@ -26,6 +29,10 @@ const props = defineProps({
         type: [String, Number],
         required: true
     },
+    accountType: {
+        type: String,
+        default: null
+    },
     totalRecords: {
         type: Number,
         default: 0
@@ -40,29 +47,31 @@ const props = defineProps({
     }
 })
 
+const isInstrumentAccount = computed(
+    () =>
+        props.accountType === ACCOUNT_TYPES.INVESTMENT ||
+        props.accountType === ACCOUNT_TYPES.UNVESTED
+)
+
 /* --- Emits --- */
 const emit = defineEmits(['edit', 'duplicate', 'delete', 'page'])
 
 /* --- Utils --- */
 const { getCategoryName, getCategoryPath } = useCategoryUtils()
 const { getAccountCurrency, getAccountName } = useAccountUtils()
+const { instruments: instrumentsData } = useInstruments()
 const { formatDate } = useDateFormat()
 
-/* --- Helpers --- */
-const getEntryTypeIcon = (type) => {
-    const icons = {
-        expense: 'pi pi-minus text-red-500',
-        income: 'pi pi-plus text-green-500',
-        transfer: 'pi pi-arrow-right-arrow-left text-blue-500',
-        stockbuy: 'pi pi-chart-line text-yellow-500',
-        stocksell: 'pi pi-chart-line text-orange-500',
-        stockgrant: 'pi pi-gift text-purple-500',
-        stocktransfer: 'pi pi-arrow-right-arrow-left text-indigo-500',
-        'opening-balance': 'pi pi-calculator text-gray-500'
-    }
-    return icons[type] || 'pi pi-question-circle'
-}
+const instrumentsMap = computed(() => {
+    const list = instrumentsData.value ?? []
+    return Object.fromEntries(list.map((i) => [i.id, i]))
+})
+const getInstrumentSymbol = (instrumentId) => instrumentsMap.value[instrumentId]?.symbol ?? '—'
+const getInstrumentCurrency = (instrumentId) => instrumentsMap.value[instrumentId]?.currency ?? ''
+const formatPrice = (n) => (n != null && !Number.isNaN(n) ? n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—')
+const formatAmount = (n) => (n != null && !Number.isNaN(n) ? n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00')
 
+/* --- Helpers --- */
 const getRowClass = (data) => ({
     'expense-row': data.type === 'expense',
     'income-row': data.type === 'income',
@@ -72,71 +81,6 @@ const getRowClass = (data) => ({
     'stockgrant-row': data.type === 'stockgrant',
     'stocktransfer-row': data.type === 'stocktransfer',
     'opening-balance-row': data.type === 'opening-balance'
-})
-
-/* --- Balance Calculation --- */
-const entriesWithBalance = computed(() => {
-    if (!props.entries || props.entries.length === 0) return []
-    
-    // Find the opening balance entry to get the starting balance
-    const openingBalanceEntry = props.entries.find(entry => entry.type === 'opening-balance')
-    let balance = openingBalanceEntry?.Amount || 0
-    
-    // Create a copy and reverse to process in chronological order (oldest to newest)
-    const entriesReversed = [...props.entries].reverse()
-    
-    // Calculate running balance
-    const entriesWithBalanceReversed = entriesReversed.map(entry => {
-        let entryAmount = 0
-        
-        // Calculate the amount that affects this account's balance
-        if (entry.type === 'opening-balance') {
-            // Opening balance is the starting point, no change needed
-            entryAmount = 0
-        } else if (entry.type === 'expense') {
-            entryAmount = -(entry.Amount || 0)
-        } else if (entry.type === 'income') {
-            entryAmount = entry.Amount || 0
-        } else if (entry.type === 'transfer') {
-            // For transfers, check if this account is origin or target
-            if (String(entry.originAccountId) === String(props.accountId)) {
-                entryAmount = -(entry.originAmount || 0)
-            } else if (String(entry.targetAccountId) === String(props.accountId)) {
-                entryAmount = entry.targetAmount || 0
-            }
-        } else if (entry.type === 'stockbuy') {
-            if (String(entry.cashAccountId) === String(props.accountId)) {
-                entryAmount = -(entry.totalAmount || 0)
-            } else if (String(entry.investmentAccountId) === String(props.accountId)) {
-                entryAmount = entry.StockAmount || 0
-            }
-        } else if (entry.type === 'stocksell') {
-            if (String(entry.cashAccountId) === String(props.accountId)) {
-                entryAmount = entry.totalAmount || 0
-            } else if (String(entry.investmentAccountId) === String(props.accountId)) {
-                entryAmount = -(entry.StockAmount || 0)
-            }
-        } else if (entry.type === 'stockgrant') {
-            // Grants have no cash leg; no monetary value to add
-            entryAmount = 0
-        } else if (entry.type === 'stocktransfer') {
-            // Transfers between position accounts; no monetary value change
-            entryAmount = 0
-        }
-        
-        // For opening balance, don't add the amount (it's already the starting balance)
-        if (entry.type !== 'opening-balance') {
-            balance += entryAmount
-        }
-        
-        return {
-            ...entry,
-            balance: balance
-        }
-    })
-    
-    // Reverse back to show newest first
-    return entriesWithBalanceReversed.reverse()
 })
 
 /* --- Event Handlers --- */
@@ -155,13 +99,45 @@ const handleDelete = (entry) => {
 const handlePage = (event) => {
     emit('page', event)
 }
+
+/* --- Balance (cash accounts only) --- */
+const entriesWithBalance = computed(() => {
+    if (!props.entries || props.entries.length === 0 || isInstrumentAccount.value) return props.entries ?? []
+    const openingBalanceEntry = props.entries.find((e) => e.type === 'opening-balance')
+    let balance = openingBalanceEntry?.Amount || 0
+    const entriesReversed = [...props.entries].reverse()
+    const result = entriesReversed.map((entry) => {
+        let entryAmount = 0
+        if (entry.type === 'opening-balance') entryAmount = 0
+        else if (entry.type === 'expense') entryAmount = -(entry.Amount || 0)
+        else if (entry.type === 'income') entryAmount = entry.Amount || 0
+        else if (entry.type === 'transfer') {
+            if (String(entry.originAccountId) === String(props.accountId)) entryAmount = -(entry.originAmount || 0)
+            else if (String(entry.targetAccountId) === String(props.accountId)) entryAmount = entry.targetAmount || 0
+        } else if (entry.type === 'stockbuy') {
+            if (String(entry.cashAccountId) === String(props.accountId)) entryAmount = -(entry.totalAmount || 0)
+            else if (String(entry.investmentAccountId) === String(props.accountId)) entryAmount = entry.StockAmount || 0
+        } else if (entry.type === 'stocksell') {
+            if (String(entry.cashAccountId) === String(props.accountId)) entryAmount = entry.totalAmount || 0
+            else if (String(entry.investmentAccountId) === String(props.accountId)) entryAmount = -(entry.StockAmount || 0)
+        }
+        if (entry.type !== 'opening-balance') balance += entryAmount
+        return { ...entry, balance }
+    })
+    return result.reverse()
+})
+
+const tableEntries = computed(() =>
+    isInstrumentAccount.value ? props.entries : entriesWithBalance.value
+)
 </script>
 
 <template>
     <Card>
         <template #content>
             <DataTable
-                :value="entriesWithBalance"
+                class="datatable-compact"
+                :value="tableEntries"
                 :loading="isLoading"
                 stripedRows
                 paginator
@@ -206,103 +182,158 @@ const handlePage = (event) => {
 
                 <Column field="Amount" header="Amount" bodyStyle="text-align: right" class="amount-column">
                     <template #body="{ data }">
-                        <div v-if="data.type === 'opening-balance'" class="amount opening-balance">
-                            <!-- Opening balance amount is blank, since it's shown in Balance column -->
-                        </div>
-                        <div v-else-if="data.type === 'expense'" class="amount expense">
-                            -{{
-                                data.Amount.toLocaleString('es-ES', {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2
-                                })
-                            }}
-                        </div>
-                        <div v-else-if="data.type === 'income'" class="amount income">
-                            +{{
-                                data.Amount.toLocaleString('es-ES', {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2
-                                })
-                            }}
-                        </div>
-                        <div v-else-if="data.type === 'transfer'" class="amount transfer">
-                            <!-- Incoming transfer (this account is the target) -->
-                            <template v-if="String(data.targetAccountId) === String(accountId)">
-                                +{{
-                                    data.targetAmount.toLocaleString('es-ES', {
-                                        minimumFractionDigits: 2,
-                                        maximumFractionDigits: 2
-                                    })
-                                }}
-                            </template>
-                            <!-- Outgoing transfer (this account is the origin) -->
-                            <template v-else>
-                                -{{
-                                    data.originAmount?.toLocaleString('es-ES', {
-                                        minimumFractionDigits: 2,
-                                        maximumFractionDigits: 2
-                                    }) || '0.00'
-                                }}
-                            </template>
-                        </div>
-                        <div v-else-if="data.type === 'stockbuy'" class="amount" :class="String(data.cashAccountId) === String(accountId) ? 'amount-negative' : 'amount-positive'">
-                            <template v-if="String(data.cashAccountId) === String(accountId)">
-                                -{{ (data.totalAmount || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
-                            </template>
-                            <template v-else>
-                                +{{ (data.StockAmount || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
-                            </template>
-                        </div>
-                        <div v-else-if="data.type === 'stocksell'" class="amount" :class="String(data.cashAccountId) === String(accountId) ? 'amount-positive' : 'amount-negative'">
-                            <template v-if="String(data.cashAccountId) === String(accountId)">
-                                +{{ (data.totalAmount || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
-                            </template>
-                            <template v-else>
-                                -{{ (data.StockAmount || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
-                            </template>
-                        </div>
-                        <div v-else-if="data.type === 'stockgrant'" class="amount">
-                            {{ data.quantity }} (grant)
-                        </div>
-                        <div v-else-if="data.type === 'stocktransfer'" class="amount">
-                            <template v-if="String(data.originAccountId) === String(accountId)">−{{ data.quantity }}</template>
-                            <template v-else-if="String(data.targetAccountId) === String(accountId)">+{{ data.quantity }}</template>
-                            <template v-else>—</template>
-                        </div>
-                        <div v-else class="amount">
-                            {{
-                                (data.totalAmount ?? data.targetAmount ?? 0).toLocaleString('es-ES', {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2
-                                })
-                            }}
+                        <!-- Cash layout: original format -->
+                        <template v-if="!isInstrumentAccount">
+                            <div v-if="data.type === 'opening-balance'" class="amount opening-balance"></div>
+                            <div v-else-if="data.type === 'expense'" class="amount expense">
+                                -{{ data.Amount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                            </div>
+                            <div v-else-if="data.type === 'income'" class="amount income">
+                                +{{ data.Amount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                            </div>
+                            <div v-else-if="data.type === 'transfer'" class="amount transfer">
+                                <template v-if="String(data.targetAccountId) === String(accountId)">
+                                    +{{ data.targetAmount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                                </template>
+                                <template v-else>
+                                    -{{ (data.originAmount ?? 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                                </template>
+                            </div>
+                            <div v-else-if="data.type === 'stockbuy'" class="amount" :class="String(data.cashAccountId) === String(accountId) ? 'amount-negative' : 'amount-positive'">
+                                <template v-if="data.instrumentId != null && data.quantity != null && data.StockAmount != null">
+                                    ({{ getInstrumentSymbol(data.instrumentId) }}) {{ data.quantity }} @ {{ formatPrice(data.StockAmount / data.quantity) }} {{ getInstrumentCurrency(data.instrumentId) }}
+                                    <template v-if="String(data.cashAccountId) === String(accountId)">−{{ formatAmount(data.totalAmount) }}</template>
+                                    <template v-else>+{{ formatAmount(data.StockAmount) }}</template>
+                                </template>
+                                <template v-else>
+                                    <template v-if="String(data.cashAccountId) === String(accountId)">−{{ formatAmount(data.totalAmount) }}</template>
+                                    <template v-else>+{{ formatAmount(data.StockAmount) }}</template>
+                                </template>
+                            </div>
+                            <div v-else-if="data.type === 'stocksell'" class="amount" :class="String(data.cashAccountId) === String(accountId) ? 'amount-positive' : 'amount-negative'">
+                                <template v-if="data.instrumentId != null && data.quantity != null && data.StockAmount != null">
+                                    ({{ getInstrumentSymbol(data.instrumentId) }}) {{ data.quantity }} @ {{ formatPrice(data.StockAmount / data.quantity) }} {{ getInstrumentCurrency(data.instrumentId) }}
+                                    <template v-if="String(data.cashAccountId) === String(accountId)">+{{ formatAmount(data.totalAmount) }}</template>
+                                    <template v-else>−{{ formatAmount(data.StockAmount) }}</template>
+                                </template>
+                                <template v-else>
+                                    <template v-if="String(data.cashAccountId) === String(accountId)">+{{ formatAmount(data.totalAmount) }}</template>
+                                    <template v-else>−{{ formatAmount(data.StockAmount) }}</template>
+                                </template>
+                            </div>
+                            <div v-else-if="data.type === 'stockgrant'" class="amount">
+                                <template v-if="data.instrumentId != null">
+                                    ({{ getInstrumentSymbol(data.instrumentId) }}) {{ data.quantity ?? '—' }} (grant)
+                                </template>
+                                <template v-else>{{ data.quantity }} (grant)</template>
+                            </div>
+                            <div v-else-if="data.type === 'stocktransfer'" class="amount">
+                                <template v-if="data.instrumentId != null">
+                                    ({{ getInstrumentSymbol(data.instrumentId) }})
+                                    <template v-if="String(data.originAccountId) === String(accountId)">−{{ data.quantity }}</template>
+                                    <template v-else-if="String(data.targetAccountId) === String(accountId)">+{{ data.quantity }}</template>
+                                    <template v-else>—</template>
+                                </template>
+                                <template v-else>
+                                    <template v-if="String(data.originAccountId) === String(accountId)">−{{ data.quantity }}</template>
+                                    <template v-else-if="String(data.targetAccountId) === String(accountId)">+{{ data.quantity }}</template>
+                                    <template v-else>—</template>
+                                </template>
+                            </div>
+                            <div v-else class="amount">
+                                {{ (data.totalAmount ?? data.targetAmount ?? 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                            </div>
+                        </template>
+                        <!-- Instrument layout: quantity + ticker -->
+                        <template v-else>
+                            <div v-if="data.type === 'opening-balance'" class="amount opening-balance">—</div>
+                            <div v-else-if="data.type === 'expense'" class="amount expense">
+                                -{{ data.Amount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                            </div>
+                            <div v-else-if="data.type === 'income'" class="amount income">
+                                +{{ data.Amount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                            </div>
+                            <div v-else-if="data.type === 'transfer'" class="amount transfer">
+                                <template v-if="String(data.targetAccountId) === String(accountId)">
+                                    +{{ data.targetAmount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                                </template>
+                                <template v-else>-{{ (data.originAmount ?? 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</template>
+                            </div>
+                            <div v-else-if="data.type === 'stockbuy'" class="amount" :class="String(data.cashAccountId) === String(accountId) ? 'amount-negative' : 'amount-positive'">
+                                <template v-if="data.instrumentId != null && data.quantity != null">
+                                    <template v-if="String(data.cashAccountId) === String(accountId)">−{{ formatAmount(data.totalAmount) }} {{ getAccountCurrency(data.cashAccountId) }}</template>
+                                    <template v-else>+{{ data.quantity }} {{ getInstrumentSymbol(data.instrumentId) }}</template>
+                                </template>
+                                <template v-else>
+                                    <template v-if="String(data.cashAccountId) === String(accountId)">−{{ formatAmount(data.totalAmount) }}</template>
+                                    <template v-else>+{{ formatAmount(data.StockAmount) }}</template>
+                                </template>
+                            </div>
+                            <div v-else-if="data.type === 'stocksell'" class="amount" :class="String(data.cashAccountId) === String(accountId) ? 'amount-positive' : 'amount-negative'">
+                                <template v-if="data.instrumentId != null && data.quantity != null">
+                                    <template v-if="String(data.cashAccountId) === String(accountId)">+{{ formatAmount(data.totalAmount) }} {{ getAccountCurrency(data.cashAccountId) }}</template>
+                                    <template v-else>−{{ data.quantity }} {{ getInstrumentSymbol(data.instrumentId) }}</template>
+                                </template>
+                                <template v-else>
+                                    <template v-if="String(data.cashAccountId) === String(accountId)">+{{ formatAmount(data.totalAmount) }}</template>
+                                    <template v-else>−{{ formatAmount(data.StockAmount) }}</template>
+                                </template>
+                            </div>
+                            <div v-else-if="data.type === 'stockgrant'" class="amount">
+                                <template v-if="data.instrumentId != null">+{{ data.quantity ?? '—' }} {{ getInstrumentSymbol(data.instrumentId) }}</template>
+                                <template v-else>{{ data.quantity }} (grant)</template>
+                            </div>
+                            <div v-else-if="data.type === 'stocktransfer'" class="amount">
+                                <template v-if="data.instrumentId != null">
+                                    <template v-if="String(data.originAccountId) === String(accountId)">−{{ data.quantity }} {{ getInstrumentSymbol(data.instrumentId) }}</template>
+                                    <template v-else-if="String(data.targetAccountId) === String(accountId)">+{{ data.quantity }} {{ getInstrumentSymbol(data.instrumentId) }}</template>
+                                    <template v-else>—</template>
+                                </template>
+                                <template v-else>
+                                    <template v-if="String(data.originAccountId) === String(accountId)">−{{ data.quantity }}</template>
+                                    <template v-else-if="String(data.targetAccountId) === String(accountId)">+{{ data.quantity }}</template>
+                                    <template v-else>—</template>
+                                </template>
+                            </div>
+                            <div v-else class="amount">
+                                {{ (data.totalAmount ?? data.targetAmount ?? 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                            </div>
+                        </template>
+                    </template>
+                </Column>
+
+                <Column v-if="!isInstrumentAccount" field="balance" header="Balance" bodyStyle="text-align: right" class="balance-column">
+                    <template #body="{ data }">
+                        <div class="balance" :class="{ 'balance-negative': data.balance < 0 }">
+                            {{ data.balance.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
                         </div>
                     </template>
                 </Column>
 
-                <Column field="balance" header="Balance" bodyStyle="text-align: right" class="balance-column">
+                <Column v-if="isInstrumentAccount" field="price" header="Price" bodyStyle="text-align: right" class="price-column">
                     <template #body="{ data }">
-                        <div class="balance" :class="{ 'balance-negative': data.balance < 0 }">
-                            {{
-                                data.balance.toLocaleString('es-ES', {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2
-                                })
-                            }}
-                        </div>
+                        <template v-if="data.type === 'stockbuy' || data.type === 'stocksell'">
+                            <span v-if="data.quantity != null && data.StockAmount != null && data.quantity > 0">
+                                {{ formatPrice(data.StockAmount / data.quantity) }} {{ getInstrumentCurrency(data.instrumentId) }}
+                            </span>
+                            <span v-else>—</span>
+                        </template>
+                        <template v-else-if="data.type === 'stockgrant'">—</template>
+                        <template v-else-if="data.type === 'stocktransfer'">—</template>
+                        <template v-else>—</template>
                     </template>
                 </Column>
 
                 <Column header="Actions" style="width: 150px">
                     <template #body="{ data }">
-                        <!-- No actions for opening balance entry, but add padding to match height -->
-                        <div v-if="data.type === 'opening-balance'" class="actions-placeholder"></div>
-                        <div v-else class="actions">
+                        <!-- No actions for opening balance entry; placeholder keeps row height -->
+                        <div v-if="data.type === 'opening-balance'" class="flex align-items-center" style="height: 2.5rem"></div>
+                        <div v-else class="flex gap-2 justify-content-start">
                             <Button
                                 icon="pi pi-pencil"
                                 text
                                 rounded
-                                class="action-button"
+                                class="p-1"
                                 @click="handleEdit(data)"
                                 v-tooltip.bottom="'Edit'"
                             />
@@ -310,7 +341,7 @@ const handlePage = (event) => {
                                 icon="pi pi-copy"
                                 text
                                 rounded
-                                class="action-button"
+                                class="p-1"
                                 @click="handleDuplicate(data)"
                                 v-tooltip.bottom="'Duplicate'"
                             />
@@ -319,7 +350,7 @@ const handlePage = (event) => {
                                 text
                                 rounded
                                 severity="danger"
-                                class="action-button"
+                                class="p-1"
                                 :loading="isDeleting"
                                 @click="handleDelete(data)"
                                 v-tooltip.bottom="'Delete'"
@@ -331,60 +362,4 @@ const handlePage = (event) => {
         </template>
     </Card>
 </template>
-
-<style scoped>
-.actions {
-    display: flex;
-    gap: 0.5rem;
-    justify-content: flex-start;
-}
-
-.actions-placeholder {
-    height: 2.5rem;
-    display: flex;
-    align-items: center;
-}
-
-.action-button {
-    padding: 0.25rem;
-}
-
-:deep(.p-datatable-tbody > tr > td) {
-    padding-top: 0;
-    padding-bottom: 0;
-}
-
-:deep(.p-datatable .p-datatable-tbody > tr:hover) {
-    background-color: rgba(0, 0, 0, 0.1) !important;
-}
-
-.amount.expense {
-    color: var(--c-red-600);
-}
-
-.amount.income {
-    color: var(--c-green-600);
-}
-
-.amount.transfer {
-    color: var(--c-blue-600);
-}
-
-.amount.amount-positive {
-    color: var(--c-green-600);
-}
-
-.amount.amount-negative {
-    color: var(--c-red-600);
-}
-
-.balance-negative {
-    color: var(--c-red-600);
-}
-
-:deep(.amount-column .p-datatable-column-title),
-:deep(.balance-column .p-datatable-column-title) {
-    margin-left: auto;
-}
-</style>
 

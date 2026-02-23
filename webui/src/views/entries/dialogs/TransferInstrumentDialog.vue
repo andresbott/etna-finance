@@ -24,6 +24,7 @@ import {
     toDateString,
     getSubmitValues
 } from '@/composables/useEntryDialogForm'
+import { accountValidation } from '@/utils/entryValidation'
 
 const queryClient = useQueryClient()
 const { instruments: instrumentsData } = useInstruments()
@@ -111,10 +112,6 @@ watch(
         }
     }
 )
-
-const accountValidation = z
-    .union([z.null(), z.record(z.boolean())])
-    .refine((obj) => obj != null, { message: 'Account must be selected' })
 
 const resolver = computed(() =>
     zodResolver(

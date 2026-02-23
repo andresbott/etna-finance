@@ -2,7 +2,7 @@
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
 
-const props = defineProps({
+defineProps({
     name: {
         type: String,
         default: ''
@@ -14,24 +14,14 @@ const props = defineProps({
     message: {
         type: String,
         default: 'Are you sure you want to delete this item?'
-    },
-    onConfirm: {
-        type: Function,
-        required: true
     }
 })
 
 const visible = defineModel('visible', { default: false })
+const emit = defineEmits(['confirm'])
 
-async function handleConfirm() {
-    try {
-        await props.onConfirm()
-        // Don't auto-close - let the parent handle closing after successful operation
-        // visible.value = false
-    } catch (error) {
-        console.error('Failed to delete item:', error)
-        // You might want to show an error message to the user here
-    }
+function handleConfirm() {
+    emit('confirm')
 }
 </script>
 

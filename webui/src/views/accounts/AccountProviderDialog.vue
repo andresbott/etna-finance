@@ -7,7 +7,7 @@ import { Form } from '@primevue/forms'
 import Message from 'primevue/message'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
-import { useAccounts } from '@/composables/useAccounts.js'
+import { useAccounts } from '@/composables/useAccounts'
 import IconSelect from '@/components/common/IconSelect.vue'
 
 const { createAccountProvider, updateAccountProvider, isCreating, isUpdating } = useAccounts()

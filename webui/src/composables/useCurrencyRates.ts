@@ -12,7 +12,9 @@ import {
     parsePair
 } from '@/lib/api/CurrencyRates'
 import type { CreateRateDTO, UpdateRateDTO, RateRecord } from '@/lib/api/CurrencyRates'
-import { toLocalDateString } from '@/composables/useMarketData'
+import { lastDaysRange, rangeToStartEnd } from '@/utils/dateRange'
+
+export { formatPct, getChangeSeverity } from '@/utils/format'
 
 export interface FXOverviewRow {
     currency: string
@@ -24,24 +26,6 @@ export interface FXOverviewRow {
 
 const FX_OVERVIEW_QUERY_KEY = ['fxOverview']
 const FX_RATE_HISTORY_QUERY_KEY = 'fxRateHistory'
-
-/** Date range for overview (last 30 days to compute change). Use local date so "today" is correct in all timezones. */
-function lastDaysRange(days: number): { start: string; end: string } {
-    const end = new Date()
-    end.setHours(0, 0, 0, 0)
-    const start = new Date(end)
-    start.setDate(start.getDate() - days)
-    return { start: toLocalDateString(start), end: toLocalDateString(end) }
-}
-
-function rangeToStartEnd(range: '6m' | 'max'): { start: string; end: string } {
-    const end = new Date()
-    end.setHours(0, 0, 0, 0)
-    const start = new Date(end)
-    if (range === '6m') start.setMonth(start.getMonth() - 6)
-    else start.setFullYear(start.getFullYear() - 10)
-    return { start: toLocalDateString(start), end: toLocalDateString(end) }
-}
 
 export function useFXOverview() {
     const settingsStore = useSettingsStore()
@@ -180,17 +164,4 @@ export function useFXMutations(main: MaybeRefOrGetter<string>, secondary: MaybeR
 export function formatRate(value: number | null | undefined): string {
     if (value == null) return '-'
     return value.toFixed(4)
-}
-
-export function formatPct(value: number | null | undefined): string {
-    if (value == null) return '-'
-    const sign = value >= 0 ? '+' : ''
-    return sign + value.toFixed(2) + '%'
-}
-
-export function getChangeSeverity(value: number | null | undefined): string {
-    if (value == null) return 'secondary'
-    if (value > 0) return 'success'
-    if (value < 0) return 'danger'
-    return 'secondary'
 }

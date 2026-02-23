@@ -6,16 +6,14 @@ import {
     deleteInstrument
 } from '@/lib/api/Instrument'
 import type { CreateInstrumentDTO, UpdateInstrumentDTO } from '@/types/instrument'
+import { invalidateAndRefetch } from '@/composables/queryUtils'
 
 const INSTRUMENTS_QUERY_KEY = ['instruments']
 
 export function useInstruments() {
     const queryClient = useQueryClient()
 
-    const invalidateAndRefetch = () => {
-        queryClient.invalidateQueries({ queryKey: INSTRUMENTS_QUERY_KEY })
-        queryClient.refetchQueries({ queryKey: INSTRUMENTS_QUERY_KEY })
-    }
+    const doInvalidateAndRefetch = () => invalidateAndRefetch(queryClient, INSTRUMENTS_QUERY_KEY)
 
     const instrumentsQuery = useQuery({
         queryKey: INSTRUMENTS_QUERY_KEY,
@@ -24,7 +22,7 @@ export function useInstruments() {
 
     const createInstrumentMutation = useMutation({
         mutationFn: (payload: CreateInstrumentDTO) => createInstrument(payload),
-        onSuccess: invalidateAndRefetch
+        onSuccess: doInvalidateAndRefetch
     })
 
     const updateInstrumentMutation = useMutation({
@@ -32,12 +30,12 @@ export function useInstruments() {
             id,
             payload
         }: { id: number; payload: UpdateInstrumentDTO }) => updateInstrument(id, payload),
-        onSuccess: invalidateAndRefetch
+        onSuccess: doInvalidateAndRefetch
     })
 
     const deleteInstrumentMutation = useMutation({
         mutationFn: (id: number) => deleteInstrument(id),
-        onSuccess: invalidateAndRefetch
+        onSuccess: doInvalidateAndRefetch
     })
 
     return {

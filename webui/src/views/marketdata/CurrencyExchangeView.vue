@@ -58,9 +58,9 @@ function onRowClick(event) {
     <ResponsiveHorizontal :leftSidebarCollapsed="leftSidebarCollapsed">
         <template #default>
             <div class="p-3">
-                <div class="header">
-                    <h1>
-                        <i class="pi pi-chart-line"></i>
+                <div class="mb-2">
+                    <h1 class="flex align-items-center gap-3 m-0 mb-2">
+                        <i class="pi pi-chart-line text-primary"></i>
                         Currency Exchange
                     </h1>
                     <p class="text-color-secondary mt-0 mb-3">
@@ -130,12 +130,12 @@ function onRowClick(event) {
                             </Column>
                             <Column header="Actions" class="actions-column" style="width: 4rem; min-width: 4rem">
                                 <template #body="{ data }">
-                                    <div class="actions">
+                                    <div class="flex gap-2 justify-content-end">
                                         <Button
                                             icon="pi pi-plus"
                                             text
                                             rounded
-                                            class="action-button"
+                                            class="p-1"
                                             v-tooltip.bottom="'Add rate'"
                                             :loading="isCreating && addDialogCurrency === data.currency"
                                             @click.stop="openAddDialog(data)"
@@ -196,21 +196,6 @@ function onRowClick(event) {
 </template>
 
 <style scoped>
-.header {
-    margin-bottom: 0.5rem;
-}
-
-.header h1 {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin: 0 0 0.5rem 0;
-}
-
-.header h1 i {
-    color: var(--p-primary-color);
-}
-
 .empty-message {
     padding: 1rem;
     text-align: center;
@@ -237,20 +222,6 @@ function onRowClick(event) {
 
 :deep(.currency-table .p-datatable-thead th.last-update-cell .p-datatable-column-header-content) {
     justify-content: flex-end;
-}
-
-:deep(.actions-column .p-datatable-column-title) {
-    margin-left: auto;
-}
-
-.actions {
-    display: flex;
-    gap: 0.5rem;
-    justify-content: flex-end;
-}
-
-.action-button {
-    padding: 0.25rem;
 }
 
 .field label {

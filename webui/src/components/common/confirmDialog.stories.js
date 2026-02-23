@@ -53,7 +53,7 @@ export const Default = {
         <ConfirmDialog
           v-model:visible="visible"
           :name="itemName"
-          :onConfirm="handleConfirm"
+          @confirm="handleConfirm"
         />
       </div>
     `,
@@ -99,7 +99,7 @@ export const CustomContent = {
           title="Archive Account"
           message="Are you sure you want to archive this account? This action can be undone later."
           name="Savings Account"
-          :onConfirm="handleConfirm"
+          @confirm="handleConfirm"
         />
       </div>
     `,
@@ -151,7 +151,7 @@ export const WithoutName = {
           v-model:visible="visible"
           title="Clear All Data"
           message="Are you sure you want to clear all data? This action cannot be undone."
-          :onConfirm="handleConfirm"
+          @confirm="handleConfirm"
         />
       </div>
     `,
@@ -194,7 +194,7 @@ export const OpenByDefault = {
           name="Test Category"
           title="Delete Category"
           message="Are you sure you want to delete"
-          :onConfirm="handleConfirm"
+          @confirm="handleConfirm"
         />
       </div>
     `,
@@ -251,7 +251,7 @@ export const WithError = {
         <ConfirmDialog
           v-model:visible="visible"
           name="Protected Item"
-          :onConfirm="handleConfirm"
+          @confirm="handleConfirm"
         />
       </div>
     `,

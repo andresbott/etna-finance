@@ -424,7 +424,7 @@ function goBack() {
                         v-model:visible="deleteDialogVisible"
                         title="Delete market data"
                         message="Remove this data point?"
-                        :onConfirm="confirmDeleteData"
+                        @confirm="confirmDeleteData"
                     />
                 </template>
             </Card>

@@ -1,6 +1,8 @@
 <script setup>
 import { computed, watch } from 'vue'
 import Card from 'primevue/card'
+import TabView from 'primevue/tabview'
+import TabPanel from 'primevue/tabpanel'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -11,7 +13,7 @@ import {
     LegendComponent,
     DataZoomComponent
 } from 'echarts/components'
-import { useAccounts } from '@/composables/useAccounts.js'
+import { useAccounts } from '@/composables/useAccounts'
 import { useBalance } from '@/composables/useGetBalanceReport'
 import { formatAmount } from '@/utils/currency'
 import { useDateFormat } from '@/composables/useDateFormat'
@@ -172,11 +174,23 @@ watch(
     <Card>
         <template #title>Financial Overview</template>
         <template #content>
-            <VChart
-                :option="chartOption"
-                autoresize
-                style="height: 450px"
-            />
+            <TabView>
+                <TabPanel header="Balance over time">
+                    <VChart
+                        :option="chartOption"
+                        autoresize
+                        style="height: 450px"
+                    />
+                </TabPanel>
+                <TabPanel header="Instruments">
+                    <div
+                        class="instruments-placeholder"
+                        style="height: 450px; display: flex; align-items: center; justify-content: center; color: var(--c-text-muted-color, #6b7280);"
+                    >
+                        <span>Evolution of all financial instruments — chart coming soon.</span>
+                    </div>
+                </TabPanel>
+            </TabView>
         </template>
     </Card>
 </template>

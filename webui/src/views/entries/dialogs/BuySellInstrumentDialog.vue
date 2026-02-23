@@ -25,6 +25,7 @@ import {
     toDateString,
     getSubmitValues
 } from '@/composables/useEntryDialogForm'
+import { accountValidation } from '@/utils/entryValidation'
 
 const queryClient = useQueryClient()
 const { instruments: instrumentsData } = useInstruments()
@@ -145,10 +146,6 @@ const totalAmountDisplay = computed(() => {
     const t = totalAmount.value
     return t != null && !Number.isNaN(t) ? t.toFixed(2) : ''
 })
-
-const accountValidation = z
-    .union([z.null(), z.record(z.boolean())])
-    .refine((obj) => obj != null, { message: 'Account must be selected' })
 
 const resolver = computed(() => {
     const base = {

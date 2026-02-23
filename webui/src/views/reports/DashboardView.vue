@@ -3,7 +3,8 @@ import { ResponsiveHorizontal } from '@go-bumbu/vue-layouts'
 import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
 import { ref } from 'vue'
 import TimeBalance from './TimeBalance.vue'
-import AccountsList from './AccountsList.vue'
+import CashAccountsCard from './CashAccountsCard.vue'
+import InvestmentAccountsCard from './InvestmentAccountsCard.vue'
 import AccountTypesList from './AccountTypesList.vue'
 import AccountDistribution from './AccountDistribution.vue'
 
@@ -27,9 +28,12 @@ const leftSidebarCollapsed = ref(true)
                     <AccountDistribution />
                 </div>
 
-                <!-- Accounts List -->
-                <div class="col-12">
-                    <AccountsList />
+                <!-- Account Balances: Cash (left) + Investment (right) -->
+                <div class="col-12 lg:col-6">
+                    <CashAccountsCard />
+                </div>
+                <div class="col-12 lg:col-6">
+                    <InvestmentAccountsCard />
                 </div>
             </div>
         </template>

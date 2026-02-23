@@ -254,7 +254,7 @@ const handleDeleteEntry = async () => {
         v-model:visible="deleteDialogVisible"
         :name="entryToDelete?.description"
         message="Are you sure you want to delete this entry?"
-        :onConfirm="handleDeleteEntry"
+        @confirm="handleDeleteEntry"
     />
 </template>
 

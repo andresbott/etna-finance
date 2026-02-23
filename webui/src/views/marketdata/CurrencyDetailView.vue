@@ -394,7 +394,7 @@ function goBack() {
                         v-model:visible="deleteDialogVisible"
                         title="Delete exchange rate"
                         message="Remove this rate?"
-                        :onConfirm="confirmDeleteData"
+                        @confirm="confirmDeleteData"
                     />
                 </template>
             </div>

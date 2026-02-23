@@ -148,7 +148,7 @@
 import { ref, watch, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useUiStore } from '@/store/uiStore.js'
-import { useAccounts } from '@/composables/useAccounts.js'
+import { useAccounts } from '@/composables/useAccounts'
 import { useSettingsStore } from '@/store/settingsStore.js'
 import { ACCOUNT_TYPES } from '@/types/account'
 

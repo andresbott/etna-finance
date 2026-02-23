@@ -8,6 +8,7 @@ import { useCategoryUtils } from '@/utils/categoryUtils'
 import { useAccountUtils } from '@/utils/accountUtils'
 import { useInstruments } from '@/composables/useInstruments'
 import { useDateFormat } from '@/composables/useDateFormat'
+import { getEntryTypeIcon } from '@/utils/entryDisplay'
 
 /* --- Props --- */
 const props = defineProps({
@@ -66,19 +67,6 @@ const isStockSell = (data) => {
 const stockTradeTotalAmount = (data) => (isStockSell(data) ? (data.totalAmount || 0) : -(data.totalAmount || 0))
 
 /* --- Helpers --- */
-const getEntryTypeIcon = (type) => {
-    const icons = {
-        expense: 'pi pi-minus text-red-500',
-        income: 'pi pi-plus text-green-500',
-        transfer: 'pi pi-arrow-right-arrow-left text-blue-500',
-        stockbuy: 'pi pi-chart-line text-yellow-500',
-        stocksell: 'pi pi-chart-line text-orange-500',
-        stockgrant: 'pi pi-gift text-purple-500',
-        stocktransfer: 'pi pi-arrow-right-arrow-left text-indigo-500'
-    }
-    return icons[type] || 'pi pi-question-circle'
-}
-
 const getRowClass = (data) => ({
     'expense-row': data.type === 'expense',
     'income-row': data.type === 'income',
@@ -111,6 +99,7 @@ const handlePage = (event) => {
     <Card>
         <template #content>
             <DataTable
+                class="datatable-compact"
                 :value="entries"
                 :loading="isLoading"
                 stripedRows
@@ -253,12 +242,12 @@ const handlePage = (event) => {
 
                 <Column header="Actions" style="width: 150px">
                     <template #body="{ data }">
-                        <div class="actions">
+                        <div class="flex gap-2 justify-content-start">
                             <Button
                                 icon="pi pi-pencil"
                                 text
                                 rounded
-                                class="action-button"
+                                class="p-1"
                                 @click="handleEdit(data)"
                                 v-tooltip.bottom="'Edit'"
                             />
@@ -266,7 +255,7 @@ const handlePage = (event) => {
                                 icon="pi pi-copy"
                                 text
                                 rounded
-                                class="action-button"
+                                class="p-1"
                                 @click="handleDuplicate(data)"
                                 v-tooltip.bottom="'Duplicate'"
                             />
@@ -275,7 +264,7 @@ const handlePage = (event) => {
                                 text
                                 rounded
                                 severity="danger"
-                                class="action-button"
+                                class="p-1"
                                 :loading="isDeleting"
                                 @click="handleDelete(data)"
                                 v-tooltip.bottom="'Delete'"
@@ -287,49 +276,4 @@ const handlePage = (event) => {
         </template>
     </Card>
 </template>
-
-<style scoped>
-.actions {
-    display: flex;
-    gap: 0.5rem;
-    justify-content: flex-start;
-}
-
-.action-button {
-    padding: 0.25rem;
-}
-
-:deep(.p-datatable-tbody > tr > td) {
-    padding-top: 0;
-    padding-bottom: 0;
-}
-
-:deep(.p-datatable .p-datatable-tbody > tr:hover) {
-    background-color: rgba(0, 0, 0, 0.1) !important;
-}
-
-.amount.expense {
-    color: var(--c-red-600);
-}
-
-.amount.income {
-    color: var(--c-green-600);
-}
-
-.amount.transfer {
-    color: var(--c-blue-600);
-}
-
-.amount.stock-trade .stock-trade-total.buy {
-    color: var(--c-red-600);
-}
-
-.amount.stock-trade .stock-trade-total.sell {
-    color: var(--c-green-600);
-}
-
-:deep(.amount-column .p-datatable-column-title) {
-    margin-left: auto;
-}
-</style>
 

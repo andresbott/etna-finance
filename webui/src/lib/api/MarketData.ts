@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api/client'
+import { with404Null } from '@/lib/api/helpers'
 
 export interface PriceRecord {
     id: number
@@ -39,18 +40,12 @@ export async function getPriceHistory(
 }
 
 export async function getLatestPrice(symbol: string): Promise<PriceRecord | null> {
-    try {
+    return with404Null(async () => {
         const { data } = await apiClient.get<PriceRecord>(
             `${MARKET_DATA_PATH}/${encodeURIComponent(symbol)}/prices/latest`
         )
         return data
-    } catch (err: unknown) {
-        if (typeof err === 'object' && err !== null && 'response' in err) {
-            const ax = err as { response?: { status?: number } }
-            if (ax.response?.status === 404) return null
-        }
-        throw err
-    }
+    })
 }
 
 export async function createPrice(

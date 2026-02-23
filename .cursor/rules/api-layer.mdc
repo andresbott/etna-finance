@@ -1,0 +1,17 @@
+---
+description: API layer conventions for webui (client, naming, types)
+globs: webui/src/lib/api/**/*
+alwaysApply: false
+---
+
+# API layer (webui)
+
+- **Client:** Always use `apiClient` from `@/lib/api/client`. Do not use raw axios or a custom base URL.
+- **Naming:** Use **camelCase** for all exported API functions (e.g. `getEntries`, `createEntry`, `deleteEntry`).
+- **Types:** Put shared DTOs and response types in `webui/src/types/` (e.g. `types/entry.ts`, `types/security.ts`). API modules may define local interfaces when not shared.
+- **404 for optional resources:** Use `with404Null(apiCall)` from `@/lib/api/helpers` when the API may return 404 and the caller expects null.
+
+## Dialog and composable patterns
+
+- **Entry/account dialogs:** Use PrimeVue Form + Zod + a useX composable for data; emit `update:visible` on success. Share validation schemas from `@/utils/entryValidation` where applicable.
+- **Composables:** Prefer useQuery/useMutation with a single query key; invalidate (and optionally refetch) on mutation success via `invalidateAndRefetch` from `@/composables/queryUtils`.

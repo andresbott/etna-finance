@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api/client'
+import { with404Null } from '@/lib/api/helpers'
 
 export interface RateRecord {
     id: number
@@ -48,18 +49,12 @@ export async function getRateHistory(
 }
 
 export async function getLatestRate(main: string, secondary: string): Promise<RateRecord | null> {
-    try {
+    return with404Null(async () => {
         const { data } = await apiClient.get<RateRecord>(
             `${FX_PATH}/${encodeURIComponent(main)}/${encodeURIComponent(secondary)}/rates/latest`
         )
         return data
-    } catch (err: unknown) {
-        if (typeof err === 'object' && err !== null && 'response' in err) {
-            const ax = err as { response?: { status?: number } }
-            if (ax.response?.status === 404) return null
-        }
-        throw err
-    }
+    })
 }
 
 export async function createRate(

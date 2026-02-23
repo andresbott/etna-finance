@@ -10,6 +10,11 @@ import {
     deletePrice as deletePriceApi
 } from '@/lib/api/MarketData'
 import type { CreatePriceDTO, UpdatePriceDTO, PriceRecord } from '@/lib/api/MarketData'
+import { lastDaysRange, rangeToStartEnd, type PriceHistoryRange } from '@/utils/dateRange'
+
+export type { PriceHistoryRange } from '@/utils/dateRange'
+export { toLocalDateString } from '@/utils/date'
+export { formatPct, getChangeSeverity } from '@/utils/format'
 
 export interface MarketInstrument {
     id: number
@@ -33,49 +38,7 @@ export interface PriceHistory {
     volumes: number[]
 }
 
-/** Supported chart date ranges */
-export type PriceHistoryRange = '6m' | 'max'
-
 const MARKET_INSTRUMENTS_QUERY_KEY = ['marketInstruments']
-
-/** Format date as local YYYY-MM-DD (avoids UTC shift so "today" stays today in all timezones). */
-export function toLocalDateString(d: Date): string {
-    const y = d.getFullYear()
-    const m = String(d.getMonth() + 1).padStart(2, '0')
-    const day = String(d.getDate()).padStart(2, '0')
-    return `${y}-${m}-${day}`
-}
-
-function rangeToStartEnd(range: PriceHistoryRange): { start: string; end: string } {
-    const now = new Date()
-    const end = new Date(now)
-    end.setHours(0, 0, 0, 0)
-    const start = new Date(end)
-    switch (range) {
-        case '6m':
-            start.setMonth(start.getMonth() - 6)
-            break
-        case 'max':
-            start.setFullYear(start.getFullYear() - 10)
-            break
-    }
-    return {
-        start: toLocalDateString(start),
-        end: toLocalDateString(end)
-    }
-}
-
-/** Last N days range for change calculation (current vs previous close). */
-function lastDaysRange(days: number): { start: string; end: string } {
-    const end = new Date()
-    end.setHours(0, 0, 0, 0)
-    const start = new Date(end)
-    start.setDate(start.getDate() - days)
-    return {
-        start: toLocalDateString(start),
-        end: toLocalDateString(end)
-    }
-}
 
 export function useMarketInstruments() {
     const queryClient = useQueryClient()
@@ -229,21 +192,8 @@ export function formatVolume(value: number | null | undefined): string {
     return value.toString()
 }
 
-export function formatPct(value: number | null | undefined): string {
-    if (value == null) return '-'
-    const sign = value >= 0 ? '+' : ''
-    return sign + value.toFixed(2) + '%'
-}
-
 export function formatChange(value: number | null | undefined): string {
     if (value == null) return '-'
     const sign = value >= 0 ? '+' : ''
     return sign + value.toFixed(2)
-}
-
-export function getChangeSeverity(value: number | null | undefined): string {
-    if (value == null) return 'secondary'
-    if (value > 0) return 'success'
-    if (value < 0) return 'danger'
-    return 'secondary'
 }

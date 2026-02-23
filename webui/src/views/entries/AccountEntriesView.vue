@@ -287,6 +287,7 @@ const handleDeleteEntry = async () => {
                     :isLoading="isLoading || isFetching"
                     :isDeleting="isDeleting"
                     :accountId="accountId"
+                    :accountType="accountType"
                     :totalRecords="paginationTotal"
                     :rows="paginationRows"
                     :first="paginationFirst"
@@ -389,7 +390,7 @@ const handleDeleteEntry = async () => {
         v-model:visible="deleteDialogVisible"
         :name="entryToDelete?.description"
         message="Are you sure you want to delete this entry?"
-        :onConfirm="handleDeleteEntry"
+        @confirm="handleDeleteEntry"
     />
 </template>
 

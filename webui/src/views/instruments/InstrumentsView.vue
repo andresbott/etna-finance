@@ -95,9 +95,9 @@ const saveInstrument = async (payload) => {
 
 <template>
     <div class="main-app-content">
-        <div class="instruments-view">
-            <div class="header">
-                <h1>Investment Instruments</h1>
+        <div class="view-container w-full">
+            <div class="flex justify-content-between align-items-center mb-2">
+                <h1 class="m-0">Investment Instruments</h1>
                 <Button
                     label="Add Instrument"
                     icon="pi pi-plus"
@@ -129,12 +129,12 @@ const saveInstrument = async (payload) => {
                         <Column field="currency" header="Currency" />
                         <Column header="Actions" class="actions-column">
                             <template #body="{ data }">
-                                <div class="actions">
+                                <div class="flex gap-1 justify-content-end">
                                     <Button
                                         icon="pi pi-pencil"
                                         text
                                         rounded
-                                        class="action-button"
+                                        class="p-1"
                                         @click="editInstrument(data)"
                                     />
                                     <Button
@@ -142,7 +142,7 @@ const saveInstrument = async (payload) => {
                                         text
                                         rounded
                                         severity="danger"
-                                        class="action-button"
+                                        class="p-1"
                                         @click="showDeleteInstrumentDialog(data)"
                                     />
                                 </div>
@@ -168,45 +168,14 @@ const saveInstrument = async (payload) => {
         :name="instrumentToDelete?.name"
         title="Delete investment instrument"
         message="Are you sure you want to delete this investment instrument?"
-        :onConfirm="confirmDeleteInstrument"
+        @confirm="confirmDeleteInstrument"
     />
 </template>
 
 <style scoped>
-.instruments-view {
-    padding: 2rem;
-    width: 100%;
-}
-
-.header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.5rem;
-}
-
-.header h1 {
-    margin: 0;
-}
-
-.actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 4px;
-}
-
-.action-button {
-    padding: 0.25rem;
-}
-
-:deep(.actions-column .p-datatable-column-title) {
-    margin-left: auto;
-}
-
 .info-message {
     padding: 1rem;
     text-align: center;
     color: var(--p-text-muted-color);
 }
-
 </style>

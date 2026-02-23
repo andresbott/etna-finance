@@ -1,16 +1,11 @@
 import { apiClient } from '@/lib/api/client'
 import type { Entry, CreateEntryDTO, UpdateEntryDTO, PaginatedEntriesResponse } from '@/types/entry'
+import { toLocalDateString } from '@/utils/date'
 
-/**
- * Helper function to format a Date object to YYYY-MM-DD string
- */
+/** Format a Date for API params as local YYYY-MM-DD. */
 export const formatDate = (date: Date): string => {
     if (!(date instanceof Date) || isNaN(date.getTime())) return ''
-
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
+    return toLocalDateString(date)
 }
 
 export interface GetEntriesOptions {
@@ -24,7 +19,7 @@ export interface GetEntriesOptions {
 /**
  * Fetches entries from the API with date range filtering, optional account filtering, and pagination
  */
-export const GetEntries = async (options: GetEntriesOptions): Promise<PaginatedEntriesResponse> => {
+export const getEntries = async (options: GetEntriesOptions): Promise<PaginatedEntriesResponse> => {
     const { startDate, endDate, accountIds = [], page = 1, limit = 25 } = options
 
     const params = new URLSearchParams({
@@ -63,7 +58,7 @@ export const GetEntries = async (options: GetEntriesOptions): Promise<PaginatedE
 /**
  * Creates a new entry
  */
-export const CreateEntry = async (payload: CreateEntryDTO): Promise<Entry> => {
+export const createEntry = async (payload: CreateEntryDTO): Promise<Entry> => {
     const { data } = await apiClient.post('/fin/entries', payload)
     return data
 }
@@ -71,7 +66,7 @@ export const CreateEntry = async (payload: CreateEntryDTO): Promise<Entry> => {
 /**
  * Updates an existing entry
  */
-export const UpdateEntry = async (payload: UpdateEntryDTO): Promise<Entry> => {
+export const updateEntry = async (payload: UpdateEntryDTO): Promise<Entry> => {
     const { data } = await apiClient.put(`/fin/entries/${payload.id}`, payload)
     return data
 }
@@ -79,7 +74,7 @@ export const UpdateEntry = async (payload: UpdateEntryDTO): Promise<Entry> => {
 /**
  * Deletes an entry
  */
-export const DeleteEntry = async (id: string): Promise<void> => {
+export const deleteEntry = async (id: string): Promise<void> => {
     await apiClient.delete(`/fin/entries/${id}`)
 }
 
