@@ -51,7 +51,15 @@ const { productPositions, totalByCurrency, totalInMainCurrency, mainCurrency, is
                                     {{ data.totalQuantity.toLocaleString(undefined, { maximumFractionDigits: 4 }) }}
                                 </template>
                             </Column>
-                            <Column header="Price" style="min-width: 120px">
+                            <Column header="Avg Cost" style="min-width: 120px">
+                                <template #body="{ data }">
+                                    <span v-if="data.avgCostPerShare != null">
+                                        {{ formatAmount(data.avgCostPerShare) }} {{ data.currency }}
+                                    </span>
+                                    <span v-else class="text-500">—</span>
+                                </template>
+                            </Column>
+                            <Column header="Market Price" style="min-width: 120px">
                                 <template #body="{ data }">
                                     <span v-if="data.lastPrice != null">
                                         {{ formatAmount(data.lastPrice) }} {{ data.currency }}
@@ -59,14 +67,17 @@ const { productPositions, totalByCurrency, totalInMainCurrency, mainCurrency, is
                                     <span v-else class="text-500">—</span>
                                 </template>
                             </Column>
-                            <Column header="Invested" style="min-width: 140px">
-                                <template #body="{ data }">
-                                    <span>{{ formatAmount(data.investedAmount) }} {{ data.currency }}</span>
-                                </template>
-                            </Column>
-                            <Column header="Value" style="min-width: 140px">
+                            <Column header="Market Value" style="min-width: 140px">
                                 <template #body="{ data }">
                                     <span class="font-semibold">{{ formatAmount(data.totalValue) }} {{ data.currency }}</span>
+                                </template>
+                            </Column>
+                            <Column header="%" style="min-width: 70px">
+                                <template #body="{ data }">
+                                    <span v-if="data.winLossPercent != null" class="amount" :class="data.winLossPercent >= 0 ? 'amount-positive' : 'amount-negative'">
+                                        {{ data.winLossPercent >= 0 ? '+' : '' }}{{ data.winLossPercent.toFixed(1) }}%
+                                    </span>
+                                    <span v-else class="text-500">—</span>
                                 </template>
                             </Column>
                             <Column header="Gain/Loss" style="min-width: 130px">

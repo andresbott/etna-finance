@@ -21,7 +21,7 @@ coverage.out
 # build output
 dist/
 # local builds
-etna
+./etna
 # application data
 data
 

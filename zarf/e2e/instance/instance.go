@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -161,13 +162,18 @@ func InitInstance(cfg *EnvCfg) (*Instance, error) {
 	)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	// Place "go run" and its child process in a new process group so we can
+	// kill the entire tree on cleanup (go run spawns a child binary).
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
 		_ = os.RemoveAll(dataDir)
 		return nil, fmt.Errorf("start backend: %w", err)
 	}
 
 	stopFn := func() {
-		_ = cmd.Process.Kill()
+		// Kill the entire process group (negative PID) so the child binary
+		// spawned by "go run" is also terminated.
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 		_ = cmd.Wait()
 		_ = os.RemoveAll(dataDir)
 	}

@@ -11,10 +11,12 @@ export interface ProductPosition {
     name: string
     currency: string
     totalQuantity: number
+    avgCostPerShare: number | null // investedAmount / totalQuantity, null when totalQuantity is 0
     lastPrice: number | null
     totalValue: number
     investedAmount: number
     winLoss: number // totalValue - investedAmount (unrealized gain when positive, loss when negative)
+    winLossPercent: number | null // winLoss / investedAmount * 100, null when investedAmount is 0
 }
 
 /**
@@ -76,10 +78,15 @@ export function useInvestmentReport() {
         }
 
         return Array.from(byInstrument.values())
-            .map((row) => ({
-                ...row,
-                winLoss: row.totalValue - row.investedAmount
-            }))
+            .map((row) => {
+                const winLoss = row.totalValue - row.investedAmount
+                return {
+                    ...row,
+                    avgCostPerShare: row.totalQuantity > 0 ? row.investedAmount / row.totalQuantity : null,
+                    winLoss,
+                    winLossPercent: row.investedAmount !== 0 ? (winLoss / row.investedAmount) * 100 : null
+                }
+            })
             .sort((a, b) =>
                 a.symbol.localeCompare(b.symbol, undefined, { sensitivity: 'base' })
             )

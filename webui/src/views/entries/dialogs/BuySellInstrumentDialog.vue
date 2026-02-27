@@ -71,6 +71,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:visible'])
+const formKey = ref(0)
 watch(() => props.visible, (v) => { if (!v) backendError.value = '' })
 
 const initialOriginAmount = () => {
@@ -120,6 +121,7 @@ watch(
                 InvestmentAccountId: getFormattedAccountId(props.investmentAccountId),
                 CashAccountId: getFormattedAccountId(props.cashAccountId)
             }
+            formKey.value++
         }
     }
 )
@@ -249,6 +251,7 @@ const handleSubmit = async (e) => {
         class="entry-dialog entry-dialog--wide"
     >
         <Form
+            :key="formKey"
             v-slot="$form"
             :resolver="resolver"
             :initialValues="formValues"

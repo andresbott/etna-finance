@@ -72,6 +72,7 @@ const formValues = ref({
 })
 
 // Watch props to update form values when editing
+const formKey = ref(0)
 watch(props, (newProps) => {
     formValues.value = {
         description: newProps.description,
@@ -80,6 +81,7 @@ watch(props, (newProps) => {
         stockAmount: newProps.stockAmount,
         date: getDateOnly(newProps.date)
     }
+    formKey.value++
 })
 
 // Track if selected account is of type stocks
@@ -210,6 +212,7 @@ const emit = defineEmits(['update:visible'])
         class="entry-dialog"
     >
         <Form
+            :key="formKey"
             v-slot="$form"
             :resolver="resolver"
             :initialValues="formValues"
