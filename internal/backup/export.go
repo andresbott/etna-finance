@@ -234,6 +234,54 @@ func writeTransactions(ctx context.Context, zw *zipWriter, store *accounting.Sto
 					Date:        item.Date,
 					Type:        txTypeExpense,
 				})
+			case accounting.StockBuy:
+				jsonData = append(jsonData, TransactionV1{
+					Id:                  item.Id,
+					Description:         item.Description,
+					InstrumentID:        item.InstrumentID,
+					Quantity:            item.Quantity,
+					TotalAmount:         item.TotalAmount,
+					StockAmount:         item.StockAmount,
+					InvestmentAccountID: item.InvestmentAccountID,
+					CashAccountID:       item.CashAccountID,
+					Date:                item.Date,
+					Type:                txTypeStockBuy,
+				})
+			case accounting.StockSell:
+				jsonData = append(jsonData, TransactionV1{
+					Id:                  item.Id,
+					Description:         item.Description,
+					InstrumentID:        item.InstrumentID,
+					Quantity:            item.Quantity,
+					TotalAmount:         item.TotalAmount,
+					Fees:                item.Fees,
+					InvestmentAccountID: item.InvestmentAccountID,
+					CashAccountID:       item.CashAccountID,
+					Date:                item.Date,
+					Type:                txTypeStockSell,
+				})
+			case accounting.StockGrant:
+				jsonData = append(jsonData, TransactionV1{
+					Id:              item.Id,
+					Description:     item.Description,
+					AccountID:       item.AccountID,
+					InstrumentID:    item.InstrumentID,
+					Quantity:        item.Quantity,
+					FairMarketValue: item.FairMarketValue,
+					Date:            item.Date,
+					Type:            txTypeStockGrant,
+				})
+			case accounting.StockTransfer:
+				jsonData = append(jsonData, TransactionV1{
+					Id:              item.Id,
+					Description:     item.Description,
+					SourceAccountID: item.SourceAccountID,
+					TargetAccountID: item.TargetAccountID,
+					InstrumentID:    item.InstrumentID,
+					Quantity:        item.Quantity,
+					Date:            item.Date,
+					Type:            txTypeStockTransfer,
+				})
 			}
 		}
 		opts.Page++

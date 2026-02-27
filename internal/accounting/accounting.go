@@ -46,7 +46,7 @@ func NewStore(db *gorm.DB, instrumentGetter InstrumentGetter) (*Store, error) {
 		return nil, fmt.Errorf("error parsing schema: %w", err)
 	}
 
-	err = db.AutoMigrate(&dbAccountProvider{}, &dbAccount{}, &dbTransaction{}, &dbEntry{})
+	err = db.AutoMigrate(&dbAccountProvider{}, &dbAccount{}, &dbTransaction{}, &dbEntry{}, &dbTrade{}, &dbLot{}, &dbLotDisposal{}, &dbPosition{})
 	if err != nil {
 		return nil, err
 	}
@@ -81,6 +81,10 @@ func (v ErrValidation) Error() string {
 
 func (store *Store) WipeData(ctx context.Context) error {
 	tables := []string{
+		"db_lot_disposals",
+		"db_lots",
+		"db_trades",
+		"db_positions",
 		"db_account_providers",
 		"db_accounts",
 		"db_transactions",

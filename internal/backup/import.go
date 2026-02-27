@@ -115,6 +115,8 @@ func parseAccountType(in string) accounting.AccountType {
 		return accounting.SavingsAccountType
 	case "Investment":
 		return accounting.InvestmentAccountType
+	case "Unvested":
+		return accounting.UnvestedAccountType
 	default:
 		return accounting.UnknownAccountType
 	}
@@ -203,15 +205,57 @@ func importTransactions(ctx context.Context, store *accounting.Store, r *zip.Rea
 			}
 			tr.OriginAccountID = accountsMap[tx.OriginAccountID]
 			tr.TargetAccountID = accountsMap[tx.TargetAccountID]
-
 			item = tr
+
+		case txTypeStockBuy:
+			item = accounting.StockBuy{
+				Description:         tx.Description,
+				Date:                tx.Date,
+				InvestmentAccountID: accountsMap[tx.InvestmentAccountID],
+				CashAccountID:       accountsMap[tx.CashAccountID],
+				InstrumentID:        tx.InstrumentID,
+				Quantity:            tx.Quantity,
+				TotalAmount:         tx.TotalAmount,
+				StockAmount:         tx.StockAmount,
+			}
+		case txTypeStockSell:
+			item = accounting.StockSell{
+				Description:         tx.Description,
+				Date:                tx.Date,
+				InvestmentAccountID: accountsMap[tx.InvestmentAccountID],
+				CashAccountID:       accountsMap[tx.CashAccountID],
+				InstrumentID:        tx.InstrumentID,
+				Quantity:            tx.Quantity,
+				TotalAmount:         tx.TotalAmount,
+				Fees:                tx.Fees,
+			}
+		case txTypeStockGrant:
+			item = accounting.StockGrant{
+				Description:     tx.Description,
+				Date:            tx.Date,
+				AccountID:       accountsMap[tx.AccountID],
+				InstrumentID:    tx.InstrumentID,
+				Quantity:        tx.Quantity,
+				FairMarketValue: tx.FairMarketValue,
+			}
+		case txTypeStockTransfer:
+			item = accounting.StockTransfer{
+				Description:     tx.Description,
+				Date:            tx.Date,
+				SourceAccountID: accountsMap[tx.SourceAccountID],
+				TargetAccountID: accountsMap[tx.TargetAccountID],
+				InstrumentID:    tx.InstrumentID,
+				Quantity:        tx.Quantity,
+			}
 		}
 
+		if item == nil {
+			continue
+		}
 		_, err = store.CreateTransaction(ctx, item)
 		if err != nil {
 			return fmt.Errorf("failed to create transaction: %w", err)
 		}
-
 	}
 	return nil
 }

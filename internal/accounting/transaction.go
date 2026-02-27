@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math"
 	"slices"
-	"sort"
 	"time"
 
 	"golang.org/x/text/currency"
@@ -36,6 +35,7 @@ type dbTransaction struct {
 	UpdatedAt   time.Time
 	DeletedAt   gorm.DeletedAt `gorm:"index"`
 	Entries     []dbEntry      `gorm:"foreignKey:TransactionID"` // One-to-many relationship
+	Trades      []dbTrade      `gorm:"foreignKey:TransactionID"` // One-to-many for stock operations
 }
 
 type Transaction interface {
@@ -447,20 +447,12 @@ func (store *Store) CreateStockBuy(ctx context.Context, item StockBuy) (uint, er
 			instrument.Currency, invAcc.Currency))
 	}
 
-	// Two entries: position on investment account (monetary value in instrument currency),
-	// cash out on cash account (negative amount in cash account currency)
+	// Cash entry only — position is tracked via trades/lots
 	tx := dbTransaction{
 		Description: item.Description,
 		Date:        item.Date,
 		Type:        StockBuyTransaction,
 		Entries: []dbEntry{
-			{
-				AccountID:    item.InvestmentAccountID,
-				InstrumentID: item.InstrumentID,
-				Quantity:     item.Quantity,
-				Amount:       item.StockAmount,
-				EntryType:    stockBuyEntry,
-			},
 			{
 				AccountID: item.CashAccountID,
 				Amount:    -item.TotalAmount,
@@ -473,197 +465,39 @@ func (store *Store) CreateStockBuy(ctx context.Context, item StockBuy) (uint, er
 		return 0, err
 	}
 
-	if err := store.db.WithContext(ctx).Create(&tx).Error; err != nil {
-		return 0, err
-	}
-	return tx.Id, nil
-}
-
-// positionTx represents a transaction that affects a stock position for cost basis replay.
-type positionTx struct {
-	id        uint
-	date      time.Time
-	createdAt time.Time
-	txType    TxType
-	// buy
-	buyInvestAccountID uint
-	buyCashAccountID   uint
-	buyQty             float64
-	buyStockAmount     float64
-	// sell
-	sellInvestAccountID uint
-	sellCashAccountID   uint
-	sellQty             float64
-	// grant
-	grantAccountID uint
-	grantQty       float64
-	grantAmount    float64 // FMV * qty for cost basis
-	// transfer
-	transferSourceID uint
-	transferTargetID uint
-	transferQty      float64
-}
-
-// ListStockPositionTransactions returns all buy/sell/grant/transfer affecting (accountID, instrumentID) on or before the given date.
-func (store *Store) ListStockPositionTransactions(ctx context.Context, accountID, instrumentID uint, onOrBeforeDate time.Time) ([]positionTx, error) {
-	var txs []dbTransaction
-	cutoff := endOfDay(onOrBeforeDate)
-	err := store.db.WithContext(ctx).
-		Where("date <= ? AND type IN ?", cutoff, []TxType{StockBuyTransaction, StockSellTransaction, StockGrantTransaction, StockTransferTransaction}).
-		Preload("Entries").
-		FindInBatches(&txs, 500, func(tx *gorm.DB, batch int) error { return nil }).Error
-	if err != nil {
-		return nil, err
-	}
-	var result []positionTx
-	for i := range txs {
-		t := &txs[i]
-		pt := positionTx{id: t.Id, date: t.Date, createdAt: t.CreatedAt, txType: t.Type}
-		switch t.Type {
-		case StockBuyTransaction:
-			var posEntry, cashEntry *dbEntry
-			for j := range t.Entries {
-				e := &t.Entries[j]
-				switch e.EntryType {
-				case stockBuyEntry:
-					posEntry = e
-				case stockCashOutEntry:
-					cashEntry = e
-				}
-			}
-			if posEntry != nil && posEntry.AccountID == accountID && posEntry.InstrumentID == instrumentID {
-				pt.buyInvestAccountID = posEntry.AccountID
-				pt.buyQty = posEntry.Quantity
-				pt.buyStockAmount = posEntry.Amount
-				if cashEntry != nil {
-					pt.buyCashAccountID = cashEntry.AccountID
-				}
-				result = append(result, pt)
-			}
-		case StockSellTransaction:
-			var posEntry *dbEntry
-			for j := range t.Entries {
-				e := &t.Entries[j]
-				if e.EntryType == stockSellEntry && e.AccountID == accountID && e.InstrumentID == instrumentID {
-					posEntry = e
-					break
-				}
-			}
-			if posEntry != nil {
-				pt.sellInvestAccountID = posEntry.AccountID
-				pt.sellQty = posEntry.Quantity
-				for j := range t.Entries {
-					if t.Entries[j].EntryType == stockCashInEntry {
-						pt.sellCashAccountID = t.Entries[j].AccountID
-						break
-					}
-				}
-				result = append(result, pt)
-			}
-		case StockGrantTransaction:
-			for j := range t.Entries {
-				e := &t.Entries[j]
-				if e.EntryType == stockGrantEntry && e.AccountID == accountID && e.InstrumentID == instrumentID {
-					pt.grantAccountID = e.AccountID
-					pt.grantQty = e.Quantity
-					pt.grantAmount = e.Amount
-					result = append(result, pt)
-					break
-				}
-			}
-		case StockTransferTransaction:
-			var srcID, tgtID uint
-			var qty float64
-			for j := range t.Entries {
-				e := &t.Entries[j]
-				if e.EntryType == stockTransferOutEntry && e.InstrumentID == instrumentID {
-					srcID = e.AccountID
-					qty = e.Quantity
-				}
-				if e.EntryType == stockTransferInEntry && e.InstrumentID == instrumentID {
-					tgtID = e.AccountID
-				}
-			}
-			if (srcID == accountID || tgtID == accountID) && qty > 0 {
-				pt.transferSourceID = srcID
-				pt.transferTargetID = tgtID
-				pt.transferQty = qty
-				result = append(result, pt)
-			}
+	var txID uint
+	err = store.db.WithContext(ctx).Transaction(func(dbTx *gorm.DB) error {
+		if err := dbTx.Create(&tx).Error; err != nil {
+			return err
 		}
-	}
-	sort.Slice(result, func(i, j int) bool {
-		if !result[i].date.Equal(result[j].date) {
-			return result[i].date.Before(result[j].date)
+		txID = tx.Id
+
+		pricePerShare := 0.0
+		if item.Quantity > 0 {
+			pricePerShare = item.StockAmount / item.Quantity
 		}
-		return result[i].id < result[j].id
+		trade := dbTrade{
+			TransactionID: tx.Id,
+			AccountID:     item.InvestmentAccountID,
+			InstrumentID:  item.InstrumentID,
+			TradeType:     BuyTrade,
+			Quantity:      item.Quantity,
+			PricePerShare: pricePerShare,
+			TotalAmount:   item.StockAmount,
+			Currency:      instrument.Currency.String(),
+			Date:          item.Date,
+		}
+		_, err := store.createTrade(ctx, dbTx, trade)
+		return err
 	})
-	return result, nil
-}
-
-// computeCostBasisForSell replays position transactions and returns the allocated cost basis for selling sellQty shares.
-// excludeTxID: when set, excludes that tx from replay (used for transfer-in to get source state before transfer).
-func (store *Store) computeCostBasisForSell(ctx context.Context, accountID, instrumentID uint, sellDate time.Time, sellQty float64, excludeTxID uint) (float64, error) {
-	txs, err := store.ListStockPositionTransactions(ctx, accountID, instrumentID, sellDate)
 	if err != nil {
 		return 0, err
 	}
-	var qty, costBasis float64
-	for _, pt := range txs {
-		if pt.id == excludeTxID {
-			continue
-		}
-		switch pt.txType {
-		case StockBuyTransaction:
-			qty += pt.buyQty
-			costBasis += pt.buyStockAmount
-		case StockSellTransaction:
-			if qty <= 0 {
-				return 0, ErrValidation("insufficient quantity: sell before any buy or position already closed")
-			}
-			ratio := pt.sellQty / qty
-			allocCost := math.Round((ratio*costBasis)*100) / 100
-			costBasis -= allocCost
-			qty -= pt.sellQty
-			if qty <= 0 {
-				qty = 0
-				costBasis = 0
-			}
-		case StockGrantTransaction:
-			qty += pt.grantQty
-			costBasis += pt.grantAmount
-		case StockTransferTransaction:
-			if pt.transferSourceID == accountID {
-				if qty <= 0 {
-					return 0, ErrValidation("insufficient quantity for transfer out")
-				}
-				ratio := pt.transferQty / qty
-				allocCost := math.Round((ratio*costBasis)*100) / 100
-				costBasis -= allocCost
-				qty -= pt.transferQty
-				if qty <= 0 {
-					qty = 0
-					costBasis = 0
-				}
-			} else if pt.transferTargetID == accountID {
-				srcCost, err := store.computeCostBasisForSell(ctx, pt.transferSourceID, instrumentID, pt.date, pt.transferQty, pt.id)
-				if err != nil {
-					return 0, err
-				}
-				qty += pt.transferQty
-				costBasis += srcCost
-			}
-		}
-	}
-	if qty < sellQty {
-		return 0, ErrValidation("insufficient quantity")
-	}
-	allocCost := 0.0
-	if qty > 0 {
-		allocCost = math.Round((sellQty/qty)*costBasis*100) / 100
-	}
-	return allocCost, nil
+	return txID, nil
 }
+
+// Note: computeCostBasisForSell and ListStockPositionTransactions have been removed.
+// Cost basis is now computed via FIFO lot allocation in lot.go.
 
 func roundMoney(v float64) float64 {
 	return math.Round(v*100) / 100
@@ -720,63 +554,91 @@ func (store *Store) CreateStockSell(ctx context.Context, item StockSell) (uint, 
 			instrument.Currency, invAcc.Currency))
 	}
 
-	costBasis, err := store.computeCostBasisForSell(ctx, item.InvestmentAccountID, item.InstrumentID, item.Date, item.Quantity, 0)
+	var txID uint
+	err = store.db.WithContext(ctx).Transaction(func(dbTx *gorm.DB) error {
+		// Create the sell trade first (to get its ID for lot disposals)
+		pricePerShare := 0.0
+		if item.Quantity > 0 {
+			pricePerShare = item.TotalAmount / item.Quantity
+		}
+		trade := dbTrade{
+			AccountID:     item.InvestmentAccountID,
+			InstrumentID:  item.InstrumentID,
+			TradeType:     SellTrade,
+			Quantity:      item.Quantity,
+			PricePerShare: pricePerShare,
+			TotalAmount:   item.TotalAmount,
+			Currency:      instrument.Currency.String(),
+			Date:          item.Date,
+		}
+		if err := dbTx.Create(&trade).Error; err != nil {
+			return err
+		}
+
+		// FIFO lot allocation
+		allocations, costBasis, err := store.allocateLotsForSell(ctx, dbTx, item.InvestmentAccountID, item.InstrumentID, item.Quantity, item.TotalAmount, item.Date, trade.Id, FIFO)
+		if err != nil {
+			return err
+		}
+		_ = allocations
+		costBasis = roundMoney(costBasis)
+		realizedGainLoss := roundMoney(item.TotalAmount - fees - costBasis)
+
+		// Cash entries
+		entries := []dbEntry{
+			{
+				AccountID: item.CashAccountID,
+				Amount:    item.TotalAmount - fees,
+				EntryType: stockCashInEntry,
+			},
+		}
+		if realizedGainLoss > 0 {
+			entries = append(entries, dbEntry{
+				AccountID: item.CashAccountID,
+				Amount:    realizedGainLoss,
+				EntryType: incomeEntry,
+			})
+		} else if realizedGainLoss < 0 {
+			entries = append(entries, dbEntry{
+				AccountID: item.CashAccountID,
+				Amount:    -realizedGainLoss,
+				EntryType: expenseEntry,
+			})
+		}
+		if fees > 0 {
+			entries = append(entries, dbEntry{
+				AccountID: item.CashAccountID,
+				Amount:    fees,
+				EntryType: expenseEntry,
+			})
+		}
+
+		tx := dbTransaction{
+			Description: item.Description,
+			Date:        item.Date,
+			Type:        StockSellTransaction,
+			Entries:     entries,
+		}
+		if err := validateTransaction(tx); err != nil {
+			return err
+		}
+		if err := dbTx.Create(&tx).Error; err != nil {
+			return err
+		}
+		txID = tx.Id
+
+		// Update trade with transaction ID
+		if err := dbTx.Model(&trade).Update("transaction_id", tx.Id).Error; err != nil {
+			return err
+		}
+
+		// Update position
+		return store.updatePosition(ctx, dbTx, item.InvestmentAccountID, item.InstrumentID)
+	})
 	if err != nil {
 		return 0, err
 	}
-	costBasis = roundMoney(costBasis)
-	realizedGainLoss := roundMoney(item.TotalAmount - fees - costBasis)
-
-	entries := []dbEntry{
-		{
-			AccountID:    item.InvestmentAccountID,
-			InstrumentID: item.InstrumentID,
-			Quantity:     item.Quantity,
-			Amount:       -costBasis,
-			EntryType:    stockSellEntry,
-		},
-		{
-			AccountID: item.CashAccountID,
-			Amount:    costBasis,
-			EntryType: stockCashInEntry,
-		},
-	}
-	if realizedGainLoss > 0 {
-		entries = append(entries, dbEntry{
-			AccountID: item.CashAccountID,
-			Amount:    realizedGainLoss,
-			EntryType: incomeEntry,
-		})
-	} else if realizedGainLoss < 0 {
-		entries = append(entries, dbEntry{
-			AccountID: item.CashAccountID,
-			Amount:    -realizedGainLoss,
-			EntryType: expenseEntry,
-		})
-	}
-	if fees > 0 {
-		entries = append(entries, dbEntry{
-			AccountID: item.CashAccountID,
-			Amount:    fees,
-			EntryType: expenseEntry,
-		})
-	}
-
-	tx := dbTransaction{
-		Description: item.Description,
-		Date:        item.Date,
-		Type:        StockSellTransaction,
-		Entries:     entries,
-	}
-
-	if err := validateTransaction(tx); err != nil {
-		return 0, err
-	}
-
-	if err := store.db.WithContext(ctx).Create(&tx).Error; err != nil {
-		return 0, err
-	}
-	return tx.Id, nil
+	return txID, nil
 }
 
 func (store *Store) CreateStockGrant(ctx context.Context, item StockGrant) (uint, error) {
@@ -812,35 +674,50 @@ func (store *Store) CreateStockGrant(ctx context.Context, item StockGrant) (uint
 			instrument.Currency, acc.Currency))
 	}
 
-	// Store cost basis (FMV * quantity) in Amount for replay logic; 0 when FairMarketValue is 0
 	grantCostBasis := item.FairMarketValue * item.Quantity
 	if item.FairMarketValue < 0 {
 		return 0, ErrValidation("fair market value cannot be negative")
 	}
 
+	// Grant: no cash movement, so no entries in db_entries. Only trade + lot + position.
 	tx := dbTransaction{
 		Description: item.Description,
 		Date:        item.Date,
 		Type:        StockGrantTransaction,
-		Entries: []dbEntry{
-			{
-				AccountID:    item.AccountID,
-				InstrumentID: item.InstrumentID,
-				Quantity:     item.Quantity,
-				Amount:       grantCostBasis,
-				EntryType:    stockGrantEntry,
-			},
-		},
 	}
 
-	if err := validateTransaction(tx); err != nil {
-		return 0, err
+	if tx.Description == "" {
+		return 0, NewValidationErr("description cannot be empty")
+	}
+	if tx.Date.IsZero() {
+		return 0, NewValidationErr("date cannot be zero")
 	}
 
-	if err := store.db.WithContext(ctx).Create(&tx).Error; err != nil {
+	var txID uint
+	err = store.db.WithContext(ctx).Transaction(func(dbTx *gorm.DB) error {
+		if err := dbTx.Create(&tx).Error; err != nil {
+			return err
+		}
+		txID = tx.Id
+
+		trade := dbTrade{
+			TransactionID: tx.Id,
+			AccountID:     item.AccountID,
+			InstrumentID:  item.InstrumentID,
+			TradeType:     GrantTrade,
+			Quantity:      item.Quantity,
+			PricePerShare: item.FairMarketValue,
+			TotalAmount:   grantCostBasis,
+			Currency:      instrument.Currency.String(),
+			Date:          item.Date,
+		}
+		_, err := store.createTrade(ctx, dbTx, trade)
+		return err
+	})
+	if err != nil {
 		return 0, err
 	}
-	return tx.Id, nil
+	return txID, nil
 }
 
 func (store *Store) CreateStockTransfer(ctx context.Context, item StockTransfer) (uint, error) {
@@ -892,36 +769,66 @@ func (store *Store) CreateStockTransfer(ctx context.Context, item StockTransfer)
 			instrument.Currency, tgtAcc.Currency))
 	}
 
+	// Transfer: no cash movement, lot transfer logic + trade records for metadata.
 	tx := dbTransaction{
 		Description: item.Description,
 		Date:        item.Date,
 		Type:        StockTransferTransaction,
-		Entries: []dbEntry{
-			{
-				AccountID:    item.SourceAccountID,
-				InstrumentID: item.InstrumentID,
-				Quantity:     item.Quantity,
-				Amount:       0,
-				EntryType:    stockTransferOutEntry,
-			},
-			{
-				AccountID:    item.TargetAccountID,
-				InstrumentID: item.InstrumentID,
-				Quantity:     item.Quantity,
-				Amount:       0,
-				EntryType:    stockTransferInEntry,
-			},
-		},
 	}
 
-	if err := validateTransaction(tx); err != nil {
-		return 0, err
+	if tx.Description == "" {
+		return 0, NewValidationErr("description cannot be empty")
+	}
+	if tx.Date.IsZero() {
+		return 0, NewValidationErr("date cannot be zero")
 	}
 
-	if err := store.db.WithContext(ctx).Create(&tx).Error; err != nil {
+	var txID uint
+	err = store.db.WithContext(ctx).Transaction(func(dbTx *gorm.DB) error {
+		if err := dbTx.Create(&tx).Error; err != nil {
+			return err
+		}
+		txID = tx.Id
+
+		// Create trade records for metadata (source out + target in)
+		outTrade := dbTrade{
+			TransactionID: tx.Id,
+			AccountID:     item.SourceAccountID,
+			InstrumentID:  item.InstrumentID,
+			TradeType:     TransferOutTrade,
+			Quantity:      item.Quantity,
+			Date:          item.Date,
+		}
+		if err := dbTx.Create(&outTrade).Error; err != nil {
+			return err
+		}
+		inTrade := dbTrade{
+			TransactionID: tx.Id,
+			AccountID:     item.TargetAccountID,
+			InstrumentID:  item.InstrumentID,
+			TradeType:     TransferInTrade,
+			Quantity:      item.Quantity,
+			Date:          item.Date,
+		}
+		if err := dbTx.Create(&inTrade).Error; err != nil {
+			return err
+		}
+
+		// Transfer lots from source to target
+		if err := store.transferLots(ctx, dbTx, item.SourceAccountID, item.TargetAccountID, item.InstrumentID, item.Quantity, item.Date, inTrade.Id); err != nil {
+			return err
+		}
+
+		// Update positions for both accounts
+		if err := store.updatePosition(ctx, dbTx, item.SourceAccountID, item.InstrumentID); err != nil {
+			return err
+		}
+		return store.updatePosition(ctx, dbTx, item.TargetAccountID, item.InstrumentID)
+	})
+	if err != nil {
 		return 0, err
 	}
-	return tx.Id, nil
+	return txID, nil
 }
 
 func validateTransaction(tx dbTransaction) error {
@@ -932,10 +839,7 @@ func validateTransaction(tx dbTransaction) error {
 		return NewValidationErr("date cannot be zero")
 	}
 	for _, entry := range tx.Entries {
-		// stock grant/transfer position entries use Amount=0; other stock entries now carry monetary values
-		allowZeroAmount := entry.EntryType == stockGrantEntry ||
-			entry.EntryType == stockTransferOutEntry || entry.EntryType == stockTransferInEntry
-		if !allowZeroAmount && entry.Amount == 0 {
+		if entry.Amount == 0 {
 			return NewValidationErr("amount cannot be zero")
 		}
 		if entry.AccountID == 0 {
@@ -953,7 +857,7 @@ var ErrEntryNotFound = errors.New("transaction entry not found")
 // Note that type assertion needs to be used to transform the Transaction into a specific type
 func (store *Store) GetTransaction(ctx context.Context, Id uint) (Transaction, error) {
 	var payload dbTransaction
-	q := store.db.WithContext(ctx).Preload("Entries").Where("id = ?", Id).First(&payload)
+	q := store.db.WithContext(ctx).Preload("Entries").Preload("Trades").Where("id = ?", Id).First(&payload)
 	if q.Error != nil {
 		if errors.Is(q.Error, gorm.ErrRecordNotFound) {
 			return nil, ErrTransactionNotFound
@@ -1029,53 +933,72 @@ func transferFromDb(in dbTransaction) (Transaction, error) {
 }
 
 func stockBuyFromDb(in dbTransaction) (Transaction, error) {
-	var positionEntry, cashEntry *dbEntry
-	for i := range in.Entries {
-		e := &in.Entries[i]
-		switch e.EntryType {
-		case stockBuyEntry:
-			positionEntry = e
-		case stockCashOutEntry:
-			cashEntry = e
+	// Read trade data
+	var trade *dbTrade
+	for i := range in.Trades {
+		if in.Trades[i].TradeType == BuyTrade {
+			trade = &in.Trades[i]
+			break
 		}
 	}
-	if positionEntry == nil || cashEntry == nil {
-		return nil, fmt.Errorf("stock buy transaction must have position and cash entries")
+
+	// Find cash entry
+	var cashEntry *dbEntry
+	for i := range in.Entries {
+		if in.Entries[i].EntryType == stockCashOutEntry {
+			cashEntry = &in.Entries[i]
+			break
+		}
+	}
+
+	if trade == nil || cashEntry == nil {
+		return nil, fmt.Errorf("stock buy transaction must have trade and cash entry")
 	}
 	return StockBuy{
 		Id:                  in.Id,
 		Description:         in.Description,
 		Date:                in.Date,
-		InvestmentAccountID: positionEntry.AccountID,
+		InvestmentAccountID: trade.AccountID,
 		CashAccountID:       cashEntry.AccountID,
-		InstrumentID:        positionEntry.InstrumentID,
-		Quantity:            positionEntry.Quantity,
+		InstrumentID:        trade.InstrumentID,
+		Quantity:            trade.Quantity,
 		TotalAmount:         -cashEntry.Amount,
-		StockAmount:         positionEntry.Amount,
+		StockAmount:         trade.TotalAmount,
 	}, nil
 }
 
 func stockSellFromDb(in dbTransaction) (Transaction, error) {
-	var positionEntry, capitalCashEntry *dbEntry
+	// Read trade data
+	var trade *dbTrade
+	for i := range in.Trades {
+		if in.Trades[i].TradeType == SellTrade {
+			trade = &in.Trades[i]
+			break
+		}
+	}
+
+	// Find cash entries
+	var cashEntry *dbEntry
 	var incomeAmount float64
 	var expenseAmounts []float64
 	for i := range in.Entries {
 		e := &in.Entries[i]
 		switch e.EntryType {
-		case stockSellEntry:
-			positionEntry = e
 		case stockCashInEntry:
-			capitalCashEntry = e
+			cashEntry = e
 		case incomeEntry:
 			incomeAmount += e.Amount
 		case expenseEntry:
 			expenseAmounts = append(expenseAmounts, e.Amount)
 		}
 	}
-	if positionEntry == nil || capitalCashEntry == nil {
-		return nil, fmt.Errorf("stock sell transaction must have position and cash entries")
+
+	if trade == nil {
+		return nil, fmt.Errorf("stock sell transaction must have a sell trade")
 	}
-	costBasis := -positionEntry.Amount
+
+	// Derive cost basis from lot disposals or compute from entries
+	totalAmount := trade.TotalAmount
 	var fees float64
 	var lossAmount float64
 	if len(expenseAmounts) == 2 {
@@ -1092,15 +1015,21 @@ func stockSellFromDb(in dbTransaction) (Transaction, error) {
 		}
 	}
 	realizedGainLoss := incomeAmount - lossAmount
-	totalAmount := costBasis + realizedGainLoss + fees
+	costBasis := roundMoney(totalAmount - fees - realizedGainLoss)
+
+	cashAccountID := uint(0)
+	if cashEntry != nil {
+		cashAccountID = cashEntry.AccountID
+	}
+
 	return StockSell{
 		Id:                  in.Id,
 		Description:         in.Description,
 		Date:                in.Date,
-		InvestmentAccountID: positionEntry.AccountID,
-		CashAccountID:       capitalCashEntry.AccountID,
-		InstrumentID:        positionEntry.InstrumentID,
-		Quantity:            positionEntry.Quantity,
+		InvestmentAccountID: trade.AccountID,
+		CashAccountID:       cashAccountID,
+		InstrumentID:        trade.InstrumentID,
+		Quantity:            trade.Quantity,
 		TotalAmount:         totalAmount,
 		CostBasis:           costBasis,
 		RealizedGainLoss:    realizedGainLoss,
@@ -1109,60 +1038,67 @@ func stockSellFromDb(in dbTransaction) (Transaction, error) {
 }
 
 func stockGrantFromDb(in dbTransaction) (Transaction, error) {
-	if len(in.Entries) != 1 {
-		return nil, fmt.Errorf("stock grant transaction must have exactly one entry")
+	var trade *dbTrade
+	for i := range in.Trades {
+		if in.Trades[i].TradeType == GrantTrade {
+			trade = &in.Trades[i]
+			break
+		}
 	}
-	e := &in.Entries[0]
-	if e.EntryType != stockGrantEntry {
-		return nil, fmt.Errorf("stock grant transaction has unexpected entry type %v", e.EntryType)
-	}
-	fmv := 0.0
-	if e.Quantity > 0 {
-		fmv = e.Amount / e.Quantity
+	if trade == nil {
+		return nil, fmt.Errorf("stock grant transaction must have a grant trade")
 	}
 	return StockGrant{
 		Id:              in.Id,
 		Description:     in.Description,
 		Date:            in.Date,
-		AccountID:       e.AccountID,
-		InstrumentID:    e.InstrumentID,
-		Quantity:        e.Quantity,
-		FairMarketValue: fmv,
+		AccountID:       trade.AccountID,
+		InstrumentID:    trade.InstrumentID,
+		Quantity:        trade.Quantity,
+		FairMarketValue: trade.PricePerShare,
 	}, nil
 }
 
 func stockTransferFromDb(in dbTransaction) (Transaction, error) {
-	var outEntry, inEntry *dbEntry
-	for i := range in.Entries {
-		e := &in.Entries[i]
-		switch e.EntryType {
-		case stockTransferOutEntry:
-			outEntry = e
-		case stockTransferInEntry:
-			inEntry = e
+	var outTrade, inTrade *dbTrade
+	for i := range in.Trades {
+		t := &in.Trades[i]
+		switch t.TradeType {
+		case TransferOutTrade:
+			outTrade = t
+		case TransferInTrade:
+			inTrade = t
 		}
 	}
-	if outEntry == nil || inEntry == nil {
-		return nil, fmt.Errorf("stock transfer transaction must have source and target entries")
+	if outTrade == nil || inTrade == nil {
+		return nil, fmt.Errorf("stock transfer transaction must have out and in trade records")
 	}
 	return StockTransfer{
 		Id:              in.Id,
 		Description:     in.Description,
 		Date:            in.Date,
-		SourceAccountID: outEntry.AccountID,
-		TargetAccountID: inEntry.AccountID,
-		InstrumentID:    outEntry.InstrumentID,
-		Quantity:        outEntry.Quantity,
+		SourceAccountID: outTrade.AccountID,
+		TargetAccountID: inTrade.AccountID,
+		InstrumentID:    outTrade.InstrumentID,
+		Quantity:        outTrade.Quantity,
 	}, nil
 }
 
 func (store *Store) DeleteTransaction(ctx context.Context, Id uint) error {
-	err := store.db.Transaction(func(tx *gorm.DB) error {
+	return store.db.Transaction(func(tx *gorm.DB) error {
+		// Delete trades (and cascading lots/disposals/positions) for stock transactions
+		if err := store.deleteTradesByTransactionID(ctx, tx, Id); err != nil {
+			return err
+		}
+
+		// Delete entries
 		if err := tx.WithContext(ctx).
 			Where("transaction_id = ?", Id).
 			Delete(&dbEntry{}).Error; err != nil {
 			return err
 		}
+
+		// Delete transaction
 		d := tx.WithContext(ctx).
 			Where("id = ?", Id).
 			Delete(&dbTransaction{})
@@ -1174,11 +1110,6 @@ func (store *Store) DeleteTransaction(ctx context.Context, Id uint) error {
 		}
 		return nil
 	})
-
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 type TransactionUpdate interface {
@@ -1593,26 +1524,28 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 }
 
 func (store *Store) UpdateStockBuy(ctx context.Context, input StockBuyUpdate, id uint) error {
-	var selectedFields []string
-	var updateStruct dbTransaction
+	existing, err := store.GetTransaction(ctx, id)
+	if err != nil {
+		return err
+	}
+	buy, ok := existing.(StockBuy)
+	if !ok {
+		return ErrTransactionNotFound
+	}
 
+	// Merge updates
 	if input.Description != nil {
 		if *input.Description == "" {
 			return NewValidationErr("description cannot be empty")
 		}
-		updateStruct.Description = *input.Description
-		selectedFields = append(selectedFields, "Description")
+		buy.Description = *input.Description
 	}
 	if input.Date != nil {
 		if input.Date.IsZero() {
 			return NewValidationErr("date cannot be zero")
 		}
-		updateStruct.Date = *input.Date
-		selectedFields = append(selectedFields, "Date")
+		buy.Date = *input.Date
 	}
-
-	var positionEntry dbEntry
-	var positionFields []string
 	if input.InvestmentAccountID != nil {
 		if *input.InvestmentAccountID == 0 {
 			return NewValidationErr("investment account is required")
@@ -1624,47 +1557,20 @@ func (store *Store) UpdateStockBuy(ctx context.Context, input StockBuyUpdate, id
 		if !slices.Contains(allowedPositionAccountTypes, acc.Type) {
 			return NewValidationErr("investment account must be Investment or Unvested")
 		}
-		positionEntry.AccountID = *input.InvestmentAccountID
-		positionFields = append(positionFields, "AccountID")
+		buy.InvestmentAccountID = *input.InvestmentAccountID
 	}
-	var newInstrument *InstrumentInfo
 	if input.InstrumentID != nil {
 		if *input.InstrumentID == 0 {
 			return NewValidationErr("instrument is required")
 		}
-		inst, err := store.GetInstrument(ctx, *input.InstrumentID)
-		if err != nil {
+		if _, err := store.GetInstrument(ctx, *input.InstrumentID); err != nil {
 			if errors.Is(err, ErrInstrumentNotFound) {
 				return ErrValidation("instrument not found")
 			}
 			return fmt.Errorf("error updating stock buy: %w", err)
 		}
-		newInstrument = &inst
-		positionEntry.InstrumentID = *input.InstrumentID
-		positionFields = append(positionFields, "InstrumentID")
+		buy.InstrumentID = *input.InstrumentID
 	}
-	if input.Quantity != nil {
-		if *input.Quantity <= 0 {
-			return NewValidationErr("quantity must be positive")
-		}
-		positionEntry.Quantity = *input.Quantity
-		positionFields = append(positionFields, "Quantity")
-	}
-	if input.StockAmount != nil {
-		if *input.StockAmount <= 0 {
-			return NewValidationErr("stock amount must be positive")
-		}
-		positionEntry.Amount = *input.StockAmount
-		positionFields = append(positionFields, "Amount")
-	}
-
-	// Validate instrument/account currency match when either changes
-	if err := store.validateStockCurrencyMatch(ctx, id, input.InvestmentAccountID, input.InstrumentID, newInstrument, StockBuyTransaction); err != nil {
-		return err
-	}
-
-	var cashEntry dbEntry
-	var cashFields []string
 	if input.CashAccountID != nil {
 		if *input.CashAccountID == 0 {
 			return NewValidationErr("cash account is required")
@@ -1676,36 +1582,77 @@ func (store *Store) UpdateStockBuy(ctx context.Context, input StockBuyUpdate, id
 		if !slices.Contains(allowedCashAccountTypes, acc.Type) {
 			return NewValidationErr("cash account must be Cash, Checkin or Savings")
 		}
-		cashEntry.AccountID = *input.CashAccountID
-		cashFields = append(cashFields, "AccountID")
+		buy.CashAccountID = *input.CashAccountID
+	}
+	if input.Quantity != nil {
+		if *input.Quantity <= 0 {
+			return NewValidationErr("quantity must be positive")
+		}
+		buy.Quantity = *input.Quantity
 	}
 	if input.TotalAmount != nil {
 		if *input.TotalAmount <= 0 {
 			return NewValidationErr("total amount must be positive")
 		}
-		cashEntry.Amount = -*input.TotalAmount
-		cashFields = append(cashFields, "Amount")
+		buy.TotalAmount = *input.TotalAmount
+	}
+	if input.StockAmount != nil {
+		if *input.StockAmount <= 0 {
+			return NewValidationErr("stock amount must be positive")
+		}
+		buy.StockAmount = *input.StockAmount
 	}
 
-	if len(selectedFields) == 0 && len(positionFields) == 0 && len(cashFields) == 0 {
-		return ErrNoChanges
+	if err := store.validateStockCurrencyMatch(ctx, id, &buy.InvestmentAccountID, &buy.InstrumentID, nil, StockBuyTransaction); err != nil {
+		return err
 	}
 
-	wParams := writeTxUpdateParams{
-		selectedFields:   selectedFields,
-		updateStruct:     updateStruct,
-		txType:           StockBuyTransaction,
-		entryType1Fields: positionFields,
-		entryType1Values: positionEntry,
-		entryType1:       stockBuyEntry,
-		entryType2Fields: cashFields,
-		entryType2Values: cashEntry,
-		entryType2:       stockCashOutEntry,
-	}
-	if err := store.writeTxUpdate(wParams, id); err != nil {
-		return fmt.Errorf("error updating stock buy: %w", err)
-	}
-	return nil
+	// Delete and recreate: delete old trades/lots/entries, recreate everything
+	return store.db.WithContext(ctx).Transaction(func(dbTx *gorm.DB) error {
+		if err := store.deleteTradesByTransactionID(ctx, dbTx, id); err != nil {
+			return err
+		}
+		if err := dbTx.Where("transaction_id = ?", id).Delete(&dbEntry{}).Error; err != nil {
+			return err
+		}
+
+		// Update transaction fields
+		if err := dbTx.Model(&dbTransaction{}).Where("id = ?", id).Updates(map[string]interface{}{
+			"description": buy.Description,
+			"date":        buy.Date,
+		}).Error; err != nil {
+			return err
+		}
+
+		// Recreate cash entry
+		cashEntry := dbEntry{
+			TransactionID: id,
+			AccountID:     buy.CashAccountID,
+			Amount:        -buy.TotalAmount,
+			EntryType:     stockCashOutEntry,
+		}
+		if err := dbTx.Create(&cashEntry).Error; err != nil {
+			return err
+		}
+
+		// Recreate trade + lot + position
+		pricePerShare := 0.0
+		if buy.Quantity > 0 {
+			pricePerShare = buy.StockAmount / buy.Quantity
+		}
+		trade := dbTrade{
+			TransactionID: id,
+			AccountID:     buy.InvestmentAccountID,
+			InstrumentID:  buy.InstrumentID,
+			TradeType:     BuyTrade,
+			Quantity:      buy.Quantity,
+			PricePerShare: pricePerShare,
+			TotalAmount:   buy.StockAmount,
+			Date:          buy.Date,
+		}
+		_, err := store.createTrade(ctx, dbTx, trade)
+		return err
+	})
 }
 
 func (store *Store) UpdateStockSell(ctx context.Context, input StockSellUpdate, id uint) error {
@@ -1718,18 +1665,17 @@ func (store *Store) UpdateStockSell(ctx context.Context, input StockSellUpdate, 
 		return ErrTransactionNotFound
 	}
 
-	merged := sell
 	if input.Description != nil {
 		if *input.Description == "" {
 			return NewValidationErr("description cannot be empty")
 		}
-		merged.Description = *input.Description
+		sell.Description = *input.Description
 	}
 	if input.Date != nil {
 		if input.Date.IsZero() {
 			return NewValidationErr("date cannot be zero")
 		}
-		merged.Date = *input.Date
+		sell.Date = *input.Date
 	}
 	if input.InvestmentAccountID != nil {
 		if *input.InvestmentAccountID == 0 {
@@ -1742,7 +1688,7 @@ func (store *Store) UpdateStockSell(ctx context.Context, input StockSellUpdate, 
 		if !slices.Contains(allowedPositionAccountTypes, acc.Type) {
 			return NewValidationErr("investment account must be Investment or Unvested")
 		}
-		merged.InvestmentAccountID = *input.InvestmentAccountID
+		sell.InvestmentAccountID = *input.InvestmentAccountID
 	}
 	if input.CashAccountID != nil {
 		if *input.CashAccountID == 0 {
@@ -1755,7 +1701,7 @@ func (store *Store) UpdateStockSell(ctx context.Context, input StockSellUpdate, 
 		if !slices.Contains(allowedCashAccountTypes, acc.Type) {
 			return NewValidationErr("cash account must be Cash, Checkin or Savings")
 		}
-		merged.CashAccountID = *input.CashAccountID
+		sell.CashAccountID = *input.CashAccountID
 	}
 	if input.InstrumentID != nil {
 		if *input.InstrumentID == 0 {
@@ -1767,62 +1713,85 @@ func (store *Store) UpdateStockSell(ctx context.Context, input StockSellUpdate, 
 			}
 			return fmt.Errorf("error updating stock sell: %w", err)
 		}
-		merged.InstrumentID = *input.InstrumentID
+		sell.InstrumentID = *input.InstrumentID
 	}
 	if input.Quantity != nil {
 		if *input.Quantity <= 0 {
 			return NewValidationErr("quantity must be positive")
 		}
-		merged.Quantity = *input.Quantity
+		sell.Quantity = *input.Quantity
 	}
 	if input.TotalAmount != nil {
 		if *input.TotalAmount <= 0 {
 			return NewValidationErr("total amount must be positive")
 		}
-		merged.TotalAmount = *input.TotalAmount
+		sell.TotalAmount = *input.TotalAmount
 	}
 	if input.Fees != nil {
 		if *input.Fees < 0 {
 			return NewValidationErr("fees cannot be negative")
 		}
-		merged.Fees = *input.Fees
+		sell.Fees = *input.Fees
 	}
 
-	if err := store.validateStockCurrencyMatch(ctx, id, &merged.InvestmentAccountID, &merged.InstrumentID, nil, StockSellTransaction); err != nil {
+	if err := store.validateStockCurrencyMatch(ctx, id, &sell.InvestmentAccountID, &sell.InstrumentID, nil, StockSellTransaction); err != nil {
 		return err
 	}
 
-	needsRecreate := input.Quantity != nil || input.TotalAmount != nil || input.Fees != nil || input.Date != nil ||
-		input.InvestmentAccountID != nil || input.CashAccountID != nil || input.InstrumentID != nil
-
-	if needsRecreate {
-		return store.recreateStockSellEntries(ctx, id, merged)
-	}
-
-	if input.Description != nil {
-		return store.db.WithContext(ctx).Model(&dbTransaction{}).
-			Where("id = ? AND type = ?", id, StockSellTransaction).
-			Update("Description", merged.Description).Error
-	}
-	return ErrNoChanges
+	// Delete and recreate: delete old trades/lots/entries, then recreate
+	return store.recreateStockSell(ctx, id, sell)
 }
 
-func (store *Store) recreateStockSellEntries(ctx context.Context, id uint, sell StockSell) error {
-	return store.db.Transaction(func(tx *gorm.DB) error {
-		costBasis, err := store.computeCostBasisForSell(ctx, sell.InvestmentAccountID, sell.InstrumentID, sell.Date, sell.Quantity, id)
-		if err != nil {
+func (store *Store) recreateStockSell(ctx context.Context, id uint, sell StockSell) error {
+	return store.db.WithContext(ctx).Transaction(func(dbTx *gorm.DB) error {
+		// Delete old trades/lots/disposals
+		if err := store.deleteTradesByTransactionID(ctx, dbTx, id); err != nil {
 			return err
 		}
-		if err := tx.WithContext(ctx).Where("transaction_id = ?", id).Delete(&dbEntry{}).Error; err != nil {
+		// Delete old entries
+		if err := dbTx.Where("transaction_id = ?", id).Delete(&dbEntry{}).Error; err != nil {
+			return err
+		}
+
+		// Update transaction fields
+		if err := dbTx.Model(&dbTransaction{}).Where("id = ?", id).Updates(map[string]interface{}{
+			"description": sell.Description,
+			"date":        sell.Date,
+		}).Error; err != nil {
+			return err
+		}
+
+		// Create sell trade
+		pricePerShare := 0.0
+		if sell.Quantity > 0 {
+			pricePerShare = sell.TotalAmount / sell.Quantity
+		}
+		trade := dbTrade{
+			TransactionID: id,
+			AccountID:     sell.InvestmentAccountID,
+			InstrumentID:  sell.InstrumentID,
+			TradeType:     SellTrade,
+			Quantity:      sell.Quantity,
+			PricePerShare: pricePerShare,
+			TotalAmount:   sell.TotalAmount,
+			Date:          sell.Date,
+		}
+		if err := dbTx.Create(&trade).Error; err != nil {
+			return err
+		}
+
+		// FIFO lot allocation
+		_, costBasis, err := store.allocateLotsForSell(ctx, dbTx, sell.InvestmentAccountID, sell.InstrumentID, sell.Quantity, sell.TotalAmount, sell.Date, trade.Id, FIFO)
+		if err != nil {
 			return err
 		}
 		costBasis = roundMoney(costBasis)
 		fees := roundMoney(sell.Fees)
 		realizedGainLoss := roundMoney(sell.TotalAmount - fees - costBasis)
 
+		// Cash entries
 		entries := []dbEntry{
-			{TransactionID: id, AccountID: sell.InvestmentAccountID, InstrumentID: sell.InstrumentID, Quantity: sell.Quantity, Amount: -costBasis, EntryType: stockSellEntry},
-			{TransactionID: id, AccountID: sell.CashAccountID, Amount: costBasis, EntryType: stockCashInEntry},
+			{TransactionID: id, AccountID: sell.CashAccountID, Amount: sell.TotalAmount - fees, EntryType: stockCashInEntry},
 		}
 		if realizedGainLoss > 0 {
 			entries = append(entries, dbEntry{TransactionID: id, AccountID: sell.CashAccountID, Amount: realizedGainLoss, EntryType: incomeEntry})
@@ -1832,34 +1801,37 @@ func (store *Store) recreateStockSellEntries(ctx context.Context, id uint, sell 
 		if fees > 0 {
 			entries = append(entries, dbEntry{TransactionID: id, AccountID: sell.CashAccountID, Amount: fees, EntryType: expenseEntry})
 		}
-		for i := range entries {
-			entries[i].TransactionID = id
+		if err := dbTx.Create(&entries).Error; err != nil {
+			return err
 		}
-		return tx.WithContext(ctx).Create(&entries).Error
+
+		// Update position
+		return store.updatePosition(ctx, dbTx, sell.InvestmentAccountID, sell.InstrumentID)
 	})
 }
 
 func (store *Store) UpdateStockGrant(ctx context.Context, input StockGrantUpdate, id uint) error {
-	var selectedFields []string
-	var updateStruct dbTransaction
+	existing, err := store.GetTransaction(ctx, id)
+	if err != nil {
+		return err
+	}
+	grant, ok := existing.(StockGrant)
+	if !ok {
+		return ErrTransactionNotFound
+	}
 
 	if input.Description != nil {
 		if *input.Description == "" {
 			return NewValidationErr("description cannot be empty")
 		}
-		updateStruct.Description = *input.Description
-		selectedFields = append(selectedFields, "Description")
+		grant.Description = *input.Description
 	}
 	if input.Date != nil {
 		if input.Date.IsZero() {
 			return NewValidationErr("date cannot be zero")
 		}
-		updateStruct.Date = *input.Date
-		selectedFields = append(selectedFields, "Date")
+		grant.Date = *input.Date
 	}
-
-	var grantEntry dbEntry
-	var grantFields []string
 	if input.AccountID != nil {
 		if *input.AccountID == 0 {
 			return NewValidationErr("account is required")
@@ -1871,8 +1843,7 @@ func (store *Store) UpdateStockGrant(ctx context.Context, input StockGrantUpdate
 		if !slices.Contains(allowedPositionAccountTypes, acc.Type) {
 			return NewValidationErr("account must be Investment or Unvested")
 		}
-		grantEntry.AccountID = *input.AccountID
-		grantFields = append(grantFields, "AccountID")
+		grant.AccountID = *input.AccountID
 	}
 	if input.InstrumentID != nil {
 		if *input.InstrumentID == 0 {
@@ -1884,73 +1855,74 @@ func (store *Store) UpdateStockGrant(ctx context.Context, input StockGrantUpdate
 			}
 			return fmt.Errorf("error updating stock grant: %w", err)
 		}
-		grantEntry.InstrumentID = *input.InstrumentID
-		grantFields = append(grantFields, "InstrumentID")
+		grant.InstrumentID = *input.InstrumentID
 	}
 	if input.Quantity != nil {
 		if *input.Quantity <= 0 {
 			return NewValidationErr("quantity must be positive")
 		}
-		grantEntry.Quantity = *input.Quantity
-		grantFields = append(grantFields, "Quantity")
+		grant.Quantity = *input.Quantity
 	}
 	if input.FairMarketValue != nil {
 		if *input.FairMarketValue < 0 {
 			return NewValidationErr("fair market value cannot be negative")
 		}
-		qty := grantEntry.Quantity
-		if qty == 0 {
-			existing, err := store.GetTransaction(ctx, id)
-			if err != nil {
-				return fmt.Errorf("error updating stock grant: %w", err)
-			}
-			if sg, ok := existing.(StockGrant); ok {
-				qty = sg.Quantity
-			}
+		grant.FairMarketValue = *input.FairMarketValue
+	}
+
+	// Delete and recreate trades/lots
+	return store.db.WithContext(ctx).Transaction(func(dbTx *gorm.DB) error {
+		if err := store.deleteTradesByTransactionID(ctx, dbTx, id); err != nil {
+			return err
 		}
-		grantEntry.Amount = *input.FairMarketValue * qty
-		grantFields = append(grantFields, "Amount")
-	}
 
-	if len(selectedFields) == 0 && len(grantFields) == 0 {
-		return ErrNoChanges
-	}
+		// Update transaction fields
+		if err := dbTx.Model(&dbTransaction{}).Where("id = ?", id).Updates(map[string]interface{}{
+			"description": grant.Description,
+			"date":        grant.Date,
+		}).Error; err != nil {
+			return err
+		}
 
-	wParams := writeTxUpdateParams{
-		selectedFields:   selectedFields,
-		updateStruct:     updateStruct,
-		txType:           StockGrantTransaction,
-		entryType1Fields: grantFields,
-		entryType1Values: grantEntry,
-		entryType1:       stockGrantEntry,
-	}
-	if err := store.writeTxUpdate(wParams, id); err != nil {
-		return fmt.Errorf("error updating stock grant: %w", err)
-	}
-	return nil
+		// Recreate trade + lot + position
+		grantCostBasis := grant.FairMarketValue * grant.Quantity
+		trade := dbTrade{
+			TransactionID: id,
+			AccountID:     grant.AccountID,
+			InstrumentID:  grant.InstrumentID,
+			TradeType:     GrantTrade,
+			Quantity:      grant.Quantity,
+			PricePerShare: grant.FairMarketValue,
+			TotalAmount:   grantCostBasis,
+			Date:          grant.Date,
+		}
+		_, err := store.createTrade(ctx, dbTx, trade)
+		return err
+	})
 }
 
 func (store *Store) UpdateStockTransfer(ctx context.Context, input StockTransferUpdate, id uint) error {
-	var selectedFields []string
-	var updateStruct dbTransaction
+	existing, err := store.GetTransaction(ctx, id)
+	if err != nil {
+		return err
+	}
+	transfer, ok := existing.(StockTransfer)
+	if !ok {
+		return ErrTransactionNotFound
+	}
 
 	if input.Description != nil {
 		if *input.Description == "" {
 			return NewValidationErr("description cannot be empty")
 		}
-		updateStruct.Description = *input.Description
-		selectedFields = append(selectedFields, "Description")
+		transfer.Description = *input.Description
 	}
 	if input.Date != nil {
 		if input.Date.IsZero() {
 			return NewValidationErr("date cannot be zero")
 		}
-		updateStruct.Date = *input.Date
-		selectedFields = append(selectedFields, "Date")
+		transfer.Date = *input.Date
 	}
-
-	var outEntry dbEntry
-	var outFields []string
 	if input.SourceAccountID != nil {
 		if *input.SourceAccountID == 0 {
 			return NewValidationErr("source account is required")
@@ -1962,32 +1934,8 @@ func (store *Store) UpdateStockTransfer(ctx context.Context, input StockTransfer
 		if !slices.Contains(allowedPositionAccountTypes, acc.Type) {
 			return NewValidationErr("source account must be Investment or Unvested")
 		}
-		outEntry.AccountID = *input.SourceAccountID
-		outFields = append(outFields, "AccountID")
+		transfer.SourceAccountID = *input.SourceAccountID
 	}
-	if input.InstrumentID != nil {
-		if *input.InstrumentID == 0 {
-			return NewValidationErr("instrument is required")
-		}
-		if _, err := store.GetInstrument(ctx, *input.InstrumentID); err != nil {
-			if errors.Is(err, ErrInstrumentNotFound) {
-				return ErrValidation("instrument not found")
-			}
-			return fmt.Errorf("error updating stock transfer: %w", err)
-		}
-		outEntry.InstrumentID = *input.InstrumentID
-		outFields = append(outFields, "InstrumentID")
-	}
-	if input.Quantity != nil {
-		if *input.Quantity <= 0 {
-			return NewValidationErr("quantity must be positive")
-		}
-		outEntry.Quantity = *input.Quantity
-		outFields = append(outFields, "Quantity")
-	}
-
-	var inEntry dbEntry
-	var inFields []string
 	if input.TargetAccountID != nil {
 		if *input.TargetAccountID == 0 {
 			return NewValidationErr("target account is required")
@@ -1999,29 +1947,76 @@ func (store *Store) UpdateStockTransfer(ctx context.Context, input StockTransfer
 		if !slices.Contains(allowedPositionAccountTypes, acc.Type) {
 			return NewValidationErr("target account must be Investment or Unvested")
 		}
-		inEntry.AccountID = *input.TargetAccountID
-		inFields = append(inFields, "AccountID")
+		transfer.TargetAccountID = *input.TargetAccountID
+	}
+	if input.InstrumentID != nil {
+		if *input.InstrumentID == 0 {
+			return NewValidationErr("instrument is required")
+		}
+		if _, err := store.GetInstrument(ctx, *input.InstrumentID); err != nil {
+			if errors.Is(err, ErrInstrumentNotFound) {
+				return ErrValidation("instrument not found")
+			}
+			return fmt.Errorf("error updating stock transfer: %w", err)
+		}
+		transfer.InstrumentID = *input.InstrumentID
+	}
+	if input.Quantity != nil {
+		if *input.Quantity <= 0 {
+			return NewValidationErr("quantity must be positive")
+		}
+		transfer.Quantity = *input.Quantity
 	}
 
-	if len(selectedFields) == 0 && len(outFields) == 0 && len(inFields) == 0 {
-		return ErrNoChanges
-	}
+	// Delete and recreate
+	return store.db.WithContext(ctx).Transaction(func(dbTx *gorm.DB) error {
+		if err := store.deleteTradesByTransactionID(ctx, dbTx, id); err != nil {
+			return err
+		}
 
-	wParams := writeTxUpdateParams{
-		selectedFields:   selectedFields,
-		updateStruct:     updateStruct,
-		txType:           StockTransferTransaction,
-		entryType1Fields: outFields,
-		entryType1Values: outEntry,
-		entryType1:       stockTransferOutEntry,
-		entryType2Fields: inFields,
-		entryType2Values: inEntry,
-		entryType2:       stockTransferInEntry,
-	}
-	if err := store.writeTxUpdate(wParams, id); err != nil {
-		return fmt.Errorf("error updating stock transfer: %w", err)
-	}
-	return nil
+		// Update transaction fields
+		if err := dbTx.Model(&dbTransaction{}).Where("id = ?", id).Updates(map[string]interface{}{
+			"description": transfer.Description,
+			"date":        transfer.Date,
+		}).Error; err != nil {
+			return err
+		}
+
+		// Recreate trade records
+		outTrade := dbTrade{
+			TransactionID: id,
+			AccountID:     transfer.SourceAccountID,
+			InstrumentID:  transfer.InstrumentID,
+			TradeType:     TransferOutTrade,
+			Quantity:      transfer.Quantity,
+			Date:          transfer.Date,
+		}
+		if err := dbTx.Create(&outTrade).Error; err != nil {
+			return err
+		}
+		inTrade := dbTrade{
+			TransactionID: id,
+			AccountID:     transfer.TargetAccountID,
+			InstrumentID:  transfer.InstrumentID,
+			TradeType:     TransferInTrade,
+			Quantity:      transfer.Quantity,
+			Date:          transfer.Date,
+		}
+		if err := dbTx.Create(&inTrade).Error; err != nil {
+			return err
+		}
+
+		// Transfer lots
+		if err := store.transferLots(ctx, dbTx, transfer.SourceAccountID, transfer.TargetAccountID, transfer.InstrumentID, transfer.Quantity, transfer.Date, inTrade.Id); err != nil {
+			return err
+		}
+
+		// Update positions
+		if err := store.updatePosition(ctx, dbTx, transfer.SourceAccountID, transfer.InstrumentID); err != nil {
+			return err
+		}
+		return store.updatePosition(ctx, dbTx, transfer.TargetAccountID, transfer.InstrumentID)
+	})
 }
 
 type ListOpts struct {
@@ -2049,8 +2044,8 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
         db_transactions.date,
         db_transactions.description,
         db_transactions.type,
-		db_entries.category_id,
-		db_entries.account_id,
+		COALESCE(MAX(db_entries.category_id), 0) AS category_id,
+		COALESCE(MAX(db_entries.account_id), 0) AS account_id,
 
         -- income
         CAST(MAX(CASE WHEN db_entries.entry_type = 1 THEN db_entries.account_id END) AS INTEGER) AS income_account_id,
@@ -2068,26 +2063,30 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
         CAST(MAX(CASE WHEN db_entries.entry_type = 3 THEN db_entries.account_id END) AS INTEGER) AS target_account_id,
         CAST(SUM(CASE WHEN db_entries.entry_type = 3 THEN db_entries.amount ELSE 0 END) AS REAL) AS target_amount,
 
-        -- stock position (buy=5, sell=6)
-        CAST(MAX(CASE WHEN db_entries.entry_type IN (5, 6) THEN db_entries.security_id END) AS INTEGER) AS stock_instrument_id,
-        CAST(MAX(CASE WHEN db_entries.entry_type IN (5, 6) THEN db_entries.quantity END) AS REAL) AS stock_quantity,
-        CAST(MAX(CASE WHEN db_entries.entry_type IN (5, 6) THEN db_entries.entry_type END) AS INTEGER) AS stock_entry_type,
-        CAST(MAX(CASE WHEN db_entries.entry_type IN (5, 6) THEN db_entries.account_id END) AS INTEGER) AS stock_account_id,
-        CAST(MAX(CASE WHEN db_entries.entry_type IN (5, 6) THEN db_entries.amount END) AS REAL) AS stock_position_amount,
         -- stock cash leg (out=7, in=8)
         CAST(MAX(CASE WHEN db_entries.entry_type IN (7, 8) THEN db_entries.account_id END) AS INTEGER) AS stock_cash_account_id,
         CAST(MAX(CASE WHEN db_entries.entry_type IN (7, 8) THEN db_entries.amount END) AS REAL) AS stock_cash_amount,
-        -- stock grant (9)
-        CAST(MAX(CASE WHEN db_entries.entry_type = 9 THEN db_entries.security_id END) AS INTEGER) AS stock_grant_instrument_id,
-        CAST(MAX(CASE WHEN db_entries.entry_type = 9 THEN db_entries.quantity END) AS REAL) AS stock_grant_quantity,
-        CAST(MAX(CASE WHEN db_entries.entry_type = 9 THEN db_entries.account_id END) AS INTEGER) AS stock_grant_account_id,
-        CAST(MAX(CASE WHEN db_entries.entry_type = 9 THEN db_entries.amount END) AS REAL) AS stock_grant_amount,
-        -- stock transfer (out=10, in=11)
-        CAST(MAX(CASE WHEN db_entries.entry_type = 10 THEN db_entries.account_id END) AS INTEGER) AS stock_transfer_source_id,
-        CAST(MAX(CASE WHEN db_entries.entry_type = 11 THEN db_entries.account_id END) AS INTEGER) AS stock_transfer_target_id,
-        CAST(MAX(CASE WHEN db_entries.entry_type IN (10, 11) THEN db_entries.security_id END) AS INTEGER) AS stock_transfer_instrument_id,
-        CAST(MAX(CASE WHEN db_entries.entry_type IN (10, 11) THEN db_entries.quantity END) AS REAL) AS stock_transfer_quantity
-    `).Joins("JOIN db_entries ON db_entries.transaction_id = db_transactions.id")
+
+        -- stock buy/sell/grant from trades
+        CAST(MAX(CASE WHEN db_trades.trade_type = 1 THEN db_trades.account_id END) AS INTEGER) AS trade_buy_account_id,
+        CAST(MAX(CASE WHEN db_trades.trade_type = 1 THEN db_trades.instrument_id END) AS INTEGER) AS trade_buy_instrument_id,
+        CAST(MAX(CASE WHEN db_trades.trade_type = 1 THEN db_trades.quantity END) AS REAL) AS trade_buy_quantity,
+        CAST(MAX(CASE WHEN db_trades.trade_type = 1 THEN db_trades.total_amount END) AS REAL) AS trade_buy_amount,
+        CAST(MAX(CASE WHEN db_trades.trade_type = 2 THEN db_trades.account_id END) AS INTEGER) AS trade_sell_account_id,
+        CAST(MAX(CASE WHEN db_trades.trade_type = 2 THEN db_trades.instrument_id END) AS INTEGER) AS trade_sell_instrument_id,
+        CAST(MAX(CASE WHEN db_trades.trade_type = 2 THEN db_trades.quantity END) AS REAL) AS trade_sell_quantity,
+        CAST(MAX(CASE WHEN db_trades.trade_type = 2 THEN db_trades.total_amount END) AS REAL) AS trade_sell_amount,
+        CAST(MAX(CASE WHEN db_trades.trade_type = 3 THEN db_trades.account_id END) AS INTEGER) AS trade_grant_account_id,
+        CAST(MAX(CASE WHEN db_trades.trade_type = 3 THEN db_trades.instrument_id END) AS INTEGER) AS trade_grant_instrument_id,
+        CAST(MAX(CASE WHEN db_trades.trade_type = 3 THEN db_trades.quantity END) AS REAL) AS trade_grant_quantity,
+        CAST(MAX(CASE WHEN db_trades.trade_type = 3 THEN db_trades.price_per_share END) AS REAL) AS trade_grant_fmv,
+        CAST(MAX(CASE WHEN db_trades.trade_type = 4 THEN db_trades.account_id END) AS INTEGER) AS trade_transfer_source_id,
+        CAST(MAX(CASE WHEN db_trades.trade_type = 5 THEN db_trades.account_id END) AS INTEGER) AS trade_transfer_target_id,
+        CAST(MAX(CASE WHEN db_trades.trade_type IN (4, 5) THEN db_trades.instrument_id END) AS INTEGER) AS trade_transfer_instrument_id,
+        CAST(MAX(CASE WHEN db_trades.trade_type IN (4, 5) THEN db_trades.quantity END) AS REAL) AS trade_transfer_quantity
+    `).
+		Joins("LEFT JOIN db_entries ON db_entries.transaction_id = db_transactions.id").
+		Joins("LEFT JOIN db_trades ON db_trades.transaction_id = db_transactions.id")
 
 	// ensure proper owner
 	// Filter by date range
@@ -2096,10 +2095,12 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 	if len(opts.Types) > 0 {
 		db = db.Where("db_transactions.type IN (?)", opts.Types)
 	}
-	// filter by accounts
+	// filter by accounts (check both entries and trades)
 	if len(opts.AccountId) > 0 {
-		db = db.Where("EXISTS (   SELECT 1  FROM db_entries AS e WHERE e.transaction_id = db_transactions.id"+
-			" AND e.account_id IN (?)   )", opts.AccountId)
+		db = db.Where(
+			"(EXISTS (SELECT 1 FROM db_entries AS e WHERE e.transaction_id = db_transactions.id AND e.account_id IN (?))"+
+				" OR EXISTS (SELECT 1 FROM db_trades AS t WHERE t.transaction_id = db_transactions.id AND t.account_id IN (?)))",
+			opts.AccountId, opts.AccountId)
 	}
 
 	db = db.Group("db_transactions.id, db_transactions.date, db_transactions.description, db_transactions.type")
@@ -2126,6 +2127,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 		TransactionId uint
 
 		CategoryId       uint
+		AccountId        uint
 		IncomeAccountId  uint
 		IncomeAmount     float64
 		ExpenseAccountId uint
@@ -2135,23 +2137,27 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 		TargetAccountId  uint
 		TargetAmount     float64
 
-		StockInstrumentId   uint
-		StockQuantity       float64
-		StockEntryType      int
-		StockAccountId      uint
-		StockPositionAmount float64
-		StockCashAccountId  uint
-		StockCashAmount     float64
+		StockCashAccountId uint
+		StockCashAmount    float64
 
-		StockGrantInstrumentId uint
-		StockGrantQuantity     float64
-		StockGrantAccountId    uint
-		StockGrantAmount       float64
+		// From trades
+		TradeBuyAccountId      uint
+		TradeBuyInstrumentId   uint
+		TradeBuyQuantity       float64
+		TradeBuyAmount         float64
+		TradeSellAccountId     uint
+		TradeSellInstrumentId  uint
+		TradeSellQuantity      float64
+		TradeSellAmount        float64
+		TradeGrantAccountId    uint
+		TradeGrantInstrumentId uint
+		TradeGrantQuantity     float64
+		TradeGrantFmv          float64
 
-		StockTransferSourceId     uint
-		StockTransferTargetId     uint
-		StockTransferInstrumentId uint
-		StockTransferQuantity     float64
+		TradeTransferSourceId     uint
+		TradeTransferTargetId     uint
+		TradeTransferInstrumentId uint
+		TradeTransferQuantity     float64
 	}
 
 	var target []intermediate
@@ -2206,66 +2212,52 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 			if totalAmount < 0 {
 				totalAmount = -totalAmount
 			}
-			stockAmount := item.StockPositionAmount
-			if stockAmount < 0 {
-				stockAmount = -stockAmount
-			}
 			txs = append(txs, StockBuy{
 				Id:                  item.TransactionId,
 				Description:         item.Description,
 				Date:                item.Date,
-				InvestmentAccountID: item.StockAccountId,
+				InvestmentAccountID: item.TradeBuyAccountId,
 				CashAccountID:       item.StockCashAccountId,
-				InstrumentID:        item.StockInstrumentId,
-				Quantity:            item.StockQuantity,
+				InstrumentID:        item.TradeBuyInstrumentId,
+				Quantity:            item.TradeBuyQuantity,
 				TotalAmount:         totalAmount,
-				StockAmount:         stockAmount,
+				StockAmount:         item.TradeBuyAmount,
 			})
 		case StockSellTransaction:
-			costBasis := item.StockPositionAmount
-			if costBasis < 0 {
-				costBasis = -costBasis
-			}
 			realizedGainLoss := item.IncomeAmount - item.ExpenseAmount
-			totalAmount := costBasis + realizedGainLoss
-			if item.StockCashAmount > 0 && item.IncomeAmount == 0 && item.ExpenseAmount == 0 {
-				totalAmount = item.StockCashAmount
-			}
+			costBasis := roundMoney(item.TradeSellAmount - roundMoney(item.IncomeAmount-item.ExpenseAmount))
+			// Infer fees: expense entries can include both loss and fees
 			txs = append(txs, StockSell{
 				Id:                  item.TransactionId,
 				Description:         item.Description,
 				Date:                item.Date,
-				InvestmentAccountID: item.StockAccountId,
+				InvestmentAccountID: item.TradeSellAccountId,
 				CashAccountID:       item.StockCashAccountId,
-				InstrumentID:        item.StockInstrumentId,
-				Quantity:            item.StockQuantity,
-				TotalAmount:         totalAmount,
+				InstrumentID:        item.TradeSellInstrumentId,
+				Quantity:            item.TradeSellQuantity,
+				TotalAmount:         item.TradeSellAmount,
 				CostBasis:           costBasis,
 				RealizedGainLoss:    realizedGainLoss,
 			})
 		case StockGrantTransaction:
-			fmv := 0.0
-			if item.StockGrantQuantity > 0 {
-				fmv = item.StockGrantAmount / item.StockGrantQuantity
-			}
 			txs = append(txs, StockGrant{
 				Id:              item.TransactionId,
 				Description:     item.Description,
 				Date:            item.Date,
-				AccountID:       item.StockGrantAccountId,
-				InstrumentID:    item.StockGrantInstrumentId,
-				Quantity:        item.StockGrantQuantity,
-				FairMarketValue: fmv,
+				AccountID:       item.TradeGrantAccountId,
+				InstrumentID:    item.TradeGrantInstrumentId,
+				Quantity:        item.TradeGrantQuantity,
+				FairMarketValue: item.TradeGrantFmv,
 			})
 		case StockTransferTransaction:
 			txs = append(txs, StockTransfer{
 				Id:              item.TransactionId,
 				Description:     item.Description,
 				Date:            item.Date,
-				SourceAccountID: item.StockTransferSourceId,
-				TargetAccountID: item.StockTransferTargetId,
-				InstrumentID:    item.StockTransferInstrumentId,
-				Quantity:        item.StockTransferQuantity,
+				SourceAccountID: item.TradeTransferSourceId,
+				TargetAccountID: item.TradeTransferTargetId,
+				InstrumentID:    item.TradeTransferInstrumentId,
+				Quantity:        item.TradeTransferQuantity,
 			})
 		default:
 			tx := EmptyTransaction{}

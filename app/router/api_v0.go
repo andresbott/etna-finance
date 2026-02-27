@@ -54,6 +54,7 @@ const finEntries = "/fin/entries"
 const finCategoryIncome = "/fin/category/income"
 const finCategoryExpense = "/fin/category/expense"
 const finInstrumentPath = "/fin/instrument"
+const finPortfolio = "/fin/portfolio"
 const finReport = "/fin/report"
 
 // this api surface is quite inconsistent, I know....
@@ -401,6 +402,44 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 	} else {
 		instrumentsDisabled := StatusErrText(http.StatusForbidden, "financial instruments are disabled")
 		r.PathPrefix(finInstrumentPath).HandlerFunc(instrumentsDisabled)
+	}
+
+	// ==========================================================================
+	// Portfolio
+	// ==========================================================================
+
+	if h.appSettings.Instruments {
+		r.Path(fmt.Sprintf("%s/positions", finPortfolio)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if _, err := sessionauth.CtxGetUserData(r); err != nil {
+				http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+				return
+			}
+			finHndlr.ListPositions().ServeHTTP(w, r)
+		})
+
+		r.Path(fmt.Sprintf("%s/positions/{accountId}/{instrumentId}", finPortfolio)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if _, err := sessionauth.CtxGetUserData(r); err != nil {
+				http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+				return
+			}
+			finHndlr.GetPositionDetail().ServeHTTP(w, r)
+		})
+
+		r.Path(fmt.Sprintf("%s/lots", finPortfolio)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if _, err := sessionauth.CtxGetUserData(r); err != nil {
+				http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+				return
+			}
+			finHndlr.ListLots().ServeHTTP(w, r)
+		})
+
+		r.Path(fmt.Sprintf("%s/trades", finPortfolio)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if _, err := sessionauth.CtxGetUserData(r); err != nil {
+				http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+				return
+			}
+			finHndlr.ListPortfolioTrades().ServeHTTP(w, r)
+		})
 	}
 
 	// ==========================================================================

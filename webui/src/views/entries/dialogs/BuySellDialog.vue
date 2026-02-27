@@ -33,6 +33,7 @@ const createMutation = useMutation({
     mutationFn: createStockTransaction,
     onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ['entries'] })
+        queryClient.invalidateQueries({ queryKey: ['portfolio-positions'] })
     }
 })
 

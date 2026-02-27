@@ -35,6 +35,7 @@ const createMutation = useMutation({
     mutationFn: createStockGrant,
     onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ['entries'] })
+        queryClient.invalidateQueries({ queryKey: ['portfolio-positions'] })
     }
 })
 const isSaving = computed(() => createMutation.isPending.value)
