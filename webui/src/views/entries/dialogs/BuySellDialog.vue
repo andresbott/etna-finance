@@ -38,7 +38,7 @@ const createMutation = useMutation({
 })
 
 const isSaving = computed(() => createMutation.isPending.value)
-const { pickerDateFormat } = useDateFormat()
+const { pickerDateFormat, dateValidation } = useDateFormat()
 
 const instruments = computed(() => instrumentsData.value ?? [])
 
@@ -111,7 +111,7 @@ const resolver = computed(() =>
             description: z.string().min(1, { message: 'Description is required' }),
             quantity: z.number().min(0.0001, { message: 'Quantity must be greater than 0' }),
             pricePerShare: z.number().min(0, { message: 'Price must be 0 or greater' }),
-            date: z.date(),
+            date: dateValidation.value,
             InvestmentAccountId: accountValidation,
             CashAccountId: accountValidation
         })

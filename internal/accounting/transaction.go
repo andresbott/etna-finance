@@ -8,6 +8,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/andresbott/etna/internal/marketdata"
 	"golang.org/x/text/currency"
 	"gorm.io/gorm"
 )
@@ -328,7 +329,7 @@ var allowedPositionAccountTypes = []AccountType{InvestmentAccountType, UnvestedA
 func (store *Store) validateStockCurrencyMatch(
 	ctx context.Context, txID uint,
 	newAccountID *uint, newInstrumentID *uint,
-	newInstrument *InstrumentInfo, txType TxType,
+	newInstrument *marketdata.Instrument, txType TxType,
 ) error {
 	if newAccountID == nil && newInstrumentID == nil {
 		return nil
@@ -435,7 +436,7 @@ func (store *Store) CreateStockBuy(ctx context.Context, item StockBuy) (uint, er
 
 	instrument, err := store.GetInstrument(ctx, item.InstrumentID)
 	if err != nil {
-		if errors.Is(err, ErrInstrumentNotFound) {
+		if errors.Is(err, marketdata.ErrInstrumentNotFound) {
 			return 0, ErrValidation("instrument not found")
 		}
 		return 0, fmt.Errorf("error creating stock buy: %w", err)
@@ -542,7 +543,7 @@ func (store *Store) CreateStockSell(ctx context.Context, item StockSell) (uint, 
 
 	instrument, err := store.GetInstrument(ctx, item.InstrumentID)
 	if err != nil {
-		if errors.Is(err, ErrInstrumentNotFound) {
+		if errors.Is(err, marketdata.ErrInstrumentNotFound) {
 			return 0, ErrValidation("instrument not found")
 		}
 		return 0, fmt.Errorf("error creating stock sell: %w", err)
@@ -612,6 +613,12 @@ func (store *Store) CreateStockSell(ctx context.Context, item StockSell) (uint, 
 				EntryType: expenseEntry,
 			})
 		}
+		// Investment account entry: cost basis leaving the position
+		entries = append(entries, dbEntry{
+			AccountID: item.InvestmentAccountID,
+			Amount:    -costBasis,
+			EntryType: stockSellEntry,
+		})
 
 		tx := dbTransaction{
 			Description: item.Description,
@@ -662,7 +669,7 @@ func (store *Store) CreateStockGrant(ctx context.Context, item StockGrant) (uint
 
 	instrument, err := store.GetInstrument(ctx, item.InstrumentID)
 	if err != nil {
-		if errors.Is(err, ErrInstrumentNotFound) {
+		if errors.Is(err, marketdata.ErrInstrumentNotFound) {
 			return 0, ErrValidation("instrument not found")
 		}
 		return 0, fmt.Errorf("error creating stock grant: %w", err)
@@ -752,7 +759,7 @@ func (store *Store) CreateStockTransfer(ctx context.Context, item StockTransfer)
 
 	instrument, err := store.GetInstrument(ctx, item.InstrumentID)
 	if err != nil {
-		if errors.Is(err, ErrInstrumentNotFound) {
+		if errors.Is(err, marketdata.ErrInstrumentNotFound) {
 			return 0, ErrValidation("instrument not found")
 		}
 		return 0, fmt.Errorf("error creating stock transfer: %w", err)
@@ -1564,7 +1571,7 @@ func (store *Store) UpdateStockBuy(ctx context.Context, input StockBuyUpdate, id
 			return NewValidationErr("instrument is required")
 		}
 		if _, err := store.GetInstrument(ctx, *input.InstrumentID); err != nil {
-			if errors.Is(err, ErrInstrumentNotFound) {
+			if errors.Is(err, marketdata.ErrInstrumentNotFound) {
 				return ErrValidation("instrument not found")
 			}
 			return fmt.Errorf("error updating stock buy: %w", err)
@@ -1708,7 +1715,7 @@ func (store *Store) UpdateStockSell(ctx context.Context, input StockSellUpdate, 
 			return NewValidationErr("instrument is required")
 		}
 		if _, err := store.GetInstrument(ctx, *input.InstrumentID); err != nil {
-			if errors.Is(err, ErrInstrumentNotFound) {
+			if errors.Is(err, marketdata.ErrInstrumentNotFound) {
 				return ErrValidation("instrument not found")
 			}
 			return fmt.Errorf("error updating stock sell: %w", err)
@@ -1801,6 +1808,8 @@ func (store *Store) recreateStockSell(ctx context.Context, id uint, sell StockSe
 		if fees > 0 {
 			entries = append(entries, dbEntry{TransactionID: id, AccountID: sell.CashAccountID, Amount: fees, EntryType: expenseEntry})
 		}
+		// Investment account entry: cost basis leaving the position
+		entries = append(entries, dbEntry{TransactionID: id, AccountID: sell.InvestmentAccountID, Amount: -costBasis, EntryType: stockSellEntry})
 		if err := dbTx.Create(&entries).Error; err != nil {
 			return err
 		}
@@ -1850,7 +1859,7 @@ func (store *Store) UpdateStockGrant(ctx context.Context, input StockGrantUpdate
 			return NewValidationErr("instrument is required")
 		}
 		if _, err := store.GetInstrument(ctx, *input.InstrumentID); err != nil {
-			if errors.Is(err, ErrInstrumentNotFound) {
+			if errors.Is(err, marketdata.ErrInstrumentNotFound) {
 				return ErrValidation("instrument not found")
 			}
 			return fmt.Errorf("error updating stock grant: %w", err)
@@ -1954,7 +1963,7 @@ func (store *Store) UpdateStockTransfer(ctx context.Context, input StockTransfer
 			return NewValidationErr("instrument is required")
 		}
 		if _, err := store.GetInstrument(ctx, *input.InstrumentID); err != nil {
-			if errors.Is(err, ErrInstrumentNotFound) {
+			if errors.Is(err, marketdata.ErrInstrumentNotFound) {
 				return ErrValidation("instrument not found")
 			}
 			return fmt.Errorf("error updating stock transfer: %w", err)
@@ -2117,7 +2126,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 	}
 	offset := (opts.Page - 1) * opts.Limit
 
-	db = db.Order("date DESC").Limit(opts.Limit).Offset(offset)
+	db = db.Order("db_transactions.date DESC").Limit(opts.Limit).Offset(offset)
 
 	//debugtarget := []map[string]any{} // left for debugging
 	type intermediate struct {

@@ -2,8 +2,11 @@ import { computed } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
 import { useHoldings } from '@/composables/useHoldings'
 import { useInstruments } from '@/composables/useInstruments'
+import { useAccounts } from '@/composables/useAccounts'
 import { useSettingsStore } from '@/store/settingsStore'
 import { getLatestRate } from '@/lib/api/CurrencyRates'
+import { getLots } from '@/lib/api/Portfolio'
+import type { TreeNode } from 'primevue/treenode'
 
 export interface ProductPosition {
     instrumentId: number
@@ -25,12 +28,30 @@ export interface ProductPosition {
 export function useInvestmentReport() {
     const settingsStore = useSettingsStore()
     const mainCurrency = computed(() => settingsStore.mainCurrency || 'CHF')
-    const { providersWithHoldings, isLoading } = useHoldings()
+    const { providersWithHoldings, isLoading: holdingsLoading } = useHoldings()
     const { instruments } = useInstruments()
+    const { accounts } = useAccounts()
+
+    const { data: lots, isLoading: lotsLoading } = useQuery({
+        queryKey: ['portfolio-lots'],
+        queryFn: () => getLots()
+    })
+
+    const isLoading = computed(() => holdingsLoading.value || lotsLoading.value)
 
     const instrumentsMap = computed(() => {
         const list = instruments.value ?? []
         return Object.fromEntries(list.map((i) => [i.id, i]))
+    })
+
+    const accountMap = computed(() => {
+        const map: Record<number, { name: string }> = {}
+        for (const provider of accounts.value ?? []) {
+            for (const account of provider.accounts) {
+                map[account.id] = { name: account.name }
+            }
+        }
+        return map
     })
 
     const productPositions = computed<ProductPosition[]>(() => {
@@ -92,6 +113,51 @@ export function useInvestmentReport() {
             )
     })
 
+    const treeNodes = computed<TreeNode[]>(() => {
+        const allLots = lots.value ?? []
+        const accMap = accountMap.value
+
+        return productPositions.value.map((pos) => {
+            const openLots = allLots.filter(
+                (l) => l.instrumentId === pos.instrumentId && (l.status === 1 || l.status === 2)
+            )
+
+            const children: TreeNode[] = openLots.map((lot) => {
+                const marketValue = lot.quantity * (pos.lastPrice ?? 0)
+                const lotGainLoss = marketValue - lot.costBasis
+                const lotGainLossPct = lot.costBasis !== 0 ? (lotGainLoss / lot.costBasis) * 100 : null
+
+                return {
+                    key: `lot-${lot.id}`,
+                    data: {
+                        rowType: 'lot',
+                        instrumentId: pos.instrumentId,
+                        currency: pos.currency,
+                        lastPrice: pos.lastPrice,
+                        accountName: accMap[lot.accountId]?.name,
+                        openDate: lot.openDate,
+                        quantity: lot.quantity,
+                        originalQty: lot.originalQty,
+                        isPartial: lot.status === 2,
+                        costPerShare: lot.costPerShare,
+                        costBasis: lot.costBasis,
+                        marketValue,
+                        lotGainLoss,
+                        lotGainLossPct
+                    },
+                    leaf: true
+                }
+            })
+
+            return {
+                key: `instrument-${pos.instrumentId}`,
+                data: { rowType: 'instrument', ...pos },
+                children,
+                leaf: children.length === 0
+            }
+        })
+    })
+
     const totalByCurrency = computed(() => {
         const byCur: Record<string, number> = {}
         for (const p of productPositions.value) {
@@ -139,6 +205,7 @@ export function useInvestmentReport() {
 
     return {
         productPositions,
+        treeNodes,
         totalByCurrency,
         totalInMainCurrency,
         mainCurrency,

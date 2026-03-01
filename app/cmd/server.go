@@ -104,7 +104,7 @@ func runServer(configFile string) error {
 	if err != nil {
 		return fmt.Errorf("market data store: %w", err)
 	}
-	finStore, err := accounting.NewStore(db, router.NewInstrumentGetter(marketStore))
+	finStore, err := accounting.NewStore(db, marketStore)
 	if err != nil {
 		return fmt.Errorf("accounting store: %w", err)
 	}

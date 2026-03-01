@@ -207,7 +207,6 @@ const handleDeleteEntry = async () => {
     </div>
 
     <!-- Dialog Components -->
-    <!-- TODO: Pass the `category-id`  -->
     <IncomeExpenseDialog
         v-model:visible="dialogs.incomeExpense.value"
         :is-edit="isEditMode"
@@ -218,7 +217,7 @@ const handleDeleteEntry = async () => {
         :stock-amount="isDuplicateMode ? undefined : selectedEntry?.targetStockAmount"
         :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
         :entry-id="selectedEntry?.id"
-        :category-id="selectedEntry?.category?.id"
+        :category-id="selectedEntry?.categoryId"
         :autofocus-amount="isDuplicateMode"
     />
 

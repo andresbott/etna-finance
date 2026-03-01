@@ -2,7 +2,6 @@ package accounting
 
 import (
 	"context"
-	"errors"
 	"math"
 	"sort"
 	"strings"
@@ -17,30 +16,14 @@ import (
 	"gorm.io/gorm"
 )
 
-// testInstrumentGetter adapts marketdata.Store to accounting.InstrumentGetter for tests.
-type testInstrumentGetter struct {
-	store *marketdata.Store
-}
-
-func (g *testInstrumentGetter) GetInstrument(ctx context.Context, id uint) (InstrumentInfo, error) {
-	inst, err := g.store.GetInstrument(ctx, id)
-	if err != nil {
-		if errors.Is(err, marketdata.ErrInstrumentNotFound) {
-			return InstrumentInfo{}, ErrInstrumentNotFound
-		}
-		return InstrumentInfo{}, err
-	}
-	return InstrumentInfo{ID: inst.ID, Currency: inst.Currency}, nil
-}
-
-// newAccountingStoreWithMarketData creates an accounting store with a marketdata-backed getter for tests that need instruments.
+// newAccountingStoreWithMarketData creates an accounting store with a marketdata store for tests that need instruments.
 func newAccountingStoreWithMarketData(t *testing.T, db *gorm.DB) (*Store, *marketdata.Store) {
 	t.Helper()
 	mktStore, err := marketdata.NewStore(db)
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := NewStore(db, &testInstrumentGetter{store: mktStore})
+	store, err := NewStore(db, mktStore)
 	if err != nil {
 		t.Fatal(err)
 	}

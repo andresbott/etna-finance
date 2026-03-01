@@ -28,7 +28,7 @@ import { getApiErrorMessage } from '@/utils/apiError'
 const { createEntry, updateEntry, isCreating, isUpdating } = useEntries({})
 const backendError = ref('')
 const { accounts } = useAccounts()
-const { pickerDateFormat } = useDateFormat()
+const { pickerDateFormat, dateValidation } = useDateFormat()
 
 const props = defineProps({
     isEdit: { type: Boolean, default: false },
@@ -174,7 +174,7 @@ const resolver = computed(() => {
     // Schema for transfers between cash/bank accounts
     const baseSchema = {
         description: z.string().min(1, { message: 'Description is required' }),
-        date: z.date(),
+        date: dateValidation.value,
         targetAmount: z.number().min(0.01, { message: 'Target amount must be greater than 0' }),
         targetAccountId: accountValidation,
         originAmount: z.number().min(0.01, { message: 'Origin amount must be greater than 0' }),
@@ -191,6 +191,7 @@ const dialogTitle = computed(() => {
 
 const handleSubmit = async (e) => {
     e.preventDefault?.()
+    if (e.valid === false) return
     const values = getSubmitValues(e, formValues)
     const description = (values.description ?? formValues.value.description ?? '').toString().trim()
     const targetAmount = Number(values.targetAmount ?? formValues.value.targetAmount ?? 0)

@@ -28,7 +28,7 @@ import { getApiErrorMessage } from '@/utils/apiError'
 const { createEntry, updateEntry, isCreating, isUpdating } = useEntries({})
 const backendError = ref('')
 const { accounts } = useAccounts()
-const { pickerDateFormat } = useDateFormat()
+const { pickerDateFormat, dateValidation } = useDateFormat()
 
 const props = defineProps({
     isEdit: { type: Boolean, default: false },
@@ -81,6 +81,7 @@ watch(props, (newProps) => {
         stockAmount: newProps.stockAmount,
         date: getDateOnly(newProps.date)
     }
+    categoryId.value = newProps.categoryId
     formKey.value++
 })
 
@@ -140,7 +141,7 @@ const resolver = computed(() => {
     // Base schema for income and expense entry types
     const baseSchema = {
         description: z.string().min(1, { message: 'Description is required' }),
-        date: z.date(),
+        date: dateValidation.value,
         amount: z.number().min(0.01, { message: 'Amount must be greater than 0' }),
         AccountId: accountValidation
     }
@@ -163,6 +164,7 @@ const dialogTitle = computed(() => {
 
 const handleSubmit = async (e) => {
     e.preventDefault?.()
+    if (e.valid === false) return
     const values = getSubmitValues(e, formValues)
     const accountId = extractAccountId(values.AccountId)
     const description = (values.description ?? formValues.value.description ?? '').toString().trim()

@@ -37,15 +37,28 @@ func TypeAmount(page *rod.Page, el *rod.Element, amount string) {
 	}
 }
 
-// TypeDate clicks a PrimeVue DatePicker input, selects all text, and types the date
-// character by character (same approach as TypeAmount for InputNumber).
-// Presses Escape afterwards to dismiss the calendar popup that opens on focus.
+// TypeDate sets a date in a PrimeVue DatePicker input.
+//
+// PrimeVue DatePicker v4 renders its input as readonly (inputmode="none"): the field
+// is not meant for keyboard entry. CDP key-event simulation is unreliable because
+// Ctrl+A / select-all does not consistently clear the readonly field, causing stray
+// characters to appear (e.g. "2026-01-052" instead of "2026-01-05").
+//
+// The reliable path is the native-setter + input-event approach: PrimeVue's onInput
+// handler reads event.target.value, calls parseValue, and calls updateModel with no
+// manualInput guard — so setting the DOM value via HTMLInputElement.prototype.value
+// and dispatching a native "input" event commits the date directly.
+//
+// The date argument must be in the format configured for the application (e.g.
+// "2026-01-17" for YYYY-MM-DD) so that parseValue can match against the dateFormat.
+// Escape is pressed afterwards to close the calendar overlay.
 func TypeDate(page *rod.Page, el *rod.Element, date string) {
 	el.MustClick()
-	el.MustSelectAllText()
-	for _, c := range date {
-		page.Keyboard.MustType(input.Key(c))
-	}
+	el.MustEval(fmt.Sprintf(`function() {
+		Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(this, %q);
+		this.dispatchEvent(new Event('input', { bubbles: true }));
+	}`, date))
+	time.Sleep(100 * time.Millisecond)
 	page.Keyboard.MustType(input.Escape)
 	time.Sleep(200 * time.Millisecond)
 }
@@ -67,8 +80,11 @@ func SelectCategoryInDialog(t *testing.T, page *rod.Page, category, expandParent
 
 	if expandParent != "" {
 		parentNode := page.MustElementX(fmt.Sprintf("//*[@role='treeitem'][@aria-label='%s']", expandParent))
-		parentNode.MustElement("button").MustClick()
-		time.Sleep(200 * time.Millisecond)
+		expanded, _ := parentNode.Attribute("aria-expanded")
+		if expanded == nil || *expanded != "true" {
+			parentNode.MustElement("button").MustClick()
+			time.Sleep(200 * time.Millisecond)
+		}
 	}
 
 	page.MustElementX(fmt.Sprintf("//*[@role='treeitem'][@aria-label='%s']", category)).MustClick()

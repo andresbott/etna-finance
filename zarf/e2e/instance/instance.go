@@ -122,7 +122,7 @@ func InitInstance(cfg *EnvCfg) (*Instance, error) {
 
 	fmt.Println(dataDir)
 
-	// Allocate a free port
+	// Allocate a free port for the main server
 	listener, err := net.Listen("tcp", ":0")
 	if err != nil {
 		_ = os.RemoveAll(dataDir)
@@ -130,6 +130,15 @@ func InitInstance(cfg *EnvCfg) (*Instance, error) {
 	}
 	port := listener.Addr().(*net.TCPAddr).Port
 	_ = listener.Close()
+
+	// Allocate a free port for the observability server
+	obsListener, err := net.Listen("tcp", ":0")
+	if err != nil {
+		_ = os.RemoveAll(dataDir)
+		return nil, fmt.Errorf("allocate obs port: %w", err)
+	}
+	obsPort := obsListener.Addr().(*net.TCPAddr).Port
+	_ = obsListener.Close()
 
 	backendURL := "http://127.0.0.1:" + strconv.Itoa(port)
 	baseURL := backendURL
@@ -158,6 +167,8 @@ func InitInstance(cfg *EnvCfg) (*Instance, error) {
 		"ETNA_DATADIR="+dataDir,
 		"ETNA_SERVER_PORT="+strconv.Itoa(port),
 		"ETNA_SERVER_BINDIP=127.0.0.1",
+		"ETNA_OBSERVABILITY_PORT="+strconv.Itoa(obsPort),
+		"ETNA_OBSERVABILITY_BINDIP=127.0.0.1",
 		"ETNA_AUTH_ENABLED=false",
 	)
 	cmd.Stdout = os.Stdout

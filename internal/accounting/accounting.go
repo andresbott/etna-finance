@@ -2,42 +2,27 @@ package accounting
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
+	"github.com/andresbott/etna/internal/marketdata"
 	closuretree "github.com/go-bumbu/closure-tree"
-	"golang.org/x/text/currency"
 	"gorm.io/gorm"
 )
 
-// InstrumentInfo is the minimal instrument data needed for transaction validation (e.g. currency match).
-type InstrumentInfo struct {
-	ID       uint
-	Currency currency.Unit
-}
-
-var ErrInstrumentNotFound = errors.New("instrument not found")
-
-// InstrumentGetter provides instrument lookup for transaction validation.
-// Implementations typically adapt an external store (e.g. marketdata).
-type InstrumentGetter interface {
-	GetInstrument(ctx context.Context, id uint) (InstrumentInfo, error)
-}
-
 type Store struct {
-	db               *gorm.DB
-	categoryTree     *closuretree.Tree
-	instrumentGetter InstrumentGetter
+	db           *gorm.DB
+	categoryTree *closuretree.Tree
+	marketStore  *marketdata.Store
 }
 
-func NewStore(db *gorm.DB, instrumentGetter InstrumentGetter) (*Store, error) {
+func NewStore(db *gorm.DB, marketStore *marketdata.Store) (*Store, error) {
 	if db == nil {
 		return nil, fmt.Errorf("db cannot be nil")
 	}
 
 	b := Store{
-		db:               db,
-		instrumentGetter: instrumentGetter,
+		db:          db,
+		marketStore: marketStore,
 	}
 
 	stmt := &gorm.Statement{DB: db}
@@ -60,13 +45,13 @@ func NewStore(db *gorm.DB, instrumentGetter InstrumentGetter) (*Store, error) {
 	return &b, nil
 }
 
-// GetInstrument returns instrument info by id, delegating to the injected InstrumentGetter.
-// If no getter is set, returns ErrInstrumentNotFound.
-func (s *Store) GetInstrument(ctx context.Context, id uint) (InstrumentInfo, error) {
-	if s.instrumentGetter == nil {
-		return InstrumentInfo{}, ErrInstrumentNotFound
+// GetInstrument returns instrument info by id from the marketdata store.
+// Returns marketdata.ErrInstrumentNotFound if no marketdata store is set or the instrument is missing.
+func (s *Store) GetInstrument(ctx context.Context, id uint) (marketdata.Instrument, error) {
+	if s.marketStore == nil {
+		return marketdata.Instrument{}, marketdata.ErrInstrumentNotFound
 	}
-	return s.instrumentGetter.GetInstrument(ctx, id)
+	return s.marketStore.GetInstrument(ctx, id)
 }
 
 func NewValidationErr(in string) ErrValidation {

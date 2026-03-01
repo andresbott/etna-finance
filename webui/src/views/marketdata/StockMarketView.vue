@@ -21,12 +21,26 @@ import {
     formatPct,
     getChangeSeverity
 } from '@/composables/useMarketData'
+import { useTasks } from '@/composables/useTasks'
 
 const { formatDate, pickerDateFormat } = useDateFormat()
 
 const router = useRouter()
 const { instruments, isLoading, isError, error, refetch } = useMarketInstruments()
 const leftSidebarCollapsed = ref(true)
+
+const { tasks, triggerTask, triggeringTaskId } = useTasks()
+const importTask = computed(() => tasks.value.find((t) => t.id === 'financial-import'))
+const isScheduled = computed(() => !!importTask.value?.schedule?.enabled)
+const scheduleTooltip = computed(() => {
+    const task = importTask.value
+    if (!task?.schedule) return 'No import schedule set'
+    const cron = task.schedule.cron_expression
+    return task.schedule.enabled ? `Scheduled: ${cron}` : `Schedule paused: ${cron}`
+})
+function runImport() {
+    if (importTask.value) triggerTask(importTask.value)
+}
 
 const addDialogInstrument = ref(null)
 const addDialogVisible = ref(false)
@@ -61,14 +75,31 @@ const onRowClick = (event) => {
     <ResponsiveHorizontal :leftSidebarCollapsed="leftSidebarCollapsed">
         <template #default>
             <div class="p-3">
-                <div class="mb-2">
-                    <h1 class="flex align-items-center gap-3 m-0 mb-2">
-                        <i class="pi pi-chart-line text-primary"></i>
-                        Stock Market
-                    </h1>
-                    <p class="text-color-secondary mt-0 mb-3">
-                        Investment instruments overview with market data
-                    </p>
+                <div class="mb-2 flex align-items-start justify-content-between gap-2">
+                    <div>
+                        <h1 class="flex align-items-center gap-3 m-0 mb-2">
+                            <i class="pi pi-chart-line text-primary"></i>
+                            Stock Market
+                        </h1>
+                        <p class="text-color-secondary mt-0 mb-3">
+                            Investment instruments overview with market data
+                        </p>
+                    </div>
+                    <div class="flex align-items-center gap-2 pt-1">
+                        <i
+                            :class="['pi', 'pi-clock', isScheduled ? 'text-primary' : 'text-color-secondary']"
+                            v-tooltip.bottom="scheduleTooltip"
+                            style="font-size: 1.1rem"
+                        />
+                        <Button
+                            label="Run import"
+                            icon="pi pi-play"
+                            size="small"
+                            :loading="triggeringTaskId === 'financial-import'"
+                            :disabled="!importTask"
+                            @click="runImport"
+                        />
+                    </div>
                 </div>
 
                 <Message v-if="isError" severity="error" :closable="false" class="mb-3">

@@ -2,9 +2,7 @@ package finance
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -566,22 +564,6 @@ func getTime(timeStr string) time.Time {
 	return parsedTime
 }
 
-// sampleInstrumentGetter adapts marketdata.Store to accounting.InstrumentGetter for tests.
-type sampleInstrumentGetter struct {
-	store *marketdata.Store
-}
-
-func (g *sampleInstrumentGetter) GetInstrument(ctx context.Context, id uint) (accounting.InstrumentInfo, error) {
-	inst, err := g.store.GetInstrument(ctx, id)
-	if err != nil {
-		if errors.Is(err, marketdata.ErrInstrumentNotFound) {
-			return accounting.InstrumentInfo{}, accounting.ErrInstrumentNotFound
-		}
-		return accounting.InstrumentInfo{}, err
-	}
-	return accounting.InstrumentInfo{ID: inst.ID, Currency: inst.Currency}, nil
-}
-
 func SampleHandler(t *testing.T) (*Handler, func()) {
 
 	db, err := gorm.Open(sqlite.Open(inMemorySqlite), &gorm.Config{
@@ -595,7 +577,7 @@ func SampleHandler(t *testing.T) (*Handler, func()) {
 	if err != nil {
 		t.Fatalf("unable to create marketdata store: %v", err)
 	}
-	store, err := accounting.NewStore(db, &sampleInstrumentGetter{store: mktStore})
+	store, err := accounting.NewStore(db, mktStore)
 	if err != nil {
 		t.Fatalf("unable to connect to finance: %v", err)
 	}

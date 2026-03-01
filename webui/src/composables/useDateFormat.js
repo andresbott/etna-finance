@@ -1,4 +1,5 @@
 import { computed } from 'vue'
+import { z } from 'zod'
 import { useSettingsStore } from '@/store/settingsStore'
 
 /**
@@ -78,9 +79,14 @@ export function useDateFormat() {
         return datePart && timePart ? `${datePart} ${timePart}` : datePart || timePart || ''
     }
 
+    const dateValidation = computed(() =>
+        z.coerce.date({ invalid_type_error: `Enter a valid date (${settings.dateFormat || 'DD/MM/YYYY'})` })
+    )
+
     return {
         pickerDateFormat,
         formatDate,
-        formatDateTime
+        formatDateTime,
+        dateValidation
     }
 }

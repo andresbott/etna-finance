@@ -1,0 +1,586 @@
+package accounting
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"math"
+	"time"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+)
+
+// ---------------------------------------------------------------------------
+// Trades
+// ---------------------------------------------------------------------------
+
+type TradeType int
+
+const (
+	BuyTrade         TradeType = 1
+	SellTrade        TradeType = 2
+	GrantTrade       TradeType = 3
+	TransferOutTrade TradeType = 4
+	TransferInTrade  TradeType = 5
+)
+
+// dbTrade records a single stock operation (buy, sell, or grant).
+// Fees are tracked as expense entries in db_entries (same transaction_id).
+// FX rate is not stored — derivable from the data.
+type dbTrade struct {
+	Id            uint      `gorm:"primaryKey"`
+	TransactionID uint      `gorm:"not null;index"`
+	AccountID     uint      `gorm:"not null;index"`
+	InstrumentID  uint      `gorm:"not null;index"`
+	TradeType     TradeType `gorm:"not null"`
+	Quantity      float64   `gorm:"not null"`
+	PricePerShare float64
+	TotalAmount   float64
+	Currency      string
+	Date          time.Time `gorm:"not null;index"`
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type Trade struct {
+	Id            uint
+	TransactionID uint
+	AccountID     uint
+	InstrumentID  uint
+	TradeType     TradeType
+	Quantity      float64
+	PricePerShare float64
+	TotalAmount   float64
+	Currency      string
+	Date          time.Time
+}
+
+type ListTradesOpts struct {
+	AccountID    uint
+	InstrumentID uint
+	StartDate    time.Time
+	EndDate      time.Time
+}
+
+func tradeFromDb(t dbTrade) Trade {
+	return Trade{
+		Id:            t.Id,
+		TransactionID: t.TransactionID,
+		AccountID:     t.AccountID,
+		InstrumentID:  t.InstrumentID,
+		TradeType:     t.TradeType,
+		Quantity:      t.Quantity,
+		PricePerShare: t.PricePerShare,
+		TotalAmount:   t.TotalAmount,
+		Currency:      t.Currency,
+		Date:          t.Date,
+	}
+}
+
+func (store *Store) createTrade(ctx context.Context, tx *gorm.DB, trade dbTrade) (uint, error) {
+	if err := tx.WithContext(ctx).Create(&trade).Error; err != nil {
+		return 0, fmt.Errorf("failed to create trade: %w", err)
+	}
+
+	// For buy/grant, create a lot
+	if trade.TradeType == BuyTrade || trade.TradeType == GrantTrade {
+		costPerShare := 0.0
+		if trade.Quantity > 0 {
+			costPerShare = trade.TotalAmount / trade.Quantity
+		}
+		lot := dbLot{
+			TradeID:      trade.Id,
+			AccountID:    trade.AccountID,
+			InstrumentID: trade.InstrumentID,
+			OpenDate:     trade.Date,
+			Quantity:     trade.Quantity,
+			OriginalQty:  trade.Quantity,
+			CostPerShare: costPerShare,
+			CostBasis:    trade.TotalAmount,
+			Status:       LotOpen,
+		}
+		if err := tx.WithContext(ctx).Create(&lot).Error; err != nil {
+			return 0, fmt.Errorf("failed to create lot for trade: %w", err)
+		}
+	}
+
+	// For sell, allocate lots via FIFO
+	if trade.TradeType == SellTrade {
+		_, _, err := store.allocateLotsForSell(ctx, tx, trade.AccountID, trade.InstrumentID, trade.Quantity, trade.TotalAmount, trade.Date, trade.Id, FIFO)
+		if err != nil {
+			return 0, fmt.Errorf("failed to allocate lots for sell: %w", err)
+		}
+	}
+
+	// Update position
+	if err := store.updatePosition(ctx, tx, trade.AccountID, trade.InstrumentID); err != nil {
+		return 0, fmt.Errorf("failed to update position: %w", err)
+	}
+
+	return trade.Id, nil
+}
+
+func (store *Store) GetTrade(ctx context.Context, id uint) (Trade, error) {
+	var trade dbTrade
+	if err := store.db.WithContext(ctx).Where("id = ?", id).First(&trade).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return Trade{}, fmt.Errorf("trade not found")
+		}
+		return Trade{}, err
+	}
+	return tradeFromDb(trade), nil
+}
+
+func (store *Store) ListTrades(ctx context.Context, opts ListTradesOpts) ([]Trade, error) {
+	db := store.db.WithContext(ctx).Table("db_trades")
+
+	if opts.AccountID != 0 {
+		db = db.Where("account_id = ?", opts.AccountID)
+	}
+	if opts.InstrumentID != 0 {
+		db = db.Where("instrument_id = ?", opts.InstrumentID)
+	}
+	if !opts.StartDate.IsZero() {
+		db = db.Where("date >= ?", opts.StartDate)
+	}
+	if !opts.EndDate.IsZero() {
+		db = db.Where("date <= ?", endOfDay(opts.EndDate))
+	}
+
+	db = db.Order("date ASC")
+
+	var trades []dbTrade
+	if err := db.Find(&trades).Error; err != nil {
+		return nil, err
+	}
+
+	result := make([]Trade, len(trades))
+	for i, t := range trades {
+		result[i] = tradeFromDb(t)
+	}
+	return result, nil
+}
+
+// deleteTrade removes a trade and its associated lots/disposals, then updates the position.
+func (store *Store) deleteTrade(ctx context.Context, tx *gorm.DB, tradeID uint) error {
+	var trade dbTrade
+	if err := tx.WithContext(ctx).Where("id = ?", tradeID).First(&trade).Error; err != nil {
+		return err
+	}
+
+	// Delete lot disposals referencing lots of this trade, or referencing this trade as sell
+	if err := tx.WithContext(ctx).Where("sell_trade_id = ?", tradeID).Delete(&dbLotDisposal{}).Error; err != nil {
+		return err
+	}
+	// Delete lot disposals from lots owned by this trade
+	if err := tx.WithContext(ctx).
+		Where("lot_id IN (?)", tx.Model(&dbLot{}).Select("id").Where("trade_id = ?", tradeID)).
+		Delete(&dbLotDisposal{}).Error; err != nil {
+		return err
+	}
+
+	// Delete lots created by this trade
+	if err := tx.WithContext(ctx).Where("trade_id = ?", tradeID).Delete(&dbLot{}).Error; err != nil {
+		return err
+	}
+
+	// Delete the trade
+	if err := tx.WithContext(ctx).Where("id = ?", tradeID).Delete(&dbTrade{}).Error; err != nil {
+		return err
+	}
+
+	// Update position
+	return store.updatePosition(ctx, tx, trade.AccountID, trade.InstrumentID)
+}
+
+// deleteTradesByTransactionID removes all trades (and cascading lots/disposals) for a transaction.
+func (store *Store) deleteTradesByTransactionID(ctx context.Context, tx *gorm.DB, transactionID uint) error {
+	var trades []dbTrade
+	if err := tx.WithContext(ctx).Where("transaction_id = ?", transactionID).Find(&trades).Error; err != nil {
+		return err
+	}
+	for _, trade := range trades {
+		if err := store.deleteTrade(ctx, tx, trade.Id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// Lots
+// ---------------------------------------------------------------------------
+
+type LotStatus int
+
+const (
+	LotOpen    LotStatus = 1
+	LotPartial LotStatus = 2
+	LotClosed  LotStatus = 3
+)
+
+type dbLot struct {
+	Id           uint      `gorm:"primaryKey"`
+	TradeID      uint      `gorm:"not null;index"`
+	AccountID    uint      `gorm:"not null;index"`
+	InstrumentID uint      `gorm:"not null;index"`
+	OpenDate     time.Time `gorm:"not null"`
+	Quantity     float64   `gorm:"not null"`
+	OriginalQty  float64   `gorm:"not null"`
+	CostPerShare float64   `gorm:"not null"`
+	CostBasis    float64   `gorm:"not null"`
+	Status       LotStatus `gorm:"not null;default:1"`
+	ClosedDate   *time.Time
+	CreatedAt    time.Time
+}
+
+type dbLotDisposal struct {
+	Id          uint    `gorm:"primaryKey"`
+	LotID       uint    `gorm:"not null;index"`
+	SellTradeID uint    `gorm:"not null;index"`
+	Quantity    float64 `gorm:"not null"`
+	Proceeds    float64
+	RealizedGL  float64
+	Date        time.Time `gorm:"not null"`
+}
+
+type Lot struct {
+	Id           uint
+	TradeID      uint
+	AccountID    uint
+	InstrumentID uint
+	OpenDate     time.Time
+	Quantity     float64
+	OriginalQty  float64
+	CostPerShare float64
+	CostBasis    float64
+	Status       LotStatus
+	ClosedDate   *time.Time
+}
+
+type LotDisposal struct {
+	Id          uint
+	LotID       uint
+	SellTradeID uint
+	Quantity    float64
+	Proceeds    float64
+	RealizedGL  float64
+	Date        time.Time
+}
+
+type LotAllocation struct {
+	LotID      uint
+	Quantity   float64
+	CostBasis  float64
+	RealizedGL float64
+}
+
+type CostBasisMethod int
+
+const (
+	FIFO CostBasisMethod = iota
+)
+
+func lotFromDb(l dbLot) Lot {
+	return Lot{
+		Id:           l.Id,
+		TradeID:      l.TradeID,
+		AccountID:    l.AccountID,
+		InstrumentID: l.InstrumentID,
+		OpenDate:     l.OpenDate,
+		Quantity:     l.Quantity,
+		OriginalQty:  l.OriginalQty,
+		CostPerShare: l.CostPerShare,
+		CostBasis:    l.CostBasis,
+		Status:       l.Status,
+		ClosedDate:   l.ClosedDate,
+	}
+}
+
+// allocateLotsForSell allocates sell quantity against open/partial lots using the specified method.
+// Returns allocations, total cost basis, and error.
+func (store *Store) allocateLotsForSell(ctx context.Context, tx *gorm.DB, accountID, instrumentID uint, sellQty, proceeds float64, sellDate time.Time, sellTradeID uint, method CostBasisMethod) ([]LotAllocation, float64, error) {
+	var lots []dbLot
+
+	orderClause := "open_date ASC, id ASC" // FIFO
+	if err := tx.WithContext(ctx).
+		Where("account_id = ? AND instrument_id = ? AND status IN ?", accountID, instrumentID, []LotStatus{LotOpen, LotPartial}).
+		Order(orderClause).
+		Find(&lots).Error; err != nil {
+		return nil, 0, err
+	}
+
+	remaining := sellQty
+	var totalCostBasis float64
+	var allocations []LotAllocation
+
+	// Compute total available for proceeds allocation
+	totalAvailableQty := 0.0
+	for _, lot := range lots {
+		totalAvailableQty += lot.Quantity
+	}
+	if totalAvailableQty < sellQty {
+		return nil, 0, ErrValidation("insufficient quantity for sell")
+	}
+
+	for i := range lots {
+		if remaining <= 0 {
+			break
+		}
+
+		lot := &lots[i]
+		allocQty := math.Min(lot.Quantity, remaining)
+		allocCost := roundMoney(allocQty * lot.CostPerShare)
+		allocProceeds := roundMoney(proceeds * (allocQty / sellQty))
+		realizedGL := roundMoney(allocProceeds - allocCost)
+
+		// Create disposal record
+		disposal := dbLotDisposal{
+			LotID:       lot.Id,
+			SellTradeID: sellTradeID,
+			Quantity:    allocQty,
+			Proceeds:    allocProceeds,
+			RealizedGL:  realizedGL,
+			Date:        sellDate,
+		}
+		if err := tx.WithContext(ctx).Create(&disposal).Error; err != nil {
+			return nil, 0, fmt.Errorf("failed to create lot disposal: %w", err)
+		}
+
+		// Update lot
+		lot.Quantity -= allocQty
+		if lot.Quantity <= 0 {
+			lot.Quantity = 0
+			lot.Status = LotClosed
+			lot.ClosedDate = &sellDate
+		} else {
+			lot.Status = LotPartial
+		}
+		lot.CostBasis = roundMoney(lot.Quantity * lot.CostPerShare)
+
+		if err := tx.WithContext(ctx).Save(lot).Error; err != nil {
+			return nil, 0, fmt.Errorf("failed to update lot: %w", err)
+		}
+
+		allocations = append(allocations, LotAllocation{
+			LotID:      lot.Id,
+			Quantity:   allocQty,
+			CostBasis:  allocCost,
+			RealizedGL: realizedGL,
+		})
+
+		totalCostBasis += allocCost
+		remaining -= allocQty
+	}
+
+	return allocations, totalCostBasis, nil
+}
+
+// transferLots closes source lots and creates new lots in the target account with the same cost basis.
+func (store *Store) transferLots(ctx context.Context, tx *gorm.DB, sourceAccountID, targetAccountID, instrumentID uint, qty float64, date time.Time, tradeID uint) error {
+	var lots []dbLot
+
+	if err := tx.WithContext(ctx).
+		Where("account_id = ? AND instrument_id = ? AND status IN ?", sourceAccountID, instrumentID, []LotStatus{LotOpen, LotPartial}).
+		Order("open_date ASC, id ASC").
+		Find(&lots).Error; err != nil {
+		return err
+	}
+
+	remaining := qty
+	totalAvailableQty := 0.0
+	for _, lot := range lots {
+		totalAvailableQty += lot.Quantity
+	}
+	if totalAvailableQty < qty {
+		return ErrValidation("insufficient quantity for transfer")
+	}
+
+	for i := range lots {
+		if remaining <= 0 {
+			break
+		}
+
+		lot := &lots[i]
+		moveQty := math.Min(lot.Quantity, remaining)
+		moveCost := roundMoney(moveQty * lot.CostPerShare)
+
+		// Reduce source lot
+		lot.Quantity -= moveQty
+		if lot.Quantity <= 0 {
+			lot.Quantity = 0
+			lot.Status = LotClosed
+			lot.ClosedDate = &date
+		} else {
+			lot.Status = LotPartial
+		}
+		lot.CostBasis = roundMoney(lot.Quantity * lot.CostPerShare)
+
+		if err := tx.WithContext(ctx).Save(lot).Error; err != nil {
+			return fmt.Errorf("failed to update source lot: %w", err)
+		}
+
+		// Create new lot in target account with same cost basis
+		newLot := dbLot{
+			TradeID:      tradeID,
+			AccountID:    targetAccountID,
+			InstrumentID: instrumentID,
+			OpenDate:     lot.OpenDate, // preserve original open date for FIFO ordering
+			Quantity:     moveQty,
+			OriginalQty:  moveQty,
+			CostPerShare: lot.CostPerShare,
+			CostBasis:    moveCost,
+			Status:       LotOpen,
+		}
+		if err := tx.WithContext(ctx).Create(&newLot).Error; err != nil {
+			return fmt.Errorf("failed to create target lot: %w", err)
+		}
+
+		remaining -= moveQty
+	}
+
+	return nil
+}
+
+type ListLotsOpts struct {
+	AccountID    uint
+	InstrumentID uint
+	Status       *LotStatus
+}
+
+func (store *Store) ListLots(ctx context.Context, opts ListLotsOpts) ([]Lot, error) {
+	db := store.db.WithContext(ctx).Table("db_lots")
+
+	if opts.AccountID != 0 {
+		db = db.Where("account_id = ?", opts.AccountID)
+	}
+	if opts.InstrumentID != 0 {
+		db = db.Where("instrument_id = ?", opts.InstrumentID)
+	}
+	if opts.Status != nil {
+		db = db.Where("status = ?", *opts.Status)
+	}
+
+	db = db.Order("open_date ASC, id ASC")
+
+	var lots []dbLot
+	if err := db.Find(&lots).Error; err != nil {
+		return nil, err
+	}
+
+	result := make([]Lot, len(lots))
+	for i, l := range lots {
+		result[i] = lotFromDb(l)
+	}
+	return result, nil
+}
+
+// ---------------------------------------------------------------------------
+// Positions
+// ---------------------------------------------------------------------------
+
+type dbPosition struct {
+	Id           uint    `gorm:"primaryKey"`
+	AccountID    uint    `gorm:"not null;uniqueIndex:idx_acct_inst"`
+	InstrumentID uint    `gorm:"not null;uniqueIndex:idx_acct_inst"`
+	Quantity     float64 `gorm:"not null;default:0"`
+	CostBasis    float64 `gorm:"not null;default:0"`
+	AvgCost      float64 `gorm:"not null;default:0"`
+	UpdatedAt    time.Time
+}
+
+type Position struct {
+	Id           uint
+	AccountID    uint
+	InstrumentID uint
+	Quantity     float64
+	CostBasis    float64
+	AvgCost      float64
+}
+
+func positionFromDb(p dbPosition) Position {
+	return Position{
+		Id:           p.Id,
+		AccountID:    p.AccountID,
+		InstrumentID: p.InstrumentID,
+		Quantity:     p.Quantity,
+		CostBasis:    p.CostBasis,
+		AvgCost:      p.AvgCost,
+	}
+}
+
+// updatePosition recalculates position from open lots and upserts db_positions.
+func (store *Store) updatePosition(ctx context.Context, tx *gorm.DB, accountID, instrumentID uint) error {
+	var result struct {
+		TotalQty  float64
+		TotalCost float64
+	}
+	if err := tx.WithContext(ctx).
+		Model(&dbLot{}).
+		Select("COALESCE(SUM(quantity), 0) as total_qty, COALESCE(SUM(cost_basis), 0) as total_cost").
+		Where("account_id = ? AND instrument_id = ? AND status IN ?", accountID, instrumentID, []LotStatus{LotOpen, LotPartial}).
+		Scan(&result).Error; err != nil {
+		return err
+	}
+
+	avgCost := 0.0
+	if result.TotalQty > 0 {
+		avgCost = roundMoney(result.TotalCost / result.TotalQty)
+	}
+
+	pos := dbPosition{
+		AccountID:    accountID,
+		InstrumentID: instrumentID,
+		Quantity:     result.TotalQty,
+		CostBasis:    roundMoney(result.TotalCost),
+		AvgCost:      avgCost,
+	}
+
+	return tx.WithContext(ctx).
+		Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "account_id"}, {Name: "instrument_id"}},
+			DoUpdates: clause.AssignmentColumns([]string{"quantity", "cost_basis", "avg_cost", "updated_at"}),
+		}).
+		Create(&pos).Error
+}
+
+func (store *Store) GetPosition(ctx context.Context, accountID, instrumentID uint) (Position, error) {
+	var pos dbPosition
+	if err := store.db.WithContext(ctx).
+		Where("account_id = ? AND instrument_id = ?", accountID, instrumentID).
+		First(&pos).Error; err != nil {
+		return Position{}, err
+	}
+	return positionFromDb(pos), nil
+}
+
+type ListPositionsOpts struct {
+	AccountID uint
+}
+
+func (store *Store) ListPositions(ctx context.Context, opts ListPositionsOpts) ([]Position, error) {
+	db := store.db.WithContext(ctx).Model(&dbPosition{})
+
+	if opts.AccountID != 0 {
+		db = db.Where("account_id = ?", opts.AccountID)
+	}
+
+	// Only return positions with non-zero quantity
+	db = db.Where("quantity > 0")
+
+	var positions []dbPosition
+	if err := db.Find(&positions).Error; err != nil {
+		return nil, err
+	}
+
+	result := make([]Position, len(positions))
+	for i, p := range positions {
+		result[i] = positionFromDb(p)
+	}
+	return result, nil
+}
+
+func (store *Store) ListAllPositions(ctx context.Context) ([]Position, error) {
+	return store.ListPositions(ctx, ListPositionsOpts{})
+}

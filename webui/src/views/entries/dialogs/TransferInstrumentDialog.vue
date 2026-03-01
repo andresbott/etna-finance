@@ -40,7 +40,7 @@ const createMutation = useMutation({
     }
 })
 const isSaving = computed(() => createMutation.isPending.value)
-const { pickerDateFormat } = useDateFormat()
+const { pickerDateFormat, dateValidation } = useDateFormat()
 
 const instruments = computed(() => instrumentsData.value ?? [])
 
@@ -125,7 +125,7 @@ const resolver = computed(() =>
             instrumentId: z.number().min(1, { message: 'Instrument is required' }),
             description: z.string().min(1, { message: 'Description is required' }),
             quantity: z.number().min(0.0001, { message: 'Quantity must be greater than 0' }),
-            date: z.date(),
+            date: dateValidation.value,
             OriginAccountId: accountValidation,
             TargetAccountId: accountValidation
         })
@@ -134,6 +134,7 @@ const resolver = computed(() =>
 
 const handleSubmit = async (e) => {
     e.preventDefault?.()
+    if (e.valid === false) return
     const values = getSubmitValues(e, formValues)
     const v = formValues.value
     const description = (values.description ?? v.description ?? '').toString().trim()

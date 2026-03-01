@@ -39,7 +39,7 @@ const createMutation = useMutation({
     }
 })
 const isSaving = computed(() => createMutation.isPending.value)
-const { pickerDateFormat } = useDateFormat()
+const { pickerDateFormat, dateValidation } = useDateFormat()
 
 const instruments = computed(() => instrumentsData.value ?? [])
 
@@ -117,7 +117,7 @@ const resolver = computed(() =>
             description: z.string().min(1, { message: 'Description is required' }),
             quantity: z.number().min(0.0001, { message: 'Quantity must be greater than 0' }),
             fairMarketValue: z.number().min(0, { message: 'FMV cannot be negative' }).optional().default(0),
-            date: z.date(),
+            date: dateValidation.value,
             AccountId: accountValidation
         })
     )
