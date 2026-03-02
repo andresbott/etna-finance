@@ -576,6 +576,11 @@ func (store *Store) validateStockSell(ctx context.Context, item StockSell) (mark
 			"instrument currency %s does not match investment account currency %s",
 			instrument.Currency, invAcc.Currency))
 	}
+	if instrument.Currency != cashAcc.Currency {
+		return marketdata.Instrument{}, 0, NewValidationErr(fmt.Sprintf(
+			"instrument currency %s does not match cash account currency %s",
+			instrument.Currency, cashAcc.Currency))
+	}
 	return instrument, fees, nil
 }
 

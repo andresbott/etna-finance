@@ -38,6 +38,10 @@ const props = defineProps({
     accountTypes: {
         type: Array,
         default: () => []
+    },
+    currency: {
+        type: String,
+        default: null
     }
 })
 
@@ -59,12 +63,13 @@ const accountsTree = computed(() => {
     return accounts.value
         .map((provider) => {
             // Filter accounts by type if accountTypes array is not empty
-            const filteredAccounts =
+            const filteredAccounts = (
                 props.accountTypes.length > 0
                     ? provider.accounts.filter((account) =>
                           props.accountTypes.includes(account.type)
                       )
                     : provider.accounts
+            ).filter((account) => !props.currency || account.currency === props.currency)
 
             return {
                 key: `provider-${provider.id}`,
@@ -162,7 +167,10 @@ watch(
             // Check if we should filter the accounts by type
             if (props.accountTypes.length > 0) {
                 const account = provider.accounts.find(
-                    (acc) => acc.id === accountId && props.accountTypes.includes(acc.type)
+                    (acc) =>
+                        acc.id === accountId &&
+                        props.accountTypes.includes(acc.type) &&
+                        (!props.currency || acc.currency === props.currency)
                 )
                 if (account) {
                     selectedTreeNode.value = {
@@ -175,7 +183,11 @@ watch(
                 }
             } else {
                 // No filtering, show all account types
-                const account = provider.accounts.find((acc) => acc.id === accountId)
+                const account = provider.accounts.find(
+                    (acc) =>
+                        acc.id === accountId &&
+                        (!props.currency || acc.currency === props.currency)
+                )
                 if (account) {
                     selectedTreeNode.value = {
                         key: account.id,
@@ -227,7 +239,9 @@ const handleSelectionChange = (val) => {
                               )
                             : provider.accounts
 
-                    const account = accountsToSearch.find((acc) => acc.id === accountId)
+                    const account = accountsToSearch.find(
+                        (acc) => acc.id === accountId && (!props.currency || acc.currency === props.currency)
+                    )
                     if (account) {
                         selectedTreeNode.value = {
                             key: account.id,

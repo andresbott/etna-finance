@@ -56,6 +56,12 @@ const instrumentById = computed(() =>
     Object.fromEntries((instruments.value ?? []).map((i) => [i.id, i]))
 )
 
+const selectedInstrumentCurrency = computed(() => {
+    const id = formValues.value.instrumentId
+    if (!id) return null
+    return instrumentById.value[id]?.currency ?? null
+})
+
 const props = defineProps({
     visible: { type: Boolean, default: false },
     isEdit: { type: Boolean, default: false },
@@ -654,6 +660,7 @@ const handleSellSave = async () => {
                                 name="CashAccountId"
                                 placeholder="Select cash account"
                                 :accountTypes="['cash', 'checkin', 'savings']"
+                                :currency="selectedInstrumentCurrency"
                             />
                             <Message v-if="$form.CashAccountId?.invalid" severity="error" size="small">
                                 {{ $form.CashAccountId?.error?.message }}
