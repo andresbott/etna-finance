@@ -186,9 +186,6 @@ func readFromZip(zipPath string) (backupPayload, error) {
 	return payload, nil
 }
 
-const tenant1 = "tenant1"
-const tenant2 = "tenant2"
-
 func sampleData(t *testing.T, store *accounting.Store) {
 
 	// =========================================

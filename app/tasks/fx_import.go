@@ -58,59 +58,67 @@ func NewFXImportTaskFn(store *marketdata.Store, mainCurrency string, currencies 
 		}
 
 		if client != nil && mainCurrency != "" && len(currencies) > 0 {
-			now := time.Now().UTC()
-			end := dateRangeEnd(now)
-			start := dateRangeStart(end, FXBackfillDays)
-			pairs := 0
-			for _, c := range currencies {
-				if c != mainCurrency {
-					pairs++
-				}
-			}
-			tempo.Info(ctx, fmt.Sprintf("fx import: backfill range %s to %s, %d pairs", start.Format(dateFmt), end.Format(dateFmt), pairs))
-			deadline := time.Now().Add(MaxFXTaskDuration)
-
-			for _, secondary := range currencies {
-				if secondary == mainCurrency {
-					continue
-				}
-				existing, err := store.RateHistory(ctx, mainCurrency, secondary, start, end)
-				if err != nil {
-					tempo.Info(ctx, fmt.Sprintf("fx import: skip %s/%s — rate history failed: %v", mainCurrency, secondary, err))
-					continue
-				}
-				existingTimes := daySetFromRecords(existing, func(r marketdata.RateRecord) time.Time { return r.Time })
-
-				pairLabel := mainCurrency + "/" + secondary
-				points, fetchErr := FetchWith429Retry(ctx, deadline, "fx import: "+pairLabel, func() ([]importer.RatePoint, error) {
-					return client.FetchDailyRates(ctx, mainCurrency, secondary, start, end)
-				})
-				if fetchErr != nil {
-					if strings.Contains(fetchErr.Error(), "429") {
-						return fmt.Errorf("429 rate limit for %s: %w", pairLabel, fetchErr)
-					}
-					tempo.Info(ctx, fmt.Sprintf("fx import: skip %s/%s — fetch failed: %v", mainCurrency, secondary, fetchErr))
-					continue
-				}
-
-				newPoints := ratePointsNewDays(points, existingTimes)
-				if len(newPoints) == 0 {
-					tempo.Info(ctx, fmt.Sprintf("fx import: skip %s/%s — no new points (fetched %d)", mainCurrency, secondary, len(points)))
-					continue
-				}
-				if time.Now().After(deadline) {
-					tempo.Info(ctx, "fx import: stopping before full run (deadline)")
-					break
-				}
-				if err := store.IngestRatesBulk(ctx, mainCurrency, secondary, newPoints); err != nil {
-					tempo.Error(ctx, fmt.Sprintf("fx import: ingest %s/%s: %v", mainCurrency, secondary, err))
-					return fmt.Errorf("ingest %s/%s: %w", mainCurrency, secondary, err)
-				}
-				first, last := newPoints[0].Time.Format(dateFmt), newPoints[len(newPoints)-1].Time.Format(dateFmt)
-				tempo.Info(ctx, fmt.Sprintf("fx import: imported %s/%s — %d points (%s to %s)", mainCurrency, secondary, len(newPoints), first, last))
+			if err := backfillFXRates(ctx, store, client, mainCurrency, currencies); err != nil {
+				return err
 			}
 		}
 
 		return runMaintenance(ctx, store, nil, FXImportTaskName)
 	}
+}
+
+// backfillFXRates fetches and stores recent FX rate history for all configured currency pairs.
+func backfillFXRates(ctx context.Context, store *marketdata.Store, client importer.FXClient, mainCurrency string, currencies []string) error {
+	now := time.Now().UTC()
+	end := dateRangeEnd(now)
+	start := dateRangeStart(end, FXBackfillDays)
+	pairs := 0
+	for _, c := range currencies {
+		if c != mainCurrency {
+			pairs++
+		}
+	}
+	tempo.Info(ctx, fmt.Sprintf("fx import: backfill range %s to %s, %d pairs", start.Format(dateFmt), end.Format(dateFmt), pairs))
+	deadline := time.Now().Add(MaxFXTaskDuration)
+
+	for _, secondary := range currencies {
+		if secondary == mainCurrency {
+			continue
+		}
+		existing, err := store.RateHistory(ctx, mainCurrency, secondary, start, end)
+		if err != nil {
+			tempo.Info(ctx, fmt.Sprintf("fx import: skip %s/%s — rate history failed: %v", mainCurrency, secondary, err))
+			continue
+		}
+		existingTimes := daySetFromRecords(existing, func(r marketdata.RateRecord) time.Time { return r.Time })
+
+		pairLabel := mainCurrency + "/" + secondary
+		points, fetchErr := FetchWith429Retry(ctx, deadline, "fx import: "+pairLabel, func() ([]importer.RatePoint, error) {
+			return client.FetchDailyRates(ctx, mainCurrency, secondary, start, end)
+		})
+		if fetchErr != nil {
+			if strings.Contains(fetchErr.Error(), "429") {
+				return fmt.Errorf("429 rate limit for %s: %w", pairLabel, fetchErr)
+			}
+			tempo.Info(ctx, fmt.Sprintf("fx import: skip %s/%s — fetch failed: %v", mainCurrency, secondary, fetchErr))
+			continue
+		}
+
+		newPoints := ratePointsNewDays(points, existingTimes)
+		if len(newPoints) == 0 {
+			tempo.Info(ctx, fmt.Sprintf("fx import: skip %s/%s — no new points (fetched %d)", mainCurrency, secondary, len(points)))
+			continue
+		}
+		if time.Now().After(deadline) {
+			tempo.Info(ctx, "fx import: stopping before full run (deadline)")
+			break
+		}
+		if err := store.IngestRatesBulk(ctx, mainCurrency, secondary, newPoints); err != nil {
+			tempo.Error(ctx, fmt.Sprintf("fx import: ingest %s/%s: %v", mainCurrency, secondary, err))
+			return fmt.Errorf("ingest %s/%s: %w", mainCurrency, secondary, err)
+		}
+		first, last := newPoints[0].Time.Format(dateFmt), newPoints[len(newPoints)-1].Time.Format(dateFmt)
+		tempo.Info(ctx, fmt.Sprintf("fx import: imported %s/%s — %d points (%s to %s)", mainCurrency, secondary, len(newPoints), first, last))
+	}
+	return nil
 }

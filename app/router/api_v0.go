@@ -339,7 +339,7 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 	// Instruments
 	// ==========================================================================
 
-	if h.appSettings.Instruments {
+	if h.appSettings.Instruments { //nolint:nestif // route registration for optional features is inherently nested
 		r.Path(finInstrumentPath).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			_, err := sessionauth.CtxGetUserData(r)
 			if err != nil {

@@ -14,6 +14,7 @@ import (
 	"github.com/go-rod/rod"
 )
 
+//nolint:gocyclo // e2e test covers many operations in sequence
 func TestOperateBasic(t *testing.T) {
 	defer func() {
 		if r := recover(); r != nil {

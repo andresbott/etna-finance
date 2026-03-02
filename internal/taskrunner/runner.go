@@ -62,7 +62,7 @@ func NewRunner(cfg Cfg) (*Runner, error) {
 		cfg.HistorySize = 20
 	}
 
-	var logSink tempo.TaskLogSink = cfg.LogSink
+	logSink := cfg.LogSink
 	var logCleaner TaskLogCleaner
 	if cfg.LogDir != "" {
 		fileSink, err := NewFileTaskLogSink(cfg.LogDir)

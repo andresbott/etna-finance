@@ -23,11 +23,11 @@ import (
 	"github.com/andresbott/etna/internal/marketdata/importer"
 	"github.com/andresbott/etna/internal/taskrunner"
 	"github.com/glebarez/sqlite"
-	"github.com/go-bumbu/tempo"
 	"github.com/go-bumbu/userauth"
 	"github.com/go-bumbu/userauth/handlers/sessionauth"
 	"github.com/go-bumbu/userauth/userstore/staticusers"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 )
@@ -131,85 +131,16 @@ func runServer(configFile string) error {
 	}
 
 	// ——— Task runner and cron scheduler (started inside GroupRunner task) ———
-	taskRunner, err := taskrunner.NewRunner(taskrunner.Cfg{
-		Parallelism: 6,
-		QueueSize:   20,
-		HistorySize: 20,
-		Logger:      l,
-		DB:          db,
-		LogDir:      filepath.Join(cfg.DataDir, "tasklogs"),
-		LogLevel:    GetLogLevel(cfg.Env.LogLevel),
-	})
-	if err != nil {
-		return fmt.Errorf("task runner: %w", err)
-	}
-
 	backupDest := filepath.Join(cfg.DataDir, backupsDir)
-	scheduleStore, err := taskrunner.NewScheduleStore(db)
+	taskRunner, scheduleStore, scheduler, err := initTaskRunnerAndScheduler(cfg, db, l, marketStore, finStore, backupDest)
 	if err != nil {
-		return fmt.Errorf("schedule store: %w", err)
-	}
-	var marketDataClient importer.Client
-	var fxClient importer.FXClient
-	if len(cfg.MarketDataImporters.Massive.ApiKeys) > 0 {
-		pool, err := importer.NewMassivePool(cfg.MarketDataImporters.Massive.ApiKeys)
-		if err != nil {
-			return fmt.Errorf("market data importer pool (massive): %w", err)
-		}
-		marketDataClient = pool
-		fxPool, err := importer.NewMassiveFXPool(cfg.MarketDataImporters.Massive.ApiKeys)
-		if err != nil {
-			return fmt.Errorf("FX importer pool (massive): %w", err)
-		}
-		fxClient = fxPool
-	}
-
-	// Register tasks once; enqueue later via runner.AddRun(name) (scheduler and API).
-	taskRunner.RegisterTask(tasks.NewBackupTaskFn(finStore, backupDest, l), tasks.BackupTaskName, 0)
-	taskRunner.RegisterTask(tasks.NewFinancialImportTaskFn(marketStore, marketDataClient), tasks.FinancialImportTaskName, 0)
-	taskRunner.RegisterTask(tasks.NewFinancialBackfillTaskFn(marketStore, l, marketDataClient), tasks.FinancialBackfillTaskName, 0)
-	taskRunner.RegisterTask(tasks.NewFXImportTaskFn(marketStore, cfg.Settings.MainCurrency, cfg.Settings.AllCurrencies(), fxClient), tasks.FXImportTaskName, 0)
-	taskRunner.RegisterTask(tasks.NewFXBackfillTaskFn(marketStore, l, cfg.Settings.MainCurrency, cfg.Settings.AllCurrencies(), fxClient), tasks.FXBackfillTaskName, 0)
-	if !cfg.Env.Production {
-		taskRunner.RegisterTask(tasks.NewLogOnlyTaskFn(l), tasks.LogOnlyTaskName, 4)
-		taskRunner.RegisterTask(tasks.NewLogOnlyLongTaskFn(l), tasks.LogOnlyLongTaskName, 1)
-		taskRunner.RegisterTask(tasks.NewDebugFailTaskFn(l), tasks.DebugFailTaskName, 0)
-	}
-
-	enqueuer := taskrunner.FuncEnqueuer(func(_ context.Context, taskName string) error {
-		_, err := taskRunner.AddRun(taskName)
 		return err
-	})
-	scheduler, err := taskrunner.NewScheduler(taskrunner.SchedulerCfg{
-		ScheduleStore: scheduleStore,
-		Enqueuer:      enqueuer,
-		Logger:        l,
-	})
-	if err != nil {
-		return fmt.Errorf("task scheduler: %w", err)
 	}
 
 	// ——— Auth: user store, session store, session manager (or none when disabled) ———
-	var sessionAuth *sessionauth.Manager
-	var userMngr userauth.LoginHandler
-	if !cfg.Auth.Enabled {
-		l.Info("authentication disabled", slog.String("component", "auth"), slog.String("defaultUser", cfg.Auth.DefaultUser))
-		if cfg.Env.Production {
-			l.Warn("auth disabled in production mode", slog.String("component", "auth"))
-		}
-	} else {
-		userStore, err := getUserStore(cfg, l)
-		if err != nil {
-			return err
-		}
-		store, _ := sessionauth.NewFsStore(filepath.Join(cfg.DataDir, sessionsDir), cfg.Auth.HashKeyBytes, cfg.Auth.BlockKeyBytes)
-		sessionAuth, _ = sessionauth.New(sessionauth.Cfg{
-			Store:         store,
-			SessionDur:    time.Hour,       // time the user is logged in
-			MaxSessionDur: 24 * time.Hour,  // time after the user is forced to re-login anyway
-			MinWriteSpace: 2 * time.Minute, // throttle write operations on the session
-		})
-		userMngr = userauth.LoginHandler{UserStore: userStore}
+	sessionAuth, userMngr, err := initAuth(cfg, l)
+	if err != nil {
+		return err
 	}
 
 	// ——— Router (API, SPA, handlers) ———
@@ -240,7 +171,7 @@ func runServer(configFile string) error {
 		return fmt.Errorf("unable to create initialize main app handler:%v", err)
 	}
 
-	// ——— GroupRunner: main server, observability server, task runner ———
+	// ——— Run main server, observability server, and task runner concurrently ———
 	mainSrv := &http.Server{
 		Addr:              cfg.Server.Addr(),
 		Handler:           mainAppHandler,
@@ -252,69 +183,146 @@ func runServer(configFile string) error {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	rg := tempo.NewGroupRunner()
-	rg.Add(tempo.TaskDef{
-		Name: "main-http",
-		Run:  runHTTPServerUntilContextDone(mainSrv, cfg.Server.Addr(), l, "server"),
-	})
-	rg.Add(tempo.TaskDef{
-		Name: "obs-http",
-		Run:  runHTTPServerUntilContextDone(obsSrv, cfg.Obs.Addr(), l, "observability"),
-	})
-	rg.Add(tempo.TaskDef{
-		Name: "taskrunner",
-		Run: func(ctx context.Context) error {
-			taskRunner.Start()
-			scheduler.Start(ctx)
-			<-ctx.Done()
-			scheduler.Stop()
-			// Use a fresh context with timeout so Shutdown actually waits for running tasks
-			// to finish. The GroupRunner already cancelled ctx, so passing it would make
-			// tempo.ShutDown return immediately without waiting for workers.
-			shutdownCtx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
-			defer cancel()
-			return taskRunner.Shutdown(shutdownCtx)
-		},
+	rootCtx, rootCancel := context.WithCancel(context.Background())
+	defer rootCancel()
+
+	g, gctx := errgroup.WithContext(rootCtx)
+	g.Go(func() error { return serveHTTP(gctx, mainSrv, l, "server") })
+	g.Go(func() error { return serveHTTP(gctx, obsSrv, l, "observability") })
+	g.Go(func() error {
+		taskRunner.Start()
+		scheduler.Start(gctx)
+		<-gctx.Done()
+		scheduler.Stop()
+		// Use a fresh context so Shutdown waits for running tasks to finish;
+		// gctx is already cancelled at this point.
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+		defer cancel()
+		return taskRunner.Shutdown(shutdownCtx)
 	})
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-sigCh
-		ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
-		defer cancel()
-		if err := rg.Stop(ctx); err != nil {
-			l.Warn("group runner stop", slog.String("component", "server"), slog.String("error", err.Error()))
-		}
+		rootCancel()
 	}()
 
-	return rg.Run()
+	return g.Wait()
 }
 
-// runHTTPServerUntilContextDone starts srv on addr (using net.Listen), logs, serves until ctx is done, then shuts down.
-func runHTTPServerUntilContextDone(srv *http.Server, addr string, l *slog.Logger, component string) func(ctx context.Context) error {
-	return func(ctx context.Context) error {
-		ln, err := net.Listen("tcp", addr)
-		if err != nil {
-			return fmt.Errorf("%s listen: %w", component, err)
-		}
-		serveErr := make(chan error, 1)
-		go func() {
-			serveErr <- srv.Serve(ln)
-		}()
-		l.Info(fmt.Sprintf("%s server started", component), slog.String("component", component), slog.String("addr", addr))
-		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := srv.Shutdown(shutdownCtx); err != nil {
-			l.Warn(fmt.Sprintf("%s server shutdown", component), slog.String("component", component), slog.String("error", err.Error()))
-		}
-		l.Info(fmt.Sprintf("%s server stopped", component), slog.String("component", component))
-		if err := <-serveErr; err != nil && !errors.Is(err, http.ErrServerClosed) {
-			return err
-		}
-		return nil
+// serveHTTP binds the listener, serves until ctx is cancelled, then shuts down gracefully.
+func serveHTTP(ctx context.Context, srv *http.Server, l *slog.Logger, component string) error {
+	ln, err := net.Listen("tcp", srv.Addr)
+	if err != nil {
+		return fmt.Errorf("%s listen: %w", component, err)
 	}
+	serveErr := make(chan error, 1)
+	go func() { serveErr <- srv.Serve(ln) }()
+	l.Info(component+" server started", slog.String("component", component), slog.String("addr", srv.Addr))
+	<-ctx.Done()
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		l.Warn(component+" server shutdown error", slog.String("component", component), slog.String("error", err.Error()))
+	}
+	l.Info(component+" server stopped", slog.String("component", component))
+	if err := <-serveErr; err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+	return nil
+}
+
+// initTaskRunnerAndScheduler creates the task runner, registers all tasks, and starts the scheduler.
+func initTaskRunnerAndScheduler(
+	cfg AppCfg,
+	db *gorm.DB,
+	l *slog.Logger,
+	marketStore *marketdata.Store,
+	finStore *accounting.Store,
+	backupDest string,
+) (*taskrunner.Runner, *taskrunner.ScheduleStore, *taskrunner.Scheduler, error) {
+	runner, err := taskrunner.NewRunner(taskrunner.Cfg{
+		Parallelism: 6,
+		QueueSize:   20,
+		HistorySize: 20,
+		Logger:      l,
+		DB:          db,
+		LogDir:      filepath.Join(cfg.DataDir, "tasklogs"),
+		LogLevel:    GetLogLevel(cfg.Env.LogLevel),
+	})
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("task runner: %w", err)
+	}
+
+	scheduleStore, err := taskrunner.NewScheduleStore(db)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("schedule store: %w", err)
+	}
+
+	var marketDataClient importer.Client
+	var fxClient importer.FXClient
+	if len(cfg.MarketDataImporters.Massive.ApiKeys) > 0 {
+		pool, err := importer.NewMassivePool(cfg.MarketDataImporters.Massive.ApiKeys)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("market data importer pool (massive): %w", err)
+		}
+		marketDataClient = pool
+		fxPool, err := importer.NewMassiveFXPool(cfg.MarketDataImporters.Massive.ApiKeys)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("FX importer pool (massive): %w", err)
+		}
+		fxClient = fxPool
+	}
+
+	// Register tasks once; enqueue later via runner.AddRun(name) (scheduler and API).
+	runner.RegisterTask(tasks.NewBackupTaskFn(finStore, backupDest, l), tasks.BackupTaskName, 0)
+	runner.RegisterTask(tasks.NewFinancialImportTaskFn(marketStore, marketDataClient), tasks.FinancialImportTaskName, 0)
+	runner.RegisterTask(tasks.NewFinancialBackfillTaskFn(marketStore, l, marketDataClient), tasks.FinancialBackfillTaskName, 0)
+	runner.RegisterTask(tasks.NewFXImportTaskFn(marketStore, cfg.Settings.MainCurrency, cfg.Settings.AllCurrencies(), fxClient), tasks.FXImportTaskName, 0)
+	runner.RegisterTask(tasks.NewFXBackfillTaskFn(marketStore, l, cfg.Settings.MainCurrency, cfg.Settings.AllCurrencies(), fxClient), tasks.FXBackfillTaskName, 0)
+	if !cfg.Env.Production {
+		runner.RegisterTask(tasks.NewLogOnlyTaskFn(l), tasks.LogOnlyTaskName, 4)
+		runner.RegisterTask(tasks.NewLogOnlyLongTaskFn(l), tasks.LogOnlyLongTaskName, 1)
+		runner.RegisterTask(tasks.NewDebugFailTaskFn(l), tasks.DebugFailTaskName, 0)
+	}
+
+	enqueuer := taskrunner.FuncEnqueuer(func(_ context.Context, taskName string) error {
+		_, err := runner.AddRun(taskName)
+		return err
+	})
+	scheduler, err := taskrunner.NewScheduler(taskrunner.SchedulerCfg{
+		ScheduleStore: scheduleStore,
+		Enqueuer:      enqueuer,
+		Logger:        l,
+	})
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("task scheduler: %w", err)
+	}
+	return runner, scheduleStore, scheduler, nil
+}
+
+// initAuth sets up session auth and user manager, or returns zero values when auth is disabled.
+func initAuth(cfg AppCfg, l *slog.Logger) (*sessionauth.Manager, userauth.LoginHandler, error) {
+	if !cfg.Auth.Enabled {
+		l.Info("authentication disabled", slog.String("component", "auth"), slog.String("defaultUser", cfg.Auth.DefaultUser))
+		if cfg.Env.Production {
+			l.Warn("auth disabled in production mode", slog.String("component", "auth"))
+		}
+		return nil, userauth.LoginHandler{}, nil
+	}
+	userStore, err := getUserStore(cfg, l)
+	if err != nil {
+		return nil, userauth.LoginHandler{}, err
+	}
+	store, _ := sessionauth.NewFsStore(filepath.Join(cfg.DataDir, sessionsDir), cfg.Auth.HashKeyBytes, cfg.Auth.BlockKeyBytes)
+	sessionMgr, _ := sessionauth.New(sessionauth.Cfg{
+		Store:         store,
+		SessionDur:    time.Hour,       // time the user is logged in
+		MaxSessionDur: 24 * time.Hour,  // time after the user is forced to re-login anyway
+		MinWriteSpace: 2 * time.Minute, // throttle write operations on the session
+	})
+	return sessionMgr, userauth.LoginHandler{UserStore: userStore}, nil
 }
 
 func getUserStore(cfg AppCfg, l *slog.Logger) (userauth.UserGetter, error) {

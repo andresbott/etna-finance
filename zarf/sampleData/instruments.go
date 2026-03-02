@@ -5,14 +5,14 @@ import (
 )
 
 type instrumentResponse struct {
-	ID       int    `json:"id"`
+	ID       uint   `json:"id"`
 	Symbol   string `json:"symbol"`
 	Name     string `json:"name"`
 	Currency string `json:"currency"`
 }
 
 // createInstrument sends a POST request to create an instrument and returns the generated id.
-func createInstrument(baseURL string, inst Instrument) (int, error) {
+func createInstrument(baseURL string, inst Instrument) (uint, error) {
 	url := fmt.Sprintf("%s/api/v0/fin/instrument", baseURL)
 	var resp instrumentResponse
 	err := postJSON(url, inst, &resp)
@@ -23,7 +23,7 @@ func createInstrument(baseURL string, inst Instrument) (int, error) {
 }
 
 // findInstrumentID returns the instrument id by symbol (must have been created and stored in Instruments).
-func findInstrumentID(symbol string) (int, error) {
+func findInstrumentID(symbol string) (uint, error) {
 	for _, inst := range Instruments {
 		if inst.Symbol == symbol {
 			if inst.ID == 0 {

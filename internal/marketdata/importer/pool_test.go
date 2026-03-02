@@ -122,7 +122,6 @@ func TestNewMassivePool_singleKey(t *testing.T) {
 }
 
 type countingClient struct {
-	id    string
 	mu    sync.Mutex
 	calls int
 }

@@ -123,7 +123,7 @@ func InitInstance(cfg *EnvCfg) (*Instance, error) {
 	fmt.Println(dataDir)
 
 	// Allocate a free port for the main server
-	listener, err := net.Listen("tcp", ":0")
+	listener, err := net.Listen("tcp", ":0") //nolint:gosec // binding to all interfaces is intentional for test server port allocation
 	if err != nil {
 		_ = os.RemoveAll(dataDir)
 		return nil, fmt.Errorf("allocate port: %w", err)
@@ -132,7 +132,7 @@ func InitInstance(cfg *EnvCfg) (*Instance, error) {
 	_ = listener.Close()
 
 	// Allocate a free port for the observability server
-	obsListener, err := net.Listen("tcp", ":0")
+	obsListener, err := net.Listen("tcp", ":0") //nolint:gosec // binding to all interfaces is intentional for test server port allocation
 	if err != nil {
 		_ = os.RemoveAll(dataDir)
 		return nil, fmt.Errorf("allocate obs port: %w", err)
@@ -161,7 +161,7 @@ func InitInstance(cfg *EnvCfg) (*Instance, error) {
 		return nil, fmt.Errorf("main.go not found (cwd=%s)", cwd)
 	}
 
-	cmd := exec.Command("go", "run", "main.go", "start", "-c", dataDir+"/config.yaml")
+	cmd := exec.Command("go", "run", "main.go", "start", "-c", dataDir+"/config.yaml") //nolint:gosec // test helper, arguments are controlled
 	cmd.Dir = projectRoot
 	cmd.Env = append(os.Environ(),
 		"ETNA_DATADIR="+dataDir,

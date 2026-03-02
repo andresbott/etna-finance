@@ -5,15 +5,15 @@ import (
 )
 
 type Provider struct {
-	ID          int       `json:"id,omitempty"`
+	ID          uint      `json:"id,omitempty"`
 	Name        string    `json:"Name"`
 	Description string    `json:"Description"`
 	Accounts    []Account `json:"Accounts,omitempty"`
 }
 
 type Account struct {
-	ID          int    `json:"id,omitempty"`
-	ProviderID  int    `json:"providerId"`
+	ID          uint   `json:"id,omitempty"`
+	ProviderID  uint   `json:"providerId"`
 	Name        string `json:"Name"`
 	Description string `json:"Description"`
 	Currency    string `json:"Currency"`
@@ -21,11 +21,11 @@ type Account struct {
 }
 
 type ProviderResponse struct {
-	ID int `json:"id"`
+	ID uint `json:"id"`
 }
 
 // createProvider sends a POST request and returns the generated provider id
-func createProvider(baseURL string, provider Provider) (int, error) {
+func createProvider(baseURL string, provider Provider) (uint, error) {
 	url := fmt.Sprintf("%s/api/v0/fin/provider", baseURL)
 	var providerResp ProviderResponse
 	err := postJSON(url, provider, &providerResp)
@@ -36,7 +36,7 @@ func createProvider(baseURL string, provider Provider) (int, error) {
 }
 
 // createAccount sends a POST request to create an account and returns the generated id
-func createAccount(baseURL string, account Account) (int, error) {
+func createAccount(baseURL string, account Account) (uint, error) {
 	url := fmt.Sprintf("%s/api/v0/fin/account", baseURL)
 	var accountResp Account
 	err := postJSON(url, account, &accountResp)
@@ -47,7 +47,7 @@ func createAccount(baseURL string, account Account) (int, error) {
 }
 
 // findAccountID searches for an account by provider name + account name and returns the account id
-func findAccountID(providerName, accountName string) (int, error) {
+func findAccountID(providerName, accountName string) (uint, error) {
 	for _, provider := range Accounts {
 		if provider.Name == providerName {
 			for _, account := range provider.Accounts {

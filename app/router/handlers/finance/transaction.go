@@ -65,6 +65,12 @@ type transactionPayload struct {
 
 	// used for stock grant (instruments added for free; no cash account) - reuses accountId
 	FairMarketValue float64 `json:"fairMarketValue"`
+
+	// used for stock sell manual lot selection
+	LotAllocations []struct {
+		LotID    uint    `json:"lotId"`
+		Quantity float64 `json:"quantity"`
+	} `json:"lotAllocations,omitempty"`
 }
 
 func (h *Handler) CreateTx() http.Handler {
@@ -120,6 +126,10 @@ func (h *Handler) CreateTx() http.Handler {
 				StockAmount:         payload.StockAmount,
 			}
 		case accounting.StockSellTransaction:
+			var lotSelections []accounting.LotSelection
+			for _, a := range payload.LotAllocations {
+				lotSelections = append(lotSelections, accounting.LotSelection{LotID: a.LotID, Quantity: a.Quantity})
+			}
 			entry = accounting.StockSell{
 				Description:         payload.Description,
 				Date:                payload.Date.Time,
@@ -129,6 +139,7 @@ func (h *Handler) CreateTx() http.Handler {
 				Quantity:            payload.Quantity,
 				TotalAmount:         payload.TotalAmount,
 				Fees:                payload.Fees,
+				LotSelections:       lotSelections,
 			}
 		case accounting.StockGrantTransaction:
 			entry = accounting.StockGrant{
@@ -239,6 +250,12 @@ type entryUpdatePayload struct {
 	FairMarketValue     *float64 `json:"fairMarketValue"`
 	InvestmentAccountID *uint    `json:"investmentAccountId"`
 	CashAccountID       *uint    `json:"cashAccountId"`
+
+	// used for stock sell manual lot selection
+	LotAllocations []struct {
+		LotID    uint    `json:"lotId"`
+		Quantity float64 `json:"quantity"`
+	} `json:"lotAllocations,omitempty"`
 }
 
 func (h *Handler) UpdateTx(Id uint) http.Handler {
@@ -301,6 +318,10 @@ func (h *Handler) UpdateTx(Id uint) http.Handler {
 				CashAccountID:       payload.CashAccountID,
 			}
 		case accounting.StockSell:
+			var lotSelections []accounting.LotSelection
+			for _, a := range payload.LotAllocations {
+				lotSelections = append(lotSelections, accounting.LotSelection{LotID: a.LotID, Quantity: a.Quantity})
+			}
 			entry = accounting.StockSellUpdate{
 				Description:         payload.Description,
 				Date:                datePtr,
@@ -310,6 +331,7 @@ func (h *Handler) UpdateTx(Id uint) http.Handler {
 				Fees:                payload.Fees,
 				InvestmentAccountID: payload.InvestmentAccountID,
 				CashAccountID:       payload.CashAccountID,
+				LotSelections:       lotSelections,
 			}
 		case accounting.StockGrant:
 			entry = accounting.StockGrantUpdate{

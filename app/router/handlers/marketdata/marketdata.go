@@ -218,6 +218,7 @@ func (h *Handler) CreatePricesBulk(symbol string) http.Handler {
 }
 
 // UpdatePrice applies a partial update to a price record.
+//nolint:dupl // parallel to UpdateFXRate by design
 func (h *Handler) UpdatePrice(id uint) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if id == 0 {
@@ -275,10 +276,6 @@ func (h *Handler) DeletePrice(id uint) http.Handler {
 // =============================================================================
 // Currency exchange (FX) endpoints
 // =============================================================================
-
-type fxPairPayload struct {
-	Pair string `json:"pair"` // "MAIN/SECONDARY"
-}
 
 type fxRatePayload struct {
 	ID        uint    `json:"id"`
@@ -473,6 +470,7 @@ func (h *Handler) CreateFXRatesBulk(main, secondary string) http.Handler {
 }
 
 // UpdateFXRate applies a partial update to a rate record.
+//nolint:dupl // parallel to UpdatePrice by design
 func (h *Handler) UpdateFXRate(id uint) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if id == 0 {

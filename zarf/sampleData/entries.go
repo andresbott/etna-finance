@@ -86,16 +86,15 @@ func deltaTime(daysDelta int) time.Time {
 }
 
 // findCategoryID searches for a category by name in the given category map and returns the category id
-func findCategoryID(categoryName string, categoryMap map[string]int) (uint, error) {
+func findCategoryID(categoryName string, categoryMap map[string]uint) (uint, error) {
 	if id, exists := categoryMap[categoryName]; exists {
-		//nolint: gosec // only sample data
-		return uint(id), nil
+		return id, nil
 	}
 	return 0, fmt.Errorf("category '%s' not found", categoryName)
 }
 
 // convertEntryDefinitionToEntry converts an EntryDefinition to an Entry, resolving string references to IDs
-func convertEntryDefinitionToEntry(def EntryDefinition, expenseCategoryMap, incomeCategoryMap map[string]int) (Entry, error) {
+func convertEntryDefinitionToEntry(def EntryDefinition, expenseCategoryMap, incomeCategoryMap map[string]uint) (Entry, error) {
 	entry := Entry{
 		Description: def.Description,
 		Date:        deltaTime(def.DaysDelta),
@@ -115,7 +114,7 @@ func convertEntryDefinitionToEntry(def EntryDefinition, expenseCategoryMap, inco
 		}
 
 		entry.Amount = def.Amount
-		entry.AccountId = uint(accountID) //nolint: gosec // only sample data
+		entry.AccountId = accountID
 		entry.CategoryId = categoryID
 
 	case "expense":
@@ -130,7 +129,7 @@ func convertEntryDefinitionToEntry(def EntryDefinition, expenseCategoryMap, inco
 		}
 
 		entry.Amount = def.Amount
-		entry.AccountId = uint(accountID) //nolint: gosec // only sample data
+		entry.AccountId = accountID
 		entry.CategoryId = categoryID
 
 	case "transfer":
@@ -145,9 +144,9 @@ func convertEntryDefinitionToEntry(def EntryDefinition, expenseCategoryMap, inco
 		}
 
 		entry.OriginAmount = def.OriginAmount
-		entry.OriginAccountID = uint(originAccountID) //nolint: gosec // only sample data
+		entry.OriginAccountID = originAccountID
 		entry.TargetAmount = def.TargetAmount
-		entry.TargetAccountID = uint(targetAccountID) //nolint: gosec // only sample data
+		entry.TargetAccountID = targetAccountID
 
 	default:
 		return Entry{}, fmt.Errorf("unknown entry type: %s", def.Type)
@@ -170,7 +169,7 @@ func convertStockEntryDefinitionToPayload(def StockEntryDefinition) (stockEntryP
 	if err != nil {
 		return stockEntryPayload{}, fmt.Errorf("instrument: %w", err)
 	}
-	payload.InstrumentID = uint(instrumentID)
+	payload.InstrumentID = instrumentID
 
 	switch def.Type {
 	case "stockbuy", "stocksell":
@@ -182,8 +181,8 @@ func convertStockEntryDefinitionToPayload(def StockEntryDefinition) (stockEntryP
 		if err != nil {
 			return stockEntryPayload{}, fmt.Errorf("cash account: %w", err)
 		}
-		payload.InvestmentAccountID = uint(invID)
-		payload.CashAccountID = uint(cashID)
+		payload.InvestmentAccountID = invID
+		payload.CashAccountID = cashID
 		payload.TotalAmount = def.TotalAmount
 		payload.StockAmount = def.StockAmount
 	case "stockgrant":
@@ -191,7 +190,7 @@ func convertStockEntryDefinitionToPayload(def StockEntryDefinition) (stockEntryP
 		if err != nil {
 			return stockEntryPayload{}, fmt.Errorf("account: %w", err)
 		}
-		payload.AccountId = uint(accID)
+		payload.AccountId = accID
 	case "stocktransfer":
 		originID, err := findAccountID(def.OriginProvider, def.OriginAccount)
 		if err != nil {
@@ -201,8 +200,8 @@ func convertStockEntryDefinitionToPayload(def StockEntryDefinition) (stockEntryP
 		if err != nil {
 			return stockEntryPayload{}, fmt.Errorf("target account: %w", err)
 		}
-		payload.OriginAccountID = uint(originID)
-		payload.TargetAccountID = uint(targetID)
+		payload.OriginAccountID = originID
+		payload.TargetAccountID = targetID
 	default:
 		return stockEntryPayload{}, fmt.Errorf("unknown stock entry type: %s", def.Type)
 	}

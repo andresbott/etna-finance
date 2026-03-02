@@ -377,6 +377,96 @@ func (store *Store) allocateLotsForSell(ctx context.Context, tx *gorm.DB, accoun
 	return allocations, totalCostBasis, nil
 }
 
+// LotSelection specifies an explicit lot and quantity for manual lot allocation.
+type LotSelection struct {
+	LotID    uint
+	Quantity float64
+}
+
+// allocateLotsManual allocates sell quantity against explicitly specified lots.
+// Returns allocations, total cost basis, and error.
+func (store *Store) allocateLotsManual(ctx context.Context, tx *gorm.DB,
+	selections []LotSelection, proceeds float64, sellQty float64,
+	sellDate time.Time, sellTradeID uint) ([]LotAllocation, float64, error) {
+
+	// Validate total allocated quantity equals sellQty
+	totalAllocated := 0.0
+	for _, sel := range selections {
+		totalAllocated += sel.Quantity
+	}
+	if math.Abs(totalAllocated-sellQty) > 0.0001 {
+		return nil, 0, ErrValidation(fmt.Sprintf(
+			"manual lot allocation total (%.4f) does not equal sell quantity (%.4f)",
+			totalAllocated, sellQty))
+	}
+
+	var totalCostBasis float64
+	var allocations []LotAllocation
+
+	for _, sel := range selections {
+		if sel.Quantity <= 0 {
+			continue
+		}
+
+		var lot dbLot
+		if err := tx.WithContext(ctx).Where("id = ?", sel.LotID).First(&lot).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, 0, ErrValidation(fmt.Sprintf("lot %d not found", sel.LotID))
+			}
+			return nil, 0, fmt.Errorf("failed to load lot %d: %w", sel.LotID, err)
+		}
+
+		if lot.Status == LotClosed {
+			return nil, 0, ErrValidation(fmt.Sprintf("lot %d is already closed", sel.LotID))
+		}
+		if sel.Quantity > lot.Quantity+0.0001 {
+			return nil, 0, ErrValidation(fmt.Sprintf(
+				"lot %d has only %.4f shares available, requested %.4f",
+				sel.LotID, lot.Quantity, sel.Quantity))
+		}
+
+		allocQty := sel.Quantity
+		allocCost := roundMoney(allocQty * lot.CostPerShare)
+		allocProceeds := roundMoney(proceeds * (allocQty / sellQty))
+		realizedGL := roundMoney(allocProceeds - allocCost)
+
+		disposal := dbLotDisposal{
+			LotID:       lot.Id,
+			SellTradeID: sellTradeID,
+			Quantity:    allocQty,
+			Proceeds:    allocProceeds,
+			RealizedGL:  realizedGL,
+			Date:        sellDate,
+		}
+		if err := tx.WithContext(ctx).Create(&disposal).Error; err != nil {
+			return nil, 0, fmt.Errorf("failed to create lot disposal: %w", err)
+		}
+
+		lot.Quantity -= allocQty
+		if lot.Quantity <= 0 {
+			lot.Quantity = 0
+			lot.Status = LotClosed
+			lot.ClosedDate = &sellDate
+		} else {
+			lot.Status = LotPartial
+		}
+		lot.CostBasis = roundMoney(lot.Quantity * lot.CostPerShare)
+		if err := tx.WithContext(ctx).Save(&lot).Error; err != nil {
+			return nil, 0, fmt.Errorf("failed to update lot: %w", err)
+		}
+
+		allocations = append(allocations, LotAllocation{
+			LotID:      lot.Id,
+			Quantity:   allocQty,
+			CostBasis:  allocCost,
+			RealizedGL: realizedGL,
+		})
+		totalCostBasis += allocCost
+	}
+
+	return allocations, totalCostBasis, nil
+}
+
 // transferLots closes source lots and creates new lots in the target account with the same cost basis.
 func (store *Store) transferLots(ctx context.Context, tx *gorm.DB, sourceAccountID, targetAccountID, instrumentID uint, qty float64, date time.Time, tradeID uint) error {
 	var lots []dbLot

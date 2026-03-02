@@ -29,7 +29,7 @@ type fileTaskLogReader struct {
 
 func (f *fileTaskLogReader) GetTaskLog(ctx context.Context, executionID uuid.UUID) (string, error) {
 	path := filepath.Join(f.dir, executionID.String()+".log")
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(path) //nolint:gosec // path is internal, constructed from trusted uuid
 	if err != nil {
 		if os.IsNotExist(err) {
 			return "", nil
@@ -53,7 +53,7 @@ type FileTaskLogSink struct {
 
 // NewFileTaskLogSink creates a file-based task log sink. dir is the directory for log files; it is created if missing.
 func NewFileTaskLogSink(dir string) (*FileTaskLogSink, error) {
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return nil, fmt.Errorf("task log dir: %w", err)
 	}
 	return &FileTaskLogSink{dir: dir}, nil
@@ -64,7 +64,7 @@ func (f *FileTaskLogSink) Append(ctx context.Context, taskID uuid.UUID, level st
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	path := filepath.Join(f.dir, taskID.String()+".log")
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644) //nolint:gosec // path is internal, constructed from trusted uuid
 	if err != nil {
 		return err
 	}

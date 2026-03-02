@@ -47,8 +47,16 @@ github.com/glebarez/sqlite v1.11.0 h1:wSG0irqzP6VurnMEpFGer5Li19RpIRi2qvQz++w0GM
 github.com/glebarez/sqlite v1.11.0/go.mod h1:h8/o8j5wiAsqSPoWELDUdJXhjAhsVliSn7bWZjOhrgQ=
 github.com/go-bumbu/closure-tree v0.8.2 h1:9PHR1igBeE5rRulaHWh7JLTgI9TojW9oyuL4Fv8Iu3w=
 github.com/go-bumbu/closure-tree v0.8.2/go.mod h1:ZUGWYBTSguYPWNu4l5S9N0bZoa57lpfTNTySsBM3jbs=
+github.com/go-bumbu/config v0.4.0 h1:Opyg0YBbauGaChQ1NYupuzBbMrxFOfst0xhYW9dubeU=
+github.com/go-bumbu/config v0.4.0/go.mod h1:+7x+YHBelQapKLZX5wTp23TSb8SRlk2KIXoQjCPXWjI=
+github.com/go-bumbu/http v0.3.1 h1:4Kn0WSkVneYSQ85bISi6Mz/sveeVH00qflmOWe9kjIM=
+github.com/go-bumbu/http v0.3.1/go.mod h1:3ue1uGKBNe/dtX2YtBUViDRE4eztu/AI1oQu7SVsqF8=
+github.com/go-bumbu/tempo v0.2.0 h1:ZhzNgO6jj4meabQu/Rg24bDVeumzTXXZl8wzY/6ihG8=
+github.com/go-bumbu/tempo v0.2.0/go.mod h1:dwmO86Im0i3jflny5mDeCS5ck2IW6M8JPWytp8CuNpU=
 github.com/go-bumbu/testdbs v0.2.3 h1:URAynEmNGXYsoPS9Lqgs1gWWtixBWTIJE9jJWptIf8E=
 github.com/go-bumbu/testdbs v0.2.3/go.mod h1:LMxlGGgHiCTa44KPD5KbUc3CIU3gzcGKjCcXI/6ZXuQ=
+github.com/go-bumbu/timeseries v0.1.2 h1:p7IIXkFhB2i/TeJPyoH5scLIH/5uau1xO7aIN6nH7wM=
+github.com/go-bumbu/timeseries v0.1.2/go.mod h1:6PlTxvY/uztj+Luu44yWprDlO+zPLad23aciMMLy8kg=
 github.com/go-bumbu/userauth v0.2.1 h1:/xcYk7UX6j3bfLxP/2f4OyKg66QzCTid4IoMxTY51d4=
 github.com/go-bumbu/userauth v0.2.1/go.mod h1:DE0E7Ed6K0GxDQm6J7rwHzvT9gItl8nq5M1JMbe2HeE=
 github.com/go-logr/logr v1.2.2/go.mod h1:jdQByPbusPIv2/zmleS9BjJVeZ6kBagPoEUsqbVz/1A=

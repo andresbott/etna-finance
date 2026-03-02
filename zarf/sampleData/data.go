@@ -82,7 +82,7 @@ var Instruments = []Instrument{
 
 // Instrument for API creation (ID set after create).
 type Instrument struct {
-	ID       int    `json:"id,omitempty"`
+	ID       uint   `json:"id,omitempty"`
 	Symbol   string `json:"symbol"`
 	Name     string `json:"name"`
 	Currency string `json:"currency"`

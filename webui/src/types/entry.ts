@@ -35,6 +35,8 @@ export interface UpdateEntryDTO {
     // Stock transfer
     originAccountId?: number
     targetAccountId?: number
+    // Manual lot selection for stock sell
+    lotAllocations?: Array<{ lotId: number; quantity: number }>
 }
 
 export interface EntryFilters {

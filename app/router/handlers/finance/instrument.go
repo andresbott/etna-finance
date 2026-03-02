@@ -158,7 +158,6 @@ type instrumentUpdatePayload struct {
 	Currency *string `json:"currency,omitempty"`
 }
 
-//nolint:dupl // parallel to UpdateInstrumentProvider by design
 func (h *Handler) UpdateInstrument(id uint) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !checkBody(w, r) {

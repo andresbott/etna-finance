@@ -6,11 +6,11 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/glebarez/sqlite v1.11.0
 	github.com/go-bumbu/closure-tree v0.8.2
-	github.com/go-bumbu/config v0.3.1
-	github.com/go-bumbu/http v0.3.0
-	github.com/go-bumbu/tempo v0.0.0
+	github.com/go-bumbu/config v0.4.0
+	github.com/go-bumbu/http v0.3.1
+	github.com/go-bumbu/tempo v0.2.0
 	github.com/go-bumbu/testdbs v0.2.3
-	github.com/go-bumbu/timeseries v0.0.0
+	github.com/go-bumbu/timeseries v0.1.2
 	github.com/go-bumbu/userauth v0.2.1
 	github.com/go-rod/rod v0.116.2
 	github.com/google/go-cmp v0.7.0
@@ -25,17 +25,10 @@ require (
 	github.com/reugn/go-quartz v0.15.2
 	github.com/samber/slog-formatter v1.2.0
 	github.com/spf13/cobra v1.9.1
+	golang.org/x/sync v0.19.0
 	golang.org/x/text v0.34.0
 	gorm.io/gorm v1.31.1
 )
-
-replace github.com/go-bumbu/http => ../http
-
-replace github.com/go-bumbu/tempo => /home/odo/datos/edit/programacion/bumbu/tempo
-
-replace github.com/go-bumbu/timeseries => /home/odo/datos/edit/programacion/bumbu/timeseries
-
-replace github.com/go-bumbu/config => ../config
 
 require (
 	dario.cat/mergo v1.0.0 // indirect
@@ -120,7 +113,6 @@ require (
 	golang.org/x/crypto v0.47.0 // indirect
 	golang.org/x/exp v0.0.0-20250506013437-ce4c2cf36ca6 // indirect
 	golang.org/x/net v0.49.0 // indirect
-	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.40.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

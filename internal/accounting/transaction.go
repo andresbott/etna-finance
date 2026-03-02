@@ -112,10 +112,11 @@ type StockSell struct {
 	CashAccountID       uint
 	InstrumentID        uint
 	Quantity            float64
-	TotalAmount         float64 // gross proceeds (positive)
-	Fees                float64 // sell-side fees (optional, default 0)
-	CostBasis           float64 // allocated cost from replay (computed)
-	RealizedGainLoss    float64 // P&L = totalAmount - costBasis - fees (computed)
+	TotalAmount         float64  // gross proceeds (positive)
+	Fees                float64  // sell-side fees (optional, default 0)
+	CostBasis           float64  // allocated cost from replay (computed)
+	RealizedGainLoss    float64  // P&L = totalAmount - costBasis - fees (computed)
+	LotSelections       []LotSelection // nil/empty → FIFO; non-nil → manual allocation
 	baseTx
 }
 
@@ -323,6 +324,52 @@ func (store *Store) CreateTransfer(ctx context.Context, item Transfer) (uint, er
 var allowedCashAccountTypes = []AccountType{CashAccountType, CheckinAccountType, SavingsAccountType}
 var allowedPositionAccountTypes = []AccountType{InvestmentAccountType, UnvestedAccountType}
 
+// resolveInstrumentCurrencyFromTx fetches the instrument currency from the existing transaction.
+func (store *Store) resolveInstrumentCurrencyFromTx(ctx context.Context, txID uint) (currency.Unit, error) {
+	existing, err := store.GetTransaction(ctx, txID)
+	if err != nil {
+		return currency.Unit{}, fmt.Errorf("error validating currency match: %w", err)
+	}
+	var existingInstrumentID uint
+	switch tx := existing.(type) {
+	case StockBuy:
+		existingInstrumentID = tx.InstrumentID
+	case StockSell:
+		existingInstrumentID = tx.InstrumentID
+	}
+	if existingInstrumentID == 0 {
+		return currency.Unit{}, nil
+	}
+	inst, err := store.GetInstrument(ctx, existingInstrumentID)
+	if err != nil {
+		return currency.Unit{}, fmt.Errorf("error validating currency match: %w", err)
+	}
+	return inst.Currency, nil
+}
+
+// resolveAccountCurrencyFromTx fetches the investment account currency from the existing transaction.
+func (store *Store) resolveAccountCurrencyFromTx(ctx context.Context, txID uint) (currency.Unit, error) {
+	existing, err := store.GetTransaction(ctx, txID)
+	if err != nil {
+		return currency.Unit{}, fmt.Errorf("error validating currency match: %w", err)
+	}
+	var existingAccountID uint
+	switch tx := existing.(type) {
+	case StockBuy:
+		existingAccountID = tx.InvestmentAccountID
+	case StockSell:
+		existingAccountID = tx.InvestmentAccountID
+	}
+	if existingAccountID == 0 {
+		return currency.Unit{}, nil
+	}
+	acc, err := store.GetAccount(ctx, existingAccountID)
+	if err != nil {
+		return currency.Unit{}, fmt.Errorf("error validating currency match: %w", err)
+	}
+	return acc.Currency, nil
+}
+
 // validateStockCurrencyMatch checks that the instrument currency matches the investment account currency
 // during partial updates. If either the account or instrument is being changed, it resolves the other
 // from the existing transaction to perform the comparison.
@@ -351,42 +398,16 @@ func (store *Store) validateStockCurrencyMatch(
 
 	// If only one changed, resolve the other from the existing transaction
 	if newAccountID != nil && newInstrumentID == nil {
-		existing, err := store.GetTransaction(ctx, txID)
+		var err error
+		instCurrency, err = store.resolveInstrumentCurrencyFromTx(ctx, txID)
 		if err != nil {
-			return fmt.Errorf("error validating currency match: %w", err)
-		}
-		var existingInstrumentID uint
-		switch tx := existing.(type) {
-		case StockBuy:
-			existingInstrumentID = tx.InstrumentID
-		case StockSell:
-			existingInstrumentID = tx.InstrumentID
-		}
-		if existingInstrumentID != 0 {
-			inst, err := store.GetInstrument(ctx, existingInstrumentID)
-			if err != nil {
-				return fmt.Errorf("error validating currency match: %w", err)
-			}
-			instCurrency = inst.Currency
+			return err
 		}
 	} else if newAccountID == nil && newInstrumentID != nil {
-		existing, err := store.GetTransaction(ctx, txID)
+		var err error
+		accCurrency, err = store.resolveAccountCurrencyFromTx(ctx, txID)
 		if err != nil {
-			return fmt.Errorf("error validating currency match: %w", err)
-		}
-		var existingAccountID uint
-		switch tx := existing.(type) {
-		case StockBuy:
-			existingAccountID = tx.InvestmentAccountID
-		case StockSell:
-			existingAccountID = tx.InvestmentAccountID
-		}
-		if existingAccountID != 0 {
-			acc, err := store.GetAccount(ctx, existingAccountID)
-			if err != nil {
-				return fmt.Errorf("error validating currency match: %w", err)
-			}
-			accCurrency = acc.Currency
+			return err
 		}
 	}
 
@@ -504,55 +525,64 @@ func roundMoney(v float64) float64 {
 	return math.Round(v*100) / 100
 }
 
-func (store *Store) CreateStockSell(ctx context.Context, item StockSell) (uint, error) {
+// validateStockSell validates all inputs for a stock sell and returns the resolved instrument and computed fees.
+func (store *Store) validateStockSell(ctx context.Context, item StockSell) (marketdata.Instrument, float64, error) {
 	if item.InvestmentAccountID == 0 {
-		return 0, ErrValidation("investment account id is required")
+		return marketdata.Instrument{}, 0, ErrValidation("investment account id is required")
 	}
 	if item.CashAccountID == 0 {
-		return 0, ErrValidation("cash account id is required")
+		return marketdata.Instrument{}, 0, ErrValidation("cash account id is required")
 	}
 	if item.InstrumentID == 0 {
-		return 0, ErrValidation("instrument id is required")
+		return marketdata.Instrument{}, 0, ErrValidation("instrument id is required")
 	}
 	if item.Quantity <= 0 {
-		return 0, ErrValidation("quantity must be positive")
+		return marketdata.Instrument{}, 0, ErrValidation("quantity must be positive")
 	}
 	if item.TotalAmount <= 0 {
-		return 0, ErrValidation("total amount must be positive")
+		return marketdata.Instrument{}, 0, ErrValidation("total amount must be positive")
 	}
 	fees := roundMoney(item.Fees)
 	if fees < 0 {
-		return 0, ErrValidation("fees cannot be negative")
+		return marketdata.Instrument{}, 0, ErrValidation("fees cannot be negative")
 	}
 
 	invAcc, err := store.GetAccount(ctx, item.InvestmentAccountID)
 	if err != nil {
-		return 0, fmt.Errorf("error creating stock sell: %w", err)
+		return marketdata.Instrument{}, 0, fmt.Errorf("error creating stock sell: %w", err)
 	}
 	if !slices.Contains(allowedPositionAccountTypes, invAcc.Type) {
-		return 0, NewValidationErr("investment account must be Investment or Unvested for stock sell")
+		return marketdata.Instrument{}, 0, NewValidationErr("investment account must be Investment or Unvested for stock sell")
 	}
 
 	cashAcc, err := store.GetAccount(ctx, item.CashAccountID)
 	if err != nil {
-		return 0, fmt.Errorf("error creating stock sell: %w", err)
+		return marketdata.Instrument{}, 0, fmt.Errorf("error creating stock sell: %w", err)
 	}
 	if !slices.Contains(allowedCashAccountTypes, cashAcc.Type) {
-		return 0, NewValidationErr("cash account must be Cash, Checkin or Savings for stock sell")
+		return marketdata.Instrument{}, 0, NewValidationErr("cash account must be Cash, Checkin or Savings for stock sell")
 	}
 
 	instrument, err := store.GetInstrument(ctx, item.InstrumentID)
 	if err != nil {
 		if errors.Is(err, marketdata.ErrInstrumentNotFound) {
-			return 0, ErrValidation("instrument not found")
+			return marketdata.Instrument{}, 0, ErrValidation("instrument not found")
 		}
-		return 0, fmt.Errorf("error creating stock sell: %w", err)
+		return marketdata.Instrument{}, 0, fmt.Errorf("error creating stock sell: %w", err)
 	}
 
 	if instrument.Currency != invAcc.Currency {
-		return 0, NewValidationErr(fmt.Sprintf(
+		return marketdata.Instrument{}, 0, NewValidationErr(fmt.Sprintf(
 			"instrument currency %s does not match investment account currency %s",
 			instrument.Currency, invAcc.Currency))
+	}
+	return instrument, fees, nil
+}
+
+func (store *Store) CreateStockSell(ctx context.Context, item StockSell) (uint, error) {
+	instrument, fees, err := store.validateStockSell(ctx, item)
+	if err != nil {
+		return 0, err
 	}
 
 	var txID uint
@@ -576,10 +606,17 @@ func (store *Store) CreateStockSell(ctx context.Context, item StockSell) (uint, 
 			return err
 		}
 
-		// FIFO lot allocation
-		allocations, costBasis, err := store.allocateLotsForSell(ctx, dbTx, item.InvestmentAccountID, item.InstrumentID, item.Quantity, item.TotalAmount, item.Date, trade.Id, FIFO)
-		if err != nil {
-			return err
+		// Lot allocation: manual if selections provided, otherwise FIFO
+		var allocations []LotAllocation
+		var costBasis float64
+		var lotErr error
+		if len(item.LotSelections) > 0 {
+			allocations, costBasis, lotErr = store.allocateLotsManual(ctx, dbTx, item.LotSelections, item.TotalAmount, item.Quantity, item.Date, trade.Id)
+		} else {
+			allocations, costBasis, lotErr = store.allocateLotsForSell(ctx, dbTx, item.InvestmentAccountID, item.InstrumentID, item.Quantity, item.TotalAmount, item.Date, trade.Id, FIFO)
+		}
+		if lotErr != nil {
+			return lotErr
 		}
 		_ = allocations
 		costBasis = roundMoney(costBasis)
@@ -727,53 +764,67 @@ func (store *Store) CreateStockGrant(ctx context.Context, item StockGrant) (uint
 	return txID, nil
 }
 
-func (store *Store) CreateStockTransfer(ctx context.Context, item StockTransfer) (uint, error) {
+// validateStockTransfer validates all inputs for a stock transfer.
+func (store *Store) validateStockTransfer(ctx context.Context, item StockTransfer) error {
 	if item.SourceAccountID == 0 || item.TargetAccountID == 0 {
-		return 0, ErrValidation("source and target account ids are required")
+		return ErrValidation("source and target account ids are required")
 	}
 	if item.SourceAccountID == item.TargetAccountID {
-		return 0, ErrValidation("source and target accounts must be different")
+		return ErrValidation("source and target accounts must be different")
 	}
 	if item.InstrumentID == 0 {
-		return 0, ErrValidation("instrument id is required")
+		return ErrValidation("instrument id is required")
 	}
 	if item.Quantity <= 0 {
-		return 0, ErrValidation("quantity must be positive")
+		return ErrValidation("quantity must be positive")
+	}
+	if item.Description == "" {
+		return NewValidationErr("description cannot be empty")
+	}
+	if item.Date.IsZero() {
+		return NewValidationErr("date cannot be zero")
 	}
 
 	srcAcc, err := store.GetAccount(ctx, item.SourceAccountID)
 	if err != nil {
-		return 0, fmt.Errorf("error creating stock transfer: %w", err)
+		return fmt.Errorf("error creating stock transfer: %w", err)
 	}
 	if !slices.Contains(allowedPositionAccountTypes, srcAcc.Type) {
-		return 0, NewValidationErr("source account must be Investment or Unvested for stock transfer")
+		return NewValidationErr("source account must be Investment or Unvested for stock transfer")
 	}
 
 	tgtAcc, err := store.GetAccount(ctx, item.TargetAccountID)
 	if err != nil {
-		return 0, fmt.Errorf("error creating stock transfer: %w", err)
+		return fmt.Errorf("error creating stock transfer: %w", err)
 	}
 	if !slices.Contains(allowedPositionAccountTypes, tgtAcc.Type) {
-		return 0, NewValidationErr("target account must be Investment or Unvested for stock transfer")
+		return NewValidationErr("target account must be Investment or Unvested for stock transfer")
 	}
 
 	instrument, err := store.GetInstrument(ctx, item.InstrumentID)
 	if err != nil {
 		if errors.Is(err, marketdata.ErrInstrumentNotFound) {
-			return 0, ErrValidation("instrument not found")
+			return ErrValidation("instrument not found")
 		}
-		return 0, fmt.Errorf("error creating stock transfer: %w", err)
+		return fmt.Errorf("error creating stock transfer: %w", err)
 	}
 
 	if instrument.Currency != srcAcc.Currency {
-		return 0, NewValidationErr(fmt.Sprintf(
+		return NewValidationErr(fmt.Sprintf(
 			"instrument currency %s does not match source account currency %s",
 			instrument.Currency, srcAcc.Currency))
 	}
 	if instrument.Currency != tgtAcc.Currency {
-		return 0, NewValidationErr(fmt.Sprintf(
+		return NewValidationErr(fmt.Sprintf(
 			"instrument currency %s does not match target account currency %s",
 			instrument.Currency, tgtAcc.Currency))
+	}
+	return nil
+}
+
+func (store *Store) CreateStockTransfer(ctx context.Context, item StockTransfer) (uint, error) {
+	if err := store.validateStockTransfer(ctx, item); err != nil {
+		return 0, err
 	}
 
 	// Transfer: no cash movement, lot transfer logic + trade records for metadata.
@@ -783,15 +834,8 @@ func (store *Store) CreateStockTransfer(ctx context.Context, item StockTransfer)
 		Type:        StockTransferTransaction,
 	}
 
-	if tx.Description == "" {
-		return 0, NewValidationErr("description cannot be empty")
-	}
-	if tx.Date.IsZero() {
-		return 0, NewValidationErr("date cannot be zero")
-	}
-
 	var txID uint
-	err = store.db.WithContext(ctx).Transaction(func(dbTx *gorm.DB) error {
+	err := store.db.WithContext(ctx).Transaction(func(dbTx *gorm.DB) error {
 		if err := dbTx.Create(&tx).Error; err != nil {
 			return err
 		}
@@ -974,6 +1018,25 @@ func stockBuyFromDb(in dbTransaction) (Transaction, error) {
 	}, nil
 }
 
+// deriveCostBasis computes lossAmount and fees from the expense entries of a stock sell transaction.
+// Two expense entries: the larger is the realized loss, the smaller is fees.
+// One expense entry: it is fees if there is also income (gain scenario), otherwise it is a loss.
+func deriveCostBasis(expenseAmounts []float64, incomeAmount float64) (lossAmount, fees float64) {
+	if len(expenseAmounts) == 2 {
+		if expenseAmounts[0] >= expenseAmounts[1] {
+			return expenseAmounts[0], expenseAmounts[1]
+		}
+		return expenseAmounts[1], expenseAmounts[0]
+	}
+	if len(expenseAmounts) == 1 {
+		if incomeAmount > 0 {
+			return 0, expenseAmounts[0]
+		}
+		return expenseAmounts[0], 0
+	}
+	return 0, 0
+}
+
 func stockSellFromDb(in dbTransaction) (Transaction, error) {
 	// Read trade data
 	var trade *dbTrade
@@ -1006,21 +1069,7 @@ func stockSellFromDb(in dbTransaction) (Transaction, error) {
 
 	// Derive cost basis from lot disposals or compute from entries
 	totalAmount := trade.TotalAmount
-	var fees float64
-	var lossAmount float64
-	if len(expenseAmounts) == 2 {
-		if expenseAmounts[0] >= expenseAmounts[1] {
-			lossAmount, fees = expenseAmounts[0], expenseAmounts[1]
-		} else {
-			lossAmount, fees = expenseAmounts[1], expenseAmounts[0]
-		}
-	} else if len(expenseAmounts) == 1 {
-		if incomeAmount > 0 {
-			fees = expenseAmounts[0]
-		} else {
-			lossAmount = expenseAmounts[0]
-		}
-	}
+	lossAmount, fees := deriveCostBasis(expenseAmounts, incomeAmount)
 	realizedGainLoss := incomeAmount - lossAmount
 	costBasis := roundMoney(totalAmount - fees - realizedGainLoss)
 
@@ -1184,6 +1233,7 @@ type StockSellUpdate struct {
 	Fees                *float64
 	InvestmentAccountID *uint
 	CashAccountID       *uint
+	LotSelections       []LotSelection // nil/empty → FIFO; non-nil → manual allocation
 
 	txUpdate
 }
@@ -1530,17 +1580,8 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 	return nil
 }
 
-func (store *Store) UpdateStockBuy(ctx context.Context, input StockBuyUpdate, id uint) error {
-	existing, err := store.GetTransaction(ctx, id)
-	if err != nil {
-		return err
-	}
-	buy, ok := existing.(StockBuy)
-	if !ok {
-		return ErrTransactionNotFound
-	}
-
-	// Merge updates
+//nolint:gocyclo // field merge applies individual nil-checks and validation for each optional field
+func (store *Store) mergeStockBuyFields(ctx context.Context, buy *StockBuy, input StockBuyUpdate) error {
 	if input.Description != nil {
 		if *input.Description == "" {
 			return NewValidationErr("description cannot be empty")
@@ -1609,6 +1650,22 @@ func (store *Store) UpdateStockBuy(ctx context.Context, input StockBuyUpdate, id
 		}
 		buy.StockAmount = *input.StockAmount
 	}
+	return nil
+}
+
+func (store *Store) UpdateStockBuy(ctx context.Context, input StockBuyUpdate, id uint) error {
+	existing, err := store.GetTransaction(ctx, id)
+	if err != nil {
+		return err
+	}
+	buy, ok := existing.(StockBuy)
+	if !ok {
+		return ErrTransactionNotFound
+	}
+
+	if err := store.mergeStockBuyFields(ctx, &buy, input); err != nil {
+		return err
+	}
 
 	if err := store.validateStockCurrencyMatch(ctx, id, &buy.InvestmentAccountID, &buy.InstrumentID, nil, StockBuyTransaction); err != nil {
 		return err
@@ -1662,16 +1719,8 @@ func (store *Store) UpdateStockBuy(ctx context.Context, input StockBuyUpdate, id
 	})
 }
 
-func (store *Store) UpdateStockSell(ctx context.Context, input StockSellUpdate, id uint) error {
-	existing, err := store.GetTransaction(ctx, id)
-	if err != nil {
-		return err
-	}
-	sell, ok := existing.(StockSell)
-	if !ok {
-		return ErrTransactionNotFound
-	}
-
+//nolint:gocyclo // field merge applies individual nil-checks and validation for each optional field
+func (store *Store) mergeStockSellFields(ctx context.Context, sell *StockSell, input StockSellUpdate) error {
 	if input.Description != nil {
 		if *input.Description == "" {
 			return NewValidationErr("description cannot be empty")
@@ -1740,6 +1789,24 @@ func (store *Store) UpdateStockSell(ctx context.Context, input StockSellUpdate, 
 		}
 		sell.Fees = *input.Fees
 	}
+	// Propagate manual lot selections (nil → keep FIFO)
+	sell.LotSelections = input.LotSelections
+	return nil
+}
+
+func (store *Store) UpdateStockSell(ctx context.Context, input StockSellUpdate, id uint) error {
+	existing, err := store.GetTransaction(ctx, id)
+	if err != nil {
+		return err
+	}
+	sell, ok := existing.(StockSell)
+	if !ok {
+		return ErrTransactionNotFound
+	}
+
+	if err := store.mergeStockSellFields(ctx, &sell, input); err != nil {
+		return err
+	}
 
 	if err := store.validateStockCurrencyMatch(ctx, id, &sell.InvestmentAccountID, &sell.InstrumentID, nil, StockSellTransaction); err != nil {
 		return err
@@ -1787,10 +1854,16 @@ func (store *Store) recreateStockSell(ctx context.Context, id uint, sell StockSe
 			return err
 		}
 
-		// FIFO lot allocation
-		_, costBasis, err := store.allocateLotsForSell(ctx, dbTx, sell.InvestmentAccountID, sell.InstrumentID, sell.Quantity, sell.TotalAmount, sell.Date, trade.Id, FIFO)
-		if err != nil {
-			return err
+		// Lot allocation: manual if selections provided, otherwise FIFO
+		var costBasis float64
+		var lotErr error
+		if len(sell.LotSelections) > 0 {
+			_, costBasis, lotErr = store.allocateLotsManual(ctx, dbTx, sell.LotSelections, sell.TotalAmount, sell.Quantity, sell.Date, trade.Id)
+		} else {
+			_, costBasis, lotErr = store.allocateLotsForSell(ctx, dbTx, sell.InvestmentAccountID, sell.InstrumentID, sell.Quantity, sell.TotalAmount, sell.Date, trade.Id, FIFO)
+		}
+		if lotErr != nil {
+			return lotErr
 		}
 		costBasis = roundMoney(costBasis)
 		fees := roundMoney(sell.Fees)
@@ -1819,16 +1892,7 @@ func (store *Store) recreateStockSell(ctx context.Context, id uint, sell StockSe
 	})
 }
 
-func (store *Store) UpdateStockGrant(ctx context.Context, input StockGrantUpdate, id uint) error {
-	existing, err := store.GetTransaction(ctx, id)
-	if err != nil {
-		return err
-	}
-	grant, ok := existing.(StockGrant)
-	if !ok {
-		return ErrTransactionNotFound
-	}
-
+func (store *Store) mergeStockGrantFields(ctx context.Context, grant *StockGrant, input StockGrantUpdate) error {
 	if input.Description != nil {
 		if *input.Description == "" {
 			return NewValidationErr("description cannot be empty")
@@ -1878,6 +1942,22 @@ func (store *Store) UpdateStockGrant(ctx context.Context, input StockGrantUpdate
 		}
 		grant.FairMarketValue = *input.FairMarketValue
 	}
+	return nil
+}
+
+func (store *Store) UpdateStockGrant(ctx context.Context, input StockGrantUpdate, id uint) error {
+	existing, err := store.GetTransaction(ctx, id)
+	if err != nil {
+		return err
+	}
+	grant, ok := existing.(StockGrant)
+	if !ok {
+		return ErrTransactionNotFound
+	}
+
+	if err := store.mergeStockGrantFields(ctx, &grant, input); err != nil {
+		return err
+	}
 
 	// Delete and recreate trades/lots
 	return store.db.WithContext(ctx).Transaction(func(dbTx *gorm.DB) error {
@@ -1910,16 +1990,7 @@ func (store *Store) UpdateStockGrant(ctx context.Context, input StockGrantUpdate
 	})
 }
 
-func (store *Store) UpdateStockTransfer(ctx context.Context, input StockTransferUpdate, id uint) error {
-	existing, err := store.GetTransaction(ctx, id)
-	if err != nil {
-		return err
-	}
-	transfer, ok := existing.(StockTransfer)
-	if !ok {
-		return ErrTransactionNotFound
-	}
-
+func (store *Store) mergeStockTransferFields(ctx context.Context, transfer *StockTransfer, input StockTransferUpdate) error {
 	if input.Description != nil {
 		if *input.Description == "" {
 			return NewValidationErr("description cannot be empty")
@@ -1975,6 +2046,22 @@ func (store *Store) UpdateStockTransfer(ctx context.Context, input StockTransfer
 			return NewValidationErr("quantity must be positive")
 		}
 		transfer.Quantity = *input.Quantity
+	}
+	return nil
+}
+
+func (store *Store) UpdateStockTransfer(ctx context.Context, input StockTransferUpdate, id uint) error {
+	existing, err := store.GetTransaction(ctx, id)
+	if err != nil {
+		return err
+	}
+	transfer, ok := existing.(StockTransfer)
+	if !ok {
+		return ErrTransactionNotFound
+	}
+
+	if err := store.mergeStockTransferFields(ctx, &transfer, input); err != nil {
+		return err
 	}
 
 	// Delete and recreate

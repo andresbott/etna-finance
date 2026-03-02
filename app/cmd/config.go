@@ -187,6 +187,30 @@ func validateSettings(s AppSettings) error {
 	return nil
 }
 
+// applyAuthDisabledDefaults sets default values when auth is disabled.
+func applyAuthDisabledDefaults(cfg *AppCfg) {
+	if cfg.Auth.DefaultUser == "" {
+		cfg.Auth.DefaultUser = "default"
+	}
+}
+
+// validateAuthEnabledConfig validates and populates auth key bytes when auth is enabled.
+func validateAuthEnabledConfig(cfg *AppCfg) error {
+	if cfg.Auth.HashKey == "" || cfg.Auth.BlockKey == "" {
+		cfg.Auth.HashKeyBytes = securecookie.GenerateRandomKey(64)
+		cfg.Auth.BlockKeyBytes = securecookie.GenerateRandomKey(32)
+	}
+	if len(cfg.Auth.HashKey) != 64 {
+		return fmt.Errorf("hashkey must be 64 chars long")
+	}
+	if len(cfg.Auth.BlockKey) != 32 {
+		return fmt.Errorf("blockKey must be 32 chars long")
+	}
+	cfg.Auth.HashKeyBytes = []byte(cfg.Auth.HashKey)
+	cfg.Auth.BlockKeyBytes = []byte(cfg.Auth.BlockKey)
+	return nil
+}
+
 func getAppCfg(file string) (AppCfg, error) {
 	configMsg := []Msg{}
 	cfg := AppCfg{}
@@ -219,24 +243,11 @@ func getAppCfg(file string) (AppCfg, error) {
 
 	// handle auth config
 	if !cfg.Auth.Enabled {
-		// Auth disabled: HashKey, BlockKey, UserStore not needed; use placeholder for DefaultUser if empty
-		if cfg.Auth.DefaultUser == "" {
-			cfg.Auth.DefaultUser = "default"
-		}
+		applyAuthDisabledDefaults(&cfg)
 	} else {
-		// Auth enabled: require HashKey and BlockKey
-		if cfg.Auth.HashKey == "" || cfg.Auth.BlockKey == "" {
-			cfg.Auth.HashKeyBytes = securecookie.GenerateRandomKey(64)
-			cfg.Auth.BlockKeyBytes = securecookie.GenerateRandomKey(32)
+		if err := validateAuthEnabledConfig(&cfg); err != nil {
+			return cfg, err
 		}
-		if len(cfg.Auth.HashKey) != 64 {
-			return cfg, fmt.Errorf("hashkey must be 64 chars long")
-		}
-		if len(cfg.Auth.BlockKey) != 32 {
-			return cfg, fmt.Errorf("blockKey must be 32 chars long")
-		}
-		cfg.Auth.HashKeyBytes = []byte(cfg.Auth.HashKey)
-		cfg.Auth.BlockKeyBytes = []byte(cfg.Auth.BlockKey)
 	}
 
 	// Validate application settings

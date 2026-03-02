@@ -763,3 +763,115 @@ func TestPosition_AfterTransfer(t *testing.T) {
 		})
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Manual lot allocation
+// ---------------------------------------------------------------------------
+
+func TestManualLotAllocation(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("manualLotAlloc"))
+			invID, cashID, instID := setupStockBuySellTest(t, ctx, store, mktStore)
+
+			// Buy lot 1: 10 shares at $100 each = $1000 cost basis
+			_, err := store.CreateStockBuy(ctx, StockBuy{
+				Description:         "Buy lot 1",
+				Date:                getDate("2025-01-10"),
+				InvestmentAccountID: invID,
+				CashAccountID:       cashID,
+				InstrumentID:        instID,
+				Quantity:            10,
+				TotalAmount:         1000,
+				StockAmount:         1000,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockBuy lot1: %v", err)
+			}
+
+			// Buy lot 2: 10 shares at $200 each = $2000 cost basis
+			_, err = store.CreateStockBuy(ctx, StockBuy{
+				Description:         "Buy lot 2",
+				Date:                getDate("2025-02-10"),
+				InvestmentAccountID: invID,
+				CashAccountID:       cashID,
+				InstrumentID:        instID,
+				Quantity:            10,
+				TotalAmount:         2000,
+				StockAmount:         2000,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockBuy lot2: %v", err)
+			}
+
+			// Get the two lots so we can pick lot 2 explicitly.
+			lots, err := store.ListLots(ctx, ListLotsOpts{AccountID: invID, InstrumentID: instID})
+			if err != nil {
+				t.Fatalf("ListLots: %v", err)
+			}
+			if len(lots) != 2 {
+				t.Fatalf("expected 2 lots, got %d", len(lots))
+			}
+			// Lots are ordered by open_date ASC: lots[0] = lot1 ($100/share), lots[1] = lot2 ($200/share).
+			lot2ID := lots[1].Id
+
+			// Sell 5 shares explicitly from lot 2 (cost basis = 5 * $200 = $1000).
+			_, err = store.CreateStockSell(ctx, StockSell{
+				Description:         "Sell from lot 2",
+				Date:                getDate("2025-03-01"),
+				InvestmentAccountID: invID,
+				CashAccountID:       cashID,
+				InstrumentID:        instID,
+				Quantity:            5,
+				TotalAmount:         1500, // proceeds
+				LotSelections: []LotSelection{
+					{LotID: lot2ID, Quantity: 5},
+				},
+			})
+			if err != nil {
+				t.Fatalf("CreateStockSell with manual lot: %v", err)
+			}
+
+			// Verify lot 2 is now partial with 5 shares remaining.
+			updatedLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: invID, InstrumentID: instID})
+			if err != nil {
+				t.Fatalf("ListLots after sell: %v", err)
+			}
+			var lot2After *Lot
+			for i := range updatedLots {
+				if updatedLots[i].Id == lot2ID {
+					lot2After = &updatedLots[i]
+					break
+				}
+			}
+			if lot2After == nil {
+				t.Fatal("lot2 not found after sell")
+			}
+			if lot2After.Status != LotPartial {
+				t.Errorf("lot2 status got %v, want LotPartial", lot2After.Status)
+			}
+			if lot2After.Quantity != 5 {
+				t.Errorf("lot2 remaining quantity got %v, want 5", lot2After.Quantity)
+			}
+
+			// Lot 1 must be untouched (FIFO would have consumed lot 1 first).
+			var lot1After *Lot
+			for i := range updatedLots {
+				if updatedLots[i].Id == lots[0].Id {
+					lot1After = &updatedLots[i]
+					break
+				}
+			}
+			if lot1After == nil {
+				t.Fatal("lot1 not found after sell")
+			}
+			if lot1After.Status != LotOpen {
+				t.Errorf("lot1 status got %v, want LotOpen (should be untouched)", lot1After.Status)
+			}
+			if lot1After.Quantity != 10 {
+				t.Errorf("lot1 quantity got %v, want 10 (should be untouched)", lot1After.Quantity)
+			}
+		})
+	}
+}

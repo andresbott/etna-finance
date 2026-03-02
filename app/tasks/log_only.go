@@ -22,7 +22,7 @@ var LogOnlyTaskDef = TaskDef{
 // NewLogOnlyTaskFn returns a task function that sleeps randomly up to 1 second then logs.
 func NewLogOnlyTaskFn(l *slog.Logger) func(ctx context.Context) error {
 	return func(ctx context.Context) error {
-		d := time.Duration(rand.Int63n(int64(time.Second)))
+		d := time.Duration(rand.Int63n(int64(time.Second))) //nolint:gosec // weak random is fine for simulation delays
 		if d > 0 {
 			select {
 			case <-ctx.Done():
@@ -72,7 +72,7 @@ func NewLogOnlyLongTaskFn(l *slog.Logger) func(ctx context.Context) error {
 	const minItems, maxItems = 10, 50
 	const maxSleepPerItem = 6 * time.Second
 	return func(ctx context.Context) error {
-		numItems := minItems + rand.Intn(maxItems-minItems+1)
+		numItems := minItems + rand.Intn(maxItems-minItems+1) //nolint:gosec // weak random is fine for simulation item count
 		if l != nil {
 			l.Info("log-only-long job started",
 				slog.String("component", "tasks"),
@@ -94,7 +94,7 @@ func NewLogOnlyLongTaskFn(l *slog.Logger) func(ctx context.Context) error {
 				)
 			}
 			tempo.Info(ctx, fmt.Sprintf("processing item %d/%d", i, numItems))
-			d := time.Duration(rand.Int63n(int64(maxSleepPerItem)))
+			d := time.Duration(rand.Int63n(int64(maxSleepPerItem))) //nolint:gosec // weak random is fine for simulation delays
 			if err := sleepContext(ctx, d); err != nil {
 				return err
 			}
@@ -124,7 +124,7 @@ var DebugFailTaskDef = TaskDef{
 // Respects context cancellation.
 func NewDebugFailTaskFn(l *slog.Logger) func(ctx context.Context) error {
 	return func(ctx context.Context) error {
-		d := time.Second + time.Duration(rand.Int63n(int64(time.Second)))
+		d := time.Second + time.Duration(rand.Int63n(int64(time.Second))) //nolint:gosec // weak random is fine for simulation delays
 		if l != nil {
 			l.Info("debug-fail job started, will error after delay",
 				slog.String("component", "tasks"),
