@@ -20,25 +20,10 @@ import {
     formatPct,
     getChangeSeverity
 } from '@/composables/useCurrencyRates'
-import { useTasks } from '@/composables/useTasks'
-
 const { formatDate, pickerDateFormat } = useDateFormat()
 const router = useRouter()
 const { mainCurrency, currencyRows, isLoading, isError, error, refetch } = useFXOverview()
 const leftSidebarCollapsed = ref(true)
-
-const { tasks, triggerTask, triggeringTaskId } = useTasks()
-const importTask = computed(() => tasks.value.find((t) => t.id === 'fx-import'))
-const isScheduled = computed(() => !!importTask.value?.schedule?.enabled)
-const scheduleTooltip = computed(() => {
-    const task = importTask.value
-    if (!task?.schedule) return 'No import schedule set'
-    const cron = task.schedule.cron_expression
-    return task.schedule.enabled ? `Scheduled: ${cron}` : `Schedule paused: ${cron}`
-})
-function runImport() {
-    if (importTask.value) triggerTask(importTask.value)
-}
 
 const addDialogCurrency = ref('')
 const addDialogVisible = ref(false)
@@ -80,22 +65,12 @@ function onRowClick(event) {
                         </h1>
                         <p class="text-color-secondary mt-0 mb-3">
                             Exchange rates and trends
+                            <i
+                                class="pi pi-question-circle"
+                                v-tooltip.bottom="'Use Tasks to update and schedule currency rate ingestion'"
+                                style="cursor: help"
+                            />
                         </p>
-                    </div>
-                    <div class="flex align-items-center gap-2 pt-1">
-                        <i
-                            :class="['pi', 'pi-clock', isScheduled ? 'text-primary' : 'text-color-secondary']"
-                            v-tooltip.bottom="scheduleTooltip"
-                            style="font-size: 1.1rem"
-                        />
-                        <Button
-                            label="Run import"
-                            icon="pi pi-play"
-                            size="small"
-                            :loading="triggeringTaskId === 'fx-import'"
-                            :disabled="!importTask"
-                            @click="runImport"
-                        />
                     </div>
                 </div>
 
@@ -176,7 +151,7 @@ function onRowClick(event) {
                             </Column>
                         </DataTable>
                         <p class="text-color-secondary text-sm mt-2 mb-0">
-                            <i class="pi pi-info-circle"></i> Click a row to open details. Use + to add a rate.
+                            Click a row to open details. Use + to add a rate.
                         </p>
                     </template>
                 </Card>

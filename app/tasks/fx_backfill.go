@@ -40,9 +40,11 @@ func NewFXBackfillTaskFn(store *marketdata.Store, l *slog.Logger, mainCurrency s
 		}
 		taskLogInfo(ctx, l, FXBackfillTaskName, "starting currency exchange backfill (1 year)")
 
-		if client == nil || mainCurrency == "" || len(currencies) == 0 {
-			taskLogInfo(ctx, l, FXBackfillTaskName, "fx backfill: no FX client or no pairs configured, running maintenance only")
-			return runMaintenance(ctx, store, l, FXBackfillTaskName)
+		if client == nil {
+			return fmt.Errorf("no FX importer configured — set API key via ETNA_MARKETDATAIMPORTERS_MASSIVE_APIKEYS_0 or config file")
+		}
+		if mainCurrency == "" || len(currencies) == 0 {
+			return fmt.Errorf("no currency pairs configured — set mainCurrency and currencies in config")
 		}
 
 		now := time.Now().UTC()
@@ -86,6 +88,9 @@ func NewFXBackfillTaskFn(store *marketdata.Store, l *slog.Logger, mainCurrency s
 					return client.FetchDailyRates(ctx, mainCurrency, secondary, batchStart, batchEnd)
 				})
 				if fetchErr != nil {
+					if strings.Contains(fetchErr.Error(), "401") {
+						return fmt.Errorf("invalid API key for %s: %w", pairLabel, fetchErr)
+					}
 					if strings.Contains(fetchErr.Error(), "429") {
 						return fmt.Errorf("429 rate limit for %s: %w", pairLabel, fetchErr)
 					}

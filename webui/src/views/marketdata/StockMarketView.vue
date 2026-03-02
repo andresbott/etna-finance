@@ -21,26 +21,11 @@ import {
     formatPct,
     getChangeSeverity
 } from '@/composables/useMarketData'
-import { useTasks } from '@/composables/useTasks'
-
 const { formatDate, pickerDateFormat } = useDateFormat()
 
 const router = useRouter()
 const { instruments, isLoading, isError, error, refetch } = useMarketInstruments()
 const leftSidebarCollapsed = ref(true)
-
-const { tasks, triggerTask, triggeringTaskId } = useTasks()
-const importTask = computed(() => tasks.value.find((t) => t.id === 'financial-import'))
-const isScheduled = computed(() => !!importTask.value?.schedule?.enabled)
-const scheduleTooltip = computed(() => {
-    const task = importTask.value
-    if (!task?.schedule) return 'No import schedule set'
-    const cron = task.schedule.cron_expression
-    return task.schedule.enabled ? `Scheduled: ${cron}` : `Schedule paused: ${cron}`
-})
-function runImport() {
-    if (importTask.value) triggerTask(importTask.value)
-}
 
 const addDialogInstrument = ref(null)
 const addDialogVisible = ref(false)
@@ -83,22 +68,12 @@ const onRowClick = (event) => {
                         </h1>
                         <p class="text-color-secondary mt-0 mb-3">
                             Investment instruments overview with market data
+                            <i
+                                class="pi pi-question-circle"
+                                v-tooltip.bottom="'Use Tasks to update and schedule market data ingestion'"
+                                style="cursor: help"
+                            />
                         </p>
-                    </div>
-                    <div class="flex align-items-center gap-2 pt-1">
-                        <i
-                            :class="['pi', 'pi-clock', isScheduled ? 'text-primary' : 'text-color-secondary']"
-                            v-tooltip.bottom="scheduleTooltip"
-                            style="font-size: 1.1rem"
-                        />
-                        <Button
-                            label="Run import"
-                            icon="pi pi-play"
-                            size="small"
-                            :loading="triggeringTaskId === 'financial-import'"
-                            :disabled="!importTask"
-                            @click="runImport"
-                        />
                     </div>
                 </div>
 
@@ -175,7 +150,7 @@ const onRowClick = (event) => {
                             </Column>
                         </DataTable>
                         <p class="text-color-secondary text-sm mt-2 mb-0">
-                            <i class="pi pi-info-circle"></i> Click a row to open details, chart and edit data. Use + to add a price.
+                            Click a row to open details, chart and edit data. Use + to add a price.
                         </p>
                     </template>
                 </Card>

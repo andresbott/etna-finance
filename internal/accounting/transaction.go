@@ -468,6 +468,11 @@ func (store *Store) CreateStockBuy(ctx context.Context, item StockBuy) (uint, er
 			"instrument currency %s does not match investment account currency %s",
 			instrument.Currency, invAcc.Currency))
 	}
+	if instrument.Currency != cashAcc.Currency {
+		return 0, NewValidationErr(fmt.Sprintf(
+			"instrument currency %s does not match cash account currency %s",
+			instrument.Currency, cashAcc.Currency))
+	}
 
 	// Cash entry only — position is tracked via trades/lots
 	tx := dbTransaction{
@@ -656,11 +661,13 @@ func (store *Store) CreateStockSell(ctx context.Context, item StockSell) (uint, 
 			})
 		}
 		// Investment account entry: cost basis leaving the position
-		entries = append(entries, dbEntry{
-			AccountID: item.InvestmentAccountID,
-			Amount:    -costBasis,
-			EntryType: stockSellEntry,
-		})
+		if costBasis != 0 {
+			entries = append(entries, dbEntry{
+				AccountID: item.InvestmentAccountID,
+				Amount:    -costBasis,
+				EntryType: stockSellEntry,
+			})
+		}
 
 		tx := dbTransaction{
 			Description: item.Description,
@@ -1675,6 +1682,19 @@ func (store *Store) UpdateStockBuy(ctx context.Context, input StockBuyUpdate, id
 	if err := store.validateStockCurrencyMatch(ctx, id, &buy.InvestmentAccountID, &buy.InstrumentID, nil, StockBuyTransaction); err != nil {
 		return err
 	}
+	cashAcc, err := store.GetAccount(ctx, buy.CashAccountID)
+	if err != nil {
+		return fmt.Errorf("error validating stock buy: %w", err)
+	}
+	inst, err := store.GetInstrument(ctx, buy.InstrumentID)
+	if err != nil {
+		return fmt.Errorf("error validating stock buy: %w", err)
+	}
+	if inst.Currency != cashAcc.Currency {
+		return NewValidationErr(fmt.Sprintf(
+			"instrument currency %s does not match cash account currency %s",
+			inst.Currency, cashAcc.Currency))
+	}
 
 	// Delete and recreate: delete old trades/lots/entries, recreate everything
 	return store.db.WithContext(ctx).Transaction(func(dbTx *gorm.DB) error {
@@ -1887,7 +1907,9 @@ func (store *Store) recreateStockSell(ctx context.Context, id uint, sell StockSe
 			entries = append(entries, dbEntry{TransactionID: id, AccountID: sell.CashAccountID, Amount: fees, EntryType: expenseEntry})
 		}
 		// Investment account entry: cost basis leaving the position
-		entries = append(entries, dbEntry{TransactionID: id, AccountID: sell.InvestmentAccountID, Amount: -costBasis, EntryType: stockSellEntry})
+		if costBasis != 0 {
+			entries = append(entries, dbEntry{TransactionID: id, AccountID: sell.InvestmentAccountID, Amount: -costBasis, EntryType: stockSellEntry})
+		}
 		if err := dbTx.Create(&entries).Error; err != nil {
 			return err
 		}

@@ -36,6 +36,10 @@ func NewFXImportTaskFn(store *marketdata.Store, mainCurrency string, currencies 
 		}
 		tempo.Info(ctx, "starting currency exchange import")
 
+		if client == nil {
+			return fmt.Errorf("no FX importer configured — set API key via ETNA_MARKETDATAIMPORTERS_MASSIVE_APIKEYS_0 or config file")
+		}
+
 		if mainCurrency != "" && len(currencies) > 0 {
 			// Ensure all configured pairs are registered (so series exist for manual entry or future import).
 			registered := 0
@@ -52,12 +56,9 @@ func NewFXImportTaskFn(store *marketdata.Store, mainCurrency string, currencies 
 			if registered > 0 {
 				tempo.Info(ctx, fmt.Sprintf("fx import: registered %d pair(s) for %s", registered, mainCurrency))
 			}
-			if client == nil && registered > 0 {
-				tempo.Info(ctx, "fx import: no FX client configured — add rates manually or configure an FX importer for automatic fetch")
-			}
 		}
 
-		if client != nil && mainCurrency != "" && len(currencies) > 0 {
+		if mainCurrency != "" && len(currencies) > 0 {
 			if err := backfillFXRates(ctx, store, client, mainCurrency, currencies); err != nil {
 				return err
 			}
@@ -97,6 +98,9 @@ func backfillFXRates(ctx context.Context, store *marketdata.Store, client import
 			return client.FetchDailyRates(ctx, mainCurrency, secondary, start, end)
 		})
 		if fetchErr != nil {
+			if strings.Contains(fetchErr.Error(), "401") {
+				return fmt.Errorf("invalid API key for %s: %w", pairLabel, fetchErr)
+			}
 			if strings.Contains(fetchErr.Error(), "429") {
 				return fmt.Errorf("429 rate limit for %s: %w", pairLabel, fetchErr)
 			}

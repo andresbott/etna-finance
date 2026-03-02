@@ -158,6 +158,7 @@ func runServer(configFile string) error {
 			MainCurrency: cfg.Settings.MainCurrency,
 			Currencies:   cfg.Settings.AllCurrencies(),
 			Instruments:  cfg.Settings.Instruments,
+			Version:      metainfo.Version,
 		},
 		TaskRunner:    taskRunner,
 		ScheduleStore: scheduleStore,

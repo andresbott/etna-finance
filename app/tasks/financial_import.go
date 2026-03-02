@@ -65,10 +65,11 @@ func NewFinancialImportTaskFn(store *marketdata.Store, client importer.Client) f
 		}
 		tempo.Info(ctx, "starting financial import")
 
-		if client != nil {
-			if err := backfillInstrumentPrices(ctx, store, client); err != nil {
-				return err
-			}
+		if client == nil {
+			return fmt.Errorf("no market data importer configured — set API key via ETNA_MARKETDATAIMPORTERS_MASSIVE_APIKEYS_0 or config file")
+		}
+		if err := backfillInstrumentPrices(ctx, store, client); err != nil {
+			return err
 		}
 		return runMaintenance(ctx, store, nil, FinancialImportTaskName)
 	}
@@ -119,6 +120,9 @@ func backfillInstrumentPrices(ctx context.Context, store *marketdata.Store, clie
 			return client.FetchDailyPrices(ctx, inst.Symbol, start, end)
 		})
 		if fetchErr != nil {
+			if strings.Contains(fetchErr.Error(), "401") {
+				return fmt.Errorf("invalid API key for %s: %w", inst.Symbol, fetchErr)
+			}
 			if strings.Contains(fetchErr.Error(), "429") {
 				return fmt.Errorf("429 rate limit for %s: %w", inst.Symbol, fetchErr)
 			}
