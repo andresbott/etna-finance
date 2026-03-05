@@ -65,14 +65,6 @@ func TestCreateCategory(t *testing.T) {
 			expectCode:   http.StatusOK,
 		},
 		{
-			name:         "empty user id",
-			userId:       "",
-			categoryType: ExpenseCategoryType,
-			payload:      bytes.NewBuffer([]byte(`{"name":"Food"}`)),
-			expectErr:    "unable to create category: user not provided",
-			expectCode:   http.StatusBadRequest,
-		},
-		{
 			name:         "empty payload",
 			userId:       tenant1,
 			categoryType: ExpenseCategoryType,
@@ -105,7 +97,7 @@ func TestCreateCategory(t *testing.T) {
 
 			recorder := httptest.NewRecorder()
 			req, _ := http.NewRequest("POST", "/api/category", tc.payload)
-			handler := h.createCategory(tc.userId, tc.categoryType)
+			handler := h.createCategory(tc.categoryType)
 			handler.ServeHTTP(recorder, req)
 
 			if tc.expectErr != "" {
@@ -186,15 +178,6 @@ func TestUpdateCategory(t *testing.T) {
 			expectCode:   http.StatusOK,
 		},
 		{
-			name:         "empty user id",
-			userId:       "",
-			categoryType: ExpenseCategoryType,
-			categoryId:   3,
-			payload:      bytes.NewBuffer([]byte(`{"name":"Food"}`)),
-			expectErr:    "unable to update category: user not provided",
-			expectCode:   http.StatusBadRequest,
-		},
-		{
 			name:         "empty payload",
 			userId:       tenant1,
 			categoryType: ExpenseCategoryType,
@@ -218,14 +201,6 @@ func TestUpdateCategory(t *testing.T) {
 			expectErr:    "unable to decode json: unexpected EOF",
 			expectCode:   http.StatusBadRequest,
 		},
-		{
-			name:         "wrong user",
-			userId:       tenant2,
-			categoryType: ExpenseCategoryType,
-			payload:      bytes.NewBuffer([]byte(`{"name":"Food"}`)),
-			expectErr:    "unable to update category in DB: unable to get parent category: category not found",
-			expectCode:   http.StatusNotFound,
-		},
 	}
 
 	for _, tc := range tcs {
@@ -235,7 +210,7 @@ func TestUpdateCategory(t *testing.T) {
 
 			req, _ := http.NewRequest("PATCH", "/api/category/"+strconv.FormatUint(uint64(tc.categoryId), 10), tc.payload)
 			recorder := httptest.NewRecorder()
-			handler := h.updateCategory(tc.categoryId, tc.userId, tc.categoryType)
+			handler := h.updateCategory(tc.categoryId, tc.categoryType)
 			handler.ServeHTTP(recorder, req)
 
 			if tc.expectErr != "" {
@@ -284,14 +259,6 @@ func TestMoveCategory(t *testing.T) {
 			expectCode:   http.StatusOK,
 		},
 		{
-			name:         "empty user id",
-			userId:       "",
-			categoryType: ExpenseCategoryType,
-			payload:      bytes.NewBuffer([]byte(`{"targetParentId": 2}`)),
-			expectErr:    "unable to move category: user not provided",
-			expectCode:   http.StatusBadRequest,
-		},
-		{
 			name:         "empty payload",
 			userId:       tenant1,
 			categoryType: ExpenseCategoryType,
@@ -315,14 +282,6 @@ func TestMoveCategory(t *testing.T) {
 			expectErr:    "unable to decode json: unexpected EOF",
 			expectCode:   http.StatusBadRequest,
 		},
-		{
-			name:         "category not found",
-			userId:       emptyTenant,
-			categoryType: ExpenseCategoryType,
-			payload:      bytes.NewBuffer([]byte(`{"targetParentId": 2}`)),
-			expectErr:    "unable to move category in DB: unable to get parent category: category not found",
-			expectCode:   http.StatusNotFound,
-		},
 	}
 
 	for _, tc := range tcs {
@@ -335,7 +294,7 @@ func TestMoveCategory(t *testing.T) {
 
 			req, _ := http.NewRequest("PATCH", "/api/category/"+strconv.FormatUint(uint64(categoryId), 10)+"/move", tc.payload)
 			recorder := httptest.NewRecorder()
-			handler := h.moveCategory(categoryId, tc.userId, tc.categoryType)
+			handler := h.moveCategory(categoryId, tc.categoryType)
 			handler.ServeHTTP(recorder, req)
 
 			if tc.expectErr != "" {
@@ -380,25 +339,11 @@ func TestDeleteRecurseCategory(t *testing.T) {
 			expectCode:   http.StatusOK,
 		},
 		{
-			name:         "empty user id",
-			userId:       "",
-			categoryType: ExpenseCategoryType,
-			expectErr:    "unable to delete category: user not provided",
-			expectCode:   http.StatusBadRequest,
-		},
-		{
 			name:         "invalid category type",
 			userId:       tenant1,
 			categoryType: "invalid",
 			expectErr:    "invalid category type: invalid",
 			expectCode:   http.StatusBadRequest,
-		},
-		{
-			name:         "category not found",
-			userId:       tenant2,
-			categoryType: ExpenseCategoryType,
-			expectErr:    "category not found",
-			expectCode:   http.StatusNotFound,
 		},
 	}
 
@@ -411,7 +356,7 @@ func TestDeleteRecurseCategory(t *testing.T) {
 
 			req, _ := http.NewRequest("DELETE", "/api/category/"+strconv.FormatUint(uint64(categoryId), 10), nil)
 			recorder := httptest.NewRecorder()
-			handler := h.deleteRecurseCategory(categoryId, tc.userId, tc.categoryType)
+			handler := h.deleteRecurseCategory(categoryId, tc.categoryType)
 			handler.ServeHTTP(recorder, req)
 
 			if tc.expectErr != "" {
@@ -486,7 +431,7 @@ func TestListCategory(t *testing.T) {
 
 			req, _ := http.NewRequest("GET", "/api/category/", nil)
 			recorder := httptest.NewRecorder()
-			handler := h.listCategory(tc.parentId, tc.userId, tc.categoryType)
+			handler := h.listCategory(tc.parentId, tc.categoryType)
 			handler.ServeHTTP(recorder, req)
 
 			respBody, err := io.ReadAll(recorder.Body)
@@ -523,7 +468,7 @@ func SampleCategoryHandler(t *testing.T) (*CategoryHandler, func()) {
 		t.Fatalf("unable to connect to sqlite: %v", err)
 	}
 
-	store, err := accounting.NewStore(db)
+	store, err := accounting.NewStore(db, nil)
 	if err != nil {
 		t.Fatalf("unable to connect to finance: %v", err)
 	}
@@ -553,33 +498,33 @@ func createTestCategories(t *testing.T, store *accounting.Store) {
 
 	// Create some income categories with icons
 	incomeCategory1 := accounting.CategoryData{Name: "Salary", Icon: "salary-icon", Type: accounting.IncomeCategory}
-	_, err := store.CreateCategory(t.Context(), incomeCategory1, 0, tenant1)
+	_, err := store.CreateCategory(t.Context(), incomeCategory1, 0)
 	if err != nil {
 		t.Fatalf("error creating income category: %v", err)
 	}
 
 	incomeCategory2 := accounting.CategoryData{Name: "Investments", Icon: "investments-icon", Type: accounting.IncomeCategory}
-	_, err = store.CreateCategory(t.Context(), incomeCategory2, 0, tenant1)
+	_, err = store.CreateCategory(t.Context(), incomeCategory2, 0)
 	if err != nil {
 		t.Fatalf("error creating income category: %v", err)
 	}
 
 	// Create some expense categories with icons
 	expenseCategory1 := accounting.CategoryData{Name: "Food", Icon: "food-icon", Type: accounting.ExpenseCategory}
-	expense1Id, err := store.CreateCategory(t.Context(), expenseCategory1, 0, tenant1)
+	expense1Id, err := store.CreateCategory(t.Context(), expenseCategory1, 0)
 	if err != nil {
 		t.Fatalf("error creating expense category: %v", err)
 	}
 
 	expenseCategory2 := accounting.CategoryData{Name: "Transportation", Icon: "transport-icon", Type: accounting.ExpenseCategory}
-	_, err = store.CreateCategory(t.Context(), expenseCategory2, 0, tenant1)
+	_, err = store.CreateCategory(t.Context(), expenseCategory2, 0)
 	if err != nil {
 		t.Fatalf("error creating expense category: %v", err)
 	}
 
 	// Create a subcategory with icon
 	expenseSubcategory := accounting.CategoryData{Name: "Groceries", Icon: "groceries-icon", Type: accounting.ExpenseCategory}
-	_, err = store.CreateCategory(t.Context(), expenseSubcategory, expense1Id, tenant1)
+	_, err = store.CreateCategory(t.Context(), expenseSubcategory, expense1Id)
 	if err != nil {
 		t.Fatalf("error creating expense subcategory: %v", err)
 	}

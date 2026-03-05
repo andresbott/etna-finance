@@ -6,7 +6,14 @@ import { Form } from '@primevue/forms'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
 import { useEntries } from '@/composables/useEntries.ts'
-import { useAccounts } from '@/composables/useAccounts.js'
+import { useAccounts } from '@/composables/useAccounts'
+import {
+    getFormattedAccountId,
+    getDateOnly,
+    extractAccountId,
+    toDateString,
+    getSubmitValues
+} from '@/composables/useEntryDialogForm'
 
 import AccountSelector from '@/components/AccountSelector.vue'
 import Message from 'primevue/message'
@@ -14,9 +21,14 @@ import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
 import DatePicker from 'primevue/datepicker'
 import CategorySelect from '@/components/common/categorySelect.vue'
+import { useDateFormat } from '@/composables/useDateFormat'
+import { accountValidation } from '@/utils/entryValidation'
+import { getApiErrorMessage } from '@/utils/apiError'
 
 const { createEntry, updateEntry, isCreating, isUpdating } = useEntries({})
+const backendError = ref('')
 const { accounts } = useAccounts()
+const { pickerDateFormat, dateValidation } = useDateFormat()
 
 const props = defineProps({
     isEdit: { type: Boolean, default: false },
@@ -37,6 +49,7 @@ const categoryId = ref(props.categoryId)
 const amountInputRef = ref(null)
 
 // Watch for visibility and autofocusAmount to focus the amount field
+watch(() => props.visible, (v) => { if (!v) backendError.value = '' })
 watch(() => [props.visible, props.autofocusAmount], ([visible, autofocus]) => {
     if (visible && autofocus) {
         // Use multiple delays to ensure dialog is fully ready
@@ -50,21 +63,6 @@ watch(() => [props.visible, props.autofocusAmount], ([visible, autofocus]) => {
     }
 })
 
-console.log(props)
-
-// Convert numeric targetAccountId to {id: true} format for form validation
-const getFormattedAccountId = (accountId) => {
-    if (accountId === null || accountId === undefined) return null
-    return { [accountId]: true }
-}
-
-// Strip time from date for date-only display
-const getDateOnly = (date) => {
-    if (!date) return new Date(new Date().setHours(0, 0, 0, 0))
-    const d = new Date(date)
-    return new Date(d.getFullYear(), d.getMonth(), d.getDate())
-}
-
 const formValues = ref({
     description: props.description,
     amount: props.amount,
@@ -74,6 +72,7 @@ const formValues = ref({
 })
 
 // Watch props to update form values when editing
+const formKey = ref(0)
 watch(props, (newProps) => {
     formValues.value = {
         description: newProps.description,
@@ -82,25 +81,9 @@ watch(props, (newProps) => {
         stockAmount: newProps.stockAmount,
         date: getDateOnly(newProps.date)
     }
+    categoryId.value = newProps.categoryId
+    formKey.value++
 })
-
-// Helper function to extract numeric ID from {id: true} object
-const extractAccountId = (formValue) => {
-    if (!formValue) return null
-
-    // Handle numeric ID (for backwards compatibility)
-    if (typeof formValue === 'number') return formValue
-
-    // Handle {id: true} format
-    if (typeof formValue === 'object') {
-        const keys = Object.keys(formValue)
-        if (keys.length > 0) {
-            return parseInt(keys[0], 10)
-        }
-    }
-
-    return null
-}
 
 // Track if selected account is of type stocks
 const selectedAccount = ref(null)
@@ -155,15 +138,10 @@ const isStocksAccount = computed(() => {
 
 // Build the resolver for income/expense entries
 const resolver = computed(() => {
-    // Account validation - handles {id: true} format from AccountSelector
-    const accountValidation = z
-        .union([z.null(), z.record(z.boolean())])
-        .refine((obj) => obj !== null, { message: 'Account must be selected' })
-
     // Base schema for income and expense entry types
     const baseSchema = {
         description: z.string().min(1, { message: 'Description is required' }),
-        date: z.date(),
+        date: dateValidation.value,
         amount: z.number().min(0.01, { message: 'Amount must be greater than 0' }),
         AccountId: accountValidation
     }
@@ -185,24 +163,30 @@ const dialogTitle = computed(() => {
 })
 
 const handleSubmit = async (e) => {
-    if (!e.valid) return
+    e.preventDefault?.()
+    if (e.valid === false) return
+    const values = getSubmitValues(e, formValues)
+    const accountId = extractAccountId(values.AccountId)
+    const description = (values.description ?? formValues.value.description ?? '').toString().trim()
+    const amount = Number(values.amount ?? formValues.value.amount ?? 0)
+    const stockAmount = values.stockAmount != null ? Number(values.stockAmount) : formValues.value.stockAmount
+    const date = values.date ?? formValues.value.date
 
-    // Extract account IDs from the form values
-    const formData = { ...e.values }
-
-    // TODO here we use the form data directly instead of the composable
-    // Convert AccountId from {id: true} to numeric id
-    if (formData.AccountId && typeof formData.AccountId === 'object') {
-        const targetKeys = Object.keys(formData.AccountId)
-        formData.AccountId = targetKeys.length > 0 ? parseInt(targetKeys[0], 10) : null
-    }
+    if (!description || !(amount > 0) || accountId == null) return
 
     const entryData = {
-        ...formData,
+        description,
+        amount,
+        date: toDateString(date),
+        accountId,
         type: props.entryType,
         categoryId: categoryId.value
     }
+    if (stockAmount != null && Number(stockAmount) > 0) {
+        entryData.stockAmount = Number(stockAmount)
+    }
 
+    backendError.value = ''
     try {
         if (props.isEdit) {
             await updateEntry({ id: props.entryId, ...entryData })
@@ -211,6 +195,7 @@ const handleSubmit = async (e) => {
         }
         emit('update:visible', false)
     } catch (error) {
+        backendError.value = getApiErrorMessage(error)
         console.error(`Failed to ${props.isEdit ? 'update' : 'create'} ${props.entryType}:`, error)
     }
 }
@@ -229,6 +214,7 @@ const emit = defineEmits(['update:visible'])
         class="entry-dialog"
     >
         <Form
+            :key="formKey"
             v-slot="$form"
             :resolver="resolver"
             :initialValues="formValues"
@@ -236,12 +222,24 @@ const emit = defineEmits(['update:visible'])
             :validateOnBlur="false"
             @submit="handleSubmit"
         >
+            <Message v-if="backendError" severity="error" :closable="false" class="mb-2">{{ backendError }}</Message>
             <div class="flex flex-column gap-3">
                 <!-- Description Field -->
                 <div>
                     <label for="description" class="form-label">Description</label>
-                    <InputText id="description" name="description" v-if="autofocusAmount" />
-                    <InputText id="description" name="description" v-focus v-else />
+                    <InputText
+                        id="description"
+                        v-model="formValues.description"
+                        name="description"
+                        v-if="autofocusAmount"
+                    />
+                    <InputText
+                        id="description"
+                        v-model="formValues.description"
+                        name="description"
+                        v-focus
+                        v-else
+                    />
                     <Message v-if="$form.description?.invalid" severity="error" size="small">
                         {{ $form.description.error?.message }}
                     </Message>
@@ -253,6 +251,7 @@ const emit = defineEmits(['update:visible'])
                     <InputNumber
                         ref="amountInputRef"
                         id="amount"
+                        v-model="formValues.amount"
                         name="amount"
                         :minFractionDigits="2"
                         :maxFractionDigits="2"
@@ -267,6 +266,7 @@ const emit = defineEmits(['update:visible'])
                     <label for="stockAmount" class="form-label">Stock Amount</label>
                     <InputNumber
                         id="stockAmount"
+                        v-model="formValues.stockAmount"
                         name="stockAmount"
                         :minFractionDigits="2"
                         :maxFractionDigits="2"
@@ -285,7 +285,7 @@ const emit = defineEmits(['update:visible'])
                         v-model="formValues.date"
                         :showIcon="true"
                         iconDisplay="input"
-                        dateFormat="dd/mm/yy"
+                        :dateFormat="pickerDateFormat"
                         :showButtonBar="true"
                     />
                     <Message v-if="$form.date?.invalid" severity="error" size="small">

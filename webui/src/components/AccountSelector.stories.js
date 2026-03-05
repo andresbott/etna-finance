@@ -1,47 +1,45 @@
 import AccountSelector from './AccountSelector.vue'
 import { ref } from 'vue'
-import AccountProvider from '@/models/AccountProvider'
-import Account from '@/models/Account'
 import { queryClient } from '../../.storybook/preview.js'
 
-// Mock account data - this will be injected via the global query client
+// Mock account data - plain objects (API response shape)
 const mockAccountData = [
-  new AccountProvider({
+  {
     id: 1,
     name: 'Bank of America',
     description: 'Primary banking provider',
     accounts: [
-      new Account({ id: 101, name: 'Checking Account', currency: 'USD', type: 'checking' }),
-      new Account({ id: 102, name: 'Savings Account', currency: 'USD', type: 'savings' }),
-      new Account({ id: 103, name: 'Investment Account', currency: 'USD', type: 'investment' }),
-    ]
-  }),
-  new AccountProvider({
+      { id: 101, name: 'Checking Account', currency: 'USD', type: 'checking' },
+      { id: 102, name: 'Savings Account', currency: 'USD', type: 'savings' },
+      { id: 103, name: 'Investment Account', currency: 'USD', type: 'investment' },
+    ],
+  },
+  {
     id: 2,
     name: 'Chase',
     description: 'Secondary bank',
     accounts: [
-      new Account({ id: 201, name: 'Business Checking', currency: 'USD', type: 'checking' }),
-      new Account({ id: 202, name: 'Credit Card', currency: 'USD', type: 'credit' }),
-    ]
-  }),
-  new AccountProvider({
+      { id: 201, name: 'Business Checking', currency: 'USD', type: 'checking' },
+      { id: 202, name: 'Credit Card', currency: 'USD', type: 'credit' },
+    ],
+  },
+  {
     id: 3,
     name: 'PayPal',
     description: 'Digital wallet',
     accounts: [
-      new Account({ id: 301, name: 'PayPal Balance', currency: 'USD', type: 'wallet' }),
-    ]
-  }),
-  new AccountProvider({
+      { id: 301, name: 'PayPal Balance', currency: 'USD', type: 'wallet' },
+    ],
+  },
+  {
     id: 4,
     name: 'European Bank',
     description: 'European accounts',
     accounts: [
-      new Account({ id: 401, name: 'Euro Checking', currency: 'EUR', type: 'checking' }),
-      new Account({ id: 402, name: 'Euro Savings', currency: 'EUR', type: 'savings' }),
-    ]
-  }),
+      { id: 401, name: 'Euro Checking', currency: 'EUR', type: 'checking' },
+      { id: 402, name: 'Euro Savings', currency: 'EUR', type: 'savings' },
+    ],
+  },
 ]
 
 export default {

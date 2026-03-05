@@ -1,0 +1,34 @@
+---
+description: Use global date format for all date display in the webui
+globs: webui/**/*
+alwaysApply: false
+---
+
+# Date representation in the webui
+
+All user-visible dates in the webui must use the **global date format** from application settings (Settings → date format). This keeps display consistent and respects the user’s preference.
+
+## How to format dates
+
+- Use the **`useDateFormat()`** composable from `@/composables/useDateFormat`.
+- For **display** (tables, labels, summaries): use `formatDate(date)`. It accepts a `Date`, an ISO date string, or similar; it returns a string in the global format.
+- For **PrimeVue date pickers**: use `pickerDateFormat` from the same composable.
+
+## Do not
+
+- Use `toLocaleDateString()` or other locale/hardcoded formats for user-facing dates.
+- Add new composables or helpers that format dates with a fixed pattern (e.g. “DD MMM YYYY”) for display. Use `useDateFormat().formatDate` instead.
+
+## Example
+
+```vue
+<script setup>
+import { useDateFormat } from '@/composables/useDateFormat'
+
+const { formatDate } = useDateFormat()
+</script>
+
+<template>
+  <span>{{ dateValue ? formatDate(dateValue) : '-' }}</span>
+</template>
+```

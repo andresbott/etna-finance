@@ -9,6 +9,7 @@
 # Test binary, build with `go test -c`
 *.test
 *.cover.out
+coverage.out
 *.report
 *.html
 
@@ -19,6 +20,8 @@
 
 # build output
 dist/
+# local builds
+./etna
 # application data
 data
 
@@ -32,3 +35,7 @@ app/spa/files/ui/*
 carbon.db
 zarf/appData/session
 !zarf/appData/session/.gitkeep
+
+# local env (secrets, API keys)
+.env
+config.yaml

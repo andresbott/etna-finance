@@ -14,20 +14,27 @@ const (
 	expenseEntry
 	transferInEntry
 	transferOutEntry
+	stockBuyEntry
+	stockSellEntry
+	stockCashOutEntry // cash leaving account on stock buy
+	stockCashInEntry  // cash entering account on stock sell
+	stockGrantEntry   // position increase without cash (vest, gift, grant, etc.)
+	stockTransferOutEntry
+	stockTransferInEntry
 )
 
 type dbEntry struct {
 	Id            uint `gorm:"primarykey"`
-	TransactionID uint `gorm:"not null;index"` // Foreign key
-	AccountID     uint `gorm:"not null;index"` // Foreign key
-	CategoryID    uint `gorm:"index"`          // Foreign key, only populated for income and expense
+	TransactionID uint `gorm:"not null;index"`           // Foreign key
+	AccountID     uint `gorm:"not null;index"`           // Foreign key
+	CategoryID    uint `gorm:"index"`                    // Foreign key, only populated for income and expense
+	InstrumentID  uint `gorm:"column:security_id;index"` // Foreign key, only populated for stock buy/sell entries
 
-	Amount   float64 `gorm:"not null"` // Amount in account currency
-	Quantity float64 // -- for stock shares (nullable for cash-only entries)
+	Amount   float64 `gorm:"not null"` // Amount in account currency; for stock position entries (buy/sell) is 0; for stock cash entries signed (out negative, in positive)
+	Quantity float64 // for stock position entries: shares; unused for stock cash entries
 
-	EntryType entryType //income, expense, transferIn transferOut, stockbuy, stock sell
+	EntryType entryType
 
-	OwnerId   string `gorm:"index"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -43,7 +50,6 @@ type sumEntriesOpts struct {
 	categoryIds []uint
 	accountIds  []uint
 	entryTypes  []entryType
-	tenant      string
 }
 
 // sumEntries is an internal function to sum the values of entries filtering by Categories entry types etc
@@ -56,8 +62,6 @@ func (store *Store) sumEntries(ctx context.Context, opts sumEntriesOpts) (sumRes
 	db = db.Select("SUM(amount) as sum, COUNT(*) as count").
 		Joins("JOIN db_transactions ON db_transactions.id = db_entries.transaction_id")
 
-	// ensure proper owner
-	db = db.Where("db_entries.owner_id = ? AND db_transactions.owner_id = ? ", opts.tenant, opts.tenant)
 	// Filter by date range
 	db = db.Where("db_transactions.date BETWEEN ? AND ?", opts.startDate, opts.endDate)
 

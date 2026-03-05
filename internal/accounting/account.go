@@ -29,7 +29,6 @@ type dbAccountProvider struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt `gorm:"index"`
-	OwnerId   string         `gorm:"index"`
 
 	Name        string
 	Description string
@@ -37,13 +36,12 @@ type dbAccountProvider struct {
 	Accounts    []dbAccount `gorm:"foreignKey:ProviderID;"` // has many
 }
 
-func (store *Store) CreateAccountProvider(ctx context.Context, item AccountProvider, tenant string) (uint, error) {
+func (store *Store) CreateAccountProvider(ctx context.Context, item AccountProvider) (uint, error) {
 	if item.Name == "" {
 		return 0, ErrValidation("name cannot be empty")
 	}
 
 	payload := dbAccountProvider{
-		OwnerId:     tenant, // ensure tenant is set by the signature
 		Name:        item.Name,
 		Description: item.Description,
 		Icon:        item.Icon,
@@ -56,10 +54,10 @@ func (store *Store) CreateAccountProvider(ctx context.Context, item AccountProvi
 	return payload.ID, nil
 }
 
-func (store *Store) GetAccountProvider(ctx context.Context, Id uint, tenant string) (AccountProvider, error) {
+func (store *Store) GetAccountProvider(ctx context.Context, Id uint) (AccountProvider, error) {
 
 	var payload dbAccountProvider
-	d := store.db.WithContext(ctx).Where("id = ? AND owner_id = ?", Id, tenant).First(&payload)
+	d := store.db.WithContext(ctx).Where("id = ?", Id).First(&payload)
 	if d.Error != nil {
 		if errors.Is(d.Error, gorm.ErrRecordNotFound) {
 			return AccountProvider{}, ErrAccountProviderNotFound
@@ -76,7 +74,7 @@ type AccountProviderUpdatePayload struct {
 	Icon        *string
 }
 
-func (store *Store) UpdateAccountProvider(item AccountProviderUpdatePayload, Id uint, tenant string) error {
+func (store *Store) UpdateAccountProvider(item AccountProviderUpdatePayload, Id uint) error {
 	updateStruct := dbAccountProvider{}
 	var selectedFields []string
 
@@ -98,7 +96,7 @@ func (store *Store) UpdateAccountProvider(item AccountProviderUpdatePayload, Id 
 
 	// Perform the update
 	q := store.db.Model(&dbAccountProvider{}).
-		Where("id = ? AND owner_id = ?", Id, tenant).
+		Where("id = ?", Id).
 		Select(selectedFields).
 		Updates(updateStruct)
 
@@ -114,14 +112,14 @@ func (store *Store) UpdateAccountProvider(item AccountProviderUpdatePayload, Id 
 
 }
 
-func (store *Store) ListAccountsProvider(ctx context.Context, tenant string, fetchAccounts bool) ([]AccountProvider, error) {
+func (store *Store) ListAccountsProvider(ctx context.Context, fetchAccounts bool) ([]AccountProvider, error) {
 
 	// NOTE I don't forsee the need of pagination for private usage
 	db := store.db.WithContext(ctx)
-	db = db.Order("db_account_providers.id ASC").Where("db_account_providers.owner_id = ?", tenant)
+	db = db.Order("db_account_providers.id ASC")
 
 	if fetchAccounts {
-		db = db.Preload("Accounts", "owner_id = ?", tenant)
+		db = db.Preload("Accounts")
 	}
 
 	var results []dbAccountProvider
@@ -143,12 +141,12 @@ func (store *Store) ListAccountsProvider(ctx context.Context, tenant string, fet
 
 }
 
-func (store *Store) DeleteAccountProvider(ctx context.Context, id uint, tenant string) error {
+func (store *Store) DeleteAccountProvider(ctx context.Context, id uint) error {
 
 	// using a manual constraint check instead of sql since we can't ensure that constraints are available on sqlite
 	var count int64
 	err := store.db.WithContext(ctx).Model(&dbAccount{}).
-		Where("provider_id = ? AND owner_id = ?", id, tenant).
+		Where("provider_id = ?", id).
 		Count(&count).Error
 	if err != nil {
 		return fmt.Errorf("failed to check associated accounts: %w", err)
@@ -158,7 +156,7 @@ func (store *Store) DeleteAccountProvider(ctx context.Context, id uint, tenant s
 		return ErrAccountConstraintViolation
 	}
 
-	d := store.db.WithContext(ctx).Where("id = ? AND owner_id = ?", id, tenant).Delete(&dbAccountProvider{})
+	d := store.db.WithContext(ctx).Where("id = ?", id).Delete(&dbAccountProvider{})
 	if d.Error != nil {
 		return d.Error
 	}
@@ -202,7 +200,8 @@ const (
 	CashAccountType                   // e.g. wallet
 	CheckinAccountType                // where the salary goes
 	SavingsAccountType                // where you save money and get dividends
-	InvestmentAccountType             // stocks and others
+	InvestmentAccountType             // stocks and others (vested)
+	UnvestedAccountType               // not yet accessible (e.g. unvested RSUs); can transfer to Investment
 )
 
 func (t AccountType) String() string {
@@ -215,8 +214,20 @@ func (t AccountType) String() string {
 		return "Savings"
 	case InvestmentAccountType:
 		return "Investment"
+	case UnvestedAccountType:
+		return "Unvested"
 	default:
 		return "Unknown"
+	}
+}
+
+// RequiresCurrency returns true for account types that require a currency (all except Unknown).
+func (t AccountType) RequiresCurrency() bool {
+	switch t {
+	case CashAccountType, CheckinAccountType, SavingsAccountType, InvestmentAccountType, UnvestedAccountType:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -239,50 +250,55 @@ type dbAccount struct {
 	Icon        string
 	Type        AccountType
 	Currency    string
-	OwnerId     string `gorm:"index"`
 
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt `gorm:"index"`
 }
 
-// dbToAccount is used internally to transform the db struct to public facing struct
+// dbToAccount is used internally to transform the db struct to public facing struct.
 func dbToAccount(in dbAccount) Account {
+	var cur currency.Unit
+	if in.Currency != "" {
+		cur = currency.MustParseISO(in.Currency)
+	}
 	return Account{
 		ID:                in.ID,
 		AccountProviderID: in.ProviderID,
 		Name:              in.Name,
 		Description:       in.Description,
 		Icon:              in.Icon,
-		Currency:          currency.MustParseISO(in.Currency),
+		Currency:          cur,
 		Type:              in.Type,
 	}
 }
 
-func (store *Store) CreateAccount(ctx context.Context, item Account, tenant string) (uint, error) {
+func (store *Store) CreateAccount(ctx context.Context, item Account) (uint, error) {
 	if item.Name == "" {
 		return 0, ErrValidation("name cannot be empty")
 	}
-	if item.Currency == (currency.Unit{}) {
+	if item.Type.RequiresCurrency() && item.Currency == (currency.Unit{}) {
 		return 0, ErrValidation("currency cannot be empty")
 	}
 	if item.AccountProviderID == 0 {
 		return 0, ErrValidation("account provider id cannot be empty")
 	}
-	// validate that the account provider tenant is also account tenant
-	_, err := store.GetAccountProvider(ctx, item.AccountProviderID, tenant)
+	_, err := store.GetAccountProvider(ctx, item.AccountProviderID)
 	if err != nil && errors.Is(err, ErrAccountProviderNotFound) {
 		return 0, ErrValidation("account provider id not found")
 	}
 
+	currencyStr := ""
+	if item.Type.RequiresCurrency() {
+		currencyStr = item.Currency.String()
+	}
 	payload := dbAccount{
-		OwnerId:     tenant, // ensure tenant is set by the signature
 		ProviderID:  item.AccountProviderID,
 		Name:        item.Name,
 		Description: item.Description,
 		Icon:        item.Icon,
 		Type:        item.Type,
-		Currency:    item.Currency.String(),
+		Currency:    currencyStr,
 	}
 
 	d := store.db.WithContext(ctx).Create(&payload)
@@ -292,9 +308,9 @@ func (store *Store) CreateAccount(ctx context.Context, item Account, tenant stri
 	return payload.ID, nil
 }
 
-func (store *Store) GetAccount(ctx context.Context, Id uint, tenant string) (Account, error) {
+func (store *Store) GetAccount(ctx context.Context, Id uint) (Account, error) {
 	var payload dbAccount
-	d := store.db.WithContext(ctx).Where("id = ? AND owner_id = ?", Id, tenant).First(&payload)
+	d := store.db.WithContext(ctx).Where("id = ?", Id).First(&payload)
 	if d.Error != nil {
 		if errors.Is(d.Error, gorm.ErrRecordNotFound) {
 			return Account{}, ErrAccountNotFound
@@ -314,7 +330,17 @@ type AccountUpdatePayload struct {
 	Type        AccountType
 }
 
-func (store *Store) UpdateAccount(ctx context.Context, item AccountUpdatePayload, Id uint, tenant string) error {
+func (store *Store) UpdateAccount(ctx context.Context, item AccountUpdatePayload, Id uint) error {
+	// Resolve target account type for currency rules: use payload type if set, else current account type
+	targetType := item.Type
+	if targetType == UnknownAccountType && item.Currency != nil {
+		current, err := store.GetAccount(ctx, Id)
+		if err != nil {
+			return err
+		}
+		targetType = current.Type
+	}
+
 	// Build a dbAccount struct with only the fields to update
 	updateStruct := dbAccount{}
 	var selectedFields []string
@@ -339,8 +365,11 @@ func (store *Store) UpdateAccount(ctx context.Context, item AccountUpdatePayload
 		selectedFields = append(selectedFields, "Type")
 	}
 
+	// Currency: required for Cash/Checkin/Savings/Investment/Unvested; store when provided
 	if item.Currency != nil {
-		updateStruct.Currency = item.Currency.String()
+		if targetType.RequiresCurrency() {
+			updateStruct.Currency = item.Currency.String()
+		}
 		selectedFields = append(selectedFields, "Currency")
 	}
 
@@ -356,7 +385,7 @@ func (store *Store) UpdateAccount(ctx context.Context, item AccountUpdatePayload
 	// Perform the update
 	q := store.db.Model(&dbAccount{}).
 		WithContext(ctx).
-		Where("id = ? AND owner_id = ?", Id, tenant).
+		Where("id = ?", Id).
 		Select(selectedFields).
 		Updates(updateStruct)
 
@@ -371,13 +400,13 @@ func (store *Store) UpdateAccount(ctx context.Context, item AccountUpdatePayload
 	return nil
 }
 
-func (store *Store) DeleteAccount(ctx context.Context, Id uint, tenant string) error {
+func (store *Store) DeleteAccount(ctx context.Context, Id uint) error {
 	db := store.db.WithContext(ctx)
 
 	// Check if any entries reference this account
 	var count int64
 	if err := db.Model(&dbEntry{}).
-		Where("account_id = ? AND owner_id = ?", Id, tenant).
+		Where("account_id = ?", Id).
 		Count(&count).Error; err != nil {
 		return fmt.Errorf("failed to check account entries: %w", err)
 	}
@@ -385,7 +414,7 @@ func (store *Store) DeleteAccount(ctx context.Context, Id uint, tenant string) e
 		return fmt.Errorf("unable to delete account: %w", ErrAccountContainsEntries)
 	}
 
-	d := store.db.Where("id = ? AND owner_id = ?", Id, tenant).Delete(&dbAccount{})
+	d := store.db.Where("id = ?", Id).Delete(&dbAccount{})
 	if d.Error != nil {
 		return d.Error
 	}
@@ -395,11 +424,11 @@ func (store *Store) DeleteAccount(ctx context.Context, Id uint, tenant string) e
 	return nil
 }
 
-func (store *Store) ListAccounts(ctx context.Context, tenant string) ([]Account, error) {
+func (store *Store) ListAccounts(ctx context.Context) ([]Account, error) {
 
 	db := store.db.WithContext(ctx)
 	// NOTE I don't forsee the need of pagination for private usage
-	db = db.Order("id ASC").Where("owner_id = ?", tenant)
+	db = db.Order("id ASC")
 
 	var results []dbAccount
 	if err := db.Find(&results).Error; err != nil {
@@ -413,8 +442,8 @@ func (store *Store) ListAccounts(ctx context.Context, tenant string) ([]Account,
 	return accounts, nil
 }
 
-func (store *Store) ListAccountsByCurrency(ctx context.Context, tenant string) (map[currency.Unit][]Account, error) {
-	results, err := store.ListAccounts(ctx, tenant)
+func (store *Store) ListAccountsByCurrency(ctx context.Context) (map[currency.Unit][]Account, error) {
+	results, err := store.ListAccounts(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -430,8 +459,8 @@ func (store *Store) ListAccountsByCurrency(ctx context.Context, tenant string) (
 
 // ListAccountsMap is a wrapper function around ListAccounts that returns a map [uint]Account where the
 // key is the account id
-func (store *Store) ListAccountsMap(ctx context.Context, tenant string) (map[uint]Account, error) {
-	accounts, err := store.ListAccounts(ctx, tenant)
+func (store *Store) ListAccountsMap(ctx context.Context) (map[uint]Account, error) {
+	accounts, err := store.ListAccounts(ctx)
 	if err != nil {
 		return nil, err
 	}

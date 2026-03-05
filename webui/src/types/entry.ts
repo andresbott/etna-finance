@@ -25,6 +25,18 @@ export interface UpdateEntryDTO {
     accountId?: string
     categoryId?: number
     notes?: string
+    // Stock buy / sell
+    instrumentId?: number
+    quantity?: number
+    totalAmount?: number
+    StockAmount?: number
+    investmentAccountId?: number
+    cashAccountId?: number
+    // Stock transfer
+    originAccountId?: number
+    targetAccountId?: number
+    // Manual lot selection for stock sell
+    lotAllocations?: Array<{ lotId: number; quantity: number }>
 }
 
 export interface EntryFilters {

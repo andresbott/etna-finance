@@ -5,12 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/andresbott/etna/internal/accounting"
-	"github.com/hashicorp/go-multierror"
-	"golang.org/x/text/currency"
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/andresbott/etna/internal/accounting"
+	"github.com/hashicorp/go-multierror"
+	"golang.org/x/text/currency"
 )
 
 func Import(ctx context.Context, store *accounting.Store, file string) error {
@@ -66,7 +67,7 @@ func importAccounts(ctx context.Context, store *accounting.Store, r *zip.ReadClo
 	providersMap := map[uint]uint{}
 	for _, provider := range providers {
 		item := accounting.AccountProvider{Name: provider.Name, Description: provider.Description}
-		prId, err := store.CreateAccountProvider(ctx, item, provider.Tenant)
+		prId, err := store.CreateAccountProvider(ctx, item)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create account provider: %w", err)
 		}
@@ -95,9 +96,9 @@ func importAccounts(ctx context.Context, store *accounting.Store, r *zip.ReadClo
 		}
 		item.Type = t
 
-		accId, err := store.CreateAccount(ctx, item, account.Tenant)
+		accId, err := store.CreateAccount(ctx, item)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create account %s: %w", account.Tenant, err)
+			return nil, fmt.Errorf("failed to create account: %w", err)
 		}
 		accountsMap[account.ID] = accId
 	}
@@ -114,6 +115,8 @@ func parseAccountType(in string) accounting.AccountType {
 		return accounting.SavingsAccountType
 	case "Investment":
 		return accounting.InvestmentAccountType
+	case "Unvested":
+		return accounting.UnvestedAccountType
 	default:
 		return accounting.UnknownAccountType
 	}
@@ -158,7 +161,7 @@ func createCategoriesRecursive(ctx context.Context, store *accounting.Store, cat
 				newParent = (*categoriesMap)[parentID]
 			}
 
-			newID, err := store.CreateCategory(ctx, data, newParent, cat.Tenant)
+			newID, err := store.CreateCategory(ctx, data, newParent)
 			if err != nil {
 				return err
 			}
@@ -202,15 +205,57 @@ func importTransactions(ctx context.Context, store *accounting.Store, r *zip.Rea
 			}
 			tr.OriginAccountID = accountsMap[tx.OriginAccountID]
 			tr.TargetAccountID = accountsMap[tx.TargetAccountID]
-
 			item = tr
+
+		case txTypeStockBuy:
+			item = accounting.StockBuy{
+				Description:         tx.Description,
+				Date:                tx.Date,
+				InvestmentAccountID: accountsMap[tx.InvestmentAccountID],
+				CashAccountID:       accountsMap[tx.CashAccountID],
+				InstrumentID:        tx.InstrumentID,
+				Quantity:            tx.Quantity,
+				TotalAmount:         tx.TotalAmount,
+				StockAmount:         tx.StockAmount,
+			}
+		case txTypeStockSell:
+			item = accounting.StockSell{
+				Description:         tx.Description,
+				Date:                tx.Date,
+				InvestmentAccountID: accountsMap[tx.InvestmentAccountID],
+				CashAccountID:       accountsMap[tx.CashAccountID],
+				InstrumentID:        tx.InstrumentID,
+				Quantity:            tx.Quantity,
+				TotalAmount:         tx.TotalAmount,
+				Fees:                tx.Fees,
+			}
+		case txTypeStockGrant:
+			item = accounting.StockGrant{
+				Description:     tx.Description,
+				Date:            tx.Date,
+				AccountID:       accountsMap[tx.AccountID],
+				InstrumentID:    tx.InstrumentID,
+				Quantity:        tx.Quantity,
+				FairMarketValue: tx.FairMarketValue,
+			}
+		case txTypeStockTransfer:
+			item = accounting.StockTransfer{
+				Description:     tx.Description,
+				Date:            tx.Date,
+				SourceAccountID: accountsMap[tx.SourceAccountID],
+				TargetAccountID: accountsMap[tx.TargetAccountID],
+				InstrumentID:    tx.InstrumentID,
+				Quantity:        tx.Quantity,
+			}
 		}
 
-		_, err = store.CreateTransaction(ctx, item, tx.Tenant)
+		if item == nil {
+			continue
+		}
+		_, err = store.CreateTransaction(ctx, item)
 		if err != nil {
 			return fmt.Errorf("failed to create transaction: %w", err)
 		}
-
 	}
 	return nil
 }

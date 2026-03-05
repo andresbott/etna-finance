@@ -3,64 +3,6 @@
         <Transition name="slide-left">
             <div v-if="uiStore.isDrawerVisible" class="sidebar-panel">
                 <ul class="menu-list">
-                    <!-- TRANSACTIONS SECTION -->
-                    <li class="menu-section">
-                        <div class="menu-section-label">Transactions</div>
-                    </li>
-                    <li>
-                        <router-link to="/entries" class="menu-item">
-                            <i class="pi pi-th-large menu-icon"></i>
-                            <span class="menu-label">All Transactions</span>
-                        </router-link>
-                    </li>
-                    <li>
-                        <a
-                            @click="expandAllAccounts"
-                            class="menu-item"
-                        >
-                            <i class="pi pi-filter menu-icon"></i>
-                            <span class="menu-label">By Account</span>
-                            <i 
-                                class="pi pi-chevron-down menu-toggle" 
-                                :class="{ 'rotate-180': isMyAccountsExpanded }"
-                            ></i>
-                        </a>
-
-                        <ul class="menu-submenu" :class="{ hidden: !isMyAccountsExpanded }">
-                            <li v-for="provider in accounts" :key="provider.id">
-                                <a
-                                    @click="toggleProvider(provider.id)"
-                                    class="menu-item submenu-item"
-                                >
-                                    <i :class="['pi', provider.icon || 'pi-building', 'menu-icon']"></i>
-                                    <span class="menu-label">{{ provider.name }}</span>
-                                    <i
-                                        v-if="provider.accounts.length > 0"
-                                        class="pi pi-chevron-down menu-toggle"
-                                        :class="{ 'rotate-180': expandedProviders[provider.id] }"
-                                    ></i>
-                                </a>
-
-                                <ul 
-                                    class="menu-submenu" 
-                                    :class="{ hidden: !expandedProviders[provider.id] }"
-                                >
-                                    <li v-for="account in provider.accounts" :key="account.id">
-                                        <router-link
-                                            :to="`/entries/${account.id}`"
-                                            class="menu-item submenu-item"
-                                        >
-                                            <i :class="['pi', account.icon || 'pi-wallet', 'menu-icon']"></i>
-                                            <span class="menu-label">{{ account.name }}</span>
-                                        </router-link>
-                                    </li>
-                                </ul>
-                            </li>
-                        </ul>
-                    </li>
-
-                    <li class="menu-spacer"></li>
-
                     <!-- REPORTS SECTION -->
                     <li class="menu-section">
                         <div class="menu-section-label">Reports</div>
@@ -77,6 +19,99 @@
                             <span class="menu-label">Income/Expense</span>
                         </router-link>
                     </li>
+                    <li v-if="settings.instruments">
+                        <router-link to="/reports/investment" class="menu-item">
+                            <i class="pi pi-chart-pie menu-icon"></i>
+                            <span class="menu-label">Investment Report</span>
+                        </router-link>
+                    </li>
+
+                    <li class="menu-spacer"></li>
+
+                    <!-- TRANSACTIONS SECTION -->
+                    <li class="menu-section">
+                        <div class="menu-section-label">Transactions</div>
+                    </li>
+                    <li>
+                        <router-link to="/entries" class="menu-item">
+                            <i class="pi pi-th-large menu-icon"></i>
+                            <span class="menu-label">All Transactions</span>
+                        </router-link>
+                    </li>
+                    <li>
+                        <a
+                            @click="expandAllAccounts"
+                            class="menu-item"
+                        >
+                            <i class="pi pi-filter menu-icon"></i>
+                            <span class="menu-label">Cash accounts</span>
+                            <i 
+                                class="pi pi-chevron-down menu-toggle" 
+                                :class="{ 'rotate-180': isMyAccountsExpanded }"
+                            ></i>
+                        </a>
+
+                        <ul class="menu-submenu" :class="{ hidden: !isMyAccountsExpanded }">
+                            <li v-for="provider in accountsCashOnly" :key="provider.id">
+                                <div class="menu-item submenu-item menu-item-label">
+                                    <i :class="['pi', provider.icon || 'pi-building', 'menu-icon']"></i>
+                                    <span class="menu-label">{{ provider.name }}</span>
+                                </div>
+
+                                <ul class="menu-submenu">
+                                    <li v-for="account in provider.accounts" :key="account.id">
+                                        <router-link
+                                            :to="`/entries/${account.id}`"
+                                            class="menu-item submenu-item"
+                                        >
+                                            <i :class="['pi', account.icon || 'pi-wallet', 'menu-icon']"></i>
+                                            <span class="menu-label">{{ account.name }}</span>
+                                        </router-link>
+                                    </li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </li>
+                    <li>
+                        <router-link to="/financial-transactions" class="menu-item">
+                            <i class="pi pi-wallet menu-icon"></i>
+                            <span class="menu-label">Financial Transactions</span>
+                        </router-link>
+                    </li>
+                    <li v-if="settings.instruments">
+                        <a
+                            @click="expandAllInvestment"
+                            class="menu-item"
+                        >
+                            <i class="pi pi-chart-line menu-icon"></i>
+                            <span class="menu-label">Investment</span>
+                            <i
+                                class="pi pi-chevron-down menu-toggle"
+                                :class="{ 'rotate-180': isInvestmentExpanded }"
+                            ></i>
+                        </a>
+
+                        <ul class="menu-submenu" :class="{ hidden: !isInvestmentExpanded }">
+                            <li v-for="provider in accountsInvestmentOnly" :key="provider.id">
+                                <div class="menu-item submenu-item menu-item-label">
+                                    <i :class="['pi', provider.icon || 'pi-building', 'menu-icon']"></i>
+                                    <span class="menu-label">{{ provider.name }}</span>
+                                </div>
+
+                                <ul class="menu-submenu">
+                                    <li v-for="account in provider.accounts" :key="account.id">
+                                        <router-link
+                                            :to="`/entries/${account.id}`"
+                                            class="menu-item submenu-item"
+                                        >
+                                            <i :class="['pi', account.icon || 'pi-wallet', 'menu-icon']"></i>
+                                            <span class="menu-label">{{ account.name }}</span>
+                                        </router-link>
+                                    </li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </li>
 
                     <li class="menu-spacer"></li>
 
@@ -90,10 +125,29 @@
                             <span class="menu-label">Currency Exchange</span>
                         </router-link>
                     </li>
-                    <li>
+                    <li v-if="settings.instruments">
                         <router-link to="/market-data/stock-market" class="menu-item">
                             <i class="pi pi-chart-line menu-icon"></i>
                             <span class="menu-label">Stock Market</span>
+                        </router-link>
+                    </li>
+
+                    <li class="menu-spacer"></li>
+
+                    <!-- TOOLS SECTION -->
+                    <li class="menu-section">
+                        <div class="menu-section-label">Tools</div>
+                    </li>
+                    <li>
+                        <router-link to="/tools/portfolio-simulator" class="menu-item">
+                            <i class="pi pi-chart-pie menu-icon"></i>
+                            <span class="menu-label">Portfolio Simulator</span>
+                        </router-link>
+                    </li>
+                    <li>
+                        <router-link to="/tools/real-estate-simulator" class="menu-item">
+                            <i class="pi pi-home menu-icon"></i>
+                            <span class="menu-label">Real Estate Simulator</span>
                         </router-link>
                     </li>
                 </ul>
@@ -103,65 +157,76 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useUiStore } from '@/store/uiStore.js'
-import { useAccounts } from '@/composables/useAccounts.js'
+import { useAccounts } from '@/composables/useAccounts'
+import { useSettingsStore } from '@/store/settingsStore.js'
+import { ACCOUNT_TYPES } from '@/types/account'
 
 const route = useRoute()
 const uiStore = useUiStore()
+const settings = useSettingsStore()
 const { accounts } = useAccounts()
 
-const isMyAccountsExpanded = ref(false)
-const expandedProviders = reactive({})
+const CASH_ACCOUNT_TYPES = [ACCOUNT_TYPES.CASH, ACCOUNT_TYPES.CHECKING, ACCOUNT_TYPES.SAVINGS]
+const INVESTMENT_ACCOUNT_TYPES = [ACCOUNT_TYPES.INVESTMENT, ACCOUNT_TYPES.UNVESTED]
 
-// Initialize expandedProviders when accounts are loaded
-watch(accounts, (newAccounts) => {
-    if (newAccounts) {
-        newAccounts.forEach(provider => {
-            if (!(provider.id in expandedProviders)) {
-                expandedProviders[provider.id] = false
-            }
-        })
-    }
-}, { immediate: true })
+// By Account tree: only cash accounts (cash, checking, savings)
+const accountsCashOnly = computed(() => {
+    const list = accounts.value
+    if (!list) return []
+    return list
+        .map(provider => ({
+            ...provider,
+            accounts: (provider.accounts || []).filter(acc =>
+                CASH_ACCOUNT_TYPES.includes(acc.type)
+            )
+        }))
+        .filter(provider => provider.accounts.length > 0)
+})
+
+// Investment section: only financial investment accounts (investment, unvested)
+const accountsInvestmentOnly = computed(() => {
+    const list = accounts.value
+    if (!list) return []
+    return list
+        .map(provider => ({
+            ...provider,
+            accounts: (provider.accounts || []).filter(acc =>
+                INVESTMENT_ACCOUNT_TYPES.includes(acc.type)
+            )
+        }))
+        .filter(provider => provider.accounts.length > 0)
+})
+
+const isMyAccountsExpanded = ref(false)
+const isInvestmentExpanded = ref(false)
 
 // Watch route to auto-expand when viewing account entries
 watch(() => route.path, (newPath) => {
-    // Check if we're on an account entries page (/entries/:id)
     const accountEntriesMatch = newPath.match(/^\/entries\/(\d+)$/)
-    
-    if (accountEntriesMatch && accounts.value) {
-        const accountId = accountEntriesMatch[1]
-        
-        // Expand "By Account" section
-        isMyAccountsExpanded.value = true
-        
-        // Find which provider contains this account and expand it
-        accounts.value.forEach(provider => {
-            const hasAccount = provider.accounts.some(account => String(account.id) === accountId)
-            if (hasAccount) {
-                expandedProviders[provider.id] = true
-            }
-        })
-    }
+    if (!accountEntriesMatch) return
+
+    const accountId = accountEntriesMatch[1]
+
+    const inCash = accountsCashOnly.value.some(provider =>
+        provider.accounts.some(account => String(account.id) === accountId)
+    )
+    if (inCash) isMyAccountsExpanded.value = true
+
+    const inInvestment = accountsInvestmentOnly.value.some(provider =>
+        provider.accounts.some(account => String(account.id) === accountId)
+    )
+    if (inInvestment) isInvestmentExpanded.value = true
 }, { immediate: true })
 
 const expandAllAccounts = () => {
-    if (!isMyAccountsExpanded.value) {
-        // Expanding: expand My Accounts and all providers
-        isMyAccountsExpanded.value = true
-        accounts.value?.forEach(provider => {
-            expandedProviders[provider.id] = true
-        })
-    } else {
-        // Collapsing: just toggle My Accounts
-        isMyAccountsExpanded.value = false
-    }
+    isMyAccountsExpanded.value = !isMyAccountsExpanded.value
 }
 
-const toggleProvider = (providerId) => {
-    expandedProviders[providerId] = !expandedProviders[providerId]
+const expandAllInvestment = () => {
+    isInvestmentExpanded.value = !isInvestmentExpanded.value
 }
 </script>
 
@@ -236,6 +301,10 @@ const toggleProvider = (providerId) => {
 /* Submenu Items */
 .submenu-item {
     padding-left: 3rem;
+}
+
+.menu-item-label {
+    cursor: default;
 }
 
 .menu-submenu {

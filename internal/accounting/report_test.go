@@ -171,7 +171,7 @@ func TestGetCategoryReport(t *testing.T) {
 		t.Run(db.DbType(), func(t *testing.T) {
 
 			dbCon := db.ConnDbName("TestGetCategoryReport")
-			store, err := NewStore(dbCon)
+			store, err := NewStore(dbCon, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -182,7 +182,7 @@ func TestGetCategoryReport(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
-					got, err := store.ReportInOutByCategory(t.Context(), tc.startDate, tc.endDate, tc.tenant)
+					got, err := store.ReportInOutByCategory(t.Context(), tc.startDate, tc.endDate)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -289,7 +289,7 @@ func TestAccountBalanceSingle(t *testing.T) {
 		t.Run(db.DbType(), func(t *testing.T) {
 
 			dbCon := db.ConnDbName("storeCreateEntry")
-			store, err := NewStore(dbCon)
+			store, err := NewStore(dbCon, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -299,7 +299,7 @@ func TestAccountBalanceSingle(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
-					got, err := store.AccountBalanceSingle(t.Context(), tc.accountId, tc.date, tc.tenant)
+					got, err := store.AccountBalanceSingle(t.Context(), tc.accountId, tc.date)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -487,7 +487,7 @@ func TestAccountBalance(t *testing.T) {
 		t.Run(db.DbType(), func(t *testing.T) {
 
 			dbCon := db.ConnDbName("TestAccountBalance")
-			store, err := NewStore(dbCon)
+			store, err := NewStore(dbCon, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -497,7 +497,7 @@ func TestAccountBalance(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
-					got, err := store.AccountBalance(t.Context(), tc.accountId, tc.count, tc.startDate, tc.endDate, tc.tenant)
+					got, err := store.AccountBalance(t.Context(), tc.accountId, tc.count, tc.startDate, tc.endDate)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)

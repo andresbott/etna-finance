@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
 import { unref, computed, Ref, ref } from 'vue'
-import { GetEntries, CreateEntry, UpdateEntry, DeleteEntry } from '@/lib/api/Entry'
+import { getEntries, createEntry, updateEntry, deleteEntry } from '@/lib/api/Entry'
 import type { CreateEntryDTO, UpdateEntryDTO, PaginatedEntriesResponse } from '@/types/entry'
 
 export interface UseEntriesOptions {
@@ -70,7 +70,7 @@ export function useEntries(options: UseEntriesOptions = {}) {
             if (!start || !end) {
                 return Promise.resolve(emptyResponse)
             }
-            return GetEntries({
+            return getEntries({
                 startDate: start,
                 endDate: end,
                 accountIds,
@@ -82,7 +82,7 @@ export function useEntries(options: UseEntriesOptions = {}) {
 
     // Mutation for creating an entry
     const createEntryMutation = useMutation({
-        mutationFn: (payload: CreateEntryDTO) => CreateEntry(payload),
+        mutationFn: (payload: CreateEntryDTO) => createEntry(payload),
         onSuccess: () => {
             // Invalidate all entries queries, not just the specific date range
             queryClient.invalidateQueries({ queryKey: ['entries'] })
@@ -91,7 +91,7 @@ export function useEntries(options: UseEntriesOptions = {}) {
 
     // Mutation for updating an entry
     const updateEntryMutation = useMutation({
-        mutationFn: (payload: UpdateEntryDTO) => UpdateEntry(payload),
+        mutationFn: (payload: UpdateEntryDTO) => updateEntry(payload),
         onSuccess: () => {
             // Invalidate all entries queries, not just the specific date range
             queryClient.invalidateQueries({ queryKey: ['entries'] })
@@ -100,7 +100,7 @@ export function useEntries(options: UseEntriesOptions = {}) {
 
     // Mutation for deleting an entry
     const deleteEntryMutation = useMutation({
-        mutationFn: (id: string) => DeleteEntry(id),
+        mutationFn: (id: string) => deleteEntry(id),
         onSuccess: () => {
             // Invalidate all entries queries, not just the specific date range
             queryClient.invalidateQueries({ queryKey: ['entries'] })

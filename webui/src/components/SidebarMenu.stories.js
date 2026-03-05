@@ -1,39 +1,37 @@
 import SidebarMenu from './SidebarMenu.vue'
 import { useUiStore } from '@/store/uiStore.js'
 import { queryClient } from '../../.storybook/preview.js'
-import AccountProvider from '@/models/AccountProvider'
-import Account from '@/models/Account'
 
-// Mock account data for the sidebar
+// Mock account data for the sidebar - plain objects (API response shape)
 const mockAccountData = [
-  new AccountProvider({
+  {
     id: 1,
     name: 'Bank of America',
     description: 'Primary banking',
     accounts: [
-      new Account({ id: 101, name: 'Checking', currency: 'USD', type: 'bank' }),
-      new Account({ id: 102, name: 'Savings', currency: 'USD', type: 'savings' }),
-    ]
-  }),
-  new AccountProvider({
+      { id: 101, name: 'Checking', currency: 'USD', type: 'bank' },
+      { id: 102, name: 'Savings', currency: 'USD', type: 'savings' },
+    ],
+  },
+  {
     id: 2,
     name: 'Chase',
     description: 'Credit cards',
     accounts: [
-      new Account({ id: 201, name: 'Chase Freedom', currency: 'USD', type: 'credit' }),
-      new Account({ id: 202, name: 'Chase Sapphire', currency: 'USD', type: 'credit' }),
-    ]
-  }),
-  new AccountProvider({
+      { id: 201, name: 'Chase Freedom', currency: 'USD', type: 'credit' },
+      { id: 202, name: 'Chase Sapphire', currency: 'USD', type: 'credit' },
+    ],
+  },
+  {
     id: 3,
     name: 'Vanguard',
     description: 'Investments',
     accounts: [
-      new Account({ id: 301, name: '401k', currency: 'USD', type: 'investment' }),
-      new Account({ id: 302, name: 'Roth IRA', currency: 'USD', type: 'investment' }),
-      new Account({ id: 303, name: 'Brokerage', currency: 'USD', type: 'investment' }),
-    ]
-  }),
+      { id: 301, name: '401k', currency: 'USD', type: 'investment' },
+      { id: 302, name: 'Roth IRA', currency: 'USD', type: 'investment' },
+      { id: 303, name: 'Brokerage', currency: 'USD', type: 'investment' },
+    ],
+  },
 ]
 
 export default {

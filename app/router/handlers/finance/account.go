@@ -9,12 +9,14 @@ import (
 	"net/http"
 
 	"github.com/andresbott/etna/internal/accounting"
+	"github.com/andresbott/etna/internal/marketdata"
 
 	"golang.org/x/text/currency"
 )
 
 type Handler struct {
-	Store *accounting.Store
+	Store           *accounting.Store
+	InstrumentStore *marketdata.Store
 }
 
 type accountProviderPayload struct {
@@ -27,12 +29,8 @@ type accountProviderPayload struct {
 
 var validationErr = accounting.ErrValidation("")
 
-func (h *Handler) CreateAccountProvider(userId string) http.Handler {
+func (h *Handler) CreateAccountProvider() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if userId == "" {
-			http.Error(w, "unable to create account: user not provided", http.StatusBadRequest)
-			return
-		}
 		if r.Body == nil {
 			http.Error(w, "request had empty body", http.StatusBadRequest)
 			return
@@ -51,7 +49,7 @@ func (h *Handler) CreateAccountProvider(userId string) http.Handler {
 			Icon:        payload.Icon,
 		}
 
-		accID, err := h.Store.CreateAccountProvider(r.Context(), account, userId)
+		accID, err := h.Store.CreateAccountProvider(r.Context(), account)
 		if err != nil {
 			if errors.As(err, &validationErr) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -80,12 +78,8 @@ type accountProviderUpdatePayload struct {
 	Icon        *string `json:"icon"`
 }
 
-func (h *Handler) UpdateAccountProvider(Id uint, userId string) http.Handler {
+func (h *Handler) UpdateAccountProvider(Id uint) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if userId == "" {
-			http.Error(w, "unable to update account: user not provided", http.StatusBadRequest)
-			return
-		}
 		if r.Body == nil {
 			http.Error(w, "request had empty body", http.StatusBadRequest)
 			return
@@ -104,7 +98,7 @@ func (h *Handler) UpdateAccountProvider(Id uint, userId string) http.Handler {
 			Icon:        payload.Icon,
 		}
 
-		err = h.Store.UpdateAccountProvider(item, Id, userId)
+		err = h.Store.UpdateAccountProvider(item, Id)
 		if err != nil {
 			if errors.As(err, &validationErr) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -123,15 +117,9 @@ func (h *Handler) UpdateAccountProvider(Id uint, userId string) http.Handler {
 	})
 }
 
-func (h *Handler) DeleteAccountProvider(Id uint, userId string) http.Handler {
+func (h *Handler) DeleteAccountProvider(Id uint) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		if userId == "" {
-			http.Error(w, "unable to get account: user not provided", http.StatusBadRequest)
-			return
-		}
-
-		err := h.Store.DeleteAccountProvider(r.Context(), Id, userId)
+		err := h.Store.DeleteAccountProvider(r.Context(), Id)
 		if err != nil {
 			if errors.Is(err, accounting.ErrAccountProviderNotFound) {
 				http.Error(w, err.Error(), http.StatusNotFound)
@@ -153,16 +141,11 @@ type listResponse struct {
 	Items []accountProviderPayload `json:"items"`
 }
 
-func (h *Handler) ListAccountProviders(userId string) http.Handler {
+func (h *Handler) ListAccountProviders() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var err error
 
-		if userId == "" {
-			http.Error(w, "unable to list accounts: user not provided", http.StatusBadRequest)
-			return
-		}
-
-		providers, err := h.Store.ListAccountsProvider(r.Context(), userId, true)
+		providers, err := h.Store.ListAccountsProvider(r.Context(), true)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to update account: %s", err.Error()), http.StatusInternalServerError)
 			return
@@ -173,11 +156,12 @@ func (h *Handler) ListAccountProviders(userId string) http.Handler {
 
 			accounts := make([]accountPayload, len(b.Accounts))
 			for j, account := range b.Accounts {
+				currencyStr := account.Currency.String()
 				accounts[j] = accountPayload{
 					Id:       account.ID,
 					Name:     account.Name,
 					Icon:     account.Icon,
-					Currency: account.Currency.String(),
+					Currency: currencyStr,
 					Type:     strings.ToLower(account.Type.String()),
 				}
 			}
@@ -222,12 +206,8 @@ type accountPayload struct {
 	Type       string `json:"type"` // enum of type
 }
 
-func (h *Handler) CreateAccount(userId string) http.Handler {
+func (h *Handler) CreateAccount() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if userId == "" {
-			http.Error(w, "unable to create account: user not provided", http.StatusBadRequest)
-			return
-		}
 		if r.Body == nil {
 			http.Error(w, "request had empty body", http.StatusBadRequest)
 			return
@@ -240,27 +220,29 @@ func (h *Handler) CreateAccount(userId string) http.Handler {
 			return
 		}
 
-		account := accounting.Account{
-			Name:              payload.Name,
-			Icon:              payload.Icon,
-			AccountProviderID: payload.ProviderId,
-		}
-
-		cur, err := currency.ParseISO(payload.Currency)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("unable to parse currency: %s", err.Error()), http.StatusBadRequest)
-			return
-		}
-		account.Currency = cur
-
 		t := parseAccountType(payload.Type)
 		if t == accounting.UnknownAccountType {
 			http.Error(w, fmt.Sprintf("unable to parse account type: %s", payload.Type), http.StatusBadRequest)
 			return
 		}
-		account.Type = t
 
-		accID, err := h.Store.CreateAccount(r.Context(), account, userId)
+		account := accounting.Account{
+			Name:              payload.Name,
+			Icon:              payload.Icon,
+			AccountProviderID: payload.ProviderId,
+			Type:              t,
+		}
+		if t.RequiresCurrency() {
+			cur, err := currency.ParseISO(payload.Currency)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("unable to parse currency: %s", err.Error()), http.StatusBadRequest)
+				return
+			}
+			account.Currency = cur
+		}
+		// Investment/Unvested: ignore any currency in the request
+
+		accID, err := h.Store.CreateAccount(r.Context(), account)
 		if err != nil {
 			if errors.As(err, &validationErr) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -271,11 +253,15 @@ func (h *Handler) CreateAccount(userId string) http.Handler {
 			}
 		}
 
+		currencyStr := ""
+		if account.Type.RequiresCurrency() {
+			currencyStr = account.Currency.String()
+		}
 		responsePayload := accountPayload{
 			Id:       accID,
 			Name:     account.Name,
 			Icon:     account.Icon,
-			Currency: account.Currency.String(),
+			Currency: currencyStr,
 			Type:     account.Type.String(),
 		}
 
@@ -298,12 +284,8 @@ type accountUpdatePayload struct {
 	Type     string  `json:"type"`
 }
 
-func (h *Handler) UpdateAccount(Id uint, userId string) http.Handler {
+func (h *Handler) UpdateAccount(Id uint) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if userId == "" {
-			http.Error(w, "unable to update account: user not provided", http.StatusBadRequest)
-			return
-		}
 		if r.Body == nil {
 			http.Error(w, "request had empty body", http.StatusBadRequest)
 			return
@@ -324,7 +306,20 @@ func (h *Handler) UpdateAccount(Id uint, userId string) http.Handler {
 			account.Icon = payload.Icon
 		}
 
-		if payload.Currency != nil {
+		// Resolve target type for currency: from payload or current account
+		targetType := accounting.UnknownAccountType
+		if payload.Type != "" {
+			targetType = parseAccountType(payload.Type)
+		}
+		if targetType == accounting.UnknownAccountType && payload.Currency != nil {
+			current, err := h.Store.GetAccount(r.Context(), Id)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("unable to get account: %s", err.Error()), http.StatusInternalServerError)
+				return
+			}
+			targetType = current.Type
+		}
+		if payload.Currency != nil && targetType.RequiresCurrency() {
 			cur, err := currency.ParseISO(*payload.Currency)
 			if err != nil {
 				http.Error(w, fmt.Sprintf("unable to parse currency: %s", err.Error()), http.StatusBadRequest)
@@ -332,6 +327,7 @@ func (h *Handler) UpdateAccount(Id uint, userId string) http.Handler {
 			}
 			account.Currency = &cur
 		}
+		// Investment/Unvested: ignore currency in request (handler does not set it; store will clear if needed)
 
 		if payload.Type != "" {
 			t := parseAccountType(payload.Type)
@@ -342,7 +338,7 @@ func (h *Handler) UpdateAccount(Id uint, userId string) http.Handler {
 			account.Type = t
 		}
 
-		err = h.Store.UpdateAccount(r.Context(), account, Id, userId)
+		err = h.Store.UpdateAccount(r.Context(), account, Id)
 		if err != nil {
 			if errors.As(err, &validationErr) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -358,15 +354,9 @@ func (h *Handler) UpdateAccount(Id uint, userId string) http.Handler {
 	})
 }
 
-func (h *Handler) DeleteAccount(Id uint, userId string) http.Handler {
+func (h *Handler) DeleteAccount(Id uint) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		if userId == "" {
-			http.Error(w, "unable to get account: user not provided", http.StatusBadRequest)
-			return
-		}
-
-		err := h.Store.DeleteAccount(r.Context(), Id, userId)
+		err := h.Store.DeleteAccount(r.Context(), Id)
 		if err != nil {
 			if errors.Is(err, accounting.ErrAccountNotFound) {
 				http.Error(w, err.Error(), http.StatusNotFound)
@@ -387,12 +377,13 @@ const (
 	checkinAccountStr    = "checkin"
 	savingsAccountStr    = "savings"
 	investmentAccountStr = "investment"
+	unvestedAccountStr   = "unvested"
 )
 
 func parseAccountType(in string) accounting.AccountType {
 	in = strings.TrimSpace(in)
 	in = strings.ToLower(in)
-	switch strings.ToLower(in) {
+	switch in {
 	case cashAccountStr:
 		return accounting.CashAccountType
 	case checkinAccountStr:
@@ -401,6 +392,8 @@ func parseAccountType(in string) accounting.AccountType {
 		return accounting.SavingsAccountType
 	case investmentAccountStr:
 		return accounting.InvestmentAccountType
+	case unvestedAccountStr:
+		return accounting.UnvestedAccountType
 	default:
 		return accounting.UnknownAccountType
 	}

@@ -45,6 +45,441 @@ var Accounts = []Provider{
 			},
 		},
 	},
+	{
+		Name:        "Broker",
+		Description: "Brokerage for stocks and ETFs",
+		Accounts: []Account{
+			{
+				Name:        "Brokerage (CHF)",
+				Description: "Main brokerage account",
+				Currency:    "CHF",
+				Type:        "investment",
+			},
+			{
+				Name:        "Brokerage (USD)",
+				Description: "Secondary brokerage account",
+				Currency:    "USD",
+				Type:        "investment",
+			},
+			{
+				Name:        "Cash (USD)",
+				Description: "USD cash balance at broker",
+				Currency:    "USD",
+				Type:        "checkin",
+			},
+			{
+				Name:        "RSUs",
+				Description: "Unvested restricted stock units",
+				Currency:    "USD",
+				Type:        "unvested",
+			},
+		},
+	},
+}
+
+// Instruments are created by the sample data script; IDs are filled after creation.
+var Instruments = []Instrument{
+	{Symbol: "AAPL", Name: "Apple Inc.", Currency: "USD"},
+	{Symbol: "MSFT", Name: "Microsoft Corporation", Currency: "USD"},
+	{Symbol: "ADBE", Name: "Adobe Inc.", Currency: "USD"},
+	{Symbol: "GOOGL", Name: "Alphabet Inc. (Google)", Currency: "USD"},
+	{Symbol: "NESN", Name: "Nestlé S.A.", Currency: "CHF"},
+}
+
+// Instrument for API creation (ID set after create).
+type Instrument struct {
+	ID       uint   `json:"id,omitempty"`
+	Symbol   string `json:"symbol"`
+	Name     string `json:"name"`
+	Currency string `json:"currency"`
+}
+
+// StockEntryDefinition defines a stock-related transaction (buy, sell, grant, transfer).
+type StockEntryDefinition struct {
+	Description string  `json:"description"`
+	DaysDelta   int     `json:"daysDelta"`
+	Type        string  `json:"type"`       // "stockbuy", "stocksell", "stockgrant", "stocktransfer"
+	Instrument  string  `json:"instrument"` // symbol
+	Quantity    float64 `json:"quantity"`
+
+	// buy/sell: total cash amount (in cash account currency)
+	TotalAmount float64 `json:"totalAmount,omitempty"`
+	// buy/sell: monetary value of shares (in instrument currency)
+	StockAmount float64 `json:"StockAmount,omitempty"`
+
+	// investment account (buy, sell, grant)
+	InvestmentProvider string `json:"investmentProvider,omitempty"`
+	InvestmentAccount  string `json:"investmentAccount,omitempty"`
+
+	// cash account (buy, sell)
+	CashProvider string `json:"cashProvider,omitempty"`
+	CashAccount  string `json:"cashAccount,omitempty"`
+
+	// transfer: origin and target (both investment)
+	OriginProvider string `json:"originProvider,omitempty"`
+	OriginAccount  string `json:"originAccount,omitempty"`
+	TargetProvider string `json:"targetProvider,omitempty"`
+	TargetAccount  string `json:"targetAccount,omitempty"`
+}
+
+// StockEntries are created after instruments and accounts exist.
+// Order matters: grants/buys must precede transfers/sells that depend on them.
+// USD cash balance is tracked in comments (funded with $12,000 via regular Entries).
+var StockEntries = []StockEntryDefinition{
+	// ── RSU grants (no cash impact) ──────────────────────────────────────
+	{
+		Description:        "RSU grant MSFT (unvested)",
+		DaysDelta:          -110,
+		Type:               "stockgrant",
+		Instrument:         "MSFT",
+		Quantity:           5,
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "RSUs",
+	},
+	{
+		Description:        "RSU grant GOOGL (unvested)",
+		DaysDelta:          -100,
+		Type:               "stockgrant",
+		Instrument:         "GOOGL",
+		Quantity:           10,
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "RSUs",
+	},
+
+	// ── Initial buys (multiple lots per instrument) ──────────────────────
+	// Cash(USD): $12,000
+	{
+		Description:        "Buy AAPL",
+		DaysDelta:          -95,
+		Type:               "stockbuy",
+		Instrument:         "AAPL",
+		Quantity:           5,
+		TotalAmount:        900.00,  // 5 × $180
+		StockAmount:        900.00,
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "Brokerage (USD)",
+		CashProvider:       "Broker",
+		CashAccount:        "Cash (USD)",
+	},
+	// Cash(USD): $11,100
+	{
+		Description:        "Buy MSFT",
+		DaysDelta:          -85,
+		Type:               "stockbuy",
+		Instrument:         "MSFT",
+		Quantity:           3,
+		TotalAmount:        1200.00, // 3 × $400
+		StockAmount:        1200.00,
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "Brokerage (USD)",
+		CashProvider:       "Broker",
+		CashAccount:        "Cash (USD)",
+	},
+	// Cash(USD): $9,900
+	{
+		Description:        "Buy ADBE",
+		DaysDelta:          -75,
+		Type:               "stockbuy",
+		Instrument:         "ADBE",
+		Quantity:           3,
+		TotalAmount:        1410.00, // 3 × $470
+		StockAmount:        1410.00,
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "Brokerage (USD)",
+		CashProvider:       "Broker",
+		CashAccount:        "Cash (USD)",
+	},
+	// Cash(USD): $8,490
+	{
+		Description:        "Buy NESN",
+		DaysDelta:          -65,
+		Type:               "stockbuy",
+		Instrument:         "NESN",
+		Quantity:           10,
+		TotalAmount:        890.00, // 10 × CHF 89
+		StockAmount:        890.00,
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "Brokerage (CHF)",
+		CashProvider:       "Main Bank",
+		CashAccount:        "Main Account",
+	},
+	// Cash(USD): $8,490
+	{
+		Description:        "Buy MSFT",
+		DaysDelta:          -60,
+		Type:               "stockbuy",
+		Instrument:         "MSFT",
+		Quantity:           5,
+		TotalAmount:        2100.00, // 5 × $420
+		StockAmount:        2100.00,
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "Brokerage (USD)",
+		CashProvider:       "Broker",
+		CashAccount:        "Cash (USD)",
+	},
+
+	// ── RSU vesting (no cash impact) ─────────────────────────────────────
+	{
+		Description:    "RSU vest: GOOGL from RSUs to brokerage",
+		DaysDelta:      -55,
+		Type:           "stocktransfer",
+		Instrument:     "GOOGL",
+		Quantity:       4,
+		OriginProvider: "Broker",
+		OriginAccount:  "RSUs",
+		TargetProvider: "Broker",
+		TargetAccount:  "Brokerage (USD)",
+	},
+
+	// Cash(USD): $6,390
+	{
+		Description:        "Buy ADBE",
+		DaysDelta:          -50,
+		Type:               "stockbuy",
+		Instrument:         "ADBE",
+		Quantity:           4,
+		TotalAmount:        1920.00, // 4 × $480
+		StockAmount:        1920.00,
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "Brokerage (USD)",
+		CashProvider:       "Broker",
+		CashAccount:        "Cash (USD)",
+	},
+	// Cash(USD): $4,470
+	{
+		Description:        "Buy AAPL",
+		DaysDelta:          -48,
+		Type:               "stockbuy",
+		Instrument:         "AAPL",
+		Quantity:           8,
+		TotalAmount:        1480.00, // 8 × $185
+		StockAmount:        1480.00,
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "Brokerage (USD)",
+		CashProvider:       "Broker",
+		CashAccount:        "Cash (USD)",
+	},
+	// Cash(USD): $2,990
+	{
+		Description:        "Buy AAPL",
+		DaysDelta:          -45,
+		Type:               "stockbuy",
+		Instrument:         "AAPL",
+		Quantity:           5,
+		TotalAmount:        950.00, // 5 × $190
+		StockAmount:        950.00,
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "Brokerage (USD)",
+		CashProvider:       "Broker",
+		CashAccount:        "Cash (USD)",
+	},
+
+	{
+		Description:        "Grant GOOGL (RSU vest)",
+		DaysDelta:          -42,
+		Type:               "stockgrant",
+		Instrument:         "GOOGL",
+		Quantity:           2,
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "Brokerage (USD)",
+	},
+
+	// ── First round of sells ─────────────────────────────────────────────
+	// Cash(USD): $2,040
+	{
+		Description:        "Sell MSFT",
+		DaysDelta:          -40,
+		Type:               "stocksell",
+		Instrument:         "MSFT",
+		Quantity:           2,
+		TotalAmount:        860.00, // 2 × $430
+		StockAmount:        860.00,
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "Brokerage (USD)",
+		CashProvider:       "Broker",
+		CashAccount:        "Cash (USD)",
+	},
+	{
+		Description:        "Buy NESN",
+		DaysDelta:          -38,
+		Type:               "stockbuy",
+		Instrument:         "NESN",
+		Quantity:           5,
+		TotalAmount:        455.00, // 5 × CHF 91
+		StockAmount:        455.00,
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "Brokerage (CHF)",
+		CashProvider:       "Main Bank",
+		CashAccount:        "Main Account",
+	},
+	// Cash(USD): $2,900
+	{
+		Description:        "Sell ADBE",
+		DaysDelta:          -35,
+		Type:               "stocksell",
+		Instrument:         "ADBE",
+		Quantity:           2,
+		TotalAmount:        980.00, // 2 × $490
+		StockAmount:        980.00,
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "Brokerage (USD)",
+		CashProvider:       "Broker",
+		CashAccount:        "Cash (USD)",
+	},
+	// Cash(USD): $3,880
+	{
+		Description:        "Sell AAPL",
+		DaysDelta:          -30,
+		Type:               "stocksell",
+		Instrument:         "AAPL",
+		Quantity:           3,
+		TotalAmount:        585.00, // 3 × $195
+		StockAmount:        585.00,
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "Brokerage (USD)",
+		CashProvider:       "Broker",
+		CashAccount:        "Cash (USD)",
+	},
+
+	// ── More activity ────────────────────────────────────────────────────
+	{
+		Description:    "RSU vest: GOOGL from RSUs to brokerage",
+		DaysDelta:      -28,
+		Type:           "stocktransfer",
+		Instrument:     "GOOGL",
+		Quantity:       2,
+		OriginProvider: "Broker",
+		OriginAccount:  "RSUs",
+		TargetProvider: "Broker",
+		TargetAccount:  "Brokerage (USD)",
+	},
+	// Cash(USD): $4,465
+	{
+		Description:        "Buy MSFT",
+		DaysDelta:          -25,
+		Type:               "stockbuy",
+		Instrument:         "MSFT",
+		Quantity:           4,
+		TotalAmount:        1660.00, // 4 × $415
+		StockAmount:        1660.00,
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "Brokerage (USD)",
+		CashProvider:       "Broker",
+		CashAccount:        "Cash (USD)",
+	},
+	// Cash(USD): $2,805
+	{
+		Description:        "Buy AAPL",
+		DaysDelta:          -20,
+		Type:               "stockbuy",
+		Instrument:         "AAPL",
+		Quantity:           4,
+		TotalAmount:        752.00, // 4 × $188
+		StockAmount:        752.00,
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "Brokerage (USD)",
+		CashProvider:       "Broker",
+		CashAccount:        "Cash (USD)",
+	},
+	{
+		Description:        "Sell NESN",
+		DaysDelta:          -18,
+		Type:               "stocksell",
+		Instrument:         "NESN",
+		Quantity:           4,
+		TotalAmount:        368.00, // 4 × CHF 92
+		StockAmount:        368.00,
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "Brokerage (CHF)",
+		CashProvider:       "Main Bank",
+		CashAccount:        "Main Account",
+	},
+	// Cash(USD): $2,053
+	{
+		Description:        "Buy ADBE",
+		DaysDelta:          -15,
+		Type:               "stockbuy",
+		Instrument:         "ADBE",
+		Quantity:           2,
+		TotalAmount:        950.00, // 2 × $475
+		StockAmount:        950.00,
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "Brokerage (USD)",
+		CashProvider:       "Broker",
+		CashAccount:        "Cash (USD)",
+	},
+
+	// ── Final sells ──────────────────────────────────────────────────────
+	// Cash(USD): $1,103
+	{
+		Description:        "Sell MSFT",
+		DaysDelta:          -12,
+		Type:               "stocksell",
+		Instrument:         "MSFT",
+		Quantity:           3,
+		TotalAmount:        1320.00, // 3 × $440
+		StockAmount:        1320.00,
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "Brokerage (USD)",
+		CashProvider:       "Broker",
+		CashAccount:        "Cash (USD)",
+	},
+	// Cash(USD): $2,423
+	{
+		Description:        "Sell GOOGL",
+		DaysDelta:          -10,
+		Type:               "stocksell",
+		Instrument:         "GOOGL",
+		Quantity:           3,
+		TotalAmount:        525.00, // 3 × $175
+		StockAmount:        525.00,
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "Brokerage (USD)",
+		CashProvider:       "Broker",
+		CashAccount:        "Cash (USD)",
+	},
+	// Cash(USD): $2,948
+	{
+		Description:        "Sell AAPL",
+		DaysDelta:          -8,
+		Type:               "stocksell",
+		Instrument:         "AAPL",
+		Quantity:           6,
+		TotalAmount:        1200.00, // 6 × $200
+		StockAmount:        1200.00,
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "Brokerage (USD)",
+		CashProvider:       "Broker",
+		CashAccount:        "Cash (USD)",
+	},
+	// Cash(USD): $4,148
+	{
+		Description:        "Sell ADBE",
+		DaysDelta:          -5,
+		Type:               "stocksell",
+		Instrument:         "ADBE",
+		Quantity:           3,
+		TotalAmount:        1485.00, // 3 × $495
+		StockAmount:        1485.00,
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "Brokerage (USD)",
+		CashProvider:       "Broker",
+		CashAccount:        "Cash (USD)",
+	},
+	// Cash(USD): $5,633
+	{
+		Description:        "Sell NESN",
+		DaysDelta:          -3,
+		Type:               "stocksell",
+		Instrument:         "NESN",
+		Quantity:           3,
+		TotalAmount:        282.00, // 3 × CHF 94
+		StockAmount:        282.00,
+		InvestmentProvider: "Broker",
+		InvestmentAccount:  "Brokerage (CHF)",
+		CashProvider:       "Main Bank",
+		CashAccount:        "Main Account",
+	},
 }
 
 var ExpenseCategories = []Category{
@@ -215,7 +650,7 @@ var IncomeCategories = []Category{
 }
 
 var Entries = []EntryDefinition{
-	// Monthly Income entries (repeated across 3 months)
+	// Monthly Income entries (repeated across 5 months)
 	{
 		Description:  "Monthly salary - current month",
 		DaysDelta:    -1,
@@ -237,6 +672,24 @@ var Entries = []EntryDefinition{
 	{
 		Description:  "Monthly salary - two months ago",
 		DaysDelta:    -61,
+		Type:         "income",
+		Amount:       4500.00,
+		ProviderName: "Main Bank",
+		AccountName:  "Main Account",
+		CategoryName: "Salary",
+	},
+	{
+		Description:  "Monthly salary - three months ago",
+		DaysDelta:    -91,
+		Type:         "income",
+		Amount:       4500.00,
+		ProviderName: "Main Bank",
+		AccountName:  "Main Account",
+		CategoryName: "Salary",
+	},
+	{
+		Description:  "Monthly salary - four months ago",
+		DaysDelta:    -121,
 		Type:         "income",
 		Amount:       4500.00,
 		ProviderName: "Main Bank",
@@ -360,6 +813,24 @@ var Entries = []EntryDefinition{
 		AccountName:  "Main Account",
 		CategoryName: "Rental Income",
 	},
+	{
+		Description:  "Apartment rental income",
+		DaysDelta:    -93,
+		Type:         "income",
+		Amount:       1500.00,
+		ProviderName: "Main Bank",
+		AccountName:  "Main Account",
+		CategoryName: "Rental Income",
+	},
+	{
+		Description:  "Apartment rental income",
+		DaysDelta:    -123,
+		Type:         "income",
+		Amount:       1500.00,
+		ProviderName: "Main Bank",
+		AccountName:  "Main Account",
+		CategoryName: "Rental Income",
+	},
 
 	// Housing & Rent expenses (monthly recurring)
 	{
@@ -388,33 +859,6 @@ var Entries = []EntryDefinition{
 		ProviderName: "Main Bank",
 		AccountName:  "Main Account",
 		CategoryName: "Rent",
-	},
-	{
-		Description:  "Mortgage payment",
-		DaysDelta:    -15,
-		Type:         "expense",
-		Amount:       1850.00,
-		ProviderName: "Main Bank",
-		AccountName:  "Main Account",
-		CategoryName: "Mortgage",
-	},
-	{
-		Description:  "Mortgage payment",
-		DaysDelta:    -45,
-		Type:         "expense",
-		Amount:       1850.00,
-		ProviderName: "Main Bank",
-		AccountName:  "Main Account",
-		CategoryName: "Mortgage",
-	},
-	{
-		Description:  "Mortgage payment",
-		DaysDelta:    -75,
-		Type:         "expense",
-		Amount:       1850.00,
-		ProviderName: "Main Bank",
-		AccountName:  "Main Account",
-		CategoryName: "Mortgage",
 	},
 	{
 		Description:  "Electricity bill",
@@ -1115,6 +1559,41 @@ var Entries = []EntryDefinition{
 		CategoryName: "Wood working",
 	},
 
+	// Fund broker USD cash account before stock operations
+	{
+		Description:    "Fund brokerage USD account",
+		DaysDelta:      -105,
+		Type:           "transfer",
+		OriginAmount:   5400.00,
+		OriginProvider: "Main Bank",
+		OriginAccount:  "Main Account",
+		TargetAmount:   6000.00,
+		TargetProvider: "Broker",
+		TargetAccount:  "Cash (USD)",
+	},
+	{
+		Description:    "Fund brokerage USD account",
+		DaysDelta:      -55,
+		Type:           "transfer",
+		OriginAmount:   2700.00,
+		OriginProvider: "Main Bank",
+		OriginAccount:  "Main Account",
+		TargetAmount:   3000.00,
+		TargetProvider: "Broker",
+		TargetAccount:  "Cash (USD)",
+	},
+	{
+		Description:    "Fund brokerage USD account",
+		DaysDelta:      -22,
+		Type:           "transfer",
+		OriginAmount:   2700.00,
+		OriginProvider: "Main Bank",
+		OriginAccount:  "Main Account",
+		TargetAmount:   3000.00,
+		TargetProvider: "Broker",
+		TargetAccount:  "Cash (USD)",
+	},
+
 	// Transfer entries - realistic money movements
 	{
 		Description:    "Transfer to EUR account for vacation",
@@ -1153,10 +1632,10 @@ var Entries = []EntryDefinition{
 		Description:    "Transfer to secondary bank",
 		DaysDelta:      -38,
 		Type:           "transfer",
-		OriginAmount:   1000.00,
+		OriginAmount:   300.00,
 		OriginProvider: "Main Bank",
 		OriginAccount:  "Main Account",
-		TargetAmount:   1000.00,
+		TargetAmount:   300.00,
 		TargetProvider: "Secondary Bank",
 		TargetAccount:  "Another Bank",
 	},
@@ -1186,10 +1665,10 @@ var Entries = []EntryDefinition{
 		Description:    "Investment transfer",
 		DaysDelta:      -71,
 		Type:           "transfer",
-		OriginAmount:   2000.00,
+		OriginAmount:   500.00,
 		OriginProvider: "Main Bank",
 		OriginAccount:  "Main Account",
-		TargetAmount:   2000.00,
+		TargetAmount:   500.00,
 		TargetProvider: "Secondary Bank",
 		TargetAccount:  "Another Bank",
 	},

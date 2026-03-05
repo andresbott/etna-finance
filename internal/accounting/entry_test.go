@@ -1,9 +1,10 @@
 package accounting
 
 import (
-	"github.com/go-bumbu/testdbs"
 	"testing"
 	"time"
+
+	"github.com/go-bumbu/testdbs"
 )
 
 var sumEntriesSample = map[int]Transaction{
@@ -94,21 +95,23 @@ func TestSumEntries(t *testing.T) {
 			categoryID: []uint{4, 5},
 			want:       sumResult{Sum: 3200, Count: 2}, // 225, 227
 		},
+		// With shared data, all users see the same totals; no per-tenant filtering.
+		// Previously "expect empty result for another tenant" asserted isolation.
 		{
-			name:       "expect empty result for another tenant",
+			name:       "sum expenses by category (shared data)",
 			startDate:  getDate("2022-01-01"),
 			endDate:    getDate("2022-01-09"),
-			tenant:     tenant2,
+			tenant:     tenant1,
 			entryTypes: []entryType{expenseEntry},
 			categoryID: []uint{8, 7},
-			want:       sumResult{Sum: 0, Count: 0}, // 102, 106
+			want:       sumResult{Sum: -1000, Count: 2}, // same as tenant1 now
 		},
 	}
 
 	for _, db := range testdbs.DBs() {
 		t.Run(db.DbType(), func(t *testing.T) {
 			dbCon := db.ConnDbName("TestSumEntries")
-			store, err := NewStore(dbCon)
+			store, err := NewStore(dbCon, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -126,7 +129,6 @@ func TestSumEntries(t *testing.T) {
 							categoryIds: tc.categoryID,
 							accountIds:  tc.accountID,
 							entryTypes:  tc.entryTypes,
-							tenant:      tc.tenant,
 						},
 					)
 

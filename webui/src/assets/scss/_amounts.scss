@@ -1,0 +1,28 @@
+// Semantic amount/balance colors for entries and reports. Use these classes on
+// amount cells so styling is consistent and defined in one place.
+
+.amount.expense,
+.amount.stock-trade .stock-trade-total.buy {
+    color: var(--c-red-600);
+}
+
+.amount.income,
+.amount.stock-trade .stock-trade-total.sell {
+    color: var(--c-green-600);
+}
+
+.amount.transfer {
+    color: var(--c-blue-600);
+}
+
+.amount.amount-positive {
+    color: var(--c-green-600);
+}
+
+.amount.amount-negative {
+    color: var(--c-red-600);
+}
+
+.balance-negative {
+    color: var(--c-red-600);
+}

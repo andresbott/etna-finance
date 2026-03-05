@@ -17,13 +17,36 @@ type Entry struct {
 	// used for income / expense
 	Amount     float64 `json:"Amount"`
 	AccountId  uint    `json:"accountId"`
-	CategoryId uint    `json:"CategoryId"`
+	CategoryId uint    `json:"categoryId"`
 
 	// used for transfers
 	TargetAmount    float64 `json:"targetAmount"`
 	TargetAccountID uint    `json:"targetAccountId"`
 	OriginAmount    float64 `json:"originAmount"`
 	OriginAccountID uint    `json:"originAccountId"`
+
+	// used for stock buy / sell
+	InstrumentID        uint    `json:"instrumentId,omitempty"`
+	Quantity            float64 `json:"quantity,omitempty"`
+	TotalAmount         float64 `json:"totalAmount,omitempty"`
+	InvestmentAccountID uint    `json:"investmentAccountId,omitempty"`
+	CashAccountID       uint    `json:"cashAccountId,omitempty"`
+}
+
+// stockEntryPayload is sent to the API for stock transactions (date as string).
+type stockEntryPayload struct {
+	Description         string  `json:"description"`
+	Date                string  `json:"date"` // "2006-01-02"
+	Type                string  `json:"type"`
+	InstrumentID        uint    `json:"instrumentId"`
+	Quantity            float64 `json:"quantity"`
+	TotalAmount         float64 `json:"totalAmount,omitempty"`
+	StockAmount         float64 `json:"StockAmount,omitempty"`
+	InvestmentAccountID uint    `json:"investmentAccountId,omitempty"`
+	CashAccountID       uint    `json:"cashAccountId,omitempty"`
+	AccountId           uint    `json:"accountId,omitempty"`
+	OriginAccountID     uint    `json:"originAccountId,omitempty"`
+	TargetAccountID     uint    `json:"targetAccountId,omitempty"`
 }
 
 // EntryDefinition represents an entry definition with string references
@@ -63,16 +86,15 @@ func deltaTime(daysDelta int) time.Time {
 }
 
 // findCategoryID searches for a category by name in the given category map and returns the category id
-func findCategoryID(categoryName string, categoryMap map[string]int) (uint, error) {
+func findCategoryID(categoryName string, categoryMap map[string]uint) (uint, error) {
 	if id, exists := categoryMap[categoryName]; exists {
-		//nolint: gosec // only sample data
-		return uint(id), nil
+		return id, nil
 	}
 	return 0, fmt.Errorf("category '%s' not found", categoryName)
 }
 
 // convertEntryDefinitionToEntry converts an EntryDefinition to an Entry, resolving string references to IDs
-func convertEntryDefinitionToEntry(def EntryDefinition, expenseCategoryMap, incomeCategoryMap map[string]int) (Entry, error) {
+func convertEntryDefinitionToEntry(def EntryDefinition, expenseCategoryMap, incomeCategoryMap map[string]uint) (Entry, error) {
 	entry := Entry{
 		Description: def.Description,
 		Date:        deltaTime(def.DaysDelta),
@@ -92,7 +114,7 @@ func convertEntryDefinitionToEntry(def EntryDefinition, expenseCategoryMap, inco
 		}
 
 		entry.Amount = def.Amount
-		entry.AccountId = uint(accountID) //nolint: gosec // only sample data
+		entry.AccountId = accountID
 		entry.CategoryId = categoryID
 
 	case "expense":
@@ -107,7 +129,7 @@ func convertEntryDefinitionToEntry(def EntryDefinition, expenseCategoryMap, inco
 		}
 
 		entry.Amount = def.Amount
-		entry.AccountId = uint(accountID) //nolint: gosec // only sample data
+		entry.AccountId = accountID
 		entry.CategoryId = categoryID
 
 	case "transfer":
@@ -122,13 +144,82 @@ func convertEntryDefinitionToEntry(def EntryDefinition, expenseCategoryMap, inco
 		}
 
 		entry.OriginAmount = def.OriginAmount
-		entry.OriginAccountID = uint(originAccountID) //nolint: gosec // only sample data
+		entry.OriginAccountID = originAccountID
 		entry.TargetAmount = def.TargetAmount
-		entry.TargetAccountID = uint(targetAccountID) //nolint: gosec // only sample data
+		entry.TargetAccountID = targetAccountID
 
 	default:
 		return Entry{}, fmt.Errorf("unknown entry type: %s", def.Type)
 	}
 
 	return entry, nil
+}
+
+// convertStockEntryDefinitionToPayload converts a StockEntryDefinition to the API payload, resolving names to IDs.
+func convertStockEntryDefinitionToPayload(def StockEntryDefinition) (stockEntryPayload, error) {
+	date := deltaTime(def.DaysDelta)
+	payload := stockEntryPayload{
+		Description: def.Description,
+		Date:        date.Format("2006-01-02"),
+		Type:        def.Type,
+		Quantity:    def.Quantity,
+	}
+
+	instrumentID, err := findInstrumentID(def.Instrument)
+	if err != nil {
+		return stockEntryPayload{}, fmt.Errorf("instrument: %w", err)
+	}
+	payload.InstrumentID = instrumentID
+
+	switch def.Type {
+	case "stockbuy", "stocksell":
+		invID, err := findAccountID(def.InvestmentProvider, def.InvestmentAccount)
+		if err != nil {
+			return stockEntryPayload{}, fmt.Errorf("investment account: %w", err)
+		}
+		cashID, err := findAccountID(def.CashProvider, def.CashAccount)
+		if err != nil {
+			return stockEntryPayload{}, fmt.Errorf("cash account: %w", err)
+		}
+		payload.InvestmentAccountID = invID
+		payload.CashAccountID = cashID
+		payload.TotalAmount = def.TotalAmount
+		payload.StockAmount = def.StockAmount
+	case "stockgrant":
+		accID, err := findAccountID(def.InvestmentProvider, def.InvestmentAccount)
+		if err != nil {
+			return stockEntryPayload{}, fmt.Errorf("account: %w", err)
+		}
+		payload.AccountId = accID
+	case "stocktransfer":
+		originID, err := findAccountID(def.OriginProvider, def.OriginAccount)
+		if err != nil {
+			return stockEntryPayload{}, fmt.Errorf("origin account: %w", err)
+		}
+		targetID, err := findAccountID(def.TargetProvider, def.TargetAccount)
+		if err != nil {
+			return stockEntryPayload{}, fmt.Errorf("target account: %w", err)
+		}
+		payload.OriginAccountID = originID
+		payload.TargetAccountID = targetID
+	default:
+		return stockEntryPayload{}, fmt.Errorf("unknown stock entry type: %s", def.Type)
+	}
+
+	return payload, nil
+}
+
+type stockEntryCreateResponse struct {
+	Id uint `json:"id"`
+}
+
+// createStockEntry POSTs a stock transaction to the entries API and returns the created id.
+func createStockEntry(baseURL string, payload stockEntryPayload) (uint, error) {
+	url := fmt.Sprintf("%s/api/v0/fin/entries", baseURL)
+	var resp stockEntryCreateResponse
+	err := postJSON(url, payload, &resp)
+	if err != nil {
+		return 0, err
+	}
+	return resp.Id, nil
 }

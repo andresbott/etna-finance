@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, watch } from 'vue'
 import Card from 'primevue/card'
-import { useAccounts } from '@/composables/useAccounts.js'
+import { useAccounts } from '@/composables/useAccounts'
 import { useBalance } from '@/composables/useGetBalanceReport'
 import { formatAmount } from '@/utils/currency'
 

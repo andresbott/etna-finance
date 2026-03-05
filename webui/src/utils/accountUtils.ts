@@ -1,6 +1,5 @@
 import { useAccounts } from '@/composables/useAccounts'
-import type Account from '@/models/Account'
-import type AccountProvider from '@/models/AccountProvider'
+import type { Account, AccountProvider } from '@/types/account'
 
 export interface AccountData {
     id: string | number

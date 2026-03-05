@@ -2,12 +2,13 @@ package finance
 
 import (
 	"encoding/json"
-	"github.com/google/go-cmp/cmp"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestFinanceHandler_IncomeExpenseReport(t *testing.T) {
@@ -43,13 +44,6 @@ func TestFinanceHandler_IncomeExpenseReport(t *testing.T) {
 			expectCode: http.StatusOK,
 		},
 		{
-			name:       "empty tenant",
-			userId:     "",
-			query:      "?startDate=2025-01-01&endDate=2025-12-31",
-			expecErr:   "unable to list entries: user not provided",
-			expectCode: http.StatusBadRequest,
-		},
-		{
 			name:       "invalid start date format",
 			userId:     tenant1,
 			query:      "?startDate=invalid&end_date=2025-12-31",
@@ -72,7 +66,7 @@ func TestFinanceHandler_IncomeExpenseReport(t *testing.T) {
 
 			recorder := httptest.NewRecorder()
 			req, _ := http.NewRequest("GET", "/api/report"+tc.query, nil)
-			handler := h.IncomeExpenseReport(tc.userId)
+			handler := h.IncomeExpenseReport()
 			handler.ServeHTTP(recorder, req)
 
 			if tc.expecErr != "" {
@@ -198,13 +192,6 @@ func TestFinanceHandler_AccountBalance(t *testing.T) {
 				2: {-3, -16, -26},
 			},
 		},
-		{
-			name:       "empty result on different tenant",
-			userId:     "other",
-			query:      "?accountIds=1,2",
-			expectCode: http.StatusBadRequest,
-			expecErr:   "account id not found: 1",
-		},
 	}
 
 	for _, tc := range tcs {
@@ -214,7 +201,7 @@ func TestFinanceHandler_AccountBalance(t *testing.T) {
 
 			recorder := httptest.NewRecorder()
 			req, _ := http.NewRequest("GET", "/api/report"+tc.query, nil)
-			handler := h.AccountBalance(tc.userId)
+			handler := h.AccountBalance()
 			handler.ServeHTTP(recorder, req)
 
 			if tc.expecErr != "" {

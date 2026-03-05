@@ -2,9 +2,14 @@
 import { ref, computed } from 'vue'
 import Select from 'primevue/select'
 import IncomeExpenseDialog from '@/views/entries/dialogs/IncomeExpenseDialog.vue'
-import StockDialog from './dialogs/StockDialog.vue'
+import BuySellInstrumentDialog from '@/views/entries/dialogs/BuySellInstrumentDialog.vue'
+import GrantDialog from '@/views/entries/dialogs/GrantDialog.vue'
+import TransferInstrumentDialog from '@/views/entries/dialogs/TransferInstrumentDialog.vue'
 import TransferDialog from '@/views/entries/dialogs/TransferDialog.vue'
 import { getAllowedOperations } from '@/types/account'
+import { useSettingsStore } from '@/store/settingsStore.js'
+
+const settings = useSettingsStore()
 
 /* Props for pre-populating account fields */
 const props = defineProps({
@@ -31,7 +36,10 @@ const dialogs = ref({
     expense: false,
     income: false,
     transfer: false,
-    stock: false
+    buyStock: false,
+    sellStock: false,
+    grantStock: false,
+    transferInstrument: false
 })
 
 /* Selected value for dropdown */
@@ -66,20 +74,39 @@ const allDropdownOptions = [
         icon: 'pi pi-arrow-right-arrow-left'
     },
     {
-        label: 'Stock Operation',
-        value: 'stock',
-        icon: 'pi pi-chart-line'
+        label: 'Buy instrument',
+        value: 'buyStock',
+        icon: 'pi pi-arrow-down-left'
+    },
+    {
+        label: 'Sell instrument',
+        value: 'sellStock',
+        icon: 'pi pi-arrow-up-right'
+    },
+    {
+        label: 'Grant instrument',
+        value: 'grantStock',
+        icon: 'pi pi-gift'
+    },
+    {
+        label: 'Transfer instrument',
+        value: 'transferInstrument',
+        icon: 'pi pi-arrow-right-arrow-left'
     }
 ]
 
-/* Filtered dropdown options based on account type */
+const instrumentOperations = ['buyStock', 'sellStock', 'grantStock', 'transferInstrument']
+
+/* Filtered dropdown options based on account type and instrument settings */
 const dropdownOptions = computed(() => {
     const allowedOps = getAllowedOperations(props.accountType)
-    return allDropdownOptions.filter(option => allowedOps.includes(option.value))
+    return allDropdownOptions.filter(option => {
+        if (!allowedOps.includes(option.value)) return false
+        if (!settings.instruments && instrumentOperations.includes(option.value)) return false
+        return true
+    })
 })
 
-// Define selectedEntry for the stock dialog
-const selectedEntry = ref(null)
 </script>
 
 <template>
@@ -91,6 +118,7 @@ const selectedEntry = ref(null)
             optionLabel="label"
             optionValue="value"
             placeholder="Add Entry"
+            scrollHeight="22rem"
             @change="handleSelection"
             class="add-entry-select button-style"
         >
@@ -135,20 +163,38 @@ const selectedEntry = ref(null)
             @update:visible="dialogs.transfer = $event"
         />
 
-        <!-- Stock Dialog -->
-        <StockDialog
-            v-model:visible="dialogs.stock"
+        <!-- Buy instrument Dialog -->
+        <BuySellInstrumentDialog
+            v-model:visible="dialogs.buyStock"
             :isEdit="false"
-            :entryId="selectedEntry?.id"
-            :description="selectedEntry?.description"
-            :amount="selectedEntry?.amount"
-            :stockAmount="selectedEntry?.stockAmount"
-            :date="selectedEntry?.date"
-            :type="selectedEntry?.type"
-            :targetAccountId="selectedEntry?.targetAccountId"
-            :originAccountId="selectedEntry?.originAccountId"
-            :categoryId="selectedEntry?.categoryId"
-            @update:visible="dialogs.stock = $event"
+            operation-type="buy"
+            :investment-account-id="defaultAccountId"
+            @update:visible="dialogs.buyStock = $event"
+        />
+
+        <!-- Sell instrument Dialog -->
+        <BuySellInstrumentDialog
+            v-model:visible="dialogs.sellStock"
+            :isEdit="false"
+            operation-type="sell"
+            :investment-account-id="defaultAccountId"
+            @update:visible="dialogs.sellStock = $event"
+        />
+
+        <!-- Grant instrument Dialog -->
+        <GrantDialog
+            v-model:visible="dialogs.grantStock"
+            :isEdit="false"
+            :account-id="defaultAccountId"
+            @update:visible="dialogs.grantStock = $event"
+        />
+
+        <!-- Transfer instrument Dialog -->
+        <TransferInstrumentDialog
+            v-model:visible="dialogs.transferInstrument"
+            :isEdit="false"
+            :origin-account-id="defaultOriginAccountId ?? defaultAccountId"
+            @update:visible="dialogs.transferInstrument = $event"
         />
     </div>
 </template>

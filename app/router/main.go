@@ -3,25 +3,40 @@ package router
 import (
 	_ "embed"
 	"fmt"
+	"log/slog"
+	"net/http"
+
 	handlrs "github.com/andresbott/etna/app/router/handlers"
 	"github.com/andresbott/etna/app/spa"
 	"github.com/andresbott/etna/internal/accounting"
+	"github.com/andresbott/etna/internal/marketdata"
+	"github.com/andresbott/etna/internal/taskrunner"
 	"github.com/go-bumbu/http/middleware"
 	"github.com/go-bumbu/userauth"
 	"github.com/go-bumbu/userauth/handlers/sessionauth"
 	"github.com/gorilla/mux"
 	"gorm.io/gorm"
-	"log/slog"
-	"net/http"
 )
 
 type Cfg struct {
 	Db                *gorm.DB
 	SessionAuth       *sessionauth.Manager
 	UserMngr          userauth.LoginHandler
+	AuthDisabled      bool   // when true, no login required; all operations use DefaultUser
+	DefaultUser       string // used when AuthDisabled=true
 	Logger            *slog.Logger
 	BackupDestination string
 	ProductionMode    bool
+	AppSettings       handlrs.AppSettings
+	TaskRunner        *taskrunner.Runner
+	// ScheduleStore and Scheduler: when set, used by the tasks API. Must be created and started by the caller (e.g. server).
+	ScheduleStore *taskrunner.ScheduleStore
+	Scheduler     *taskrunner.Scheduler
+	// TaskLogGetter: when set, tasks API serves execution logs (GET /tasks/executions/:id/logs).
+	TaskLogGetter taskrunner.TaskLogGetter
+	// FinStore and MarketStore: when set, used instead of creating from Db (e.g. when task runner is initialized in runServer).
+	FinStore    *accounting.Store
+	MarketStore *marketdata.Store
 }
 
 // MainAppHandler is the entrypoint http handler for the whole application
@@ -29,11 +44,19 @@ type MainAppHandler struct {
 	router            *mux.Router
 	db                *gorm.DB
 	finStore          *accounting.Store
+	marketStore       *marketdata.Store
 	SessionAuth       *sessionauth.Manager
 	userMngr          userauth.LoginHandler
+	authDisabled      bool
+	defaultUser       string
 	logger            *slog.Logger
 	backupDestination string
 	productionMode    bool
+	appSettings       handlrs.AppSettings
+	taskRunner        *taskrunner.Runner
+	scheduler         *taskrunner.Scheduler
+	scheduleStore     *taskrunner.ScheduleStore
+	taskLogGetter     taskrunner.TaskLogGetter
 }
 
 func (h *MainAppHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -47,36 +70,41 @@ func New(cfg Cfg) (*MainAppHandler, error) {
 		db:                cfg.Db,
 		SessionAuth:       cfg.SessionAuth,
 		userMngr:          cfg.UserMngr,
+		authDisabled:      cfg.AuthDisabled,
+		defaultUser:       cfg.DefaultUser,
 		logger:            cfg.Logger,
 		backupDestination: cfg.BackupDestination,
 		productionMode:    cfg.ProductionMode,
+		appSettings:       cfg.AppSettings,
+		taskRunner:        cfg.TaskRunner,
+		scheduleStore:     cfg.ScheduleStore,
+		scheduler:         cfg.Scheduler,
+		taskLogGetter:     cfg.TaskLogGetter,
 	}
 
-	fineStore, err := accounting.NewStore(cfg.Db)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create accounting Store :%v", err)
+	if cfg.MarketStore == nil || cfg.FinStore == nil {
+		return nil, fmt.Errorf("router Cfg: MarketStore and FinStore are required")
 	}
-	app.finStore = fineStore
+	app.marketStore = cfg.MarketStore
+	app.finStore = cfg.FinStore
 
 	prodMid := middleware.New(middleware.Cfg{
 		JsonErrors:  false,
 		GenericErrs: cfg.ProductionMode,
 		Logger:      cfg.Logger,
-		Histogram:   middleware.NewPromHistogram("", nil, nil),
+		PromHisto:   middleware.NewPromHistogram("", nil, nil),
 	})
 	r.Use(prodMid.Middleware)
 
 	app.attachUserAuth(app.router.PathPrefix("/auth").Subrouter())
 
 	// add a handler for /api/v0, this includes authentication on tasks
-	err = app.attachApiV0(app.router.PathPrefix("/api/v0").Subrouter())
-	if err != nil {
+	if err := app.attachApiV0(app.router.PathPrefix("/api/v0").Subrouter()); err != nil {
 		return nil, err
 	}
 
 	// add the spa to path /
-	err = app.attachSpa(app.router.PathPrefix("/").Subrouter(), "/")
-	if err != nil {
+	if err := app.attachSpa(app.router.PathPrefix("/").Subrouter(), "/"); err != nil {
 		return nil, err
 	}
 
@@ -95,20 +123,29 @@ func (h *MainAppHandler) attachSpa(r *mux.Router, path string) error {
 }
 
 func (h *MainAppHandler) attachUserAuth(r *mux.Router) {
+	if h.authDisabled {
+		// Auth disabled: no-op login/logout, status returns default user as logged in
+		r.Path("/login").Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+		r.Path("/login").Methods(http.MethodOptions).Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+		r.Path("/login").HandlerFunc(StatusErr(http.StatusMethodNotAllowed))
+		r.Path("/logout").Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+		r.Path("/status").Methods(http.MethodGet).Handler(handlrs.AuthStatusHandler(nil, true, h.defaultUser))
+		r.Path("/status").HandlerFunc(StatusErr(http.StatusMethodNotAllowed))
+	} else {
+		// LOGIN
+		r.Path("/login").Methods(http.MethodPost).Handler(h.SessionAuth.JsonAuthHandler(h.userMngr))
+		r.Path("/login").Methods(http.MethodOptions).Handler(
+			http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {}))
+		// TODO add a basic form login here to the GET method
+		r.Path("/login").HandlerFunc(StatusErr(http.StatusMethodNotAllowed))
 
-	//  LOGIN
-	r.Path("/login").Methods(http.MethodPost).Handler(h.SessionAuth.JsonAuthHandler(h.userMngr))
-	r.Path("/login").Methods(http.MethodOptions).Handler(
-		http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {}))
-	// TODO add a basic form login here to the GET method
-	r.Path("/login").HandlerFunc(StatusErr(http.StatusMethodNotAllowed))
+		// LOGOUT
+		r.Path("/logout").Handler(h.SessionAuth.LogoutHandler("/"))
 
-	// LOGOUT
-	r.Path("/logout").Handler(h.SessionAuth.LogoutHandler("/"))
-
-	// STATUS
-	r.Path("/status").Methods(http.MethodGet).Handler(handlrs.UserStatusHandler(h.SessionAuth))
-	r.Path("/status").HandlerFunc(StatusErr(http.StatusMethodNotAllowed))
+		// STATUS
+		r.Path("/status").Methods(http.MethodGet).Handler(handlrs.AuthStatusHandler(h.SessionAuth, false, ""))
+		r.Path("/status").HandlerFunc(StatusErr(http.StatusMethodNotAllowed))
+	}
 
 	// OPTIONS
 	//r.Path("/user/options").Methods(http.MethodGet).Handler(handlers.StatusErr(http.StatusNotImplemented))

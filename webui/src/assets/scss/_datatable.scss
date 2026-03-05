@@ -1,0 +1,26 @@
+// Shared DataTable overrides so components don't repeat :deep(.p-datatable...) rules.
+// - Add class "datatable-compact" on the DataTable (or a wrapper) for compact rows + hover.
+// - Use class .amount-column / .balance-column / .price-column / .actions-column on Column for right-aligned header.
+
+.datatable-compact .p-datatable-tbody > tr > td {
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+.datatable-compact.p-datatable .p-datatable-tbody > tr:hover,
+.datatable-compact .p-datatable .p-datatable-tbody > tr:hover {
+    background-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+.amount-column .p-datatable-column-title,
+.balance-column .p-datatable-column-title,
+.price-column .p-datatable-column-title,
+.actions-column .p-datatable-column-title {
+    margin-left: auto;
+}
+
+// Prevent amount column from wrapping (fits "−1,234.56 EUR" and transfer "X → Y").
+.amount-column {
+    min-width: 12rem;
+    white-space: nowrap;
+}

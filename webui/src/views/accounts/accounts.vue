@@ -12,10 +12,17 @@ import AccountDialog from '@/views/accounts/AccountDialog.vue'
 import DeleteDialog from '@/components/common/confirmDialog.vue'
 import AccountProviderDialog from './AccountProviderDialog.vue'
 
-import { useAccounts } from '@/composables/useAccounts.js'
+import { useAccounts } from '@/composables/useAccounts'
+import { getAccountTypeLabel, ACCOUNT_TYPES } from '@/types/account'
+import { useSettingsStore } from '@/store/settingsStore.js'
+
+// Documentation URL for the accounts section (open in new tab)
+const ACCOUNTS_DOCS_URL = 'https://github.com/andresbott/etna-finance#readme'
 
 // Composables
 const { accounts, isLoading, deleteAccount, deleteAccountProvider } = useAccounts()
+const settings = useSettingsStore()
+const instrumentAccountTypes = [ACCOUNT_TYPES.INVESTMENT, ACCOUNT_TYPES.UNVESTED]
 
 // Reactive State
 const expandedKeys = ref({})
@@ -36,26 +43,33 @@ const deleteProviderDialogVisible = ref(false)
 const treeTableData = computed(() => {
     if (!accounts.value) return []
 
-    const data = accounts.value.map((provider) => ({
-        key: provider.id,
-        data: {
-            id: provider.id,
-            name: provider.name,
-            description: provider.description,
-            icon: provider.icon || 'pi-building'
-        },
-        children:
-            provider.accounts?.map((account) => ({
-                key: account.id,
-                data: {
-                    id: account.id,
-                    name: account.name,
-                    type: account.type,
-                    currency: account.currency,
-                    icon: account.icon || 'pi-wallet'
-                }
-            })) || []
-    }))
+    const data = accounts.value.map((provider) => {
+        const allChildren = provider.accounts?.map((account) => ({
+            key: account.id,
+            data: {
+                id: account.id,
+                name: account.name,
+                type: account.type,
+                currency: account.currency,
+                icon: account.icon || 'pi-wallet'
+            }
+        })) || []
+
+        const children = settings.instruments
+            ? allChildren
+            : allChildren.filter(child => !instrumentAccountTypes.includes(child.data.type))
+
+        return {
+            key: provider.id,
+            data: {
+                id: provider.id,
+                name: provider.name,
+                description: provider.description,
+                icon: provider.icon || 'pi-building'
+            },
+            children
+        }
+    })
 
     expandedKeys.value = data.reduce((acc, node) => {
         acc[node.key] = true
@@ -120,9 +134,27 @@ const handleDeleteProvider = async () => {
 
 <template>
     <div class="main-app-content">
-        <div class="accounts-view">
-            <div class="header">
-                <h1>Accounts</h1>
+        <div class="view-container">
+            <div class="flex justify-content-between align-items-center mb-4">
+                <div class="flex align-items-center gap-2">
+                    <h1 class="m-0">Accounts</h1>
+                    <a
+                        :href="ACCOUNTS_DOCS_URL"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="inline-flex link-unstyled"
+                        aria-label="About accounts"
+                        v-tooltip.top="'About accounts'"
+                    >
+                        <Button
+                            icon="pi pi-question-circle"
+                            text
+                            rounded
+                            severity="secondary"
+                            class="p-button-sm"
+                        />
+                    </a>
+                </div>
                 <Button
                     label="Add Account Provider"
                     icon="pi pi-plus"
@@ -161,29 +193,36 @@ const handleDeleteProvider = async () => {
                                     <span>{{ node.data.description }}</span>
                                 </div>
                                 <div v-else>
-                                    <i>{{ node.data.type }}</i>
+                                    <i>{{ getAccountTypeLabel(node.data.type) }}</i>
                                 </div>
                             </template>
                         </Column>
 
-                        <Column field="currency" header="Currency" />
+                        <Column field="currency" header="Currency">
+                            <template #body="{ node }">
+                                <span v-if="!node.children">{{ node.data.currency || '—' }}</span>
+                            </template>
+                        </Column>
 
                         <Column>
                             <template #body="{ node }">
-                                <div class="actions" :class="{ childless: !node.children }">
+                                <div
+                                    class="flex gap-2 justify-content-end w-full"
+                                    :class="{ 'actions-row--indent': !node.children }"
+                                >
                                     <Button
                                         icon="pi pi-plus"
                                         v-if="node.children"
                                         text
                                         rounded
-                                        class="action-button"
+                                        class="p-1"
                                         @click="addAccountToProvider(node)"
                                     />
                                     <Button
                                         icon="pi pi-pencil"
                                         text
                                         rounded
-                                        class="action-button"
+                                        class="p-1"
                                         @click="
                                             node.children ? editProvider(node.data) : editAccount(node.data)
                                         "
@@ -193,7 +232,7 @@ const handleDeleteProvider = async () => {
                                         text
                                         rounded
                                         severity="danger"
-                                        class="action-button"
+                                        class="p-1"
                                         :disabled="node.children && node.children.length > 0"
                                         @click="
                                             node.children
@@ -230,7 +269,7 @@ const handleDeleteProvider = async () => {
         :name="selectedItem.name"
         title="Delete Account"
         message="Are you sure you want to delete this account?"
-        :onConfirm="handleDeleteAccount"
+        @confirm="handleDeleteAccount"
     />
 
     <DeleteDialog
@@ -239,7 +278,7 @@ const handleDeleteProvider = async () => {
         :name="selectedItem.name"
         title="Delete Account Provider"
         message="Are you sure you want to delete this account provider?"
-        :onConfirm="handleDeleteProvider"
+        @confirm="handleDeleteProvider"
     />
 
     <AccountProviderDialog
@@ -251,37 +290,3 @@ const handleDeleteProvider = async () => {
         :icon="selectedProvider?.icon"
     />
 </template>
-
-<style scoped>
-.accounts-view {
-    padding: 2rem;
-}
-
-.header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2rem;
-}
-
-.actions {
-    display: flex;
-    justify-content: flex-start;
-}
-
-.actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 4px;
-    width: 100%;
-}
-
-.actions.childless {
-    margin-left: 38px; /* keeps the indentation */
-    width: calc(100% - 38px); /* ensures full width minus the margin */
-}
-
-.action-button {
-    padding: 0.25rem;
-}
-</style>

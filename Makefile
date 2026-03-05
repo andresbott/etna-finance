@@ -14,8 +14,8 @@ it-test: ## run db IT tests
 	@cd internal/backup && go test -v --alldbs
 
 
-e2e-test: ## run end2end tests on an actually running instance
-	@E2E=true HEADLESS=false go test -v ./zarf/end2endTests
+e2e-test: ## run e2e tests (starts app automatically, requires package-ui)
+	@E2E=true HEADLESS=false go test -v ./zarf/e2e
 
 lint: ## run go linter
 	# depends on https://github.com/golangci/golangci-lint
@@ -60,8 +60,8 @@ coverage-report: ## generate a coverage report
 #==========================================================================================
 ##@ Running
 #==========================================================================================
-run: ## start the GO service
-	@APP_LOG_LEVEL="debug" go run main.go start -c zarf/appData/config.yaml
+run: ## start the GO service (uses built-in defaults; optional -c config.yaml)
+	@APP_LOG_LEVEL="debug" go run main.go start
 
 run-ui: package-ui run## build the UI and start the GO service
 

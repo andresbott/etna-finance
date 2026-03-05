@@ -1,4 +1,4 @@
-import { apiClient } from './client'
+import { apiClient } from '@/lib/api/client'
 
 export const getBalanceReport = async (
     accountIds: number[],
@@ -29,4 +29,18 @@ export const getAccountBalance = async (
     
     // Return the Sum from the first (and only) entry
     return accountData[0]?.Sum || 0
+}
+
+/**
+ * Income/expense report for the given date range.
+ * @param startDate - YYYY-MM-DD
+ * @param endDate - YYYY-MM-DD
+ */
+export const getIncomeExpenseReport = async (
+    startDate: string,
+    endDate: string
+): Promise<unknown> => {
+    const params = new URLSearchParams({ startDate, endDate })
+    const { data } = await apiClient.get(`/fin/report/income-expense?${params}`)
+    return data ?? []
 }

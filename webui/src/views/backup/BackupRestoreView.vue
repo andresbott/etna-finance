@@ -138,8 +138,8 @@ const formatFileSize = (bytes) => {
 
         </template>
         <template #default>
-            <div class="backup-restore-container">
-                <h1 class="page-title">Backup & Restore</h1>
+            <div class="view-container">
+                <h1 class="text-2xl font-bold mb-3 text-color">Backup & Restore</h1>
                 
                 <Message v-if="successMessage" severity="success" :closable="true" @close="successMessage = ''">
                     {{ successMessage }}
@@ -152,7 +152,7 @@ const formatFileSize = (bytes) => {
                 <Card>
                     <template #content>
                         <!-- Action Buttons -->
-                        <div class="backup-actions">
+                        <div class="flex gap-3 mb-4 flex-wrap">
                             <Button
                                 label="Create Backup"
                                 icon="pi pi-download"
@@ -177,7 +177,7 @@ const formatFileSize = (bytes) => {
                         </div>
 
                         <!-- Backup Files Table -->
-                        <div class="backup-table-container">
+                        <div class="mt-3">
                             <DataTable
                                 :value="backupFiles"
                                 :loading="isLoading"
@@ -252,7 +252,7 @@ const formatFileSize = (bytes) => {
         :name="backupToDelete?.filename"
         title="Delete Backup"
         message="Are you sure you want to delete this backup file?"
-        :onConfirm="handleDeleteBackup"
+        @confirm="handleDeleteBackup"
     />
 
     <!-- Restore Confirmation Dialog -->
@@ -261,51 +261,11 @@ const formatFileSize = (bytes) => {
         :name="backupToRestore?.filename"
         title="Restore Backup"
         message="Are you sure you want to restore this backup? This will replace all current data."
-        :onConfirm="handleRestoreBackup"
+        @confirm="handleRestoreBackup"
     />
 </template>
 
 <style scoped lang="scss">
-.backup-restore-container {
-    padding: 2rem;
-    max-width: 1400px;
-    margin: 0 auto;
-}
-
-.page-title {
-    font-size: 2rem;
-    font-weight: 700;
-    margin-bottom: 1.5rem;
-    color: var(--text-color);
-}
-
-.card-title {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    
-    i {
-        color: var(--primary-color);
-    }
-}
-
-.card-description {
-    margin-bottom: 1.5rem;
-    color: var(--text-color-secondary);
-    line-height: 1.6;
-}
-
-.backup-actions {
-    display: flex;
-    gap: 1rem;
-    margin-bottom: 2rem;
-    flex-wrap: wrap;
-}
-
-.backup-table-container {
-    margin-top: 1rem;
-}
-
 .empty-state {
     text-align: center;
     padding: 2rem;

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
@@ -8,10 +8,15 @@ import Message from 'primevue/message'
 import Select from 'primevue/select'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
-import { useAccounts } from '@/composables/useAccounts.js'
+import { useAccounts } from '@/composables/useAccounts'
+import { getApiErrorMessage } from '@/utils/apiError'
 import IconSelect from '@/components/common/IconSelect.vue'
+import { ACCOUNT_TYPES, ACCOUNT_TYPE_LABELS, getAccountTypeLabel } from '@/types/account'
+import { useSettingsStore } from '@/store/settingsStore'
 
 const { createAccount, updateAccount, isCreating, isUpdating } = useAccounts()
+const settingsStore = useSettingsStore()
+const backendError = ref('')
 
 const props = defineProps({
     isEdit: { type: Boolean, default: false },
@@ -25,9 +30,24 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:visible'])
+watch(() => props.visible, (v) => { if (!v) backendError.value = '' })
 
-const currencies = ref(['CHF', 'USD', 'EUR'])
-const accountTypes = ref(['cash', 'checkin','savings','investment'])
+const currencies = computed(() => settingsStore.currencies.length > 0 ? settingsStore.currencies : ['CHF'])
+
+const allAccountTypeOptions = [
+    { value: ACCOUNT_TYPES.CASH, label: ACCOUNT_TYPE_LABELS[ACCOUNT_TYPES.CASH] },
+    { value: ACCOUNT_TYPES.CHECKING, label: ACCOUNT_TYPE_LABELS[ACCOUNT_TYPES.CHECKING] },
+    { value: ACCOUNT_TYPES.SAVINGS, label: ACCOUNT_TYPE_LABELS[ACCOUNT_TYPES.SAVINGS] },
+    { value: ACCOUNT_TYPES.INVESTMENT, label: ACCOUNT_TYPE_LABELS[ACCOUNT_TYPES.INVESTMENT] },
+    { value: ACCOUNT_TYPES.UNVESTED, label: ACCOUNT_TYPE_LABELS[ACCOUNT_TYPES.UNVESTED] },
+]
+
+const instrumentAccountTypes = [ACCOUNT_TYPES.INVESTMENT, ACCOUNT_TYPES.UNVESTED]
+
+const accountTypeOptions = computed(() => {
+    if (settingsStore.instruments) return allAccountTypeOptions
+    return allAccountTypeOptions.filter(opt => !instrumentAccountTypes.includes(opt.value))
+})
 
 // Separate ref for icon since it's not managed by the Form
 const selectedIcon = ref(props.icon)
@@ -40,16 +60,16 @@ const formValues = ref({
 
 // Watch props to update form values when editing
 watch(props, (newProps) => {
-    formValues.value = { ...newProps }
+    formValues.value = { name: newProps.name, currency: newProps.currency, type: newProps.type }
     selectedIcon.value = newProps.icon || 'pi-wallet'
 })
 
-const resolver = ref(
+const resolver = computed(() =>
     zodResolver(
         z.object({
             name: z.string().min(1, { message: 'Name is required' }),
-            currency: z.string().min(1, { message: 'Currency is required' }),
-            type: z.string().min(1, { message: 'Type is required' })
+            type: z.string().min(1, { message: 'Type is required' }),
+            currency: z.string().min(1, { message: 'Currency is required' })
         })
     )
 )
@@ -63,6 +83,7 @@ const onFormSubmit = async (e) => {
             providerId: props.providerId
         }
 
+        backendError.value = ''
         if (props.isEdit) {
             try {
                 await updateAccount({
@@ -75,8 +96,8 @@ const onFormSubmit = async (e) => {
                 })
                 emit('update:visible', false)
             } catch (error) {
+                backendError.value = getApiErrorMessage(error)
                 console.error('Failed to update account:', error)
-                // Handle error (maybe show a toast notification)
             }
         } else {
             try {
@@ -89,8 +110,8 @@ const onFormSubmit = async (e) => {
                 })
                 emit('update:visible', false)
             } catch (error) {
+                backendError.value = getApiErrorMessage(error)
                 console.error('Failed to create account:', error)
-                // Handle error (maybe show a toast notification)
             }
         }
     }
@@ -107,6 +128,7 @@ const onFormSubmit = async (e) => {
             :header="isEdit ? 'Edit Account' : 'Add New Account'"
             class="entry-dialog"
         >
+            <Message v-if="backendError" severity="error" :closable="false" class="mb-2 mx-3 mt-2">{{ backendError }}</Message>
             <Form
                 v-slot="$form"
                 :resolver="resolver"
@@ -116,7 +138,6 @@ const onFormSubmit = async (e) => {
                 @submit="onFormSubmit"
             >
                 <div v-focustrap class="flex flex-column gap-3">
-                    <!-- Hidden Provider ID Field -->
                     <div>
                         <label for="name" class="form-label">Name</label>
                         <InputText name="name" placeholder="Account Name" />
@@ -125,30 +146,43 @@ const onFormSubmit = async (e) => {
                         }}</Message>
                     </div>
                     <div>
-                        <label for="currency" class="form-label">Currency</label>
-                        <Select
-                            :options="currencies"
-                            name="currency"
-                            placeholder="Select Currency"
-                        />
-                        <Message v-if="$form.currency?.invalid" severity="error" size="small">{{
-                            $form.currency.error?.message
-                        }}</Message>
+                        <label for="icon" class="form-label">Icon</label>
+                        <IconSelect v-model="selectedIcon" />
                     </div>
                     <div>
                         <label for="accountTypes" class="form-label">Type</label>
                         <Select
-                            :options="accountTypes"
+                            v-model="formValues.type"
+                            :options="accountTypeOptions"
+                            optionLabel="label"
+                            optionValue="value"
                             name="type"
                             placeholder="Select Account Type"
-                        />
+                            scrollHeight="22rem"
+                        >
+                            <template #value="{ value, placeholder }">
+                                <span v-if="value != null && value !== ''">{{ getAccountTypeLabel(value) }}</span>
+                                <span v-else class="text-color-secondary">{{ placeholder || 'Select Account Type' }}</span>
+                            </template>
+                            <template #option="slotProps">
+                                {{ slotProps.option?.label ?? getAccountTypeLabel(slotProps.option) }}
+                            </template>
+                        </Select>
                         <Message v-if="$form.type?.invalid" severity="error" size="small">{{
                             $form.type.error?.message
                         }}</Message>
                     </div>
                     <div>
-                        <label for="icon" class="form-label">Icon</label>
-                        <IconSelect v-model="selectedIcon" />
+                        <label for="currency" class="form-label">Currency</label>
+                        <Select
+                            :options="currencies"
+                            name="currency"
+                            placeholder="Select Currency"
+                            scrollHeight="22rem"
+                        />
+                        <Message v-if="$form.currency?.invalid" severity="error" size="small">{{
+                            $form.currency.error?.message
+                        }}</Message>
                     </div>
 
                     <div class="flex justify-content-end gap-3">

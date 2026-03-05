@@ -1,16 +1,11 @@
 import { apiClient } from '@/lib/api/client'
 import type { Entry, CreateEntryDTO, UpdateEntryDTO, PaginatedEntriesResponse } from '@/types/entry'
+import { toLocalDateString } from '@/utils/date'
 
-/**
- * Helper function to format a Date object to YYYY-MM-DD string
- */
+/** Format a Date for API params as local YYYY-MM-DD. */
 export const formatDate = (date: Date): string => {
     if (!(date instanceof Date) || isNaN(date.getTime())) return ''
-
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
+    return toLocalDateString(date)
 }
 
 export interface GetEntriesOptions {
@@ -24,7 +19,7 @@ export interface GetEntriesOptions {
 /**
  * Fetches entries from the API with date range filtering, optional account filtering, and pagination
  */
-export const GetEntries = async (options: GetEntriesOptions): Promise<PaginatedEntriesResponse> => {
+export const getEntries = async (options: GetEntriesOptions): Promise<PaginatedEntriesResponse> => {
     const { startDate, endDate, accountIds = [], page = 1, limit = 25 } = options
 
     const params = new URLSearchParams({
@@ -63,7 +58,7 @@ export const GetEntries = async (options: GetEntriesOptions): Promise<PaginatedE
 /**
  * Creates a new entry
  */
-export const CreateEntry = async (payload: CreateEntryDTO): Promise<Entry> => {
+export const createEntry = async (payload: CreateEntryDTO): Promise<Entry> => {
     const { data } = await apiClient.post('/fin/entries', payload)
     return data
 }
@@ -71,14 +66,92 @@ export const CreateEntry = async (payload: CreateEntryDTO): Promise<Entry> => {
 /**
  * Updates an existing entry
  */
-export const UpdateEntry = async (payload: UpdateEntryDTO): Promise<Entry> => {
+export const updateEntry = async (payload: UpdateEntryDTO): Promise<Entry> => {
     const { data } = await apiClient.put(`/fin/entries/${payload.id}`, payload)
     return data
 }
 
 /**
+ * Fetches a single entry by id. Use when the list response is incomplete (e.g. sell fees not in list).
+ */
+export const getEntry = async (id: string | number): Promise<Record<string, unknown>> => {
+    const { data } = await apiClient.get(`/fin/entries/${id}`)
+    return data as Record<string, unknown>
+}
+
+/**
  * Deletes an entry
  */
-export const DeleteEntry = async (id: string): Promise<void> => {
+export const deleteEntry = async (id: string): Promise<void> => {
     await apiClient.delete(`/fin/entries/${id}`)
+}
+
+/**
+ * Payload for creating a stock buy or sell transaction
+ */
+export interface CreateStockTransactionPayload {
+    type: 'stockbuy' | 'stocksell'
+    description: string
+    date: string
+    instrumentId: number
+    quantity: number
+    totalAmount: number
+    investmentAccountId: number
+    cashAccountId: number
+}
+
+/**
+ * Creates a stock buy or sell transaction
+ */
+export const createStockTransaction = async (
+    payload: CreateStockTransactionPayload
+): Promise<unknown> => {
+    const { data } = await apiClient.post('/fin/entries', payload)
+    return data
+}
+
+/**
+ * Payload for creating a stock grant (instruments added for free; no cash account)
+ */
+export interface CreateStockGrantPayload {
+    type: 'stockgrant'
+    description: string
+    date: string
+    instrumentId: number
+    quantity: number
+    fairMarketValue?: number
+    accountId: number // Investment or Unvested account that receives the shares
+}
+
+/**
+ * Creates a stock grant transaction
+ */
+export const createStockGrant = async (
+    payload: CreateStockGrantPayload
+): Promise<unknown> => {
+    const { data } = await apiClient.post('/fin/entries', payload)
+    return data
+}
+
+/**
+ * Payload for creating a stock transfer (instruments moved between two position accounts, e.g. Unvested → Investment)
+ */
+export interface CreateStockTransferPayload {
+    type: 'stocktransfer'
+    description: string
+    date: string
+    instrumentId: number
+    quantity: number
+    originAccountId: number  // source (investment or unvested)
+    targetAccountId: number // target (investment or unvested)
+}
+
+/**
+ * Creates a stock transfer transaction
+ */
+export const createStockTransfer = async (
+    payload: CreateStockTransferPayload
+): Promise<unknown> => {
+    const { data } = await apiClient.post('/fin/entries', payload)
+    return data
 }

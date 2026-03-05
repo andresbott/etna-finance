@@ -1,4 +1,5 @@
 <script setup>
+import { computed } from 'vue'
 import Button from 'primevue/button'
 import Divider from 'primevue/divider'
 import Drawer from 'primevue/drawer'
@@ -6,10 +7,12 @@ import Avatar from 'primevue/avatar'
 import { useUserStore } from '@/lib/user/userstore.js'
 import { useRouter } from 'vue-router'
 import { useUiStore } from '@/store/uiStore.js'
+import { useSettingsStore } from '@/store/settingsStore.js'
 
 const user = useUserStore()
 const router = useRouter()
 const uiStore = useUiStore()
+const settings = useSettingsStore()
 
 const handleNavigation = (route) => {
     router.push(route)
@@ -21,36 +24,49 @@ const handleLogout = () => {
     uiStore.closeSecondaryDrawer()
 }
 
-const sections = [
-    {
-        title: 'Settings',
-        items: [
-            { label: 'Configuration', icon: 'pi pi-cog', route: '/settings' }
-        ]
-    },
-    {
-        title: 'Application Data',
-        items: [
-            {
-                label: 'CSV Import Profiles',
-                icon: 'pi pi-file-import',
-                route: '/setup/csv-profiles'
-            },
-            { label: 'Categories', icon: 'pi pi-tags', route: '/categories' },
-            { label: 'Account Setup', icon: 'pi pi-wallet', route: '/accounts' }
-        ]
-    },
-    {
-        title: 'Maintenance',
-        items: [
-            {
-                label: 'Backup/Restore',
-                icon: 'pi pi-database',
-                route: '/backup-restore'
-            }
-        ]
+const sections = computed(() => {
+    const appDataItems = [
+        {
+            label: 'CSV Import Profiles',
+            icon: 'pi pi-file-import',
+            route: '/setup/csv-profiles'
+        },
+        { label: 'Categories', icon: 'pi pi-tags', route: '/categories' },
+        { label: 'Account Setup', icon: 'pi pi-wallet', route: '/accounts' },
+    ]
+
+    if (settings.instruments) {
+        appDataItems.push({ label: 'Investment Products', icon: 'pi pi-chart-bar', route: '/instruments' })
     }
-]
+
+    return [
+        {
+            title: 'Settings',
+            items: [
+                { label: 'Configuration', icon: 'pi pi-cog', route: '/settings' }
+            ]
+        },
+        {
+            title: 'Application Data',
+            items: appDataItems
+        },
+        {
+            title: 'Maintenance',
+            items: [
+                {
+                    label: 'Backup/Restore',
+                    icon: 'pi pi-database',
+                    route: '/backup-restore'
+                },
+                {
+                    label: 'Tasks',
+                    icon: 'pi pi-briefcase',
+                    route: '/tasks'
+                }
+            ]
+        }
+    ]
+})
 </script>
 
 <template>

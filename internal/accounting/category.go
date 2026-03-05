@@ -8,6 +8,11 @@ import (
 	closuretree "github.com/go-bumbu/closure-tree"
 )
 
+// sharedTenant is used for all category operations so there is a single global tree.
+// We use the closure-tree DefaultTenant so that Add (which applies defaultTenant) and
+// Descendants (which does not) query the same stored tenant.
+const sharedTenant = closuretree.DefaultTenant
+
 // Define error variables to match with model errors
 var (
 	ErrCategoryNotFound            = errors.New("category not found")
@@ -50,16 +55,19 @@ type CategoryData struct {
 	Type        CategoryType
 }
 
-func (store *Store) CreateCategory(ctx context.Context, cat CategoryData, parent uint, tenant string) (uint, error) {
+func (store *Store) CreateCategory(ctx context.Context, cat CategoryData, parent uint) (uint, error) {
 	var err error
 
 	if cat.Type != IncomeCategory && cat.Type != ExpenseCategory {
 		return 0, ErrWrongCategoryType
 	}
+	if cat.Name == "" {
+		return 0, errors.New("name cannot be empty")
+	}
 
 	if parent != 0 {
 		parentNode := dbCategory{}
-		err = store.categoryTree.GetNode(ctx, parent, tenant, &parentNode)
+		err = store.categoryTree.GetNode(ctx, parent, sharedTenant, &parentNode)
 		if err != nil {
 			return 0, fmt.Errorf("unable to get parent category: %w", err)
 		}
@@ -75,7 +83,7 @@ func (store *Store) CreateCategory(ctx context.Context, cat CategoryData, parent
 		Icon:        cat.Icon,
 		Type:        cat.Type,
 	}
-	err = store.categoryTree.Add(ctx, &payload, parent, tenant)
+	err = store.categoryTree.Add(ctx, &payload, parent, sharedTenant)
 	if err != nil {
 		return 0, handleErr(err)
 	}
@@ -83,7 +91,7 @@ func (store *Store) CreateCategory(ctx context.Context, cat CategoryData, parent
 
 }
 
-func (store *Store) UpdateCategory(ctx context.Context, Id uint, cat CategoryData, tenant string) error {
+func (store *Store) UpdateCategory(ctx context.Context, Id uint, cat CategoryData) error {
 
 	// TODO refactor to use a struct with pointers for the update
 	var err error
@@ -92,7 +100,7 @@ func (store *Store) UpdateCategory(ctx context.Context, Id uint, cat CategoryDat
 	}
 
 	node := dbCategory{}
-	err = store.categoryTree.GetNode(ctx, Id, tenant, &node)
+	err = store.categoryTree.GetNode(ctx, Id, sharedTenant, &node)
 	if err != nil {
 		if errors.Is(err, closuretree.ErrNodeNotFound) {
 			return fmt.Errorf("unable to get parent category: %w", ErrCategoryNotFound)
@@ -109,14 +117,14 @@ func (store *Store) UpdateCategory(ctx context.Context, Id uint, cat CategoryDat
 		Description: cat.Description,
 		Icon:        cat.Icon,
 	}
-	err = store.categoryTree.Update(ctx, Id, &payload, tenant)
+	err = store.categoryTree.Update(ctx, Id, &payload, sharedTenant)
 	return handleErr(err)
 }
 
-func (store *Store) MoveCategory(ctx context.Context, Id, newParentID uint, tenant string) error {
+func (store *Store) MoveCategory(ctx context.Context, Id, newParentID uint) error {
 	var err error
 	node := dbCategory{}
-	err = store.categoryTree.GetNode(ctx, Id, tenant, &node)
+	err = store.categoryTree.GetNode(ctx, Id, sharedTenant, &node)
 	if err != nil {
 		if errors.Is(err, closuretree.ErrNodeNotFound) {
 			return fmt.Errorf("unable to get parent category: %w", ErrCategoryNotFound)
@@ -136,7 +144,7 @@ func (store *Store) MoveCategory(ctx context.Context, Id, newParentID uint, tena
 	// and top-level categories can be of any type.
 	if newParentID != 0 {
 		newParent := dbCategory{}
-		err = store.categoryTree.GetNode(ctx, newParentID, tenant, &newParent)
+		err = store.categoryTree.GetNode(ctx, newParentID, sharedTenant, &newParent)
 		if err != nil {
 			if errors.Is(err, closuretree.ErrNodeNotFound) {
 				return fmt.Errorf("unable to get parent category: %w", ErrCategoryNotFound)
@@ -149,14 +157,14 @@ func (store *Store) MoveCategory(ctx context.Context, Id, newParentID uint, tena
 		}
 	}
 
-	err = store.categoryTree.Move(ctx, Id, newParentID, tenant)
+	err = store.categoryTree.Move(ctx, Id, newParentID, sharedTenant)
 	return handleErr(err)
 }
 
-func (store *Store) GetCategory(ctx context.Context, Id uint, tenant string) (Category, error) {
+func (store *Store) GetCategory(ctx context.Context, Id uint) (Category, error) {
 	var err error
 	node := dbCategory{}
-	err = store.categoryTree.GetNode(ctx, Id, tenant, &node)
+	err = store.categoryTree.GetNode(ctx, Id, sharedTenant, &node)
 	if err != nil {
 		return Category{}, fmt.Errorf("unable to get category: %w", err)
 	}
@@ -173,8 +181,8 @@ func (store *Store) GetCategory(ctx context.Context, Id uint, tenant string) (Ca
 	return category, nil
 }
 
-func (store *Store) DeleteCategoryRecursive(ctx context.Context, Id uint, tenant string) error {
-	err := store.categoryTree.DeleteRecurse(ctx, Id, tenant)
+func (store *Store) DeleteCategoryRecursive(ctx context.Context, Id uint) error {
+	err := store.categoryTree.DeleteRecurse(ctx, Id, sharedTenant)
 	return handleErr(err)
 }
 
@@ -185,9 +193,9 @@ type Category struct {
 }
 
 // ListDescendantCategories returns a flat list of all child categories of a given parent and a specific category type
-func (store *Store) ListDescendantCategories(ctx context.Context, parent uint, depth int, categoryType CategoryType, tenant string) ([]Category, error) {
+func (store *Store) ListDescendantCategories(ctx context.Context, parent uint, depth int, categoryType CategoryType) ([]Category, error) {
 	data := &[]dbCategory{}
-	err := store.categoryTree.Descendants(ctx, parent, depth, tenant, data)
+	err := store.categoryTree.Descendants(ctx, parent, depth, sharedTenant, data)
 	if err != nil {
 		return nil, handleErr(err)
 	}
@@ -238,8 +246,8 @@ type categoryTree struct {
 // {<groceries Category detail>, children: 5}, {<restaurant Category detail>, children: 6},
 //
 // This is a support function for generating a full income/expense report per category
-func (store *Store) getCategoryChildren(ctx context.Context, catType CategoryType, tenant string) ([]categoryIds, error) {
-	got, err := store.ListDescendantCategories(ctx, 0, -1, catType, tenant)
+func (store *Store) getCategoryChildren(ctx context.Context, catType CategoryType) ([]categoryIds, error) {
+	got, err := store.ListDescendantCategories(ctx, 0, -1, catType)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get income descendants %s", err.Error())
 	}

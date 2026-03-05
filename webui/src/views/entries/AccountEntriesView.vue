@@ -4,11 +4,14 @@ import { useRoute } from 'vue-router'
 
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import TransferDialog from './dialogs/TransferDialog.vue'
-import StockDialog from './dialogs/StockDialog.vue'
+import BuySellInstrumentDialog from './dialogs/BuySellInstrumentDialog.vue'
+import GrantDialog from './dialogs/GrantDialog.vue'
+import TransferInstrumentDialog from './dialogs/TransferInstrumentDialog.vue'
 import DeleteDialog from '@/components/common/confirmDialog.vue'
 import AccountEntriesTable from './AccountEntriesTable.vue'
 
 import { useEntries } from '@/composables/useEntries.ts'
+import { getEntry } from '@/lib/api/Entry'
 import IncomeExpenseDialog from '@/views/entries/dialogs/IncomeExpenseDialog.vue'
 import AddEntryMenu from '@/views/entries/AddEntryMenu.vue'
 import { useAccounts } from '@/composables/useAccounts'
@@ -187,25 +190,41 @@ const dialogs = {
     expense: ref(false),
     income: ref(false),
     transfer: ref(false),
-    stock: ref(false)
+    buyStock: ref(false),
+    sellStock: ref(false),
+    grantStock: ref(false),
+    transferInstrument: ref(false)
 }
 
 /* --- Entry Actions --- */
-const openEditEntryDialog = (entry) => {
+const openEditEntryDialog = async (entry) => {
     isEditMode.value = true
     isDuplicateMode.value = false
-    selectedEntry.value = entry
-    console.log(entry)
+    // For sells, list API does not include fees; fetch full entry so dialog shows correct net + fees
+    if (entry.type === 'stocksell') {
+        try {
+            const full = await getEntry(entry.id)
+            selectedEntry.value = full
+        } catch (e) {
+            console.error('Failed to load sell entry for edit', e)
+            selectedEntry.value = entry
+        }
+    } else {
+        selectedEntry.value = entry
+    }
 
     if (entry.type === 'expense' || entry.type === 'income') {
-        // Use IncomeExpenseDialog for income and expense entries
         dialogs.incomeExpense.value = true
     } else if (entry.type === 'transfer') {
-        // Use TransferDialog for transfer entries
         dialogs.transfer.value = true
-    } else if (entry.type === 'buystock' || entry.type === 'sellstock') {
-        // Use StockDialog for stock entries
-        dialogs.stock.value = true
+    } else if (entry.type === 'stockbuy') {
+        dialogs.buyStock.value = true
+    } else if (entry.type === 'stocksell') {
+        dialogs.sellStock.value = true
+    } else if (entry.type === 'stockgrant') {
+        dialogs.grantStock.value = true
+    } else if (entry.type === 'stocktransfer') {
+        dialogs.transferInstrument.value = true
     }
 }
 
@@ -219,11 +238,15 @@ const openDuplicateEntryDialog = (entry) => {
         // Use IncomeExpenseDialog for income and expense entries
         dialogs.incomeExpense.value = true
     } else if (entry.type === 'transfer') {
-        // Use TransferDialog for transfer entries
         dialogs.transfer.value = true
-    } else if (entry.type === 'buystock' || entry.type === 'sellstock') {
-        // Use StockDialog for stock entries
-        dialogs.stock.value = true
+    } else if (entry.type === 'stockbuy') {
+        dialogs.buyStock.value = true
+    } else if (entry.type === 'stocksell') {
+        dialogs.sellStock.value = true
+    } else if (entry.type === 'stockgrant') {
+        dialogs.grantStock.value = true
+    } else if (entry.type === 'stocktransfer') {
+        dialogs.transferInstrument.value = true
     }
 }
 
@@ -274,6 +297,7 @@ const handleDeleteEntry = async () => {
                     :isLoading="isLoading || isFetching"
                     :isDeleting="isDeleting"
                     :accountId="accountId"
+                    :accountType="accountType"
                     :totalRecords="paginationTotal"
                     :rows="paginationRows"
                     :first="paginationFirst"
@@ -297,7 +321,7 @@ const handleDeleteEntry = async () => {
         :stock-amount="isDuplicateMode ? undefined : selectedEntry?.targetStockAmount"
         :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
         :entry-id="selectedEntry?.id"
-        :category-id="selectedEntry?.category?.id"
+        :category-id="selectedEntry?.categoryId"
         :autofocus-amount="isDuplicateMode"
     />
 
@@ -316,17 +340,61 @@ const handleDeleteEntry = async () => {
         :autofocus-amount="isDuplicateMode"
     />
 
-    <StockDialog
-        v-model:visible="dialogs.stock.value"
+    <BuySellInstrumentDialog
+        v-model:visible="dialogs.buyStock.value"
         :is-edit="isEditMode"
         :entry-id="selectedEntry?.id"
+        operation-type="buy"
+        :instrument-id="selectedEntry?.instrumentId"
         :description="selectedEntry?.description"
-        :amount="isDuplicateMode ? undefined : selectedEntry?.targetAmount"
-        :stock-amount="isDuplicateMode ? undefined : selectedEntry?.targetStockAmount"
+        :quantity="selectedEntry?.quantity"
+        :price-per-share="selectedEntry?.StockAmount && selectedEntry?.quantity ? selectedEntry.StockAmount / selectedEntry.quantity : undefined"
+        :cash-amount="isDuplicateMode ? undefined : selectedEntry?.totalAmount"
         :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
-        :type="selectedEntry?.type"
+        :investment-account-id="selectedEntry?.investmentAccountId"
+        :cash-account-id="selectedEntry?.cashAccountId"
+        @update:visible="dialogs.buyStock.value = $event"
+    />
+    <BuySellInstrumentDialog
+        v-model:visible="dialogs.sellStock.value"
+        :is-edit="isEditMode"
+        :entry-id="selectedEntry?.id"
+        operation-type="sell"
+        :instrument-id="selectedEntry?.instrumentId"
+        :description="selectedEntry?.description"
+        :quantity="selectedEntry?.quantity"
+        :price-per-share="(selectedEntry?.quantity && (selectedEntry?.costBasis != null || selectedEntry?.StockAmount != null)) ? ((selectedEntry?.costBasis ?? selectedEntry?.StockAmount) / selectedEntry.quantity) : undefined"
+        :cash-amount="isDuplicateMode ? undefined : (selectedEntry?.totalAmount ?? 0) - (selectedEntry?.fees ?? 0)"
+        :fees="isDuplicateMode ? 0 : (selectedEntry?.fees ?? 0)"
+        :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
+        :investment-account-id="selectedEntry?.investmentAccountId"
+        :cash-account-id="selectedEntry?.cashAccountId"
+        @update:visible="dialogs.sellStock.value = $event"
+    />
+
+    <GrantDialog
+        v-model:visible="dialogs.grantStock.value"
+        :is-edit="isEditMode"
+        :entry-id="selectedEntry?.id"
+        :instrument-id="selectedEntry?.instrumentId"
+        :description="selectedEntry?.description"
+        :quantity="selectedEntry?.quantity"
+        :fair-market-value="selectedEntry?.fairMarketValue ?? 0"
+        :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
+        :account-id="selectedEntry?.accountId"
+        @update:visible="dialogs.grantStock.value = $event"
+    />
+    <TransferInstrumentDialog
+        v-model:visible="dialogs.transferInstrument.value"
+        :is-edit="isEditMode"
+        :entry-id="selectedEntry?.id"
+        :instrument-id="selectedEntry?.instrumentId"
+        :description="selectedEntry?.description"
+        :quantity="selectedEntry?.quantity"
+        :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
+        :origin-account-id="selectedEntry?.originAccountId"
         :target-account-id="selectedEntry?.targetAccountId"
-        :autofocus-amount="isDuplicateMode"
+        @update:visible="dialogs.transferInstrument.value = $event"
     />
 
     <!-- Delete Confirmation Dialog -->
@@ -334,7 +402,7 @@ const handleDeleteEntry = async () => {
         v-model:visible="deleteDialogVisible"
         :name="entryToDelete?.description"
         message="Are you sure you want to delete this entry?"
-        :onConfirm="handleDeleteEntry"
+        @confirm="handleDeleteEntry"
     />
 </template>
 

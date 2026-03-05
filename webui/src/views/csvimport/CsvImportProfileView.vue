@@ -12,8 +12,10 @@ import Dialog from 'primevue/dialog'
 import Message from 'primevue/message'
 import CsvHeaderEditor from '@/components/CsvHeaderEditor.vue'
 import { useToast } from 'primevue/usetoast'
+import { useDateFormat } from '@/composables/useDateFormat'
 
 const toast = useToast()
+const { formatDate: formatDisplayDate } = useDateFormat()
 
 // State
 const profiles = ref([])
@@ -201,14 +203,7 @@ const handleDuplicateProfile = (profile) => {
     showProfileDialog.value = true
 }
 
-// Format date
-const formatDate = (date) => {
-    return new Date(date).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-    })
-}
+const formatDate = (date) => formatDisplayDate(date)
 
 // Get mapped fields count
 const getMappedFieldsCount = (headers) => {
@@ -226,11 +221,11 @@ onMounted(() => {
 
         </template>
         <template #default>
-            <div class="csv-profile-container">
-                <div class="page-header">
+            <div class="view-container">
+                <div class="flex justify-content-between align-items-start mb-4 gap-3">
                     <div>
-                        <h1 class="page-title">CSV Import Profiles</h1>
-                        <p class="page-description">
+                        <h1 class="text-2xl font-bold mb-2 text-color">CSV Import Profiles</h1>
+                        <p class="text-color-secondary m-0 text-base">
                             Create and manage CSV import profiles to easily import transactions from different sources
                         </p>
                     </div>
@@ -273,8 +268,8 @@ onMounted(() => {
 
                             <Column field="name" header="Profile Name" :sortable="true">
                                 <template #body="{ data }">
-                                    <div class="profile-name">
-                                        <i class="pi pi-file-import"></i>
+                                    <div class="flex align-items-center gap-2 font-semibold">
+                                        <i class="pi pi-file-import text-primary"></i>
                                         <span>{{ data.name }}</span>
                                     </div>
                                 </template>
@@ -308,11 +303,12 @@ onMounted(() => {
 
                             <Column header="Actions" :exportable="false" style="width: 150px">
                                 <template #body="{ data }">
-                                    <div class="action-buttons">
+                                    <div class="flex gap-1 justify-content-center">
                                         <Button
                                             icon="pi pi-pencil"
                                             text
                                             rounded
+                                            class="p-1"
                                             @click="openEditDialog(data)"
                                             v-tooltip.top="'Edit profile'"
                                         />
@@ -321,6 +317,7 @@ onMounted(() => {
                                             text
                                             rounded
                                             severity="secondary"
+                                            class="p-1"
                                             @click="handleDuplicateProfile(data)"
                                             v-tooltip.top="'Duplicate profile'"
                                         />
@@ -329,6 +326,7 @@ onMounted(() => {
                                             severity="danger"
                                             text
                                             rounded
+                                            class="p-1"
                                             @click="handleDeleteProfile(data)"
                                             v-tooltip.top="'Delete profile'"
                                         />
@@ -345,7 +343,7 @@ onMounted(() => {
                     :header="editingProfile ? 'Edit CSV Profile' : 'Create CSV Profile'"
                     :modal="true"
                     :closable="true"
-                    :style="{ width: '90vw', maxWidth: '1200px' }"
+                    class="entry-dialog entry-dialog--xwide"
                 >
                     <div class="profile-dialog-content">
                         <div class="profile-info">
@@ -383,33 +381,6 @@ onMounted(() => {
 </template>
 
 <style scoped lang="scss">
-.csv-profile-container {
-    padding: 2rem;
-    max-width: 1400px;
-    margin: 0 auto;
-}
-
-.page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 2rem;
-    gap: 2rem;
-}
-
-.page-title {
-    font-size: 2rem;
-    font-weight: 700;
-    margin-bottom: 0.5rem;
-    color: var(--text-color);
-}
-
-.page-description {
-    color: var(--text-color-secondary);
-    margin: 0;
-    font-size: 1rem;
-}
-
 .empty-state {
     text-align: center;
     padding: 3rem 1rem;
@@ -424,17 +395,6 @@ onMounted(() => {
     p {
         margin-bottom: 1.5rem;
         font-size: 1.1rem;
-    }
-}
-
-.profile-name {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-weight: 600;
-
-    i {
-        color: var(--primary-color);
     }
 }
 
@@ -453,12 +413,6 @@ onMounted(() => {
 .mapped-count {
     font-weight: 600;
     color: var(--primary-color);
-}
-
-.action-buttons {
-    display: flex;
-    gap: 0.25rem;
-    justify-content: center;
 }
 
 .profile-dialog-content {

@@ -1,14 +1,31 @@
 <script setup>
 import { computed, watch } from 'vue'
 import Card from 'primevue/card'
-import Chart from 'primevue/chart'
-import { useAccounts } from '@/composables/useAccounts.js'
+import TabView from 'primevue/tabview'
+import TabPanel from 'primevue/tabpanel'
+import VChart from 'vue-echarts'
+import { useSettingsStore } from '@/store/settingsStore.js'
+import { use } from 'echarts/core'
+import { CanvasRenderer } from 'echarts/renderers'
+import { LineChart } from 'echarts/charts'
+import {
+    GridComponent,
+    TooltipComponent,
+    LegendComponent,
+    DataZoomComponent
+} from 'echarts/components'
+import { useAccounts } from '@/composables/useAccounts'
 import { useBalance } from '@/composables/useGetBalanceReport'
 import { formatAmount } from '@/utils/currency'
+import { useDateFormat } from '@/composables/useDateFormat'
 
+use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent, DataZoomComponent])
+
+const settings = useSettingsStore()
 const { accounts } = useAccounts()
 const { balanceReport: balanceReportMutation } = useBalance()
 const { mutate, data: balanceReport } = balanceReportMutation
+const { formatDate } = useDateFormat()
 
 // Gather all accounts from all providers
 const allAccounts = computed(() => {
@@ -30,7 +47,7 @@ const mergedData = computed(() => {
     return allAccounts.value
         .map((account) => {
             const reportData = balanceReport.value?.accounts?.[account.id]
-            if (!reportData) return null // skip if no matching report data
+            if (!reportData) return null
 
             return {
                 ...account,
@@ -41,57 +58,18 @@ const mergedData = computed(() => {
 })
 
 const colors = [
-    '#22c55e', // green
-    '#3b82f6', // blue
-    '#eab308', // yellow
-    '#ef4444', // red
-    '#8b5cf6', // purple
-    '#ec4899', // pink
-    '#14b8a6', // teal
-    '#f97316', // orange
-    '#06b6d4', // cyan
-    '#84cc16', // lime
-    '#f43f5e', // rose
-    '#6366f1', // indigo
-    '#10b981', // emerald
-    '#f59e0b', // amber
-    '#8b5cf6', // violet
-    '#0ea5e9', // sky
-    '#a855f7', // fuchsia
-    '#ec4899', // hot pink
-    '#14b8a6', // teal light
-    '#fb923c'  // orange light
+    '#22c55e', '#3b82f6', '#eab308', '#ef4444',
+    '#8b5cf6', '#ec4899', '#14b8a6', '#f97316',
+    '#06b6d4', '#84cc16', '#f43f5e', '#6366f1',
+    '#10b981', '#f59e0b', '#8b5cf6', '#0ea5e9',
+    '#a855f7', '#ec4899', '#14b8a6', '#fb923c'
 ]
 
 const getColor = (index) => {
-    // Use gray for accounts beyond the 20th
-    if (index >= 20) {
-        return '#6b7280' // gray
-    }
+    if (index >= 20) return '#6b7280'
     return colors[index]
 }
 
-const chartData = computed(() => ({
-    labels:
-        mergedData.value?.[0]?.reportData?.map((r) =>
-            new Date(r.Date).toLocaleDateString('en-GB', {
-                day: '2-digit',
-                month: 'short'
-            })
-        ) || [],
-
-    datasets:
-        mergedData.value?.map((account, index) => ({
-            label: account.name,
-            data: account.reportData.map((r) => r.Sum),
-            fill: false,
-            borderColor: getColor(index),
-            tension: 0.1,
-            currency: account.currency || 'CHF' // Store currency for tooltip
-        })) || []
-}))
-
-// Get computed colors from CSS variables
 const getTextColor = () => {
     return getComputedStyle(document.documentElement).getPropertyValue('--c-text-color').trim() || '#495057'
 }
@@ -100,82 +78,74 @@ const getSurfaceColor = () => {
     return getComputedStyle(document.documentElement).getPropertyValue('--c-surface-300').trim() || '#ebedef'
 }
 
-const chartOptions = computed(() => ({
-    maintainAspectRatio: false,
-    aspectRatio: 0.6,
-    animation: {
-        duration: 500 // Fast animation in milliseconds (default is 1000)
-    },
-    plugins: {
-        legend: {
-            position: 'bottom',
-            display: true,
-            align: 'start',
-            labels: {
-                color: getTextColor(),
-                boxWidth: 20,
-                padding: 20,
-                usePointStyle: true,
-                pointStyle: 'circle'
-            },
-            onClick: (e, legendItem, legend) => {
-                const chart = legend.chart
-                const datasetIndex = legendItem.datasetIndex
-                const clickedMeta = chart.getDatasetMeta(datasetIndex)
-                
-                // Check if the clicked dataset is currently the only visible one
-                const visibleDatasets = chart.data.datasets.map((_, i) => 
-                    chart.getDatasetMeta(i)
-                ).filter(meta => !meta.hidden)
-                
-                const isOnlyOneVisible = visibleDatasets.length === 1 && !clickedMeta.hidden
-                
-                if (isOnlyOneVisible) {
-                    // If only one is visible and we click it, show all datasets
-                    chart.data.datasets.forEach((_, i) => {
-                        chart.getDatasetMeta(i).hidden = false
-                    })
-                } else {
-                    // Hide all datasets except the clicked one
-                    chart.data.datasets.forEach((_, i) => {
-                        const meta = chart.getDatasetMeta(i)
-                        meta.hidden = i !== datasetIndex
-                    })
-                }
-                
-                chart.update()
-            }
+const chartOption = computed(() => {
+    const labels =
+        mergedData.value?.[0]?.reportData?.map((r) => formatDate(r.Date)) || []
+
+    const series =
+        mergedData.value?.map((account, index) => ({
+            name: account.name,
+            type: 'line',
+            smooth: 0.1,
+            showSymbol: false,
+            data: account.reportData.map((r) => r.Sum),
+            lineStyle: { color: getColor(index) },
+            itemStyle: { color: getColor(index) },
+            _currency: account.currency || 'CHF'
+        })) || []
+
+    const textColor = getTextColor()
+    const surfaceColor = getSurfaceColor()
+
+    return {
+        animation: true,
+        animationDuration: 500,
+        grid: {
+            left: '3%',
+            right: '4%',
+            bottom: '18%',
+            top: '3%',
+            containLabel: true
         },
         tooltip: {
-            callbacks: {
-                label: function(context) {
-                    const label = context.dataset.label || ''
-                    const value = context.parsed.y
-                    const currency = context.dataset.currency || 'CHF'
-                    return `${label}: ${formatAmount(value)} ${currency}`
+            trigger: 'axis',
+            formatter: (params) => {
+                let result = `<strong>${params[0].axisValueLabel}</strong><br/>`
+                for (const p of params) {
+                    const s = series[p.seriesIndex]
+                    const currency = s?._currency || 'CHF'
+                    result += `${p.marker} ${p.seriesName}: ${formatAmount(p.value)} ${currency}<br/>`
                 }
-            }
-        }
-    },
-    scales: {
-        x: {
-            ticks: {
-                color: getTextColor()
-            },
-            grid: {
-                color: getSurfaceColor()
+                return result
             }
         },
-        y: {
-            ticks: {
-                color: getTextColor()
-            },
-            grid: {
-                color: getSurfaceColor()
-            }
-        }
+        legend: {
+            type: 'scroll',
+            bottom: 0,
+            left: 'left',
+            textStyle: { color: textColor },
+            icon: 'circle',
+            itemWidth: 10,
+            itemHeight: 10,
+            itemGap: 20,
+            selectedMode: 'multiple'
+        },
+        xAxis: {
+            type: 'category',
+            data: labels,
+            axisLabel: { color: textColor },
+            axisLine: { lineStyle: { color: surfaceColor } },
+            splitLine: { lineStyle: { color: surfaceColor } }
+        },
+        yAxis: {
+            type: 'value',
+            axisLabel: { color: textColor },
+            axisLine: { lineStyle: { color: surfaceColor } },
+            splitLine: { lineStyle: { color: surfaceColor } }
+        },
+        series
     }
-}))
+})
 
 // Fetch balance reports when accounts are loaded
 watch(
@@ -185,7 +155,6 @@ watch(
             const accountIds = accountsList.map((account) => account.id).filter(Boolean)
             
             if (accountIds.length > 0) {
-                // Calculate start date as 6 months ago
                 const today = new Date()
                 const sixMonthsAgo = new Date(today)
                 sixMonthsAgo.setMonth(today.getMonth() - 6)
@@ -193,7 +162,7 @@ watch(
                 
                 mutate({
                     accountIds,
-                    steps: 15,
+                    steps: 90,
                     startDate
                 })
             }
@@ -207,13 +176,23 @@ watch(
     <Card>
         <template #title>Financial Overview</template>
         <template #content>
-            <Chart
-                type="line"
-                :data="chartData"
-                :options="chartOptions"
-                style="height: 450px"
-            />
+            <TabView>
+                <TabPanel header="Balance over time">
+                    <VChart
+                        :option="chartOption"
+                        autoresize
+                        style="height: 450px"
+                    />
+                </TabPanel>
+                <TabPanel v-if="settings.instruments" header="Investment Products">
+                    <div
+                        class="instruments-placeholder"
+                        style="height: 450px; display: flex; align-items: center; justify-content: center; color: var(--c-text-muted-color, #6b7280);"
+                    >
+                        <span>Evolution of all investment products — chart coming soon.</span>
+                    </div>
+                </TabPanel>
+            </TabView>
         </template>
     </Card>
 </template>
-

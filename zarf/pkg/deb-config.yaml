@@ -1,24 +1,53 @@
+# Reference config for etna-finance. App runs without this file using built-in defaults.
+# - Deb package: installed at /etc/etna-finance/config.yaml
+# - Arch zip: copy to config.yaml and customize. Env vars override (prefix ETNA_).
+
 Server:
-  Port: 8085
-  BindIp: "localhost"
+  Port:    8085
+  BindIp:  "localhost"
+  # For development / arch zip: BindIp: "" to listen on all interfaces
 
 Observability:
-  Port: 9090
-  BindIp: "localhost"
+  Port:    9090
+  BindIp:  "localhost"
 
 DataDir: "/usr/share/etna-finance/data"
+# For development / arch zip: DataDir: "./data"
 
+# Auth disabled for simple single-user install. WARNING: do not use in production when exposed.
 Auth:
-  # Hash key and Block key MUST be updated in production and kept secret
-  HashKey:      "He4wazahwo6oer0iuNg6chah1Phoh4Eimo7ku0boom8ia8joichieVei8aeNga2o"
-  BlockKey:     "ma6eiTeChie6moh3mei5nohth2uqu7ah"
-  UserStore:
-    Type: static
-    Users:
-      - Name: "demo"
-        Pw: "demo"
-        Enabled: true
+  Enabled:     false
+  DefaultUser: "default"
+  # To enable auth, uncomment and set:
+  # Enabled: true
+  # HashKey:  "64-char-hex-string"   # required when Enabled; generate, keep secret
+  # BlockKey: "32-char-hex-string"   # required when Enabled; generate, keep secret
+  # UserStore:
+  #   Type: static
+  #   Users:
+  #     - Name: "demo"
+  #       Pw:   "demo"
+  #     - Name: "admin"
+  #       Pw:   "choose-secure-password"
 
 Env:
-  Loglevel: "info"
-  Production: false
+  LogLevel:   "info"
+  Production: true
+  # For development: Production: false
+
+# App settings (date format, currencies) — exposed to frontend
+Settings:
+  DateFormat:           "YYYY-MM-DD"  # tokens: YYYY, YY, MM, DD; separators: - / .
+  MainCurrency:         "CHF"         # main currency is implicit; do not repeat in AdditionalCurrencies
+  AdditionalCurrencies: []             # extra currencies to track, e.g. ["USD", "EUR"]
+  Instruments:          false
+  # Alternatives:
+  # DateFormat: "DD/MM/YYYY"
+  # AdditionalCurrencies: ["USD", "EUR"]
+  # Instruments: true
+
+# Market data importers (e.g. Massive). Prefer API keys via .env: ETNA_MARKETDATAIMPORTERS_MASSIVE_APIKEYS_0=key
+# MarketDataImporters:
+#   Massive:
+#     ApiKeys:
+#       - "your-api-key"

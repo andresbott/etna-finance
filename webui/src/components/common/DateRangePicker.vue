@@ -2,6 +2,9 @@
 import { ref, watch, computed } from 'vue'
 import DatePicker from 'primevue/datepicker'
 import Select from 'primevue/select'
+import { useDateFormat } from '@/composables/useDateFormat'
+
+const { pickerDateFormat } = useDateFormat()
 
 const props = defineProps({
     startDate: {
@@ -22,7 +25,7 @@ const props = defineProps({
     },
     dateFormat: {
         type: String,
-        default: 'dd/mm/y'
+        default: null
     },
     startPlaceholder: {
         type: String,
@@ -109,6 +112,8 @@ const quickSelectOptions = ref([
     { label: `Current Year (${currentYear})`, value: 'current-year' }
 ])
 
+const effectiveDateFormat = computed(() => props.dateFormat ?? pickerDateFormat.value)
+
 const selectedQuickOption = ref(null)
 
 watch(selectedQuickOption, (newValue) => {
@@ -139,7 +144,7 @@ watch(selectedQuickOption, (newValue) => {
                 v-model="localStartDate"
                 :showIcon="showIcon"
                 :showButtonBar="showButtonBar"
-                :dateFormat="dateFormat"
+                :dateFormat="effectiveDateFormat"
                 :placeholder="startPlaceholder"
             />
         </div>
@@ -149,7 +154,7 @@ watch(selectedQuickOption, (newValue) => {
                 v-model="localEndDate"
                 :showIcon="showIcon"
                 :showButtonBar="showButtonBar"
-                :dateFormat="dateFormat"
+                :dateFormat="effectiveDateFormat"
                 :placeholder="endPlaceholder"
             />
         </div>

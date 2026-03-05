@@ -1,10 +1,32 @@
 /**
  * Account types and their allowed operations configuration.
- * 
+ *
  * This file provides a centralized mapping of which entry operations
  * are permitted for each account type. Update this file to modify
  * the allowed operations for any account type.
  */
+
+/**
+ * Account domain type (API response shape).
+ */
+export interface Account {
+    id: number
+    name: string
+    currency: string
+    type: string
+    icon?: string
+}
+
+/**
+ * Account provider with nested accounts (API response shape).
+ */
+export interface AccountProvider {
+    id: number
+    name: string
+    description?: string
+    icon?: string
+    accounts: Account[]
+}
 
 /**
  * Account types available in the system
@@ -14,6 +36,7 @@ export const ACCOUNT_TYPES = {
     CHECKING: 'checkin',
     SAVINGS: 'savings',
     INVESTMENT: 'investment',
+    UNVESTED: 'unvested', // not yet accessible (e.g. unvested RSUs); can transfer to Investment
 } as const
 
 export type AccountType = typeof ACCOUNT_TYPES[keyof typeof ACCOUNT_TYPES]
@@ -26,6 +49,26 @@ export const ACCOUNT_TYPE_ICONS: Record<AccountType, string> = {
     [ACCOUNT_TYPES.CHECKING]: 'pi-credit-card',
     [ACCOUNT_TYPES.SAVINGS]: 'pi-box',
     [ACCOUNT_TYPES.INVESTMENT]: 'pi-chart-line',
+    [ACCOUNT_TYPES.UNVESTED]: 'pi-gift',
+}
+
+/**
+ * Display labels for each account type (for UI).
+ */
+export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
+    [ACCOUNT_TYPES.CASH]: 'Cash',
+    [ACCOUNT_TYPES.CHECKING]: 'Checking',
+    [ACCOUNT_TYPES.SAVINGS]: 'Savings',
+    [ACCOUNT_TYPES.INVESTMENT]: 'Investment',
+    [ACCOUNT_TYPES.UNVESTED]: 'Unvested products',
+}
+
+/**
+ * Get the display label for an account type.
+ */
+export function getAccountTypeLabel(accountType: AccountType | string | null | undefined): string {
+    if (!accountType) return 'Unknown'
+    return ACCOUNT_TYPE_LABELS[accountType as AccountType] ?? accountType
 }
 
 /**
@@ -43,7 +86,10 @@ export const ENTRY_OPERATIONS = {
     EXPENSE: 'expense',
     INCOME: 'income',
     TRANSFER: 'transfer',
-    STOCK: 'stock',
+    BUY_STOCK: 'buyStock',
+    SELL_STOCK: 'sellStock',
+    GRANT_STOCK: 'grantStock',
+    TRANSFER_INSTRUMENT: 'transferInstrument',
 } as const
 
 export type EntryOperation = typeof ENTRY_OPERATIONS[keyof typeof ENTRY_OPERATIONS]
@@ -55,7 +101,7 @@ export type EntryOperation = typeof ENTRY_OPERATIONS[keyof typeof ENTRY_OPERATIO
  * 
  * Current configuration:
  * - cash, checking, savings: income, expense, transfer
- * - investment: stock operations (placeholder for future implementation)
+ * - investment, unvested: buy/sell stock (unvested = not yet accessible, e.g. RSUs)
  */
 export const ALLOWED_OPERATIONS_BY_ACCOUNT_TYPE: Record<AccountType, EntryOperation[]> = {
     [ACCOUNT_TYPES.CASH]: [
@@ -74,8 +120,16 @@ export const ALLOWED_OPERATIONS_BY_ACCOUNT_TYPE: Record<AccountType, EntryOperat
         ENTRY_OPERATIONS.TRANSFER,
     ],
     [ACCOUNT_TYPES.INVESTMENT]: [
-        // Stock operations only - placeholder for future implementation
-        ENTRY_OPERATIONS.STOCK,
+        ENTRY_OPERATIONS.BUY_STOCK,
+        ENTRY_OPERATIONS.SELL_STOCK,
+        ENTRY_OPERATIONS.GRANT_STOCK,
+        ENTRY_OPERATIONS.TRANSFER_INSTRUMENT,
+    ],
+    [ACCOUNT_TYPES.UNVESTED]: [
+        ENTRY_OPERATIONS.BUY_STOCK,
+        ENTRY_OPERATIONS.SELL_STOCK,
+        ENTRY_OPERATIONS.GRANT_STOCK,
+        ENTRY_OPERATIONS.TRANSFER_INSTRUMENT,
     ],
 }
 

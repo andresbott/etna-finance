@@ -3,6 +3,8 @@ package accounting
 import (
 	"context"
 	"fmt"
+
+	"github.com/andresbott/etna/internal/marketdata"
 	closuretree "github.com/go-bumbu/closure-tree"
 	"gorm.io/gorm"
 )
@@ -10,15 +12,17 @@ import (
 type Store struct {
 	db           *gorm.DB
 	categoryTree *closuretree.Tree
+	marketStore  *marketdata.Store
 }
 
-func NewStore(db *gorm.DB) (*Store, error) {
+func NewStore(db *gorm.DB, marketStore *marketdata.Store) (*Store, error) {
 	if db == nil {
 		return nil, fmt.Errorf("db cannot be nil")
 	}
 
 	b := Store{
-		db: db,
+		db:          db,
+		marketStore: marketStore,
 	}
 
 	stmt := &gorm.Statement{DB: db}
@@ -27,7 +31,7 @@ func NewStore(db *gorm.DB) (*Store, error) {
 		return nil, fmt.Errorf("error parsing schema: %w", err)
 	}
 
-	err = db.AutoMigrate(&dbAccountProvider{}, &dbAccount{}, &dbTransaction{}, &dbEntry{})
+	err = db.AutoMigrate(&dbAccountProvider{}, &dbAccount{}, &dbTransaction{}, &dbEntry{}, &dbTrade{}, &dbLot{}, &dbLotDisposal{}, &dbPosition{})
 	if err != nil {
 		return nil, err
 	}
@@ -41,6 +45,15 @@ func NewStore(db *gorm.DB) (*Store, error) {
 	return &b, nil
 }
 
+// GetInstrument returns instrument info by id from the marketdata store.
+// Returns marketdata.ErrInstrumentNotFound if no marketdata store is set or the instrument is missing.
+func (s *Store) GetInstrument(ctx context.Context, id uint) (marketdata.Instrument, error) {
+	if s.marketStore == nil {
+		return marketdata.Instrument{}, marketdata.ErrInstrumentNotFound
+	}
+	return s.marketStore.GetInstrument(ctx, id)
+}
+
 func NewValidationErr(in string) ErrValidation {
 	return ErrValidation(in)
 }
@@ -51,23 +64,12 @@ func (v ErrValidation) Error() string {
 	return string(v)
 }
 
-func (store *Store) ListTenants(ctx context.Context) ([]string, error) {
-	db := store.db.WithContext(ctx).Table("db_account_providers")
-
-	// getTask distinct owner IDs
-	var tenants []string
-	if err := db.
-		Select("DISTINCT(owner_id)").
-		Order("owner_id ASC").
-		Pluck("owner_id", &tenants).Error; err != nil {
-		return nil, err
-	}
-
-	return tenants, nil
-}
-
 func (store *Store) WipeData(ctx context.Context) error {
 	tables := []string{
+		"db_lot_disposals",
+		"db_lots",
+		"db_trades",
+		"db_positions",
 		"db_account_providers",
 		"db_accounts",
 		"db_transactions",

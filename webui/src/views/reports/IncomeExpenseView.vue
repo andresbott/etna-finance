@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
 
-import { fetchIncomeExpense } from '@/composables/useIncomeExpense.js'
+import { fetchIncomeExpense } from '@/composables/useIncomeExpense'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import { Button, Card, Column, TreeTable } from 'primevue'
 

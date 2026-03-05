@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/andresbott/etna/internal/accounting"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/andresbott/etna/internal/accounting"
 )
 
 type incomeExpenseResponse struct {
@@ -28,13 +29,8 @@ type incomeExpenseValues struct {
 	Count uint    `json:"count"`
 }
 
-func (h *Handler) IncomeExpenseReport(userId string) http.Handler {
+func (h *Handler) IncomeExpenseReport() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if userId == "" {
-			http.Error(w, "unable to list entries: user not provided", http.StatusBadRequest)
-			return
-		}
-
 		now := time.Now()
 		endDate, err := parseDateOrDefault(r.URL.Query().Get("endDate"), now)
 		if err != nil {
@@ -51,7 +47,7 @@ func (h *Handler) IncomeExpenseReport(userId string) http.Handler {
 		endDate = time.Date(endDate.Year(), endDate.Month(), endDate.Day(), 0, 0, 0, 0, endDate.Location())
 
 		// get the report
-		report, err := h.Store.ReportInOutByCategory(r.Context(), startDate, endDate, userId)
+		report, err := h.Store.ReportInOutByCategory(r.Context(), startDate, endDate)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to list entries: %s", err.Error()), http.StatusInternalServerError)
 			return
@@ -147,13 +143,8 @@ type accountBalance struct {
 	Count uint
 }
 
-func (h *Handler) AccountBalance(userId string) http.Handler {
+func (h *Handler) AccountBalance() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if userId == "" {
-			http.Error(w, "unable to list entries: user not provided", http.StatusBadRequest)
-			return
-		}
-
 		startDate, err := parseDateOrDefault(r.URL.Query().Get("startDate"), time.Time{})
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to parse start date: %s", err), http.StatusBadRequest)
@@ -190,7 +181,7 @@ func (h *Handler) AccountBalance(userId string) http.Handler {
 				return
 			}
 
-			data, err := h.Store.AccountBalance(r.Context(), uint(id), steps, startDate, endDate, userId)
+			data, err := h.Store.AccountBalance(r.Context(), uint(id), steps, startDate, endDate)
 			if err != nil {
 				if errors.Is(err, accounting.ErrAccountNotFound) {
 					http.Error(w, fmt.Sprintf("account id not found: %d", id), http.StatusBadRequest)

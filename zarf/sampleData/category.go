@@ -11,23 +11,23 @@ import (
 
 // Category represents an expense or income category
 type Category struct {
-	ID          int        `json:"id,omitempty"`
+	ID          uint       `json:"id,omitempty"`
 	Name        string     `json:"name"`
 	Description string     `json:"description"`
-	ParentID    int        `json:"parentId,omitempty"`
+	ParentID    uint       `json:"parentId,omitempty"`
 	Children    []Category `json:"_,omitempty"`
 }
 
 // CategoryResponse represents the API response
 type CategoryResponse struct {
-	ID          int    `json:"id"`
-	ParentID    int    `json:"parentId"`
+	ID          uint   `json:"id"`
+	ParentID    uint   `json:"parentId"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
 }
 
 // createCategory posts a category to the API and returns the generated id
-func createCategory(baseURL string, categoryType string, category Category) (int, error) {
+func createCategory(baseURL string, categoryType string, category Category) (uint, error) {
 	var url string
 
 	switch categoryType {
@@ -71,8 +71,8 @@ func createCategory(baseURL string, categoryType string, category Category) (int
 }
 
 // createCategoriesRecursive creates categories from a nested structure
-func createCategoriesRecursive(baseURL string, categoryType string, categories []Category, parentID int) (map[string]int, error) {
-	categoryIDs := make(map[string]int)
+func createCategoriesRecursive(baseURL string, categoryType string, categories []Category, parentID uint) (map[string]uint, error) {
+	categoryIDs := make(map[string]uint)
 
 	for _, category := range categories {
 		// Set parent id if provided

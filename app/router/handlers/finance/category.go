@@ -42,20 +42,16 @@ type categoryMovePayload struct {
 	TargetParentId uint `json:"targetParentId"`
 }
 
-func (h *CategoryHandler) CreateIncome(userId string) http.Handler {
-	return h.createCategory(userId, IncomeCategoryType)
+func (h *CategoryHandler) CreateIncome() http.Handler {
+	return h.createCategory(IncomeCategoryType)
 }
 
-func (h *CategoryHandler) CreateExpense(userId string) http.Handler {
-	return h.createCategory(userId, ExpenseCategoryType)
+func (h *CategoryHandler) CreateExpense() http.Handler {
+	return h.createCategory(ExpenseCategoryType)
 }
 
-func (h *CategoryHandler) createCategory(userId, categoryType string) http.Handler {
+func (h *CategoryHandler) createCategory(categoryType string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if userId == "" {
-			http.Error(w, "unable to create category: user not provided", http.StatusBadRequest)
-			return
-		}
 		if r.Body == nil {
 			http.Error(w, "request had empty body", http.StatusBadRequest)
 			return
@@ -90,7 +86,7 @@ func (h *CategoryHandler) createCategory(userId, categoryType string) http.Handl
 			data.Type = accounting.ExpenseCategory
 		}
 
-		catId, err = h.Store.CreateCategory(r.Context(), data, payload.ParentId, userId)
+		catId, err = h.Store.CreateCategory(r.Context(), data, payload.ParentId)
 		if err != nil {
 			if errors.As(err, &validationErr) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -122,20 +118,16 @@ func (h *CategoryHandler) createCategory(userId, categoryType string) http.Handl
 	})
 }
 
-func (h *CategoryHandler) UpdateIncome(Id uint, userId string) http.Handler {
-	return h.updateCategory(Id, userId, IncomeCategoryType)
+func (h *CategoryHandler) UpdateIncome(Id uint) http.Handler {
+	return h.updateCategory(Id, IncomeCategoryType)
 }
 
-func (h *CategoryHandler) UpdateExpense(Id uint, userId string) http.Handler {
-	return h.updateCategory(Id, userId, ExpenseCategoryType)
+func (h *CategoryHandler) UpdateExpense(Id uint) http.Handler {
+	return h.updateCategory(Id, ExpenseCategoryType)
 }
 
-func (h *CategoryHandler) updateCategory(Id uint, userId, categoryType string) http.Handler {
+func (h *CategoryHandler) updateCategory(Id uint, categoryType string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if userId == "" {
-			http.Error(w, "unable to update category: user not provided", http.StatusBadRequest)
-			return
-		}
 		if r.Body == nil {
 			http.Error(w, "request had empty body", http.StatusBadRequest)
 			return
@@ -153,7 +145,7 @@ func (h *CategoryHandler) updateCategory(Id uint, userId, categoryType string) h
 			return
 		}
 
-		err = updateCategory(r.Context(), Id, userId, categoryType, payload, h.Store)
+		err = updateCategory(r.Context(), Id, categoryType, payload, h.Store)
 		if err != nil {
 			if errors.As(err, &validationErr) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -171,7 +163,7 @@ func (h *CategoryHandler) updateCategory(Id uint, userId, categoryType string) h
 }
 
 // updateCategory is an internal function taking care of running the update operations and returning an error if anything goes wrong
-func updateCategory(ctx context.Context, Id uint, userId, categoryType string, payload categoryUpdatePayload, store *accounting.Store) error {
+func updateCategory(ctx context.Context, Id uint, categoryType string, payload categoryUpdatePayload, store *accounting.Store) error {
 	var err error
 
 	data := accounting.CategoryData{
@@ -187,13 +179,13 @@ func updateCategory(ctx context.Context, Id uint, userId, categoryType string, p
 		data.Type = accounting.ExpenseCategory
 	}
 
-	err = store.UpdateCategory(ctx, Id, data, userId)
+	err = store.UpdateCategory(ctx, Id, data)
 	if err != nil {
 		return err
 	}
 
 	if payload.ParentId != nil {
-		err = store.MoveCategory(ctx, Id, *payload.ParentId, userId)
+		err = store.MoveCategory(ctx, Id, *payload.ParentId)
 		if err != nil {
 			return err
 		}
@@ -201,20 +193,16 @@ func updateCategory(ctx context.Context, Id uint, userId, categoryType string, p
 	return nil
 }
 
-func (h *CategoryHandler) MoveIncome(Id uint, userId string) http.Handler {
-	return h.moveCategory(Id, userId, IncomeCategoryType)
+func (h *CategoryHandler) MoveIncome(Id uint) http.Handler {
+	return h.moveCategory(Id, IncomeCategoryType)
 }
 
-func (h *CategoryHandler) MoveExpense(Id uint, userId string) http.Handler {
-	return h.moveCategory(Id, userId, ExpenseCategoryType)
+func (h *CategoryHandler) MoveExpense(Id uint) http.Handler {
+	return h.moveCategory(Id, ExpenseCategoryType)
 }
 
-func (h *CategoryHandler) moveCategory(Id uint, userId, categoryType string) http.Handler {
+func (h *CategoryHandler) moveCategory(Id uint, categoryType string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if userId == "" {
-			http.Error(w, "unable to move category: user not provided", http.StatusBadRequest)
-			return
-		}
 		if r.Body == nil {
 			http.Error(w, "request had empty body", http.StatusBadRequest)
 			return
@@ -232,7 +220,7 @@ func (h *CategoryHandler) moveCategory(Id uint, userId, categoryType string) htt
 			return
 		}
 
-		err = h.Store.MoveCategory(r.Context(), Id, payload.TargetParentId, userId)
+		err = h.Store.MoveCategory(r.Context(), Id, payload.TargetParentId)
 		if err != nil {
 			if errors.As(err, &validationErr) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -249,27 +237,22 @@ func (h *CategoryHandler) moveCategory(Id uint, userId, categoryType string) htt
 	})
 }
 
-func (h *CategoryHandler) DeleteIncome(Id uint, userId string) http.Handler {
-	return h.deleteRecurseCategory(Id, userId, IncomeCategoryType)
+func (h *CategoryHandler) DeleteIncome(Id uint) http.Handler {
+	return h.deleteRecurseCategory(Id, IncomeCategoryType)
 }
 
-func (h *CategoryHandler) DeleteExpense(Id uint, userId string) http.Handler {
-	return h.deleteRecurseCategory(Id, userId, ExpenseCategoryType)
+func (h *CategoryHandler) DeleteExpense(Id uint) http.Handler {
+	return h.deleteRecurseCategory(Id, ExpenseCategoryType)
 }
 
-func (h *CategoryHandler) deleteRecurseCategory(Id uint, userId, categoryType string) http.Handler {
+func (h *CategoryHandler) deleteRecurseCategory(Id uint, categoryType string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if userId == "" {
-			http.Error(w, "unable to delete category: user not provided", http.StatusBadRequest)
-			return
-		}
-
 		if categoryType != IncomeCategoryType && categoryType != ExpenseCategoryType {
 			http.Error(w, fmt.Sprintf("invalid category type: %s", categoryType), http.StatusBadRequest)
 			return
 		}
 
-		err := h.Store.DeleteCategoryRecursive(r.Context(), Id, userId)
+		err := h.Store.DeleteCategoryRecursive(r.Context(), Id)
 		if err != nil {
 			if errors.Is(err, accounting.ErrCategoryNotFound) {
 				http.Error(w, err.Error(), http.StatusNotFound)
@@ -286,22 +269,17 @@ func (h *CategoryHandler) deleteRecurseCategory(Id uint, userId, categoryType st
 	})
 }
 
-func (h *CategoryHandler) ListIncome(Id uint, userId string) http.Handler {
-	return h.listCategory(Id, userId, IncomeCategoryType)
+func (h *CategoryHandler) ListIncome(Id uint) http.Handler {
+	return h.listCategory(Id, IncomeCategoryType)
 }
 
-func (h *CategoryHandler) ListExpense(Id uint, userId string) http.Handler {
-	return h.listCategory(Id, userId, ExpenseCategoryType)
+func (h *CategoryHandler) ListExpense(Id uint) http.Handler {
+	return h.listCategory(Id, ExpenseCategoryType)
 }
 
-// listCategory lists all categories of type categoryType belonging to user userId and parent id
-func (h *CategoryHandler) listCategory(Id uint, userId, categoryType string) http.Handler {
+// listCategory lists all categories of type categoryType for the given parent id
+func (h *CategoryHandler) listCategory(Id uint, categoryType string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if userId == "" {
-			http.Error(w, "unable to delete category: user not provided", http.StatusBadRequest)
-			return
-		}
-
 		depth := 4 // TODO expose as parameter
 
 		type payload struct {
@@ -316,7 +294,7 @@ func (h *CategoryHandler) listCategory(Id uint, userId, categoryType string) htt
 		switch categoryType {
 		case IncomeCategoryType:
 
-			items, err := h.Store.ListDescendantCategories(r.Context(), Id, depth, accounting.IncomeCategory, userId)
+			items, err := h.Store.ListDescendantCategories(r.Context(), Id, depth, accounting.IncomeCategory)
 			if err != nil {
 				break
 			}
@@ -333,7 +311,7 @@ func (h *CategoryHandler) listCategory(Id uint, userId, categoryType string) htt
 
 		case ExpenseCategoryType:
 
-			items, err := h.Store.ListDescendantCategories(r.Context(), Id, depth, accounting.ExpenseCategory, userId)
+			items, err := h.Store.ListDescendantCategories(r.Context(), Id, depth, accounting.ExpenseCategory)
 			if err != nil {
 				break
 			}

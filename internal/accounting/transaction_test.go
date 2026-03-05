@@ -1,15 +1,34 @@
 package accounting
 
 import (
+	"context"
+	"math"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/andresbott/etna/internal/marketdata"
 	"github.com/go-bumbu/testdbs"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"golang.org/x/text/currency"
+	"gorm.io/gorm"
 )
+
+// newAccountingStoreWithMarketData creates an accounting store with a marketdata store for tests that need instruments.
+func newAccountingStoreWithMarketData(t *testing.T, db *gorm.DB) (*Store, *marketdata.Store) {
+	t.Helper()
+	mktStore, err := marketdata.NewStore(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := NewStore(db, mktStore)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return store, mktStore
+}
 
 func TestStore_CreateTransaction(t *testing.T) {
 	tcs := []struct {
@@ -124,10 +143,7 @@ func TestStore_CreateTransaction(t *testing.T) {
 		t.Run(db.DbType(), func(t *testing.T) {
 
 			dbCon := db.ConnDbName("storeCreateEntry")
-			store, err := NewStore(dbCon)
-			if err != nil {
-				t.Fatal(err)
-			}
+			store, _ := newAccountingStoreWithMarketData(t, dbCon)
 
 			categorySampleData(t, store, sampleCategories)
 			transactionSampleData(t, store, sampleTransactions)
@@ -135,7 +151,7 @@ func TestStore_CreateTransaction(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
-					id, err := store.CreateTransaction(t.Context(), tc.input, tc.tenant)
+					id, err := store.CreateTransaction(t.Context(), tc.input)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -152,7 +168,7 @@ func TestStore_CreateTransaction(t *testing.T) {
 							t.Errorf("expected valid entry id, but got 0")
 						}
 
-						got, err := store.GetTransaction(t.Context(), id, tc.tenant)
+						got, err := store.GetTransaction(t.Context(), id)
 						if err != nil {
 							t.Fatalf("expected entry to be found, but got error: %v", err)
 						}
@@ -191,10 +207,7 @@ func TestStore_GetTransaction(t *testing.T) {
 			}
 
 			dbCon := db.ConnDbName("storeGetTransaction")
-			store, err := NewStore(dbCon)
-			if err != nil {
-				t.Fatal(err)
-			}
+			store, _ := newAccountingStoreWithMarketData(t, dbCon)
 
 			categorySampleData(t, store, sampleCategories)
 			transactionSampleData(t, store, sampleTransactions)
@@ -202,7 +215,7 @@ func TestStore_GetTransaction(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
-					got, err := store.GetTransaction(t.Context(), tc.checkId, tc.checkTenant)
+					got, err := store.GetTransaction(t.Context(), tc.checkId)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -253,10 +266,7 @@ func TestStore_DeleteTransaction(t *testing.T) {
 			}
 
 			dbCon := db.ConnDbName("storeGetEntry")
-			store, err := NewStore(dbCon)
-			if err != nil {
-				t.Fatal(err)
-			}
+			store, _ := newAccountingStoreWithMarketData(t, dbCon)
 
 			categorySampleData(t, store, sampleCategories)
 			transactionSampleData(t, store, sampleTransactions)
@@ -264,7 +274,7 @@ func TestStore_DeleteTransaction(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
-					err = store.DeleteTransaction(t.Context(), tc.deleteID, tc.deleteTenant)
+					err := store.DeleteTransaction(t.Context(), tc.deleteID)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -277,7 +287,7 @@ func TestStore_DeleteTransaction(t *testing.T) {
 							t.Fatalf("unexpected error: %v", err)
 						}
 
-						_, err := store.GetTransaction(t.Context(), tc.deleteID, tc.deleteTenant)
+						_, err := store.GetTransaction(t.Context(), tc.deleteID)
 						if err == nil {
 							t.Fatalf("expected item to not exist, but got we got a baseTx")
 						}
@@ -422,12 +432,6 @@ func TestStore_UpdateIncome(t *testing.T) {
 
 		// 🚨 Not found / Wrong tenant
 		{
-			name:         "wrong tenant",
-			updateTenant: tenant2,
-			updateInput:  IncomeUpdate{Description: ptr("changed")},
-			wantErr:      "error updating transaction: transaction not found",
-		},
-		{
 			name:         "non-existing transaction",
 			updateTenant: tenant1,
 			updateInput:  IncomeUpdate{Description: ptr("changed")},
@@ -440,10 +444,7 @@ func TestStore_UpdateIncome(t *testing.T) {
 		t.Run(db.DbType(), func(t *testing.T) {
 
 			dbCon := db.ConnDbName("TestUpdateEntry")
-			store, err := NewStore(dbCon)
-			if err != nil {
-				t.Fatal(err)
-			}
+			store, _ := newAccountingStoreWithMarketData(t, dbCon)
 
 			categorySampleData(t, store, sampleCategories)
 			accountSampleData(t, store) // note: test operates on one set of data
@@ -452,7 +453,7 @@ func TestStore_UpdateIncome(t *testing.T) {
 				t.Run(tc.name, func(t *testing.T) {
 
 					in := Income{Description: "description", Amount: 10, AccountID: 1, CategoryID: 1, Date: getDate("2025-01-02")}
-					id, err := store.CreateTransaction(t.Context(), in, tenant1)
+					id, err := store.CreateTransaction(t.Context(), in)
 					if err != nil {
 						t.Fatalf("failed to create baseTx: %v", err)
 					}
@@ -461,7 +462,7 @@ func TestStore_UpdateIncome(t *testing.T) {
 						id = tc.txId
 					}
 
-					err = store.UpdateIncome(t.Context(), tc.updateInput, id, tc.updateTenant)
+					err = store.UpdateIncome(t.Context(), tc.updateInput, id)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -474,7 +475,7 @@ func TestStore_UpdateIncome(t *testing.T) {
 							t.Fatalf("unexpected error: %v", err)
 						}
 
-						got, err := store.GetTransaction(t.Context(), id, tc.updateTenant)
+						got, err := store.GetTransaction(t.Context(), id)
 						if err != nil {
 							t.Fatalf("expected entry to be found, but got error: %v", err)
 						}
@@ -613,12 +614,6 @@ func TestStore_UpdateExpense(t *testing.T) {
 
 		// 🚨 Not found / Wrong tenant
 		{
-			name:         "wrong tenant",
-			updateTenant: tenant2,
-			updateInput:  ExpenseUpdate{Description: ptr("changed")},
-			wantErr:      "error updating transaction: transaction not found",
-		},
-		{
 			name:         "non-existing transaction",
 			updateTenant: tenant1,
 			updateInput:  ExpenseUpdate{Description: ptr("changed")},
@@ -631,10 +626,7 @@ func TestStore_UpdateExpense(t *testing.T) {
 		t.Run(db.DbType(), func(t *testing.T) {
 
 			dbCon := db.ConnDbName("TestUpdateEntry")
-			store, err := NewStore(dbCon)
-			if err != nil {
-				t.Fatal(err)
-			}
+			store, _ := newAccountingStoreWithMarketData(t, dbCon)
 
 			categorySampleData(t, store, sampleCategories)
 			accountSampleData(t, store) // note: test operates on one set of data
@@ -644,7 +636,7 @@ func TestStore_UpdateExpense(t *testing.T) {
 
 					in := Expense{Description: "description", Amount: 10, AccountID: 1, CategoryID: 2,
 						Date: getDate("2025-01-02")}
-					id, err := store.CreateTransaction(t.Context(), in, tenant1)
+					id, err := store.CreateTransaction(t.Context(), in)
 					if err != nil {
 						t.Fatalf("failed to create baseTx: %v", err)
 					}
@@ -653,7 +645,7 @@ func TestStore_UpdateExpense(t *testing.T) {
 						id = tc.txId
 					}
 
-					err = store.UpdateExpense(t.Context(), tc.updateInput, id, tc.updateTenant)
+					err = store.UpdateExpense(t.Context(), tc.updateInput, id)
 					if tc.wantErr != "" {
 						if err == nil {
 							t.Fatalf("expected error: %s, but got none", tc.wantErr)
@@ -666,7 +658,7 @@ func TestStore_UpdateExpense(t *testing.T) {
 							t.Fatalf("unexpected error: %v", err)
 						}
 
-						got, err := store.GetTransaction(t.Context(), id, tc.updateTenant)
+						got, err := store.GetTransaction(t.Context(), id)
 						if err != nil {
 							t.Fatalf("expected entry to be found, but got error: %v", err)
 						}
@@ -829,12 +821,6 @@ func TestStore_UpdateTransfer(t *testing.T) {
 
 		// 🚨 Not found / Wrong tenant
 		{
-			name:         "wrong tenant",
-			updateTenant: tenant2,
-			updateInput:  TransferUpdate{Description: ptr("changed")},
-			wantErr:      "error updating transaction: transaction not found",
-		},
-		{
 			name:         "non-existing transaction",
 			updateTenant: tenant1,
 			updateInput:  TransferUpdate{Description: ptr("changed")},
@@ -846,10 +832,7 @@ func TestStore_UpdateTransfer(t *testing.T) {
 	for _, db := range testdbs.DBs() {
 		t.Run(db.DbType(), func(t *testing.T) {
 			dbCon := db.ConnDbName("TestUpdateTransfer")
-			store, err := NewStore(dbCon)
-			if err != nil {
-				t.Fatal(err)
-			}
+			store, _ := newAccountingStoreWithMarketData(t, dbCon)
 
 			accountSampleData(t, store)
 
@@ -864,7 +847,7 @@ func TestStore_UpdateTransfer(t *testing.T) {
 						TargetAccountID: 2,
 						Date:            getDate("2025-01-02"),
 					}
-					id, err := store.CreateTransaction(t.Context(), in, tenant1)
+					id, err := store.CreateTransaction(t.Context(), in)
 					if err != nil {
 						t.Fatalf("failed to create baseTx: %v", err)
 					}
@@ -873,7 +856,7 @@ func TestStore_UpdateTransfer(t *testing.T) {
 						id = tc.txId
 					}
 
-					err = store.UpdateTransfer(t.Context(), tc.updateInput, id, tc.updateTenant)
+					err = store.UpdateTransfer(t.Context(), tc.updateInput, id)
 
 					if tc.wantErr != "" {
 						if err == nil {
@@ -888,7 +871,7 @@ func TestStore_UpdateTransfer(t *testing.T) {
 							t.Fatalf("unexpected error: %v", err)
 						}
 
-						got, err := store.GetTransaction(t.Context(), id, tc.updateTenant)
+						got, err := store.GetTransaction(t.Context(), id)
 						if err != nil {
 							t.Fatalf("expected baseTx but got error: %v", err)
 						}
@@ -1079,10 +1062,7 @@ func TestStore_ListTransactions(t *testing.T) {
 	for _, db := range testdbs.DBs() {
 		t.Run(db.DbType(), func(t *testing.T) {
 			dbCon := db.ConnDbName("TestListTransactions")
-			store, err := NewStore(dbCon)
-			if err != nil {
-				t.Fatal(err)
-			}
+			store, _ := newAccountingStoreWithMarketData(t, dbCon)
 
 			accountSampleData(t, store)
 			// note, to optimize the test, we execute all tests on a common set of pre created transactions
@@ -1091,7 +1071,7 @@ func TestStore_ListTransactions(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
-					got, err := store.ListTransactions(t.Context(), tc.opts, tenant1)
+					got, err := store.ListTransactions(t.Context(), tc.opts)
 
 					if tc.wantErr != "" {
 						if err == nil {
@@ -1120,6 +1100,10 @@ var ignoreUnexportedTxFields = []cmp.Option{
 	cmpopts.IgnoreUnexported(Income{}),
 	cmpopts.IgnoreUnexported(Expense{}),
 	cmpopts.IgnoreUnexported(Transfer{}),
+	cmpopts.IgnoreUnexported(StockBuy{}),
+	cmpopts.IgnoreUnexported(StockSell{}),
+	cmpopts.IgnoreUnexported(StockGrant{}),
+	cmpopts.IgnoreUnexported(StockTransfer{}),
 }
 var ignoreUnexportedAndIds = []cmp.Option{
 	cmpopts.IgnoreUnexported(Income{}),
@@ -1128,6 +1112,624 @@ var ignoreUnexportedAndIds = []cmp.Option{
 	cmpopts.IgnoreFields(Income{}, "Id"),
 	cmpopts.IgnoreFields(Expense{}, "Id"),
 	cmpopts.IgnoreFields(Transfer{}, "Id"),
+}
+
+// setupStockBuySellTest creates provider, investment account, cash account and instrument for stock buy/sell tests.
+func setupStockBuySellTest(t *testing.T, ctx context.Context, store *Store, mktStore *marketdata.Store) (investmentAccountID, cashAccountID, instrumentID uint) {
+	t.Helper()
+	providerID, err := store.CreateAccountProvider(ctx, AccountProvider{Name: "Broker"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	investmentAccountID, err = store.CreateAccount(ctx, Account{
+		AccountProviderID: providerID,
+		Name:              "Broker account",
+		Currency:          currency.USD,
+		Type:              InvestmentAccountType,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cashAccountID, err = store.CreateAccount(ctx, Account{
+		AccountProviderID: providerID,
+		Name:              "Checking",
+		Currency:          currency.USD,
+		Type:              CheckinAccountType,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	instrumentID, err = mktStore.CreateInstrument(ctx, marketdata.Instrument{
+		Symbol:   "AAPL",
+		Name:     "Apple Inc.",
+		Currency: currency.USD,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return investmentAccountID, cashAccountID, instrumentID
+}
+
+func verifyStockBuyResult(t *testing.T, got Transaction, want StockBuy, investmentAccountID, cashAccountID uint) {
+	t.Helper()
+	gotStockBuy, ok := got.(StockBuy)
+	if !ok {
+		t.Fatalf("expected StockBuy, got %T", got)
+	}
+	if gotStockBuy.Quantity != want.Quantity || gotStockBuy.TotalAmount != want.TotalAmount {
+		t.Errorf("got StockBuy Quantity=%v TotalAmount=%v, want Quantity=%v TotalAmount=%v",
+			gotStockBuy.Quantity, gotStockBuy.TotalAmount, want.Quantity, want.TotalAmount)
+	}
+	if gotStockBuy.InvestmentAccountID != investmentAccountID || gotStockBuy.CashAccountID != cashAccountID {
+		t.Errorf("got StockBuy InvestmentAccountID=%v CashAccountID=%v, want %v %v",
+			gotStockBuy.InvestmentAccountID, gotStockBuy.CashAccountID, investmentAccountID, cashAccountID)
+	}
+}
+
+func verifyStockSellResult(t *testing.T, got Transaction, want StockSell, investmentAccountID, cashAccountID uint) {
+	t.Helper()
+	gotStockSell, ok := got.(StockSell)
+	if !ok {
+		t.Fatalf("expected StockSell, got %T", got)
+	}
+	if gotStockSell.Quantity != want.Quantity || gotStockSell.TotalAmount != want.TotalAmount {
+		t.Errorf("got StockSell Quantity=%v TotalAmount=%v, want Quantity=%v TotalAmount=%v",
+			gotStockSell.Quantity, gotStockSell.TotalAmount, want.Quantity, want.TotalAmount)
+	}
+	if gotStockSell.InvestmentAccountID != investmentAccountID || gotStockSell.CashAccountID != cashAccountID {
+		t.Errorf("got StockSell InvestmentAccountID=%v CashAccountID=%v, want %v %v",
+			gotStockSell.InvestmentAccountID, gotStockSell.CashAccountID, investmentAccountID, cashAccountID)
+	}
+	if gotStockSell.CostBasis <= 0 {
+		t.Errorf("got StockSell CostBasis=%v, want positive", gotStockSell.CostBasis)
+	}
+	if math.Abs(gotStockSell.CostBasis+gotStockSell.RealizedGainLoss+gotStockSell.Fees-gotStockSell.TotalAmount) > 0.01 {
+		t.Errorf("invariant violated: costBasis+realizedGainLoss+fees=%v != totalAmount=%v",
+			gotStockSell.CostBasis+gotStockSell.RealizedGainLoss+gotStockSell.Fees, gotStockSell.TotalAmount)
+	}
+}
+
+func TestStore_CreateStockBuy_CreateStockSell(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("storeCreateStock"))
+			investmentAccountID, cashAccountID, instrumentID := setupStockBuySellTest(t, ctx, store, mktStore)
+
+			buy := StockBuy{
+				Description:         "Buy AAPL",
+				Date:                getDate("2025-02-01"),
+				InvestmentAccountID: investmentAccountID,
+				CashAccountID:       cashAccountID,
+				InstrumentID:        instrumentID,
+				Quantity:            10,
+				TotalAmount:         1500.0,
+				StockAmount:         1850.0,
+			}
+			buyID, err := store.CreateStockBuy(ctx, buy)
+			if err != nil {
+				t.Fatalf("CreateStockBuy: %v", err)
+			}
+			if buyID == 0 {
+				t.Fatal("expected non-zero transaction id")
+			}
+			gotBuy, err := store.GetTransaction(ctx, buyID)
+			if err != nil {
+				t.Fatalf("GetTransaction(buy): %v", err)
+			}
+			verifyStockBuyResult(t, gotBuy, buy, investmentAccountID, cashAccountID)
+
+			sell := StockSell{
+				Description:         "Sell AAPL",
+				Date:                getDate("2025-02-02"),
+				InvestmentAccountID: investmentAccountID,
+				CashAccountID:       cashAccountID,
+				InstrumentID:        instrumentID,
+				Quantity:            3,
+				TotalAmount:         465.0,
+			}
+			sellID, err := store.CreateStockSell(ctx, sell)
+			if err != nil {
+				t.Fatalf("CreateStockSell: %v", err)
+			}
+			if sellID == 0 {
+				t.Fatal("expected non-zero transaction id")
+			}
+			gotSell, err := store.GetTransaction(ctx, sellID)
+			if err != nil {
+				t.Fatalf("GetTransaction(sell): %v", err)
+			}
+			verifyStockSellResult(t, gotSell, sell, investmentAccountID, cashAccountID)
+
+			list, err := store.ListTransactions(ctx, ListOpts{
+				StartDate: getDate("2025-02-01"),
+				EndDate:   getDate("2025-02-28"),
+				Types:     []TxType{StockBuyTransaction, StockSellTransaction},
+				Limit:     10,
+			})
+			if err != nil {
+				t.Fatalf("ListTransactions: %v", err)
+			}
+			if len(list) != 2 {
+				t.Errorf("ListTransactions: got %d stock transactions, want 2", len(list))
+			}
+		})
+	}
+}
+
+func TestStore_CreateStockSell_costAverage(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("storeCostAvg"))
+			invID, cashID, instID := setupStockBuySellTest(t, ctx, store, mktStore)
+			buy := StockBuy{
+				Description:         "Buy 10 @ 1500",
+				Date:                getDate("2025-02-01"),
+				InvestmentAccountID: invID,
+				CashAccountID:       cashID,
+				InstrumentID:        instID,
+				Quantity:            10,
+				TotalAmount:         1500,
+				StockAmount:         1500,
+			}
+			if _, err := store.CreateStockBuy(ctx, buy); err != nil {
+				t.Fatalf("CreateStockBuy: %v", err)
+			}
+			sell := StockSell{
+				Description:         "Sell 4",
+				Date:                getDate("2025-02-02"),
+				InvestmentAccountID: invID,
+				CashAccountID:       cashID,
+				InstrumentID:        instID,
+				Quantity:            4,
+				TotalAmount:         700,
+			}
+			sellID, err := store.CreateStockSell(ctx, sell)
+			if err != nil {
+				t.Fatalf("CreateStockSell: %v", err)
+			}
+			got, err := store.GetTransaction(ctx, sellID)
+			if err != nil {
+				t.Fatalf("GetTransaction: %v", err)
+			}
+			s := got.(StockSell)
+			if s.CostBasis != 600 {
+				t.Errorf("costBasis got %v want 600 (4/10 * 1500)", s.CostBasis)
+			}
+			if s.RealizedGainLoss != 100 {
+				t.Errorf("realizedGainLoss got %v want 100", s.RealizedGainLoss)
+			}
+		})
+	}
+}
+
+func TestStore_CreateStockSell_realizedLoss(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("storeLoss"))
+			invID, cashID, instID := setupStockBuySellTest(t, ctx, store, mktStore)
+			buy := StockBuy{
+				Description:         "Buy 10 @ 1000",
+				Date:                getDate("2025-02-01"),
+				InvestmentAccountID: invID,
+				CashAccountID:       cashID,
+				InstrumentID:        instID,
+				Quantity:            10,
+				TotalAmount:         1000,
+				StockAmount:         1000,
+			}
+			if _, err := store.CreateStockBuy(ctx, buy); err != nil {
+				t.Fatalf("CreateStockBuy: %v", err)
+			}
+			sell := StockSell{
+				Description:         "Sell 5 @ 400",
+				Date:                getDate("2025-02-02"),
+				InvestmentAccountID: invID,
+				CashAccountID:       cashID,
+				InstrumentID:        instID,
+				Quantity:            5,
+				TotalAmount:         400,
+			}
+			sellID, err := store.CreateStockSell(ctx, sell)
+			if err != nil {
+				t.Fatalf("CreateStockSell: %v", err)
+			}
+			got, err := store.GetTransaction(ctx, sellID)
+			if err != nil {
+				t.Fatalf("GetTransaction: %v", err)
+			}
+			s := got.(StockSell)
+			if s.CostBasis != 500 {
+				t.Errorf("costBasis got %v want 500", s.CostBasis)
+			}
+			if s.RealizedGainLoss != -100 {
+				t.Errorf("realizedGainLoss got %v want -100", s.RealizedGainLoss)
+			}
+		})
+	}
+}
+
+func TestStore_CreateStockSell_fullCloseReopen(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("storeFullClose"))
+			invID, cashID, instID := setupStockBuySellTest(t, ctx, store, mktStore)
+			buy1 := StockBuy{
+				Description:         "Buy 10",
+				Date:                getDate("2025-02-01"),
+				InvestmentAccountID: invID,
+				CashAccountID:       cashID,
+				InstrumentID:        instID,
+				Quantity:            10,
+				TotalAmount:         1000,
+				StockAmount:         1000,
+			}
+			if _, err := store.CreateStockBuy(ctx, buy1); err != nil {
+				t.Fatalf("CreateStockBuy: %v", err)
+			}
+			sellAll := StockSell{
+				Description:         "Sell all 10",
+				Date:                getDate("2025-02-02"),
+				InvestmentAccountID: invID,
+				CashAccountID:       cashID,
+				InstrumentID:        instID,
+				Quantity:            10,
+				TotalAmount:         900,
+			}
+			if _, err := store.CreateStockSell(ctx, sellAll); err != nil {
+				t.Fatalf("CreateStockSell: %v", err)
+			}
+			buy2 := StockBuy{
+				Description:         "Buy 5 @ 200",
+				Date:                getDate("2025-02-03"),
+				InvestmentAccountID: invID,
+				CashAccountID:       cashID,
+				InstrumentID:        instID,
+				Quantity:            5,
+				TotalAmount:         200,
+				StockAmount:         200,
+			}
+			if _, err := store.CreateStockBuy(ctx, buy2); err != nil {
+				t.Fatalf("CreateStockBuy: %v", err)
+			}
+			sell2 := StockSell{
+				Description:         "Sell 2",
+				Date:                getDate("2025-02-04"),
+				InvestmentAccountID: invID,
+				CashAccountID:       cashID,
+				InstrumentID:        instID,
+				Quantity:            2,
+				TotalAmount:         100,
+			}
+			sellID, err := store.CreateStockSell(ctx, sell2)
+			if err != nil {
+				t.Fatalf("CreateStockSell: %v", err)
+			}
+			got, err := store.GetTransaction(ctx, sellID)
+			if err != nil {
+				t.Fatalf("GetTransaction: %v", err)
+			}
+			s := got.(StockSell)
+			if s.CostBasis != 80 {
+				t.Errorf("costBasis got %v want 80 (2/5 * 200), full close should reset cost basis", s.CostBasis)
+			}
+		})
+	}
+}
+
+func TestStore_CreateStockSell_insufficientQuantity(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("storeInsufficient"))
+			invID, cashID, instID := setupStockBuySellTest(t, ctx, store, mktStore)
+			buy := StockBuy{
+				Description:         "Buy 3",
+				Date:                getDate("2025-02-01"),
+				InvestmentAccountID: invID,
+				CashAccountID:       cashID,
+				InstrumentID:        instID,
+				Quantity:            3,
+				TotalAmount:         300,
+				StockAmount:         300,
+			}
+			if _, err := store.CreateStockBuy(ctx, buy); err != nil {
+				t.Fatalf("CreateStockBuy: %v", err)
+			}
+			sell := StockSell{
+				Description:         "Sell 5",
+				Date:                getDate("2025-02-02"),
+				InvestmentAccountID: invID,
+				CashAccountID:       cashID,
+				InstrumentID:        instID,
+				Quantity:            5,
+				TotalAmount:         500,
+			}
+			_, err := store.CreateStockSell(ctx, sell)
+			if err == nil {
+				t.Fatal("expected error for insufficient quantity")
+			}
+			if !strings.Contains(err.Error(), "insufficient") && !strings.Contains(err.Error(), "quantity") {
+				t.Errorf("error should mention insufficient quantity, got: %v", err)
+			}
+		})
+	}
+}
+
+func TestStore_CreateStockSell_breakEven(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("storeBreakEven"))
+			invID, cashID, instID := setupStockBuySellTest(t, ctx, store, mktStore)
+			buy := StockBuy{
+				Description:         "Buy 10 @ 1000",
+				Date:                getDate("2025-02-01"),
+				InvestmentAccountID: invID,
+				CashAccountID:       cashID,
+				InstrumentID:        instID,
+				Quantity:            10,
+				TotalAmount:         1000,
+				StockAmount:         1000,
+			}
+			if _, err := store.CreateStockBuy(ctx, buy); err != nil {
+				t.Fatalf("CreateStockBuy: %v", err)
+			}
+			sell := StockSell{
+				Description:         "Sell 5 @ 500 (exact cost)",
+				Date:                getDate("2025-02-02"),
+				InvestmentAccountID: invID,
+				CashAccountID:       cashID,
+				InstrumentID:        instID,
+				Quantity:            5,
+				TotalAmount:         500,
+			}
+			sellID, err := store.CreateStockSell(ctx, sell)
+			if err != nil {
+				t.Fatalf("CreateStockSell: %v", err)
+			}
+			got, err := store.GetTransaction(ctx, sellID)
+			if err != nil {
+				t.Fatalf("GetTransaction: %v", err)
+			}
+			s := got.(StockSell)
+			if s.CostBasis != 500 {
+				t.Errorf("costBasis got %v want 500", s.CostBasis)
+			}
+			if s.RealizedGainLoss != 0 {
+				t.Errorf("realizedGainLoss got %v want 0 (break-even)", s.RealizedGainLoss)
+			}
+			var entries []dbEntry
+			if err := store.db.WithContext(ctx).Where("transaction_id = ?", sellID).Find(&entries).Error; err != nil {
+				t.Fatalf("query entries: %v", err)
+			}
+			if len(entries) != 2 {
+				t.Errorf("break-even sell should have 2 entries (no P&L), got %d", len(entries))
+			}
+		})
+	}
+}
+
+func TestStore_CreateStockSell_withFees(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("storeFees"))
+			invID, cashID, instID := setupStockBuySellTest(t, ctx, store, mktStore)
+			buy := StockBuy{
+				Description:         "Buy 10 @ 1000",
+				Date:                getDate("2025-02-01"),
+				InvestmentAccountID: invID,
+				CashAccountID:       cashID,
+				InstrumentID:        instID,
+				Quantity:            10,
+				TotalAmount:         1000,
+				StockAmount:         1000,
+			}
+			if _, err := store.CreateStockBuy(ctx, buy); err != nil {
+				t.Fatalf("CreateStockBuy: %v", err)
+			}
+			sell := StockSell{
+				Description:         "Sell 5 @ 600 gross, fees 10",
+				Date:                getDate("2025-02-02"),
+				InvestmentAccountID: invID,
+				CashAccountID:       cashID,
+				InstrumentID:        instID,
+				Quantity:            5,
+				TotalAmount:         600,
+				Fees:                10,
+			}
+			sellID, err := store.CreateStockSell(ctx, sell)
+			if err != nil {
+				t.Fatalf("CreateStockSell: %v", err)
+			}
+			got, err := store.GetTransaction(ctx, sellID)
+			if err != nil {
+				t.Fatalf("GetTransaction: %v", err)
+			}
+			s := got.(StockSell)
+			if s.CostBasis != 500 {
+				t.Errorf("costBasis got %v want 500", s.CostBasis)
+			}
+			if s.RealizedGainLoss != 90 {
+				t.Errorf("realizedGainLoss got %v want 90 (600-500-10)", s.RealizedGainLoss)
+			}
+			if s.Fees != 10 {
+				t.Errorf("fees got %v want 10", s.Fees)
+			}
+			var entries []dbEntry
+			store.db.WithContext(ctx).Where("transaction_id = ?", sellID).Find(&entries)
+			if len(entries) != 4 {
+				t.Errorf("sell with gain and fees should have 4 entries, got %d", len(entries))
+			}
+		})
+	}
+}
+
+// setupStockGrantTransferTest creates provider, unvested account, investment account and instrument for stock grant and transfer tests.
+func setupStockGrantTransferTest(t *testing.T, ctx context.Context, store *Store, mktStore *marketdata.Store) (grantAccountID, investmentAccountID, instrumentID uint) {
+	t.Helper()
+	providerID, err := store.CreateAccountProvider(ctx, AccountProvider{Name: "Broker"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	grantAccountID, err = store.CreateAccount(ctx, Account{
+		AccountProviderID: providerID,
+		Name:              "RSU Unvested",
+		Currency:          currency.USD,
+		Type:              UnvestedAccountType,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	investmentAccountID, err = store.CreateAccount(ctx, Account{
+		AccountProviderID: providerID,
+		Name:              "Broker vested",
+		Currency:          currency.USD,
+		Type:              InvestmentAccountType,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	instrumentID, err = mktStore.CreateInstrument(ctx, marketdata.Instrument{
+		Symbol:   "RSU",
+		Name:     "Company RSU",
+		Currency: currency.USD,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return grantAccountID, investmentAccountID, instrumentID
+}
+
+func verifyStockGrantResult(t *testing.T, got Transaction, want StockGrant) {
+	t.Helper()
+	gotStockGrant, ok := got.(StockGrant)
+	if !ok {
+		t.Fatalf("expected StockGrant, got %T", got)
+	}
+	if gotStockGrant.Quantity != want.Quantity || gotStockGrant.AccountID != want.AccountID {
+		t.Errorf("got StockGrant Quantity=%v AccountID=%v, want Quantity=%v AccountID=%v",
+			gotStockGrant.Quantity, gotStockGrant.AccountID, want.Quantity, want.AccountID)
+	}
+}
+
+func verifyStockTransferResult(t *testing.T, got Transaction, want StockTransfer) {
+	t.Helper()
+	gotStockTransfer, ok := got.(StockTransfer)
+	if !ok {
+		t.Fatalf("expected StockTransfer, got %T", got)
+	}
+	if gotStockTransfer.Quantity != want.Quantity || gotStockTransfer.SourceAccountID != want.SourceAccountID || gotStockTransfer.TargetAccountID != want.TargetAccountID {
+		t.Errorf("got StockTransfer Quantity=%v Source=%v Target=%v, want Quantity=%v Source=%v Target=%v",
+			gotStockTransfer.Quantity, gotStockTransfer.SourceAccountID, gotStockTransfer.TargetAccountID,
+			want.Quantity, want.SourceAccountID, want.TargetAccountID)
+	}
+}
+
+func TestStore_CreateStockGrant_CreateStockTransfer(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("storeCreateStockGrantTransfer"))
+			grantAccountID, investmentAccountID, instrumentID := setupStockGrantTransferTest(t, ctx, store, mktStore)
+
+			grant := StockGrant{
+				Description:  "RSU grant",
+				Date:         getDate("2025-03-01"),
+				AccountID:    grantAccountID,
+				InstrumentID: instrumentID,
+				Quantity:     100,
+			}
+			grantID, err := store.CreateStockGrant(ctx, grant)
+			if err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+			if grantID == 0 {
+				t.Fatal("expected non-zero transaction id")
+			}
+			gotGrant, err := store.GetTransaction(ctx, grantID)
+			if err != nil {
+				t.Fatalf("GetTransaction(grant): %v", err)
+			}
+			verifyStockGrantResult(t, gotGrant, grant)
+
+			transfer := StockTransfer{
+				Description:     "RSU vest to brokerage",
+				Date:            getDate("2025-03-15"),
+				SourceAccountID: grantAccountID,
+				TargetAccountID: investmentAccountID,
+				InstrumentID:    instrumentID,
+				Quantity:        50,
+			}
+			transferID, err := store.CreateStockTransfer(ctx, transfer)
+			if err != nil {
+				t.Fatalf("CreateStockTransfer: %v", err)
+			}
+			if transferID == 0 {
+				t.Fatal("expected non-zero transaction id")
+			}
+			gotTransfer, err := store.GetTransaction(ctx, transferID)
+			if err != nil {
+				t.Fatalf("GetTransaction(transfer): %v", err)
+			}
+			verifyStockTransferResult(t, gotTransfer, transfer)
+
+			list, err := store.ListTransactions(ctx, ListOpts{
+				StartDate: getDate("2025-03-01"),
+				EndDate:   getDate("2025-03-31"),
+				Types:     []TxType{StockGrantTransaction, StockTransferTransaction},
+				Limit:     10,
+			})
+			if err != nil {
+				t.Fatalf("ListTransactions: %v", err)
+			}
+			if len(list) != 2 {
+				t.Errorf("ListTransactions: got %d grant/transfer transactions, want 2", len(list))
+			}
+		})
+	}
+}
+
+func TestStore_CreateStockBuy_validationErrors(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			dbCon := db.ConnDbName("storeCreateStockValidation")
+			store, mktStore := newAccountingStoreWithMarketData(t, dbCon)
+			providerID, _ := store.CreateAccountProvider(ctx, AccountProvider{Name: "p"})
+			accountID, _ := store.CreateAccount(ctx, Account{AccountProviderID: providerID, Name: "inv", Currency: currency.USD, Type: InvestmentAccountType})
+			instrumentID, _ := mktStore.CreateInstrument(ctx, marketdata.Instrument{Symbol: "X", Name: "X", Currency: currency.USD})
+
+			cashAccountID, _ := store.CreateAccount(ctx, Account{AccountProviderID: providerID, Name: "cash", Currency: currency.USD, Type: CashAccountType})
+
+			tcs := []struct {
+				name    string
+				input   StockBuy
+				wantErr string
+			}{
+				{"investment account must be Investment", StockBuy{Description: "x", Date: getDate("2025-01-01"), InvestmentAccountID: cashAccountID, CashAccountID: cashAccountID, InstrumentID: instrumentID, Quantity: 1, TotalAmount: 1, StockAmount: 1}, "Investment"},
+				{"cash account must be Cash/Checkin/Savings", StockBuy{Description: "x", Date: getDate("2025-01-01"), InvestmentAccountID: accountID, CashAccountID: accountID, InstrumentID: instrumentID, Quantity: 1, TotalAmount: 1, StockAmount: 1}, "Cash, Checkin or Savings"},
+				{"instrument not found", StockBuy{Description: "x", Date: getDate("2025-01-01"), InvestmentAccountID: accountID, CashAccountID: cashAccountID, InstrumentID: 99999, Quantity: 1, TotalAmount: 1, StockAmount: 1}, "instrument not found"},
+				{"quantity must be positive", StockBuy{Description: "x", Date: getDate("2025-01-01"), InvestmentAccountID: accountID, CashAccountID: cashAccountID, InstrumentID: instrumentID, Quantity: 0, TotalAmount: 1, StockAmount: 1}, "quantity must be positive"},
+				{"total amount must be positive", StockBuy{Description: "x", Date: getDate("2025-01-01"), InvestmentAccountID: accountID, CashAccountID: cashAccountID, InstrumentID: instrumentID, Quantity: 1, TotalAmount: 0, StockAmount: 1}, "total amount must be positive"},
+			}
+			for _, tc := range tcs {
+				t.Run(tc.name, func(t *testing.T) {
+					_, err := store.CreateStockBuy(ctx, tc.input)
+					if err == nil {
+						t.Fatalf("expected error containing %q", tc.wantErr)
+					}
+					if err.Error() != tc.wantErr && !strings.Contains(err.Error(), tc.wantErr) {
+						t.Errorf("got error %v", err)
+					}
+				})
+			}
+		})
+	}
 }
 
 var sampleTransactions = map[int]Transaction{
@@ -1149,7 +1751,7 @@ func transactionSampleData(t *testing.T, store *Store, data map[int]Transaction)
 	// create accounts providers
 	// =========================================
 
-	accProviderId, err := store.CreateAccountProvider(t.Context(), AccountProvider{Name: "p1"}, tenant1)
+	accProviderId, err := store.CreateAccountProvider(t.Context(), AccountProvider{Name: "p1"})
 	if err != nil {
 		t.Fatalf("error creating provider 1: %v", err)
 	}
@@ -1163,7 +1765,7 @@ func transactionSampleData(t *testing.T, store *Store, data map[int]Transaction)
 		{AccountProviderID: accProviderId, Name: "acc4", Currency: currency.CHF, Type: CashAccountType},
 	}
 	for _, acc := range Accs {
-		_, err = store.CreateAccount(t.Context(), acc, tenant1)
+		_, err = store.CreateAccount(t.Context(), acc)
 		if err != nil {
 			t.Fatalf("error creating account 1: %v", err)
 		}
@@ -1185,7 +1787,7 @@ func transactionSampleData(t *testing.T, store *Store, data map[int]Transaction)
 	}
 
 	for _, tx := range dataAr {
-		_, err = store.CreateTransaction(t.Context(), tx, tenant1)
+		_, err = store.CreateTransaction(t.Context(), tx)
 		if err != nil {
 			t.Fatalf("error creating account: %v", err)
 		}
