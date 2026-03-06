@@ -14,6 +14,7 @@ import { useEntries } from '@/composables/useEntries.ts'
 import { getEntry } from '@/lib/api/Entry'
 import IncomeExpenseDialog from '@/views/entries/dialogs/IncomeExpenseDialog.vue'
 import AddEntryMenu from '@/views/entries/AddEntryMenu.vue'
+import Button from 'primevue/button'
 import { useAccounts } from '@/composables/useAccounts'
 import { useBalance } from '@/composables/useGetBalanceReport'
 
@@ -283,7 +284,10 @@ const handleDeleteEntry = async () => {
                     />
                 </div>
                 <div class="add-entry-menu">
-                    <AddEntryMenu 
+                    <router-link :to="{ name: 'csv-import', params: { accountId: accountId } }">
+                        <Button label="Import CSV" icon="pi pi-upload" severity="secondary" />
+                    </router-link>
+                    <AddEntryMenu
                         :default-account-id="Number(accountId)"
                         :default-origin-account-id="Number(accountId)"
                         :account-type="accountType"
@@ -452,6 +456,7 @@ const handleDeleteEntry = async () => {
     display: flex;
     align-items: center;
     justify-content: flex-end;
+    gap: 0.5rem;
 }
 
 .entries-view {

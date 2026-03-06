@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onMounted } from 'vue'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
@@ -13,6 +13,7 @@ import { getApiErrorMessage } from '@/utils/apiError'
 import IconSelect from '@/components/common/IconSelect.vue'
 import { ACCOUNT_TYPES, ACCOUNT_TYPE_LABELS, getAccountTypeLabel } from '@/types/account'
 import { useSettingsStore } from '@/store/settingsStore'
+import { getProfiles } from '@/lib/api/CsvImport'
 
 const { createAccount, updateAccount, isCreating, isUpdating } = useAccounts()
 const settingsStore = useSettingsStore()
@@ -25,6 +26,7 @@ const props = defineProps({
     currency: { type: String, default: 'CHF' },
     type: { type: String, default: 'cash' },
     icon: { type: String, default: 'pi-wallet' },
+    importProfileId: { type: Number, default: 0 },
     visible: { type: Boolean, default: false },
     providerId: { type: Number, required: true }
 })
@@ -52,6 +54,23 @@ const accountTypeOptions = computed(() => {
 // Separate ref for icon since it's not managed by the Form
 const selectedIcon = ref(props.icon)
 
+// Import profiles
+const profiles = ref([])
+const selectedProfileId = ref(props.importProfileId)
+
+const profileOptions = computed(() => [
+    { label: 'None', value: 0 },
+    ...profiles.value.map(p => ({ label: p.name, value: p.id }))
+])
+
+onMounted(async () => {
+    try {
+        profiles.value = await getProfiles()
+    } catch (e) {
+        /* ignore - profiles are optional */
+    }
+})
+
 const formValues = ref({
     name: props.name,
     currency: props.currency,
@@ -62,6 +81,7 @@ const formValues = ref({
 watch(props, (newProps) => {
     formValues.value = { name: newProps.name, currency: newProps.currency, type: newProps.type }
     selectedIcon.value = newProps.icon || 'pi-wallet'
+    selectedProfileId.value = newProps.importProfileId || 0
 })
 
 const resolver = computed(() =>
@@ -80,7 +100,8 @@ const onFormSubmit = async (e) => {
             ...e.values,
             icon: selectedIcon.value,
             accountId: props.accountId,
-            providerId: props.providerId
+            providerId: props.providerId,
+            importProfileId: selectedProfileId.value
         }
 
         backendError.value = ''
@@ -92,7 +113,8 @@ const onFormSubmit = async (e) => {
                     currency: formData.currency,
                     type: formData.type,
                     icon: formData.icon,
-                    providerId: formData.providerId
+                    providerId: formData.providerId,
+                    importProfileId: formData.importProfileId
                 })
                 emit('update:visible', false)
             } catch (error) {
@@ -106,7 +128,8 @@ const onFormSubmit = async (e) => {
                     currency: formData.currency,
                     type: formData.type,
                     icon: formData.icon,
-                    providerId: formData.providerId
+                    providerId: formData.providerId,
+                    importProfileId: formData.importProfileId
                 })
                 emit('update:visible', false)
             } catch (error) {
@@ -183,6 +206,16 @@ const onFormSubmit = async (e) => {
                         <Message v-if="$form.currency?.invalid" severity="error" size="small">{{
                             $form.currency.error?.message
                         }}</Message>
+                    </div>
+                    <div>
+                        <label class="form-label">Import Profile</label>
+                        <Select
+                            v-model="selectedProfileId"
+                            :options="profileOptions"
+                            optionLabel="label"
+                            optionValue="value"
+                            placeholder="No import profile"
+                        />
                     </div>
 
                     <div class="flex justify-content-end gap-3">

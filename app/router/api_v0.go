@@ -7,6 +7,7 @@ import (
 
 	handlrs "github.com/andresbott/etna/app/router/handlers"
 	"github.com/andresbott/etna/app/router/handlers/backup"
+	csvimportHandler "github.com/andresbott/etna/app/router/handlers/csvimport"
 	finHandler "github.com/andresbott/etna/app/router/handlers/finance"
 	mktHandler "github.com/andresbott/etna/app/router/handlers/marketdata"
 	taskHandler "github.com/andresbott/etna/app/router/handlers/tasks"
@@ -34,6 +35,9 @@ func (h *MainAppHandler) attachApiV0(r *mux.Router) error {
 	h.marketDataAPI(r)
 	h.backupApi(r)
 	h.tasksApi(r)
+	if h.csvImportStore != nil {
+		h.csvImportAPI(r)
+	}
 
 	// send a 400 error on everything else on the API
 	r.PathPrefix("").HandlerFunc(StatusErrText(http.StatusBadRequest, "wrong api call"))
@@ -598,6 +602,129 @@ func (h *MainAppHandler) tasksApi(r *mux.Router) {
 	r.Path(fmt.Sprintf("%s/{name}", tasksPath)).Methods(http.MethodPut).Handler(th.UpsertTask())
 	r.Path(fmt.Sprintf("%s/{name}", tasksPath)).Methods(http.MethodPatch).Handler(th.PatchTask())
 	r.Path(fmt.Sprintf("%s/{name}", tasksPath)).Methods(http.MethodDelete).Handler(th.DeleteTaskSchedule())
+}
+
+const importProfilePath = "/import/profiles"
+const importCategoryRulePath = "/import/category-rules"
+const importParsePath = "/import/parse"
+const importSubmitPath = "/import/submit"
+
+func (h *MainAppHandler) csvImportAPI(r *mux.Router) {
+	profileHndlr := csvimportHandler.ProfileHandler{Store: h.csvImportStore}
+	ruleHndlr := csvimportHandler.CategoryRuleHandler{Store: h.csvImportStore}
+	importHndlr := csvimportHandler.ImportHandler{CsvStore: h.csvImportStore, FinStore: h.finStore}
+
+	// ==========================================================================
+	// Import Profiles
+	// ==========================================================================
+
+	r.Path(importProfilePath).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		profileHndlr.ListProfiles().ServeHTTP(w, r)
+	})
+
+	r.Path(importProfilePath).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		profileHndlr.CreateProfile().ServeHTTP(w, r)
+	})
+
+	r.Path(fmt.Sprintf("%s/{id}", importProfilePath)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		profileHndlr.UpdateProfile(itemId).ServeHTTP(w, r)
+	})
+
+	r.Path(fmt.Sprintf("%s/{id}", importProfilePath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		profileHndlr.DeleteProfile(itemId).ServeHTTP(w, r)
+	})
+
+	// ==========================================================================
+	// Category Rules
+	// ==========================================================================
+
+	r.Path(importCategoryRulePath).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		ruleHndlr.ListCategoryRules().ServeHTTP(w, r)
+	})
+
+	r.Path(importCategoryRulePath).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		ruleHndlr.CreateCategoryRule().ServeHTTP(w, r)
+	})
+
+	r.Path(fmt.Sprintf("%s/{id}", importCategoryRulePath)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		ruleHndlr.UpdateCategoryRule(itemId).ServeHTTP(w, r)
+	})
+
+	r.Path(fmt.Sprintf("%s/{id}", importCategoryRulePath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		ruleHndlr.DeleteCategoryRule(itemId).ServeHTTP(w, r)
+	})
+
+	// ==========================================================================
+	// CSV Parse & Submit
+	// ==========================================================================
+
+	r.Path(importParsePath).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		importHndlr.ParseCSV().ServeHTTP(w, r)
+	})
+
+	r.Path(importSubmitPath).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		importHndlr.SubmitImport().ServeHTTP(w, r)
+	})
 }
 
 const backupPath = "/backup"

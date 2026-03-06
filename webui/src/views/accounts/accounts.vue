@@ -261,6 +261,7 @@ const handleDeleteProvider = async () => {
         :currency="selectedAccount?.currency"
         :type="selectedAccount?.type"
         :icon="selectedAccount?.icon"
+        :import-profile-id="selectedAccount?.importProfileId"
     />
 
     <DeleteDialog

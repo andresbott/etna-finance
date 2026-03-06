@@ -83,7 +83,7 @@ build-ui:
 	npm run build
 
 build: package-ui ## use goreleaser to build to current OS/Arch
-	@goreleaser build --auto-snapshot --clean --single-target
+	@goreleaser build --snapshot --clean --single-target
 
 #==========================================================================================
 ##@ Docker

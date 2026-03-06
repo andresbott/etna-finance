@@ -19,6 +19,7 @@ import (
 	handlers "github.com/andresbott/etna/app/router/handlers"
 	"github.com/andresbott/etna/app/tasks"
 	"github.com/andresbott/etna/internal/accounting"
+	"github.com/andresbott/etna/internal/csvimport"
 	"github.com/andresbott/etna/internal/marketdata"
 	"github.com/andresbott/etna/internal/marketdata/importer"
 	"github.com/andresbott/etna/internal/taskrunner"
@@ -109,6 +110,11 @@ func runServer(configFile string) error {
 		return fmt.Errorf("accounting store: %w", err)
 	}
 
+	csvImportStore, err := csvimport.NewStore(db)
+	if err != nil {
+		return fmt.Errorf("csv import store: %w", err)
+	}
+
 	// ——— Instruments config vs DB consistency ———
 	// If config has Instruments: false but DB contains investment/unvested accounts, override to true.
 	ctx := context.Background()
@@ -164,8 +170,9 @@ func runServer(configFile string) error {
 		ScheduleStore: scheduleStore,
 		Scheduler:     scheduler,
 		TaskLogGetter: taskrunner.NewFileTaskLogReader(filepath.Join(cfg.DataDir, "tasklogs")),
-		FinStore:      finStore,
-		MarketStore:   marketStore,
+		FinStore:       finStore,
+		MarketStore:    marketStore,
+		CsvImportStore: csvImportStore,
 	}
 	mainAppHandler, err := router.New(routerCfg)
 	if err != nil {
