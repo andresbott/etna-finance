@@ -221,6 +221,22 @@ const router = createRouter({
             component: () => import('@/views/LoginView.vue')
         },
         {
+            path: '/import/:accountId',
+            name: 'csv-import',
+            meta: {
+                requiresAuth: true
+            },
+            component: () => import('@/views/csvimport/ImportView.vue')
+        },
+        {
+            path: '/setup/category-rules',
+            name: 'category-rules',
+            meta: {
+                requiresAuth: true
+            },
+            component: () => import('@/views/csvimport/CategoryRulesView.vue')
+        },
+        {
             path: '/:pathMatch(.*)*',
             name: 'NotFound',
             component: () => import('@/views/404.vue')

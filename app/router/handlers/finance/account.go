@@ -158,11 +158,12 @@ func (h *Handler) ListAccountProviders() http.Handler {
 			for j, account := range b.Accounts {
 				currencyStr := account.Currency.String()
 				accounts[j] = accountPayload{
-					Id:       account.ID,
-					Name:     account.Name,
-					Icon:     account.Icon,
-					Currency: currencyStr,
-					Type:     strings.ToLower(account.Type.String()),
+					Id:              account.ID,
+					Name:            account.Name,
+					Icon:            account.Icon,
+					Currency:        currencyStr,
+					Type:            strings.ToLower(account.Type.String()),
+					ImportProfileId: account.ImportProfileID,
 				}
 			}
 
@@ -198,12 +199,13 @@ func (h *Handler) ListAccountProviders() http.Handler {
 // =======================================================================================
 
 type accountPayload struct {
-	Id         uint   `json:"id"`
-	ProviderId uint   `json:"providerId,omitempty"`
-	Name       string `json:"name"`
-	Icon       string `json:"icon"`
-	Currency   string `json:"currency"`
-	Type       string `json:"type"` // enum of type
+	Id              uint   `json:"id"`
+	ProviderId      uint   `json:"providerId,omitempty"`
+	Name            string `json:"name"`
+	Icon            string `json:"icon"`
+	Currency        string `json:"currency"`
+	Type            string `json:"type"` // enum of type
+	ImportProfileId uint   `json:"importProfileId,omitempty"`
 }
 
 func (h *Handler) CreateAccount() http.Handler {
@@ -231,6 +233,7 @@ func (h *Handler) CreateAccount() http.Handler {
 			Icon:              payload.Icon,
 			AccountProviderID: payload.ProviderId,
 			Type:              t,
+			ImportProfileID:   payload.ImportProfileId,
 		}
 		if t.RequiresCurrency() {
 			cur, err := currency.ParseISO(payload.Currency)
@@ -258,11 +261,12 @@ func (h *Handler) CreateAccount() http.Handler {
 			currencyStr = account.Currency.String()
 		}
 		responsePayload := accountPayload{
-			Id:       accID,
-			Name:     account.Name,
-			Icon:     account.Icon,
-			Currency: currencyStr,
-			Type:     account.Type.String(),
+			Id:              accID,
+			Name:            account.Name,
+			Icon:            account.Icon,
+			Currency:        currencyStr,
+			Type:            account.Type.String(),
+			ImportProfileId: account.ImportProfileID,
 		}
 
 		respJson, err := json.Marshal(responsePayload)
@@ -277,11 +281,12 @@ func (h *Handler) CreateAccount() http.Handler {
 }
 
 type accountUpdatePayload struct {
-	Id       uint    `json:"id"`
-	Name     *string `json:"name"`
-	Icon     *string `json:"icon"`
-	Currency *string `json:"currency"`
-	Type     string  `json:"type"`
+	Id              uint    `json:"id"`
+	Name            *string `json:"name"`
+	Icon            *string `json:"icon"`
+	Currency        *string `json:"currency"`
+	Type            string  `json:"type"`
+	ImportProfileId *uint   `json:"importProfileId"`
 }
 
 func (h *Handler) UpdateAccount(Id uint) http.Handler {
@@ -304,6 +309,10 @@ func (h *Handler) UpdateAccount(Id uint) http.Handler {
 
 		if payload.Icon != nil {
 			account.Icon = payload.Icon
+		}
+
+		if payload.ImportProfileId != nil {
+			account.ImportProfileID = payload.ImportProfileId
 		}
 
 		// Resolve target type for currency: from payload or current account

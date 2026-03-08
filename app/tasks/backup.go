@@ -9,6 +9,8 @@ import (
 
 	"github.com/andresbott/etna/internal/accounting"
 	"github.com/andresbott/etna/internal/backup"
+	"github.com/andresbott/etna/internal/csvimport"
+	"github.com/andresbott/etna/internal/marketdata"
 	"github.com/go-bumbu/tempo"
 )
 
@@ -28,6 +30,10 @@ var BackupTaskDef = TaskDef{
 type BackupTaskCfg struct {
 	// Store is the accounting store to export data from.
 	Store *accounting.Store
+	// MdStore is the market data store to export data from.
+	MdStore *marketdata.Store
+	// CsvStore is the CSV import store to export data from.
+	CsvStore *csvimport.Store
 	// Destination is the directory where backup ZIP files are written.
 	Destination string
 	// Interval is how often the backup runs. Defaults to 24 hours.
@@ -38,11 +44,11 @@ type BackupTaskCfg struct {
 
 // NewBackupTaskFn returns the task function that performs the actual backup export.
 // It can be used to enqueue a one-off backup from the API.
-func NewBackupTaskFn(store *accounting.Store, destination string, l *slog.Logger) func(ctx context.Context) error {
-	return newBackupFunc(store, destination, l)
+func NewBackupTaskFn(store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, destination string, l *slog.Logger) func(ctx context.Context) error {
+	return newBackupFunc(store, mdStore, csvStore, destination, l)
 }
 
-func newBackupFunc(store *accounting.Store, destination string, l *slog.Logger) func(ctx context.Context) error {
+func newBackupFunc(store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, destination string, l *slog.Logger) func(ctx context.Context) error {
 	return func(ctx context.Context) error {
 		now := time.Now().Format("2006-01-02_15-04")
 		zipFile := filepath.Join(destination, fmt.Sprintf("backup-%s.zip", now))
@@ -53,7 +59,7 @@ func newBackupFunc(store *accounting.Store, destination string, l *slog.Logger) 
 		)
 		tempo.Info(ctx, fmt.Sprintf("starting backup: %s", zipFile))
 
-		err := backup.ExportToFile(ctx, store, zipFile)
+		err := backup.ExportToFile(ctx, store, mdStore, csvStore, zipFile)
 		if err != nil {
 			l.Error("backup failed",
 				slog.String("component", "tasks"),

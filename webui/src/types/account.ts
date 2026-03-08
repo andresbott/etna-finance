@@ -15,6 +15,7 @@ export interface Account {
     currency: string
     type: string
     icon?: string
+    importProfileId?: number
 }
 
 /**
@@ -90,6 +91,7 @@ export const ENTRY_OPERATIONS = {
     SELL_STOCK: 'sellStock',
     GRANT_STOCK: 'grantStock',
     TRANSFER_INSTRUMENT: 'transferInstrument',
+    IMPORT_CSV: 'importCsv',
 } as const
 
 export type EntryOperation = typeof ENTRY_OPERATIONS[keyof typeof ENTRY_OPERATIONS]
@@ -108,16 +110,19 @@ export const ALLOWED_OPERATIONS_BY_ACCOUNT_TYPE: Record<AccountType, EntryOperat
         ENTRY_OPERATIONS.INCOME,
         ENTRY_OPERATIONS.EXPENSE,
         ENTRY_OPERATIONS.TRANSFER,
+        ENTRY_OPERATIONS.IMPORT_CSV,
     ],
     [ACCOUNT_TYPES.CHECKING]: [
         ENTRY_OPERATIONS.INCOME,
         ENTRY_OPERATIONS.EXPENSE,
         ENTRY_OPERATIONS.TRANSFER,
+        ENTRY_OPERATIONS.IMPORT_CSV,
     ],
     [ACCOUNT_TYPES.SAVINGS]: [
         ENTRY_OPERATIONS.INCOME,
         ENTRY_OPERATIONS.EXPENSE,
         ENTRY_OPERATIONS.TRANSFER,
+        ENTRY_OPERATIONS.IMPORT_CSV,
     ],
     [ACCOUNT_TYPES.INVESTMENT]: [
         ENTRY_OPERATIONS.BUY_STOCK,

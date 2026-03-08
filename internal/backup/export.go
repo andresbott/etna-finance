@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/andresbott/etna/internal/accounting"
+	"github.com/andresbott/etna/internal/csvimport"
+	"github.com/andresbott/etna/internal/marketdata"
 )
 
 const timeFormat = "2006-01-02_15-04-05"
@@ -33,15 +35,15 @@ func verifyZipPath(zipFile string) error {
 	return nil
 }
 
-func ExportToFile(ctx context.Context, store *accounting.Store, zipFile string) error {
+func ExportToFile(ctx context.Context, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, zipFile string) error {
 	err := verifyZipPath(zipFile)
 	if err != nil {
 		return err
 	}
-	return export(ctx, store, zipFile)
+	return export(ctx, store, mdStore, csvStore, zipFile)
 }
 
-func export(ctx context.Context, store *accounting.Store, fullPath string) error {
+func export(ctx context.Context, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, fullPath string) error {
 	if store == nil {
 		return errors.New("finance store was not initialized")
 	}
@@ -82,6 +84,31 @@ func export(ctx context.Context, store *accounting.Store, fullPath string) error
 		return err
 	}
 
+	err = writeInstruments(ctx, zw, mdStore)
+	if err != nil {
+		return err
+	}
+
+	err = writePriceHistory(ctx, zw, mdStore)
+	if err != nil {
+		return err
+	}
+
+	err = writeFXRates(ctx, zw, mdStore)
+	if err != nil {
+		return err
+	}
+
+	err = writeImportProfiles(ctx, zw, csvStore)
+	if err != nil {
+		return err
+	}
+
+	err = writeCategoryRules(ctx, zw, csvStore)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -104,6 +131,7 @@ func writeAccountProviders(ctx context.Context, zw *zipWriter, store *accounting
 			ID:          provider.ID,
 			Name:        provider.Name,
 			Description: provider.Description,
+			Icon:        provider.Icon,
 		}
 	}
 	return zw.writeJsonFile(accountProviderFile, jsonData)
@@ -121,8 +149,10 @@ func writeAccounts(ctx context.Context, zw *zipWriter, store *accounting.Store) 
 			AccountProviderID: acc.AccountProviderID,
 			Name:              acc.Name,
 			Description:       acc.Description,
+			Icon:              acc.Icon,
 			Currency:          acc.Currency.String(),
 			Type:              acc.Type.String(),
+			ImportProfileID:   acc.ImportProfileID,
 		}
 	}
 	return zw.writeJsonFile(accountsFile, jsonData)
@@ -140,6 +170,7 @@ func writeCategories(ctx context.Context, zw *zipWriter, store *accounting.Store
 			ParentId:    income.ParentId,
 			Name:        income.Name,
 			Description: income.Description,
+			Icon:        income.Icon,
 		}
 	}
 	if err := zw.writeJsonFile(incomeCategoriesFile, jsonData); err != nil {
@@ -157,6 +188,7 @@ func writeCategories(ctx context.Context, zw *zipWriter, store *accounting.Store
 			ParentId:    exp.ParentId,
 			Name:        exp.Name,
 			Description: exp.Description,
+			Icon:        exp.Icon,
 		}
 	}
 	return zw.writeJsonFile(expenseCategoriesFile, jsonData)
@@ -291,4 +323,119 @@ func writeTransactions(ctx context.Context, zw *zipWriter, store *accounting.Sto
 		}
 	}
 	return zw.writeJsonFile(transactionsFile, jsonData)
+}
+
+func writeInstruments(ctx context.Context, zw *zipWriter, mdStore *marketdata.Store) error {
+	instruments, err := mdStore.ListInstruments(ctx)
+	if err != nil {
+		return err
+	}
+	jsonData := make([]instrumentV1, len(instruments))
+	for i, inst := range instruments {
+		jsonData[i] = instrumentV1{
+			ID:                   inst.ID,
+			InstrumentProviderID: inst.InstrumentProviderID,
+			Symbol:               inst.Symbol,
+			Name:                 inst.Name,
+			Currency:             inst.Currency.String(),
+		}
+	}
+	return zw.writeJsonFile(instrumentsFile, jsonData)
+}
+
+func writePriceHistory(ctx context.Context, zw *zipWriter, mdStore *marketdata.Store) error {
+	symbols, err := mdStore.ListPriceSymbols()
+	if err != nil {
+		return err
+	}
+	var jsonData []priceRecordV1
+	for _, symbol := range symbols {
+		records, err := mdStore.PriceHistory(ctx, symbol, time.Time{}, time.Time{})
+		if err != nil {
+			return fmt.Errorf("failed to get price history for %s: %w", symbol, err)
+		}
+		for _, rec := range records {
+			jsonData = append(jsonData, priceRecordV1{
+				Symbol: rec.Symbol,
+				Time:   rec.Time,
+				Price:  rec.Price,
+			})
+		}
+	}
+	if jsonData == nil {
+		jsonData = []priceRecordV1{}
+	}
+	return zw.writeJsonFile(priceHistoryFile, jsonData)
+}
+
+func writeFXRates(ctx context.Context, zw *zipWriter, mdStore *marketdata.Store) error {
+	pairs, err := mdStore.ListFXPairs()
+	if err != nil {
+		return err
+	}
+	var jsonData []fxRateRecordV1
+	for _, pair := range pairs {
+		parts := strings.SplitN(pair, "/", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		records, err := mdStore.RateHistory(ctx, parts[0], parts[1], time.Time{}, time.Time{})
+		if err != nil {
+			return fmt.Errorf("failed to get FX history for %s: %w", pair, err)
+		}
+		for _, rec := range records {
+			jsonData = append(jsonData, fxRateRecordV1{
+				Main:      rec.Main,
+				Secondary: rec.Secondary,
+				Time:      rec.Time,
+				Rate:      rec.Rate,
+			})
+		}
+	}
+	if jsonData == nil {
+		jsonData = []fxRateRecordV1{}
+	}
+	return zw.writeJsonFile(fxRatesFile, jsonData)
+}
+
+func writeImportProfiles(ctx context.Context, zw *zipWriter, csvStore *csvimport.Store) error {
+	profiles, err := csvStore.ListProfiles(ctx)
+	if err != nil {
+		return err
+	}
+	jsonData := make([]importProfileV1, len(profiles))
+	for i, p := range profiles {
+		jsonData[i] = importProfileV1{
+			ID:                p.ID,
+			Name:              p.Name,
+			CsvSeparator:      p.CsvSeparator,
+			SkipRows:          p.SkipRows,
+			DateColumn:        p.DateColumn,
+			DateFormat:        p.DateFormat,
+			DescriptionColumn: p.DescriptionColumn,
+			AmountColumn:      p.AmountColumn,
+			AmountMode:        p.AmountMode,
+			CreditColumn:      p.CreditColumn,
+			DebitColumn:       p.DebitColumn,
+		}
+	}
+	return zw.writeJsonFile(importProfilesFile, jsonData)
+}
+
+func writeCategoryRules(ctx context.Context, zw *zipWriter, csvStore *csvimport.Store) error {
+	rules, err := csvStore.ListCategoryRules(ctx)
+	if err != nil {
+		return err
+	}
+	jsonData := make([]categoryRuleV1, len(rules))
+	for i, r := range rules {
+		jsonData[i] = categoryRuleV1{
+			ID:         r.ID,
+			Pattern:    r.Pattern,
+			IsRegex:    r.IsRegex,
+			CategoryID: r.CategoryID,
+			Position:   r.Position,
+		}
+	}
+	return zw.writeJsonFile(categoryRulesFile, jsonData)
 }

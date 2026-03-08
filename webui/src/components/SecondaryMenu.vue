@@ -31,6 +31,11 @@ const sections = computed(() => {
             icon: 'pi pi-file-import',
             route: '/setup/csv-profiles'
         },
+        {
+            label: 'Category Matching Rules',
+            icon: 'pi pi-filter',
+            route: '/setup/category-rules'
+        },
         { label: 'Categories', icon: 'pi pi-tags', route: '/categories' },
         { label: 'Account Setup', icon: 'pi pi-wallet', route: '/accounts' },
     ]

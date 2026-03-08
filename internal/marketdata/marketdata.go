@@ -1,6 +1,7 @@
 package marketdata
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -65,6 +66,19 @@ func (s *Store) RegisterInstrument(symbol string) error {
 	}
 	if err := s.registry.RegisterSeries(series); err != nil {
 		return fmt.Errorf("failed to register series for %q: %w", symbol, err)
+	}
+	return nil
+}
+
+// WipeData deletes all data from the market data store: instruments, time series,
+// sampling policies, and records. This is used during backup restore to clear existing data.
+func (s *Store) WipeData(ctx context.Context) error {
+	// Order matters: records reference policies, policies reference series, instruments standalone
+	tables := []string{"db_records", "db_sampling_policies", "db_time_series", "db_instruments"}
+	for _, table := range tables {
+		if err := s.db.WithContext(ctx).Unscoped().Table(table).Where("1 = 1").Delete(nil).Error; err != nil {
+			return fmt.Errorf("failed to delete data in table '%s': %w", table, err)
+		}
 	}
 	return nil
 }

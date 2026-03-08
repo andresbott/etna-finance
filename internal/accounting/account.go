@@ -239,17 +239,19 @@ type Account struct {
 	Icon              string
 	Currency          currency.Unit
 	Type              AccountType
+	ImportProfileID   uint // 0 = no linked import profile
 }
 
 // dbAccount is the DB internal representation of an Account
 type dbAccount struct {
-	ID          uint `gorm:"primarykey"`
-	ProviderID  uint `gorm:"index"`
-	Name        string
-	Description string
-	Icon        string
-	Type        AccountType
-	Currency    string
+	ID              uint `gorm:"primarykey"`
+	ProviderID      uint `gorm:"index"`
+	Name            string
+	Description     string
+	Icon            string
+	Type            AccountType
+	Currency        string
+	ImportProfileID uint `gorm:"default:null"`
 
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -270,6 +272,7 @@ func dbToAccount(in dbAccount) Account {
 		Icon:              in.Icon,
 		Currency:          cur,
 		Type:              in.Type,
+		ImportProfileID:   in.ImportProfileID,
 	}
 }
 
@@ -293,12 +296,13 @@ func (store *Store) CreateAccount(ctx context.Context, item Account) (uint, erro
 		currencyStr = item.Currency.String()
 	}
 	payload := dbAccount{
-		ProviderID:  item.AccountProviderID,
-		Name:        item.Name,
-		Description: item.Description,
-		Icon:        item.Icon,
-		Type:        item.Type,
-		Currency:    currencyStr,
+		ProviderID:      item.AccountProviderID,
+		Name:            item.Name,
+		Description:     item.Description,
+		Icon:            item.Icon,
+		Type:            item.Type,
+		Currency:        currencyStr,
+		ImportProfileID: item.ImportProfileID,
 	}
 
 	d := store.db.WithContext(ctx).Create(&payload)
@@ -322,12 +326,13 @@ func (store *Store) GetAccount(ctx context.Context, Id uint) (Account, error) {
 }
 
 type AccountUpdatePayload struct {
-	Name        *string
-	Description *string
-	Icon        *string
-	Currency    *currency.Unit
-	ProviderID  *uint
-	Type        AccountType
+	Name            *string
+	Description     *string
+	Icon            *string
+	Currency        *currency.Unit
+	ProviderID      *uint
+	Type            AccountType
+	ImportProfileID *uint
 }
 
 func (store *Store) UpdateAccount(ctx context.Context, item AccountUpdatePayload, Id uint) error {
@@ -376,6 +381,11 @@ func (store *Store) UpdateAccount(ctx context.Context, item AccountUpdatePayload
 	if item.ProviderID != nil {
 		updateStruct.ProviderID = *item.ProviderID
 		selectedFields = append(selectedFields, "ProviderID")
+	}
+
+	if item.ImportProfileID != nil {
+		updateStruct.ImportProfileID = *item.ImportProfileID
+		selectedFields = append(selectedFields, "ImportProfileID")
 	}
 
 	if len(selectedFields) == 0 {

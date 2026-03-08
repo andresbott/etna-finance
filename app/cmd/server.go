@@ -19,6 +19,7 @@ import (
 	handlers "github.com/andresbott/etna/app/router/handlers"
 	"github.com/andresbott/etna/app/tasks"
 	"github.com/andresbott/etna/internal/accounting"
+	"github.com/andresbott/etna/internal/csvimport"
 	"github.com/andresbott/etna/internal/marketdata"
 	"github.com/andresbott/etna/internal/marketdata/importer"
 	"github.com/andresbott/etna/internal/taskrunner"
@@ -109,6 +110,11 @@ func runServer(configFile string) error {
 		return fmt.Errorf("accounting store: %w", err)
 	}
 
+	csvImportStore, err := csvimport.NewStore(db)
+	if err != nil {
+		return fmt.Errorf("csv import store: %w", err)
+	}
+
 	// ——— Instruments config vs DB consistency ———
 	// If config has Instruments: false but DB contains investment/unvested accounts, override to true.
 	ctx := context.Background()
@@ -132,7 +138,7 @@ func runServer(configFile string) error {
 
 	// ——— Task runner and cron scheduler (started inside GroupRunner task) ———
 	backupDest := filepath.Join(cfg.DataDir, backupsDir)
-	taskRunner, scheduleStore, scheduler, err := initTaskRunnerAndScheduler(cfg, db, l, marketStore, finStore, backupDest)
+	taskRunner, scheduleStore, scheduler, err := initTaskRunnerAndScheduler(cfg, db, l, marketStore, finStore, csvImportStore, backupDest)
 	if err != nil {
 		return err
 	}
@@ -164,8 +170,9 @@ func runServer(configFile string) error {
 		ScheduleStore: scheduleStore,
 		Scheduler:     scheduler,
 		TaskLogGetter: taskrunner.NewFileTaskLogReader(filepath.Join(cfg.DataDir, "tasklogs")),
-		FinStore:      finStore,
-		MarketStore:   marketStore,
+		FinStore:       finStore,
+		MarketStore:    marketStore,
+		CsvImportStore: csvImportStore,
 	}
 	mainAppHandler, err := router.New(routerCfg)
 	if err != nil {
@@ -241,6 +248,7 @@ func initTaskRunnerAndScheduler(
 	l *slog.Logger,
 	marketStore *marketdata.Store,
 	finStore *accounting.Store,
+	csvImportStore *csvimport.Store,
 	backupDest string,
 ) (*taskrunner.Runner, *taskrunner.ScheduleStore, *taskrunner.Scheduler, error) {
 	runner, err := taskrunner.NewRunner(taskrunner.Cfg{
@@ -277,7 +285,7 @@ func initTaskRunnerAndScheduler(
 	}
 
 	// Register tasks once; enqueue later via runner.AddRun(name) (scheduler and API).
-	runner.RegisterTask(tasks.NewBackupTaskFn(finStore, backupDest, l), tasks.BackupTaskName, 0)
+	runner.RegisterTask(tasks.NewBackupTaskFn(finStore, marketStore, csvImportStore, backupDest, l), tasks.BackupTaskName, 0)
 	runner.RegisterTask(tasks.NewFinancialImportTaskFn(marketStore, marketDataClient), tasks.FinancialImportTaskName, 0)
 	runner.RegisterTask(tasks.NewFinancialBackfillTaskFn(marketStore, l, marketDataClient), tasks.FinancialBackfillTaskName, 0)
 	runner.RegisterTask(tasks.NewFXImportTaskFn(marketStore, cfg.Settings.MainCurrency, cfg.Settings.AllCurrencies(), fxClient), tasks.FXImportTaskName, 0)

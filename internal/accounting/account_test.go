@@ -716,6 +716,114 @@ func TestListAccounts(t *testing.T) {
 	}
 }
 
+func TestListAccountsByCurrency(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			dbCon := db.ConnDbName("TestListAccByCurrency")
+			store, err := NewStore(dbCon, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			accountSampleData(t, store)
+
+			ctx := t.Context()
+			got, err := store.ListAccountsByCurrency(ctx)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			// Expect 4 currency groups: EUR, USD, CHF, and empty (for UnknownAccountType)
+			if len(got) != 4 {
+				t.Fatalf("expected 4 currency groups, got %d", len(got))
+			}
+
+			// EUR accounts: acc1, acc3 (2 accounts with CashAccountType that store EUR)
+			eurAccounts := got[currency.EUR]
+			if len(eurAccounts) != 2 {
+				t.Errorf("expected 2 EUR accounts, got %d", len(eurAccounts))
+			}
+
+			// USD accounts: acc2 (1 account)
+			usdAccounts := got[currency.USD]
+			if len(usdAccounts) != 1 {
+				t.Errorf("expected 1 USD account, got %d", len(usdAccounts))
+			}
+
+			// CHF accounts: acc5 (1 account)
+			chfAccounts := got[currency.CHF]
+			if len(chfAccounts) != 1 {
+				t.Errorf("expected 1 CHF account, got %d", len(chfAccounts))
+			}
+
+			// Empty currency accounts: acc4 (UnknownAccountType) and acc1tenant2 (Type 0)
+			emptyAccounts := got[currency.Unit{}]
+			if len(emptyAccounts) != 2 {
+				t.Errorf("expected 2 accounts with empty currency, got %d", len(emptyAccounts))
+			}
+		})
+	}
+}
+
+func TestListAccountsMap(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			dbCon := db.ConnDbName("TestListAccountsMap")
+			store, err := NewStore(dbCon, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			accountSampleData(t, store)
+
+			ctx := t.Context()
+			got, err := store.ListAccountsMap(ctx)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			allAccounts := append(sampleAccounts, sampleAccounts2...)
+			if len(got) != len(allAccounts) {
+				t.Fatalf("expected %d accounts in map, got %d", len(allAccounts), len(got))
+			}
+
+			// Verify each account ID exists in the map and name matches
+			for _, acc := range allAccounts {
+				mapAcc, ok := got[acc.ID]
+				if !ok {
+					t.Errorf("expected account ID %d to be in map", acc.ID)
+					continue
+				}
+				if mapAcc.Name != acc.Name {
+					t.Errorf("account ID %d: expected name %q, got %q", acc.ID, acc.Name, mapAcc.Name)
+				}
+			}
+		})
+	}
+}
+
+func TestAccountTypeString(t *testing.T) {
+	tcs := []struct {
+		input AccountType
+		want  string
+	}{
+		{UnknownAccountType, "Unknown"},
+		{CashAccountType, "Cash"},
+		{CheckinAccountType, "Checkin"},
+		{SavingsAccountType, "Savings"},
+		{InvestmentAccountType, "Investment"},
+		{UnvestedAccountType, "Unvested"},
+		{AccountType(99), "Unknown"}, // unknown value falls to default
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.want, func(t *testing.T) {
+			got := tc.input.String()
+			if got != tc.want {
+				t.Errorf("AccountType(%d).String() = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
 var sampleAccountProviders = []AccountProvider{
 	{Name: "provider1", Description: "provider1", Icon: "bank", Accounts: []Account{}},             // 1
 	{Name: "provider2", Description: "provider2", Icon: "wallet", Accounts: []Account{}},           // 2

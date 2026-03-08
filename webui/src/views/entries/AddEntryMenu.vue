@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import Select from 'primevue/select'
 import IncomeExpenseDialog from '@/views/entries/dialogs/IncomeExpenseDialog.vue'
 import BuySellInstrumentDialog from '@/views/entries/dialogs/BuySellInstrumentDialog.vue'
@@ -10,6 +11,7 @@ import { getAllowedOperations } from '@/types/account'
 import { useSettingsStore } from '@/store/settingsStore.js'
 
 const settings = useSettingsStore()
+const router = useRouter()
 
 /* Props for pre-populating account fields */
 const props = defineProps({
@@ -28,6 +30,11 @@ const props = defineProps({
     accountType: {
         type: String,
         default: null
+    },
+    // Whether the account has an associated CSV import profile
+    hasImportProfile: {
+        type: Boolean,
+        default: false
     }
 })
 
@@ -48,7 +55,11 @@ const selectedOption = ref(null)
 /* Open the respective dialog when a dropdown item is selected */
 const handleSelection = (event) => {
     if (event.value) {
-        dialogs.value[event.value] = true
+        if (event.value === 'importCsv') {
+            router.push({ name: 'csv-import', params: { accountId: props.defaultAccountId } })
+        } else {
+            dialogs.value[event.value] = true
+        }
         // Reset selection after opening dialog
         setTimeout(() => {
             selectedOption.value = null
@@ -92,6 +103,11 @@ const allDropdownOptions = [
         label: 'Transfer instrument',
         value: 'transferInstrument',
         icon: 'pi pi-arrow-right-arrow-left'
+    },
+    {
+        label: 'Import CSV',
+        value: 'importCsv',
+        icon: 'pi pi-upload'
     }
 ]
 
@@ -100,11 +116,17 @@ const instrumentOperations = ['buyStock', 'sellStock', 'grantStock', 'transferIn
 /* Filtered dropdown options based on account type and instrument settings */
 const dropdownOptions = computed(() => {
     const allowedOps = getAllowedOperations(props.accountType)
-    return allDropdownOptions.filter(option => {
-        if (!allowedOps.includes(option.value)) return false
-        if (!settings.instruments && instrumentOperations.includes(option.value)) return false
-        return true
-    })
+    return allDropdownOptions
+        .filter(option => {
+            if (!allowedOps.includes(option.value)) return false
+            if (!settings.instruments && instrumentOperations.includes(option.value)) return false
+            if (option.value === 'importCsv' && !props.defaultAccountId) return false
+            return true
+        })
+        .map(option => ({
+            ...option,
+            disabled: option.value === 'importCsv' && !props.hasImportProfile
+        }))
 })
 
 </script>
@@ -117,6 +139,7 @@ const dropdownOptions = computed(() => {
             :options="dropdownOptions"
             optionLabel="label"
             optionValue="value"
+            optionDisabled="disabled"
             placeholder="Add Entry"
             scrollHeight="22rem"
             @change="handleSelection"

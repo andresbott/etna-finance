@@ -17,6 +17,7 @@ export interface AccountItem {
     currency: string
     type: string
     icon?: string
+    importProfileId?: number
 }
 
 export async function getProviders(): Promise<ProviderItem[]> {

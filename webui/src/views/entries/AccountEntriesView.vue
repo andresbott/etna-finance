@@ -72,56 +72,29 @@ const isLoadingBalance = ref(false)
 const accountName = computed(() => {
     if (!accountId.value) return 'Unknown Account'
     if (!accounts?.value) return 'Loading...'
-    
-    // Find the account directly
-    for (const provider of accounts.value) {
-        if (provider.accounts) {
-            for (const account of provider.accounts) {
-                if (String(account.id) === String(accountId.value)) {
-                    return account.name
-                }
-            }
-        }
-    }
-    
-    return 'Unknown Account'
+    return currentAccount.value?.name ?? 'Unknown Account'
 })
 
-const accountCurrency = computed(() => {
-    if (!accountId.value) return ''
-    if (!accounts?.value) return ''
-    
-    // Find the account currency
-    for (const provider of accounts.value) {
-        if (provider.accounts) {
-            for (const account of provider.accounts) {
-                if (String(account.id) === String(accountId.value)) {
-                    return account.currency
-                }
-            }
-        }
-    }
-    
-    return ''
-})
+const accountCurrency = computed(() => currentAccount.value?.currency ?? '')
 
-const accountType = computed(() => {
+const currentAccount = computed(() => {
     if (!accountId.value) return null
     if (!accounts?.value) return null
-    
-    // Find the account type
+
     for (const provider of accounts.value) {
         if (provider.accounts) {
             for (const account of provider.accounts) {
                 if (String(account.id) === String(accountId.value)) {
-                    return account.type
+                    return account
                 }
             }
         }
     }
-    
+
     return null
 })
+
+const accountType = computed(() => currentAccount.value?.type ?? null)
 
 const accountTitle = computed(() => {
     if (accountCurrency.value) {
@@ -283,10 +256,11 @@ const handleDeleteEntry = async () => {
                     />
                 </div>
                 <div class="add-entry-menu">
-                    <AddEntryMenu 
+                    <AddEntryMenu
                         :default-account-id="Number(accountId)"
                         :default-origin-account-id="Number(accountId)"
                         :account-type="accountType"
+                        :has-import-profile="!!currentAccount?.importProfileId"
                     />
                 </div>
             </div>
@@ -452,6 +426,7 @@ const handleDeleteEntry = async () => {
     display: flex;
     align-items: center;
     justify-content: flex-end;
+    gap: 0.5rem;
 }
 
 .entries-view {

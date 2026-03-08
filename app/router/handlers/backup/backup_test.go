@@ -11,7 +11,12 @@ import (
 	"strings"
 	"testing"
 
+	"context"
+
 	"github.com/andresbott/etna/internal/accounting"
+	"github.com/andresbott/etna/internal/backup"
+	"github.com/andresbott/etna/internal/csvimport"
+	"github.com/andresbott/etna/internal/marketdata"
 	"github.com/glebarez/sqlite"
 	"github.com/google/go-cmp/cmp"
 	"gorm.io/gorm"
@@ -220,7 +225,7 @@ func TestHandler_CreateBackup(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tempDir := t.TempDir()
 
-			h := &Handler{Destination: tempDir, Store: tc.store()}
+			h := &Handler{Destination: tempDir, Store: tc.store(), MdStore: newTestMdStore(t), CsvStore: newTestCsvStore(t)}
 
 			recorder := httptest.NewRecorder()
 			req, _ := http.NewRequest("POST", "/backup", nil)
@@ -362,25 +367,7 @@ func TestHandler_RestoreUpload(t *testing.T) {
 				return store
 			},
 			setupFile: func(t *testing.T) (string, []byte) {
-				// Use the test backup from internal/backup/testdata
-				// Try multiple paths to find the test file
-				possiblePaths := []string{
-					"../../../internal/backup/testdata/backup-v1.zip",
-					"../../../../internal/backup/testdata/backup-v1.zip",
-					"internal/backup/testdata/backup-v1.zip",
-				}
-				var content []byte
-				var err error
-				for _, path := range possiblePaths {
-					content, err = os.ReadFile(path) //nolint:gosec // variable value is controlled
-					if err == nil {
-						break
-					}
-				}
-				if err != nil {
-					t.Skipf("skipping test: test backup file not found")
-				}
-				return "backup-v1.zip", content
+				return "backup-v1.zip", generateTestBackup(t)
 			},
 			expectCode: http.StatusOK,
 		},
@@ -434,6 +421,8 @@ func TestHandler_RestoreUpload(t *testing.T) {
 			h := &Handler{
 				Destination: tempDir,
 				Store:       tc.setupStore(),
+				MdStore:     newTestMdStore(t),
+				CsvStore:    newTestCsvStore(t),
 			}
 
 			filename, content := tc.setupFile(t)
@@ -510,23 +499,7 @@ func TestHandler_RestoreFromExisting(t *testing.T) {
 				return store
 			},
 			setupFile: func(t *testing.T, dir string) (string, string) {
-				// Try multiple paths to find the test file
-				possiblePaths := []string{
-					"../../../internal/backup/testdata/backup-v1.zip",
-					"../../../../internal/backup/testdata/backup-v1.zip",
-					"internal/backup/testdata/backup-v1.zip",
-				}
-				var content []byte
-				var err error
-				for _, path := range possiblePaths {
-					content, err = os.ReadFile(path) //nolint:gosec // variable value is controlled
-					if err == nil {
-						break
-					}
-				}
-				if err != nil {
-					t.Skipf("skipping test: test backup file not found")
-				}
+				content := generateTestBackup(t)
 				filename := "backup-existing.zip"
 				filePath := filepath.Join(dir, filename)
 				if err := os.WriteFile(filePath, content, 0600); err != nil {
@@ -591,6 +564,8 @@ func TestHandler_RestoreFromExisting(t *testing.T) {
 			h := &Handler{
 				Destination: tempDir,
 				Store:       tc.setupStore(),
+				MdStore:     newTestMdStore(t),
+				CsvStore:    newTestCsvStore(t),
 			}
 
 			_, id := tc.setupFile(t, tempDir)
@@ -655,6 +630,73 @@ func TestGenerateRandomFilename(t *testing.T) {
 		}
 		names[filename] = true
 	}
+}
+
+// generateTestBackup creates a valid backup zip using empty stores and returns its content.
+func generateTestBackup(t *testing.T) []byte {
+	t.Helper()
+	store := newTestAccountingStore(t)
+	mdStore := newTestMdStore(t)
+	csvStore := newTestCsvStore(t)
+
+	tmpDir := t.TempDir()
+	backupFile := filepath.Join(tmpDir, "test-backup.zip")
+	if err := backup.ExportToFile(context.Background(), store, mdStore, csvStore, backupFile); err != nil {
+		t.Fatalf("failed to generate test backup: %v", err)
+	}
+	content, err := os.ReadFile(filepath.Clean(backupFile))
+	if err != nil {
+		t.Fatalf("failed to read generated backup: %v", err)
+	}
+	return content
+}
+
+// newTestAccountingStore creates an in-memory accounting.Store for testing.
+func newTestAccountingStore(t *testing.T) *accounting.Store {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{
+		Logger: logger.Discard,
+	})
+	if err != nil {
+		t.Fatalf("unable to connect to sqlite: %v", err)
+	}
+	store, err := accounting.NewStore(db, nil)
+	if err != nil {
+		t.Fatalf("unable to create accounting store: %v", err)
+	}
+	return store
+}
+
+// newTestMdStore creates an in-memory marketdata.Store for testing.
+func newTestMdStore(t *testing.T) *marketdata.Store {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{
+		Logger: logger.Discard,
+	})
+	if err != nil {
+		t.Fatalf("unable to connect to sqlite for marketdata: %v", err)
+	}
+	store, err := marketdata.NewStore(db)
+	if err != nil {
+		t.Fatalf("unable to create marketdata store: %v", err)
+	}
+	return store
+}
+
+// newTestCsvStore creates an in-memory csvimport.Store for testing.
+func newTestCsvStore(t *testing.T) *csvimport.Store {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{
+		Logger: logger.Discard,
+	})
+	if err != nil {
+		t.Fatalf("unable to connect to sqlite for csvimport: %v", err)
+	}
+	store, err := csvimport.NewStore(db)
+	if err != nil {
+		t.Fatalf("unable to create csvimport store: %v", err)
+	}
+	return store
 }
 
 // Helper function to create multipart form data

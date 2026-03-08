@@ -23,7 +23,7 @@ dist/
 # local builds
 ./etna
 # application data
-data
+/data
 
 # SPA
 app/spa/files/ui/*
