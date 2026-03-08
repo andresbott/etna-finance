@@ -8,7 +8,6 @@ import { useCategoryUtils } from '@/utils/categoryUtils'
 import { useAccountUtils } from '@/utils/accountUtils'
 import { useInstruments } from '@/composables/useInstruments'
 import { useDateFormat } from '@/composables/useDateFormat'
-import { getEntryTypeIcon } from '@/utils/entryDisplay'
 import { ACCOUNT_TYPES } from '@/types/account'
 
 /* --- Props --- */
@@ -150,27 +149,23 @@ const tableEntries = computed(() =>
                 :rowClass="getRowClass"
                 @page="handlePage"
             >
-                <Column header="" style="width: 40px">
-                    <template #body="{ data }">
-                        <i :class="getEntryTypeIcon(data.type)" style="font-size: 0.8rem" />
-                    </template>
-                </Column>
-
                 <Column field="description" header="Description" class="description-column">
                     <template #body="{ data }">
-                        <span 
-                            v-if="data.type === 'expense' || data.type === 'income'"
-                            v-tooltip.bottom="`Category: ${getCategoryPath(data?.categoryId, data.type)}`"
-                        >
-                            {{ data.description }}
-                        </span>
-                        <span 
-                            v-else-if="data.type === 'transfer'"
+                        <span
+                            v-if="data.type === 'transfer'"
                             v-tooltip.bottom="`${getAccountName(data.originAccountId)}: ${data.originAmount?.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${getAccountCurrency(data.originAccountId)} → ${getAccountName(data.targetAccountId)}: ${data.targetAmount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${getAccountCurrency(data.targetAccountId)}`"
                         >
                             {{ data.description }}
                         </span>
                         <span v-else>{{ data.description }}</span>
+                    </template>
+                </Column>
+
+                <Column field="categoryId" header="Category">
+                    <template #body="{ data }">
+                        <span v-if="data.type === 'expense' || data.type === 'income'">
+                            {{ getCategoryName(data.categoryId, data.type) }}
+                        </span>
                     </template>
                 </Column>
 
@@ -332,11 +327,11 @@ const tableEntries = computed(() =>
                     </template>
                 </Column>
 
-                <Column header="Actions" style="width: 150px">
+                <Column header="Actions" style="width: 120px">
                     <template #body="{ data }">
                         <!-- No actions for opening balance entry; placeholder keeps row height -->
                         <div v-if="data.type === 'opening-balance'" class="flex align-items-center" style="height: 2.5rem"></div>
-                        <div v-else class="flex gap-2 justify-content-start">
+                        <div v-else class="flex gap-1 justify-content-start">
                             <Button
                                 icon="pi pi-pencil"
                                 text

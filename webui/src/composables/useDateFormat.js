@@ -60,6 +60,40 @@ function formatTime(date) {
 }
 
 /**
+ * Parse a date string according to a backend format pattern (DD/MM/YYYY etc.).
+ * Returns a Date if parsing succeeds, or the original value otherwise.
+ */
+function parseDateString(value, format) {
+    if (value instanceof Date) return value
+    if (typeof value !== 'string' || !value.trim()) return value
+
+    const fmt = format || 'DD/MM/YYYY'
+    const sep = fmt.includes('/') ? '/' : fmt.includes('-') ? '-' : '.'
+    const parts = value.trim().split(sep)
+    const fmtParts = fmt.split(sep)
+
+    if (parts.length !== fmtParts.length) return value
+
+    let day, month, year
+    for (let i = 0; i < fmtParts.length; i++) {
+        if (!/^\d+$/.test(parts[i])) return value
+        const num = parseInt(parts[i], 10)
+        if (fmtParts[i] === 'DD') day = num
+        else if (fmtParts[i] === 'MM') month = num
+        else if (fmtParts[i] === 'YYYY') year = num
+        else if (fmtParts[i] === 'YY') year = 2000 + num
+    }
+
+    if (day != null && month != null && year != null) {
+        const d = new Date(year, month - 1, day)
+        if (d.getFullYear() === year && d.getMonth() === month - 1 && d.getDate() === day) {
+            return d
+        }
+    }
+    return value
+}
+
+/**
  * Composable that provides date formatting helpers driven by the settings store.
  *
  * - `formatDate(date)` – formats a Date / ISO-string for display (date only).
@@ -80,7 +114,10 @@ export function useDateFormat() {
     }
 
     const dateValidation = computed(() =>
-        z.coerce.date({ invalid_type_error: `Enter a valid date (${settings.dateFormat || 'DD/MM/YYYY'})` })
+        z.preprocess(
+            (val) => parseDateString(val, settings.dateFormat),
+            z.coerce.date({ invalid_type_error: `Enter a valid date (${settings.dateFormat || 'DD/MM/YYYY'})` })
+        )
     )
 
     return {

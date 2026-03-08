@@ -8,7 +8,6 @@ import { useCategoryUtils } from '@/utils/categoryUtils'
 import { useAccountUtils } from '@/utils/accountUtils'
 import { useInstruments } from '@/composables/useInstruments'
 import { useDateFormat } from '@/composables/useDateFormat'
-import { getEntryTypeIcon } from '@/utils/entryDisplay'
 
 /* --- Props --- */
 const props = defineProps({
@@ -236,14 +235,8 @@ const handlePage = (event) => {
                     </Column>
                 </template>
 
-                <!-- All Transactions view: Icon, Description, Account, Date, Amount, Actions -->
+                <!-- All Transactions view: Description, Account, Date, Amount, Actions -->
                 <template v-else>
-                    <Column header="" style="width: 40px">
-                        <template #body="{ data }">
-                            <i :class="getEntryTypeIcon(data.type)" style="font-size: 0.8rem" />
-                        </template>
-                    </Column>
-
                     <Column field="description" header="Description" class="description-column">
                         <template #body="{ data }">
                             <span 
