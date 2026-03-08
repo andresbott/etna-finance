@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import type { ImportProfile, CategoryRule, ParsedRow, PreviewResult } from '@/types/csvimport'
+import type { ImportProfile, CategoryRule, ParsedRow, PreviewResult, ReapplyRow, ReapplySubmitItem } from '@/types/csvimport'
 
 // Profiles
 export const getProfiles = () => apiClient.get<ImportProfile[]>('/import/profiles').then(r => r.data)
@@ -52,3 +52,10 @@ export const previewCSV = (file: File, config: {
     headers: { 'Content-Type': 'multipart/form-data' }
   }).then(r => r.data)
 }
+
+// Reapply category rules
+export const reapplyPreview = () =>
+  apiClient.post<ReapplyRow[]>('/import/reapply-preview').then(r => r.data)
+
+export const reapplySubmit = (items: ReapplySubmitItem[]) =>
+  apiClient.post<{ updated: number }>('/import/reapply-submit', items).then(r => r.data)

@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { VerticalLayout } from '@go-bumbu/vue-layouts'
 import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
 import Card from 'primevue/card'
@@ -24,6 +25,7 @@ import { useCategoryTree } from '@/composables/useCategoryTree'
 import { useCategoryUtils } from '@/utils/categoryUtils'
 
 const toast = useToast()
+const router = useRouter()
 const { IncomeTreeData, ExpenseTreeData } = useCategoryTree()
 const { getCategoryName } = useCategoryUtils()
 
@@ -489,7 +491,7 @@ onMounted(() => {
             <div class="view-container">
                 <div class="flex justify-content-between align-items-start mb-4 gap-3">
                     <div>
-                        <h1 class="text-2xl font-bold mb-2 text-color">CSV Import Profiles</h1>
+                        <h1 class="text-2xl font-bold mb-2 text-color">CSV Import</h1>
                         <p class="text-color-secondary m-0 text-base">
                             Create and manage CSV import profiles to easily import transactions from different sources
                         </p>
@@ -580,11 +582,19 @@ onMounted(() => {
                             Define rules to automatically assign categories to imported transactions based on description matching. Rules are evaluated in position order; the first match wins.
                         </p>
                     </div>
-                    <Button
-                        label="New Rule"
-                        icon="pi pi-plus"
-                        @click="openCreateRuleDialog"
-                    />
+                    <div class="flex gap-2">
+                        <Button
+                            label="Re-apply Rules"
+                            icon="pi pi-sync"
+                            severity="secondary"
+                            @click="router.push('/setup/reapply-rules')"
+                        />
+                        <Button
+                            label="New Rule"
+                            icon="pi pi-plus"
+                            @click="openCreateRuleDialog"
+                        />
+                    </div>
                 </div>
 
                 <Card>

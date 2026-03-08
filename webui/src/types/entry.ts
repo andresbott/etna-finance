@@ -50,4 +50,5 @@ export interface PaginatedEntriesResponse {
     total: number
     page: number
     limit: number
+    priorBalance: number
 }

@@ -1096,6 +1096,86 @@ func TestStore_ListTransactions(t *testing.T) {
 	}
 }
 
+func TestStore_PriorPageBalance(t *testing.T) {
+	// Uses the same sample data as TestStore_ListTransactions (pagination entries 20-28).
+	// 2022 range entries (DESC): p9(acct3) p8(acct1) p7(acct1) p6(acct1) p5(acct2) p4(acct1) p3(acct1) p2(acct1) p1(acct1)
+	// When filtered to account 1 (7 txs): p8 p7 p6 p4 p3 p2 p1
+
+	tcs := []struct {
+		name      string
+		opts      ListOpts
+		accountID uint
+		want      float64
+	}{
+		{
+			name: "page 1, all older entries for account 1",
+			opts: ListOpts{
+				StartDate: getDate("2022-01-01"),
+				EndDate:   getDate("2022-12-31"),
+				AccountId: []int{1},
+				Limit:     2, Page: 1,
+			},
+			accountID: 1,
+			want:      5, // 5 income entries of amount 1 on older pages
+		},
+		{
+			name: "page 2, older entries for account 1",
+			opts: ListOpts{
+				StartDate: getDate("2022-01-01"),
+				EndDate:   getDate("2022-12-31"),
+				AccountId: []int{1},
+				Limit:     2, Page: 2,
+			},
+			accountID: 1,
+			want:      3, // 3 income entries of amount 1 on older pages
+		},
+		{
+			name: "last page, no older entries",
+			opts: ListOpts{
+				StartDate: getDate("2022-01-01"),
+				EndDate:   getDate("2022-12-31"),
+				AccountId: []int{1},
+				Limit:     2, Page: 4,
+			},
+			accountID: 1,
+			want:      0, // last page, no older entries
+		},
+		{
+			name: "page 1 with large limit, no older entries",
+			opts: ListOpts{
+				StartDate: getDate("2022-01-01"),
+				EndDate:   getDate("2022-12-31"),
+				AccountId: []int{1},
+				Limit:     100, Page: 1,
+			},
+			accountID: 1,
+			want:      0, // all entries fit on page 1
+		},
+	}
+
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			dbCon := db.ConnDbName("TestPriorPageBalance")
+			store, _ := newAccountingStoreWithMarketData(t, dbCon)
+
+			accountSampleData(t, store)
+			transactionSampleData(t, store, listTransactionsSampleData)
+
+			for _, tc := range tcs {
+				t.Run(tc.name, func(t *testing.T) {
+					got, err := store.PriorPageBalance(t.Context(), tc.opts, tc.accountID)
+					if err != nil {
+						t.Fatalf("unexpected error: %v", err)
+					}
+					if got != tc.want {
+						t.Errorf("PriorPageBalance = %v, want %v", got, tc.want)
+					}
+				})
+			}
+		})
+	}
+}
+
 var ignoreUnexportedTxFields = []cmp.Option{
 	cmpopts.IgnoreUnexported(Income{}),
 	cmpopts.IgnoreUnexported(Expense{}),

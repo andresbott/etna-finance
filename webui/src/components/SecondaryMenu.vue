@@ -27,14 +27,9 @@ const handleLogout = () => {
 const sections = computed(() => {
     const appDataItems = [
         {
-            label: 'CSV Import Profiles',
+            label: 'CSV Import',
             icon: 'pi pi-file-import',
             route: '/setup/csv-profiles'
-        },
-        {
-            label: 'Category Matching Rules',
-            icon: 'pi pi-filter',
-            route: '/setup/category-rules'
         },
         { label: 'Categories', icon: 'pi pi-tags', route: '/categories' },
         { label: 'Account Setup', icon: 'pi pi-wallet', route: '/accounts' },
