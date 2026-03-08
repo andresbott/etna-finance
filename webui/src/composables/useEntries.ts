@@ -54,7 +54,8 @@ export function useEntries(options: UseEntriesOptions = {}) {
         items: [],
         total: 0,
         page: 1,
-        limit: DEFAULT_PAGE_SIZE
+        limit: DEFAULT_PAGE_SIZE,
+        priorBalance: 0
     }
 
     const entriesQuery = useQuery({
@@ -113,6 +114,7 @@ export function useEntries(options: UseEntriesOptions = {}) {
     const totalRecords = computed(() => entriesQuery.data.value?.total || 0)
     const currentPage = computed(() => entriesQuery.data.value?.page || 1)
     const pageSize = computed(() => entriesQuery.data.value?.limit || DEFAULT_PAGE_SIZE)
+    const priorBalance = computed(() => entriesQuery.data.value?.priorBalance || 0)
 
     return {
         // Queries - now with proper pagination access
@@ -120,6 +122,7 @@ export function useEntries(options: UseEntriesOptions = {}) {
         totalRecords,
         currentPage,
         pageSize,
+        priorBalance,
         isLoading: entriesQuery.isLoading,
         isFetching: entriesQuery.isFetching,
         isError: entriesQuery.isError,

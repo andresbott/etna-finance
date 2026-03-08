@@ -867,7 +867,7 @@ func Parse(r io.Reader, profile ImportProfile, rules []CategoryRule, existing []
 		parsed.Type = txType
 
 		// Match category
-		parsed.CategoryID = matchCategory(parsed.Description, rules)
+		parsed.CategoryID = MatchCategory(parsed.Description, rules)
 
 		// Check duplicate
 		key := dupKey(parsed.Date, parsed.Amount)
@@ -887,9 +887,9 @@ func dupKey(date string, amount float64) string {
 	return fmt.Sprintf("%s|%.2f", date, amount)
 }
 
-// matchCategory iterates rules in order and returns the categoryID of the first
+// MatchCategory iterates rules in order and returns the categoryID of the first
 // matching rule, or 0 if none match.
-func matchCategory(description string, rules []CategoryRule) uint {
+func MatchCategory(description string, rules []CategoryRule) uint {
 	descLower := strings.ToLower(description)
 	for _, rule := range rules {
 		if rule.IsRegex {

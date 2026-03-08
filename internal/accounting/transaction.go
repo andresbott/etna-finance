@@ -2398,3 +2398,60 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 	}
 	return txs, totalCount, nil
 }
+
+// PriorPageBalance computes the net cash-balance effect on a single account of all
+// transactions in the date range that are OLDER than the current page (i.e. at higher
+// offsets in the DESC-ordered result set). This allows the frontend to compute accurate
+// running balances even when entries are paginated.
+func (store *Store) PriorPageBalance(ctx context.Context, opts ListOpts, accountID uint) (float64, error) {
+	if opts.Page < 1 {
+		opts.Page = 1
+	}
+	if opts.Limit == 0 {
+		opts.Limit = DefaultSearchResults
+	}
+	if opts.Limit > MaxSearchResults {
+		opts.Limit = MaxSearchResults
+	}
+
+	priorOffset := opts.Page * opts.Limit
+
+	// Build subquery: transaction IDs matching the same filters as ListTransactions,
+	// but starting at the offset AFTER the current page (older transactions).
+	subQ := store.db.WithContext(ctx).Table("db_transactions").
+		Select("db_transactions.id").
+		Joins("LEFT JOIN db_entries ON db_entries.transaction_id = db_transactions.id").
+		Joins("LEFT JOIN db_trades ON db_trades.transaction_id = db_transactions.id").
+		Where("db_transactions.date BETWEEN ? AND ?", toDate(opts.StartDate), endOfDay(opts.EndDate))
+
+	if len(opts.AccountId) > 0 {
+		subQ = subQ.Where(
+			"(EXISTS (SELECT 1 FROM db_entries AS e WHERE e.transaction_id = db_transactions.id AND e.account_id IN (?))"+
+				" OR EXISTS (SELECT 1 FROM db_trades AS t WHERE t.transaction_id = db_transactions.id AND t.account_id IN (?)))",
+			opts.AccountId, opts.AccountId)
+	}
+
+	if len(opts.Types) > 0 {
+		subQ = subQ.Where("db_transactions.type IN (?)", opts.Types)
+	}
+
+	subQ = subQ.Group("db_transactions.id").
+		Order("db_transactions.date DESC").
+		Limit(-1).
+		Offset(priorOffset)
+
+	// Sum balance-relevant entries for those older transactions, filtered to the specific account.
+	var result float64
+	err := store.db.WithContext(ctx).
+		Table("db_entries").
+		Select("COALESCE(SUM(amount), 0)").
+		Where("transaction_id IN (?)", subQ).
+		Where("account_id = ?", accountID).
+		Where("entry_type IN (?)", balanceEntryTypes).
+		Scan(&result).Error
+
+	if err != nil {
+		return 0, fmt.Errorf("prior page balance: %w", err)
+	}
+	return result, nil
+}

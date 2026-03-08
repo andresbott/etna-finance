@@ -13,11 +13,13 @@ import Checkbox from 'primevue/checkbox'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import { useToast } from 'primevue/usetoast'
+import { useRouter } from 'vue-router'
 import { getCategoryRules, createCategoryRule, updateCategoryRule, deleteCategoryRule } from '@/lib/api/CsvImport'
 import { useCategoryTree } from '@/composables/useCategoryTree'
 import { useCategoryUtils } from '@/utils/categoryUtils'
 
 const toast = useToast()
+const router = useRouter()
 const { IncomeTreeData, ExpenseTreeData } = useCategoryTree()
 const { getCategoryName } = useCategoryUtils()
 
@@ -176,11 +178,19 @@ onMounted(() => {
                             Define rules to automatically assign categories to imported transactions based on description matching
                         </p>
                     </div>
-                    <Button
-                        label="New Rule"
-                        icon="pi pi-plus"
-                        @click="openCreateDialog"
-                    />
+                    <div class="flex gap-2">
+                        <Button
+                            label="Re-apply Rules"
+                            icon="pi pi-sync"
+                            severity="secondary"
+                            @click="router.push('/setup/reapply-rules')"
+                        />
+                        <Button
+                            label="New Rule"
+                            icon="pi pi-plus"
+                            @click="openCreateDialog"
+                        />
+                    </div>
                 </div>
 
                 <Card>

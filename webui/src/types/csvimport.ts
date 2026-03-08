@@ -49,3 +49,24 @@ export interface ParsedRow {
   isDuplicate: boolean
   error?: string
 }
+
+export interface ReapplyRow {
+  transactionId: number
+  transactionType: 'income' | 'expense'
+  description: string
+  date: string
+  amount: number
+  accountId: number
+  accountName: string
+  currentCategoryId: number
+  currentCategoryName: string
+  newCategoryId: number
+  newCategoryName: string
+  changed: boolean
+}
+
+export interface ReapplySubmitItem {
+  transactionId: number
+  transactionType: 'income' | 'expense'
+  newCategoryId: number
+}

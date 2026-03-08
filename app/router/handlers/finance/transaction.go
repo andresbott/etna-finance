@@ -386,8 +386,9 @@ func (h *Handler) DeleteTx(Id uint) http.Handler {
 }
 
 type listEntriesResponse struct {
-	Items []transactionPayload `json:"items"`
-	Total int64                `json:"total"`
+	Items        []transactionPayload `json:"items"`
+	Total        int64                `json:"total"`
+	PriorBalance float64              `json:"priorBalance,omitempty"`
 }
 
 // transactionToPayload converts an accounting.Transaction to the API payload shape.
@@ -564,9 +565,19 @@ func (h *Handler) ListTx() http.Handler {
 			return
 		}
 
+		// Compute prior-page balance when filtering by a single account
+		var priorBalance float64
+		if len(accountIds) == 1 && accountIds[0] >= 0 {
+			priorBalance, err = h.Store.PriorPageBalance(r.Context(), opts, uint(accountIds[0])) // #nosec G115 -- validated non-negative above
+			if err != nil {
+				priorBalance = 0
+			}
+		}
+
 		response := listEntriesResponse{
-			Items: make([]transactionPayload, len(entries)),
-			Total: total,
+			Items:        make([]transactionPayload, len(entries)),
+			Total:        total,
+			PriorBalance: priorBalance,
 		}
 		for i, entry := range entries {
 			response.Items[i] = transactionToPayload(entry)

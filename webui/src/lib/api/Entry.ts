@@ -40,7 +40,8 @@ export const getEntries = async (options: GetEntriesOptions): Promise<PaginatedE
         items: data.items || [],
         total: data.total ?? 0,
         page,
-        limit
+        limit,
+        priorBalance: data.priorBalance ?? 0
     }
 }
 

@@ -34,7 +34,7 @@ const page = ref(1)
 const limit = ref(25)
 const first = ref(0) // First row index for DataTable
 
-const { entries: fetchedEntries, totalRecords, isLoading, isFetching, deleteEntry, isDeleting, refetch } = useEntries({
+const { entries: fetchedEntries, totalRecords, priorBalance, isLoading, isFetching, deleteEntry, isDeleting, refetch } = useEntries({
     startDate,
     endDate,
     accountIds,
@@ -107,13 +107,14 @@ const accountTitle = computed(() => {
 const entries = computed(() => {
     if (!accountId.value || !fetchedEntries.value) return []
     
-    // Create opening balance entry using the API-fetched balance
+    // Create opening balance entry using the API-fetched balance + prior page balance
+    // priorBalance accounts for entries on older pages not visible on the current page
     const openingBalanceEntry = {
         id: 'opening-balance',
         type: 'opening-balance',
         description: 'Balance at beginning of period',
         date: startDate.value,
-        Amount: openingBalance.value,
+        Amount: openingBalance.value + priorBalance.value,
         accountId: accountId.value,
         isOpeningBalance: true
     }
