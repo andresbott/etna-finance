@@ -19,6 +19,7 @@ type accountProviderV1 struct {
 	ID          uint   `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
+	Icon        string `json:"icon"`
 }
 
 const accountsFile = "accounts.json"
@@ -28,8 +29,10 @@ type accountV1 struct {
 	AccountProviderID uint   `json:"providerId"`
 	Name              string `json:"name"`
 	Description       string `json:"description"`
+	Icon              string `json:"icon"`
 	Currency          string `json:"currency"`
 	Type              string `json:"accountType"`
+	ImportProfileID   uint   `json:"importProfileId"`
 }
 
 const incomeCategoriesFile = "income_categories.json"
@@ -40,6 +43,7 @@ type categoryV1 struct {
 	ParentId    uint   `json:"ParentId"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
+	Icon        string `json:"icon"`
 }
 
 const transactionsFile = "transactions.json"
@@ -83,4 +87,53 @@ type TransactionV1 struct {
 
 	Date time.Time `json:"date"`
 	Type string    `json:"type"`
+}
+
+const instrumentsFile = "instruments.json"
+const priceHistoryFile = "price_history.json"
+const fxRatesFile = "fx_rates.json"
+const importProfilesFile = "import_profiles.json"
+const categoryRulesFile = "category_rules.json"
+
+type instrumentV1 struct {
+	ID                   uint   `json:"id"`
+	InstrumentProviderID uint   `json:"instrumentProviderId"`
+	Symbol               string `json:"symbol"`
+	Name                 string `json:"name"`
+	Currency             string `json:"currency"`
+}
+
+type priceRecordV1 struct {
+	Symbol string    `json:"symbol"`
+	Time   time.Time `json:"time"`
+	Price  float64   `json:"price"`
+}
+
+type fxRateRecordV1 struct {
+	Main      string    `json:"main"`
+	Secondary string    `json:"secondary"`
+	Time      time.Time `json:"time"`
+	Rate      float64   `json:"rate"`
+}
+
+type importProfileV1 struct {
+	ID                uint   `json:"id"`
+	Name              string `json:"name"`
+	CsvSeparator      string `json:"csvSeparator"`
+	SkipRows          int    `json:"skipRows"`
+	DateColumn        string `json:"dateColumn"`
+	DateFormat        string `json:"dateFormat"`
+	DescriptionColumn string `json:"descriptionColumn"`
+	AmountColumn      string `json:"amountColumn"`
+	AmountMode        string `json:"amountMode"`
+	CreditColumn      string `json:"creditColumn"`
+	DebitColumn       string `json:"debitColumn"`
+}
+
+type categoryRuleV1 struct {
+	ID         uint   `json:"id"`
+	Pattern    string `json:"pattern"`
+	IsRegex    bool   `json:"isRegex"`
+	CategoryID uint   `json:"categoryId"`
+	Position   int    `json:"position"`
 }

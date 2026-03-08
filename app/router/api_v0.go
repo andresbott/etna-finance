@@ -608,6 +608,7 @@ const importProfilePath = "/import/profiles"
 const importCategoryRulePath = "/import/category-rules"
 const importParsePath = "/import/parse"
 const importSubmitPath = "/import/submit"
+const importPreviewPath = "/import/preview"
 
 func (h *MainAppHandler) csvImportAPI(r *mux.Router) {
 	profileHndlr := csvimportHandler.ProfileHandler{Store: h.csvImportStore}
@@ -725,6 +726,14 @@ func (h *MainAppHandler) csvImportAPI(r *mux.Router) {
 		}
 		importHndlr.SubmitImport().ServeHTTP(w, r)
 	})
+
+	r.Path(importPreviewPath).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		importHndlr.PreviewCSV().ServeHTTP(w, r)
+	})
 }
 
 const backupPath = "/backup"
@@ -735,6 +744,8 @@ func (h *MainAppHandler) backupApi(r *mux.Router) {
 	backupHndl := backup.Handler{
 		Destination: h.backupDestination,
 		Store:       h.finStore,
+		MdStore:     h.marketStore,
+		CsvStore:    h.csvImportStore,
 	}
 	r.Path(backupPath).Methods(http.MethodGet).Handler(backupHndl.List())
 	r.Path(backupPath).Methods(http.MethodPost).Handler(backupHndl.CreateBackup())

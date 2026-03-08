@@ -1,6 +1,7 @@
 package csvimport
 
 import (
+	"context"
 	"fmt"
 
 	"gorm.io/gorm"
@@ -21,4 +22,14 @@ func NewStore(db *gorm.DB) (*Store, error) {
 	}
 
 	return &Store{db: db}, nil
+}
+
+func (s *Store) WipeData(ctx context.Context) error {
+	tables := []string{"db_category_rules", "db_import_profiles"}
+	for _, table := range tables {
+		if err := s.db.WithContext(ctx).Table(table).Where("1 = 1").Delete(nil).Error; err != nil {
+			return fmt.Errorf("failed to delete data in table '%s': %w", table, err)
+		}
+	}
+	return nil
 }

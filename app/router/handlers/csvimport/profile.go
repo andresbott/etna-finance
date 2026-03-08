@@ -22,6 +22,9 @@ type profilePayload struct {
 	DateFormat        string `json:"dateFormat"`
 	DescriptionColumn string `json:"descriptionColumn"`
 	AmountColumn      string `json:"amountColumn"`
+	AmountMode        string `json:"amountMode"`
+	CreditColumn      string `json:"creditColumn"`
+	DebitColumn       string `json:"debitColumn"`
 }
 
 var validationErr = csvimport.ErrValidation("")
@@ -45,6 +48,9 @@ func (h *ProfileHandler) ListProfiles() http.Handler {
 				DateFormat:        p.DateFormat,
 				DescriptionColumn: p.DescriptionColumn,
 				AmountColumn:      p.AmountColumn,
+				AmountMode:        p.AmountMode,
+				CreditColumn:      p.CreditColumn,
+				DebitColumn:       p.DebitColumn,
 			}
 		}
 
@@ -80,6 +86,9 @@ func (h *ProfileHandler) CreateProfile() http.Handler {
 			DateFormat:        payload.DateFormat,
 			DescriptionColumn: payload.DescriptionColumn,
 			AmountColumn:      payload.AmountColumn,
+			AmountMode:        payload.AmountMode,
+			CreditColumn:      payload.CreditColumn,
+			DebitColumn:       payload.DebitColumn,
 		}
 
 		id, err := h.Store.CreateProfile(r.Context(), profile)
@@ -125,6 +134,9 @@ func (h *ProfileHandler) UpdateProfile(id uint) http.Handler {
 			DateFormat:        payload.DateFormat,
 			DescriptionColumn: payload.DescriptionColumn,
 			AmountColumn:      payload.AmountColumn,
+			AmountMode:        payload.AmountMode,
+			CreditColumn:      payload.CreditColumn,
+			DebitColumn:       payload.DebitColumn,
 		}
 
 		err := h.Store.UpdateProfile(r.Context(), id, profile)

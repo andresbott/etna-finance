@@ -7,6 +7,9 @@ export interface ImportProfile {
   dateFormat: string
   descriptionColumn: string
   amountColumn: string
+  amountMode: 'single' | 'split'
+  creditColumn: string
+  debitColumn: string
 }
 
 export interface CategoryRule {
@@ -15,6 +18,25 @@ export interface CategoryRule {
   isRegex: boolean
   categoryId: number
   position: number
+}
+
+export interface DetectedColumns {
+  dateColumn?: string
+  descriptionColumn?: string
+  amountColumn?: string
+  amountMode?: 'single' | 'split'
+  creditColumn?: string
+  debitColumn?: string
+}
+
+export interface PreviewResult {
+  headers: string[]
+  rows: ParsedRow[]
+  totalRows: number
+  detectedSeparator?: string
+  detectedSkipRows?: number
+  detectedDateFormat?: string
+  detectedColumns?: DetectedColumns
 }
 
 export interface ParsedRow {

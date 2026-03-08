@@ -20,6 +20,9 @@ type dbImportProfile struct {
 	DateFormat        string `gorm:"not null"`
 	DescriptionColumn string `gorm:"not null"`
 	AmountColumn      string `gorm:"not null"`
+	AmountMode        string `gorm:"default:'single'"`
+	CreditColumn      string
+	DebitColumn       string
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 }
@@ -34,6 +37,9 @@ type ImportProfile struct {
 	DateFormat        string
 	DescriptionColumn string
 	AmountColumn      string
+	AmountMode        string
+	CreditColumn      string
+	DebitColumn       string
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 }
@@ -48,6 +54,9 @@ func dbToProfile(in dbImportProfile) ImportProfile {
 		DateFormat:        in.DateFormat,
 		DescriptionColumn: in.DescriptionColumn,
 		AmountColumn:      in.AmountColumn,
+		AmountMode:        in.AmountMode,
+		CreditColumn:      in.CreditColumn,
+		DebitColumn:       in.DebitColumn,
 		CreatedAt:         in.CreatedAt,
 		UpdatedAt:         in.UpdatedAt,
 	}
@@ -66,8 +75,24 @@ func (s *Store) CreateProfile(ctx context.Context, p ImportProfile) (uint, error
 	if p.DescriptionColumn == "" {
 		return 0, ErrValidation("description_column cannot be empty")
 	}
-	if p.AmountColumn == "" {
-		return 0, ErrValidation("amount_column cannot be empty")
+	amountMode := p.AmountMode
+	if amountMode == "" {
+		amountMode = "single"
+	}
+	switch amountMode {
+	case "single":
+		if p.AmountColumn == "" {
+			return 0, ErrValidation("amount_column cannot be empty")
+		}
+	case "split":
+		if p.CreditColumn == "" {
+			return 0, ErrValidation("credit_column cannot be empty")
+		}
+		if p.DebitColumn == "" {
+			return 0, ErrValidation("debit_column cannot be empty")
+		}
+	default:
+		return 0, ErrValidation("invalid amount_mode: must be 'single' or 'split'")
 	}
 
 	csvSep := p.CsvSeparator
@@ -83,6 +108,9 @@ func (s *Store) CreateProfile(ctx context.Context, p ImportProfile) (uint, error
 		DateFormat:        p.DateFormat,
 		DescriptionColumn: p.DescriptionColumn,
 		AmountColumn:      p.AmountColumn,
+		AmountMode:        amountMode,
+		CreditColumn:      p.CreditColumn,
+		DebitColumn:       p.DebitColumn,
 	}
 
 	d := s.db.WithContext(ctx).Create(&row)
@@ -131,8 +159,25 @@ func (s *Store) UpdateProfile(ctx context.Context, id uint, p ImportProfile) err
 	if p.DescriptionColumn == "" {
 		return ErrValidation("description_column cannot be empty")
 	}
-	if p.AmountColumn == "" {
-		return ErrValidation("amount_column cannot be empty")
+
+	amountMode := p.AmountMode
+	if amountMode == "" {
+		amountMode = "single"
+	}
+	switch amountMode {
+	case "single":
+		if p.AmountColumn == "" {
+			return ErrValidation("amount_column cannot be empty")
+		}
+	case "split":
+		if p.CreditColumn == "" {
+			return ErrValidation("credit_column cannot be empty")
+		}
+		if p.DebitColumn == "" {
+			return ErrValidation("debit_column cannot be empty")
+		}
+	default:
+		return ErrValidation("invalid amount_mode: must be 'single' or 'split'")
 	}
 
 	csvSep := p.CsvSeparator
@@ -141,7 +186,7 @@ func (s *Store) UpdateProfile(ctx context.Context, id uint, p ImportProfile) err
 	}
 
 	d := s.db.WithContext(ctx).Model(&dbImportProfile{}).Where("id = ?", id).
-		Select("Name", "CsvSeparator", "SkipRows", "DateColumn", "DateFormat", "DescriptionColumn", "AmountColumn").
+		Select("Name", "CsvSeparator", "SkipRows", "DateColumn", "DateFormat", "DescriptionColumn", "AmountColumn", "AmountMode", "CreditColumn", "DebitColumn").
 		Updates(dbImportProfile{
 			Name:              p.Name,
 			CsvSeparator:      csvSep,
@@ -150,6 +195,9 @@ func (s *Store) UpdateProfile(ctx context.Context, id uint, p ImportProfile) err
 			DateFormat:        p.DateFormat,
 			DescriptionColumn: p.DescriptionColumn,
 			AmountColumn:      p.AmountColumn,
+			AmountMode:        amountMode,
+			CreditColumn:      p.CreditColumn,
+			DebitColumn:       p.DebitColumn,
 		})
 	if d.Error != nil {
 		return d.Error

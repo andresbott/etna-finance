@@ -138,7 +138,7 @@ func runServer(configFile string) error {
 
 	// ——— Task runner and cron scheduler (started inside GroupRunner task) ———
 	backupDest := filepath.Join(cfg.DataDir, backupsDir)
-	taskRunner, scheduleStore, scheduler, err := initTaskRunnerAndScheduler(cfg, db, l, marketStore, finStore, backupDest)
+	taskRunner, scheduleStore, scheduler, err := initTaskRunnerAndScheduler(cfg, db, l, marketStore, finStore, csvImportStore, backupDest)
 	if err != nil {
 		return err
 	}
@@ -248,6 +248,7 @@ func initTaskRunnerAndScheduler(
 	l *slog.Logger,
 	marketStore *marketdata.Store,
 	finStore *accounting.Store,
+	csvImportStore *csvimport.Store,
 	backupDest string,
 ) (*taskrunner.Runner, *taskrunner.ScheduleStore, *taskrunner.Scheduler, error) {
 	runner, err := taskrunner.NewRunner(taskrunner.Cfg{
@@ -284,7 +285,7 @@ func initTaskRunnerAndScheduler(
 	}
 
 	// Register tasks once; enqueue later via runner.AddRun(name) (scheduler and API).
-	runner.RegisterTask(tasks.NewBackupTaskFn(finStore, backupDest, l), tasks.BackupTaskName, 0)
+	runner.RegisterTask(tasks.NewBackupTaskFn(finStore, marketStore, csvImportStore, backupDest, l), tasks.BackupTaskName, 0)
 	runner.RegisterTask(tasks.NewFinancialImportTaskFn(marketStore, marketDataClient), tasks.FinancialImportTaskName, 0)
 	runner.RegisterTask(tasks.NewFinancialBackfillTaskFn(marketStore, l, marketDataClient), tasks.FinancialBackfillTaskName, 0)
 	runner.RegisterTask(tasks.NewFXImportTaskFn(marketStore, cfg.Settings.MainCurrency, cfg.Settings.AllCurrencies(), fxClient), tasks.FXImportTaskName, 0)

@@ -334,6 +334,80 @@ func TestUpdateProfile(t *testing.T) {
 	})
 }
 
+func TestCreateProfile_SplitMode(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	p := ImportProfile{
+		Name:              "Split Bank",
+		CsvSeparator:      ",",
+		DateColumn:        "Date",
+		DateFormat:        "2006-01-02",
+		DescriptionColumn: "Desc",
+		AmountMode:        "split",
+		CreditColumn:      "Credit",
+		DebitColumn:       "Debit",
+	}
+	id, err := store.CreateProfile(ctx, p)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	got, err := store.GetProfile(ctx, id)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.AmountMode != "split" {
+		t.Errorf("expected AmountMode=split, got %s", got.AmountMode)
+	}
+	if got.CreditColumn != "Credit" {
+		t.Errorf("expected CreditColumn=Credit, got %s", got.CreditColumn)
+	}
+	if got.DebitColumn != "Debit" {
+		t.Errorf("expected DebitColumn=Debit, got %s", got.DebitColumn)
+	}
+}
+
+func TestCreateProfile_SplitMode_MissingColumns(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	p := ImportProfile{
+		Name:              "Split Bank",
+		CsvSeparator:      ",",
+		DateColumn:        "Date",
+		DateFormat:        "2006-01-02",
+		DescriptionColumn: "Desc",
+		AmountMode:        "split",
+		CreditColumn:      "Credit",
+		// DebitColumn missing
+	}
+	_, err := store.CreateProfile(ctx, p)
+	if err == nil {
+		t.Fatal("expected validation error for missing debit column")
+	}
+}
+
+func TestCreateProfile_SingleMode_BackwardCompat(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	p := validProfile()
+	p.AmountMode = ""
+	id, err := store.CreateProfile(ctx, p)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	got, err := store.GetProfile(ctx, id)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.AmountMode != "single" {
+		t.Errorf("expected AmountMode=single, got %s", got.AmountMode)
+	}
+}
+
 func TestDeleteProfile(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
