@@ -36,22 +36,11 @@ export const getEntries = async (options: GetEntriesOptions): Promise<PaginatedE
 
     const { data } = await apiClient.get(`/fin/entries?${params}`)
     
-    const items = data.items || []
-    
-    // Calculate total: check various common field names from API response
-    let total = data.total ?? data.totalCount ?? data.count ?? data.totalItems ?? data.total_count
-    
-    if (total === undefined || total === null) {
-        // Fallback: if we received a full page, assume there could be more
-        // This enables pagination controls even if backend doesn't return total
-        total = items.length >= limit ? (page * limit) + 1 : ((page - 1) * limit) + items.length
-    }
-    
     return {
-        items,
-        total,
-        page: data.page ?? data.currentPage ?? page,
-        limit: data.limit ?? data.pageSize ?? data.perPage ?? limit
+        items: data.items || [],
+        total: data.total ?? 0,
+        page,
+        limit
     }
 }
 

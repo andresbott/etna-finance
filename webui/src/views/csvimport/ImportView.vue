@@ -15,6 +15,7 @@ import { useAccounts } from '@/composables/useAccounts'
 import { useCategoryUtils } from '@/utils/categoryUtils'
 import { useDateFormat } from '@/composables/useDateFormat'
 import { getEntryTypeIcon } from '@/utils/entryDisplay'
+import { getApiErrorMessage } from '@/utils/apiError'
 
 /* --- Route & Navigation --- */
 const route = useRoute()
@@ -130,7 +131,7 @@ const handleParse = async () => {
         }
         checkedRows.value = checked
     } catch (err) {
-        parseError.value = err?.response?.data?.message || err?.message || 'Failed to parse CSV'
+        parseError.value = getApiErrorMessage(err)
     } finally {
         isParsing.value = false
     }
@@ -162,7 +163,7 @@ const handleImport = async () => {
         toast.add({
             severity: 'error',
             summary: 'Import failed',
-            detail: err?.response?.data?.message || err?.message || 'Failed to import transactions.',
+            detail: getApiErrorMessage(err),
             life: 5000
         })
     } finally {

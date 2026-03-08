@@ -92,7 +92,7 @@ func TestWipeData(t *testing.T) {
 				StartDate: getDate("1900-01-01"),
 				EndDate:   getDate("3000-01-04"),
 			}
-			transactions, err := store.ListTransactions(t.Context(), opts)
+			transactions, _, err := store.ListTransactions(t.Context(), opts)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}

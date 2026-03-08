@@ -2,6 +2,7 @@ package csvimport
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -98,44 +99,53 @@ func (h *ImportHandler) loadExistingTransactions(r *http.Request, accountID uint
 	if accountID > uint(math.MaxInt) {
 		return nil, fmt.Errorf("accountID %d overflows int", accountID)
 	}
-	opts := accounting.ListOpts{
-		StartDate: time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC),
-		EndDate:   time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC),
-		AccountId: []int{int(accountID)},
-		Limit:     accounting.MaxSearchResults,
-	}
-
-	txs, err := h.FinStore.ListTransactions(r.Context(), opts)
-	if err != nil {
-		return nil, err
-	}
 
 	var existing []csvimport.ExistingTx
-	for _, tx := range txs {
-		switch item := tx.(type) {
-		case accounting.Income:
-			existing = append(existing, csvimport.ExistingTx{
-				Date:   item.Date.Format("2006-01-02"),
-				Amount: item.Amount,
-			})
-		case accounting.Expense:
-			existing = append(existing, csvimport.ExistingTx{
-				Date:   item.Date.Format("2006-01-02"),
-				Amount: -item.Amount, // CSV parser uses negative for expenses
-			})
-		case accounting.Transfer:
-			// For transfers, include both legs if they match the account
-			if item.OriginAccountID == accountID {
+
+	// Paginate through all transactions to ensure complete duplicate detection
+	for page := 1; ; page++ {
+		opts := accounting.ListOpts{
+			StartDate: time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC),
+			EndDate:   time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC),
+			AccountId: []int{int(accountID)},
+			Limit:     accounting.MaxSearchResults,
+			Page:      page,
+		}
+
+		txs, _, err := h.FinStore.ListTransactions(r.Context(), opts)
+		if err != nil {
+			return nil, err
+		}
+		if len(txs) == 0 {
+			break
+		}
+
+		for _, tx := range txs {
+			switch item := tx.(type) {
+			case accounting.Income:
 				existing = append(existing, csvimport.ExistingTx{
 					Date:   item.Date.Format("2006-01-02"),
-					Amount: -item.OriginAmount,
+					Amount: item.Amount,
 				})
-			}
-			if item.TargetAccountID == accountID {
+			case accounting.Expense:
 				existing = append(existing, csvimport.ExistingTx{
 					Date:   item.Date.Format("2006-01-02"),
-					Amount: item.TargetAmount,
+					Amount: -item.Amount, // CSV parser uses negative for expenses
 				})
+			case accounting.Transfer:
+				// For transfers, include both legs if they match the account
+				if item.OriginAccountID == accountID {
+					existing = append(existing, csvimport.ExistingTx{
+						Date:   item.Date.Format("2006-01-02"),
+						Amount: -item.OriginAmount,
+					})
+				}
+				if item.TargetAccountID == accountID {
+					existing = append(existing, csvimport.ExistingTx{
+						Date:   item.Date.Format("2006-01-02"),
+						Amount: item.TargetAmount,
+					})
+				}
 			}
 		}
 	}
@@ -205,6 +215,11 @@ func (h *ImportHandler) SubmitImport() http.Handler {
 			}
 
 			if _, err := h.FinStore.CreateTransaction(r.Context(), tx); err != nil {
+				var valErr accounting.ErrValidation
+				if errors.As(err, &valErr) {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
 				http.Error(w, fmt.Sprintf("error creating transaction: %s", err.Error()), http.StatusInternalServerError)
 				return
 			}

@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/vue-query'
 import { unref, computed, Ref, ref } from 'vue'
 import { getEntries, createEntry, updateEntry, deleteEntry } from '@/lib/api/Entry'
 import type { CreateEntryDTO, UpdateEntryDTO, PaginatedEntriesResponse } from '@/types/entry'
@@ -60,6 +60,7 @@ export function useEntries(options: UseEntriesOptions = {}) {
     const entriesQuery = useQuery({
         queryKey,
         enabled: computed(() => !!unref(startDateRef) && !!unref(endDateRef)),
+        placeholderData: keepPreviousData,
         queryFn: () => {
             const start = unref(startDateRef)
             const end = unref(endDateRef)

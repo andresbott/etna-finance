@@ -11,6 +11,7 @@ import {
     patchTask as patchTaskApi,
     deleteTaskSchedule as deleteTaskScheduleApi
 } from '@/lib/api/Tasks'
+import { getApiErrorMessage } from '@/utils/apiError'
 import type {
     TaskWithSchedule,
     ExecutionInfo,
@@ -107,14 +108,6 @@ function deriveTasksWithLastExecution(
     })
 }
 
-function triggerErrorMessage(error: unknown): string {
-    if (error && typeof error === 'object' && 'response' in error) {
-        const res = (error as { response?: { data?: { message?: string }; status?: number } }).response
-        if (res?.data?.message) return res.data.message
-        if (typeof res?.data === 'string') return res.data
-    }
-    return error instanceof Error ? error.message : 'Failed to start task'
-}
 
 export function useTasks() {
     const queryClient = useQueryClient()
@@ -154,7 +147,7 @@ export function useTasks() {
             toast.add({
                 severity: 'error',
                 summary: 'Task trigger failed',
-                detail: triggerErrorMessage(error),
+                detail: getApiErrorMessage(error),
                 life: 5000
             })
         },

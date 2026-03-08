@@ -1071,7 +1071,7 @@ func TestStore_ListTransactions(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 
-					got, err := store.ListTransactions(t.Context(), tc.opts)
+					got, _, err := store.ListTransactions(t.Context(), tc.opts)
 
 					if tc.wantErr != "" {
 						if err == nil {
@@ -1241,7 +1241,7 @@ func TestStore_CreateStockBuy_CreateStockSell(t *testing.T) {
 			}
 			verifyStockSellResult(t, gotSell, sell, investmentAccountID, cashAccountID)
 
-			list, err := store.ListTransactions(ctx, ListOpts{
+			list, _, err := store.ListTransactions(ctx, ListOpts{
 				StartDate: getDate("2025-02-01"),
 				EndDate:   getDate("2025-02-28"),
 				Types:     []TxType{StockBuyTransaction, StockSellTransaction},
@@ -2029,7 +2029,7 @@ func TestStore_CreateStockGrant_CreateStockTransfer(t *testing.T) {
 			}
 			verifyStockTransferResult(t, gotTransfer, transfer)
 
-			list, err := store.ListTransactions(ctx, ListOpts{
+			list, _, err := store.ListTransactions(ctx, ListOpts{
 				StartDate: getDate("2025-03-01"),
 				EndDate:   getDate("2025-03-31"),
 				Types:     []TxType{StockGrantTransaction, StockTransferTransaction},
