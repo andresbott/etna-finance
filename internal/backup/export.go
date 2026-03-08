@@ -224,7 +224,7 @@ func writeTransactions(ctx context.Context, zw *zipWriter, store *accounting.Sto
 	}
 
 	for {
-		transactions, err := store.ListTransactions(ctx, opts)
+		transactions, _, err := store.ListTransactions(ctx, opts)
 		if err != nil {
 			return fmt.Errorf("failed to list transactions (page %d): %w", opts.Page, err)
 		}

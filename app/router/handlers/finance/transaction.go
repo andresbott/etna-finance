@@ -387,6 +387,7 @@ func (h *Handler) DeleteTx(Id uint) http.Handler {
 
 type listEntriesResponse struct {
 	Items []transactionPayload `json:"items"`
+	Total int64                `json:"total"`
 }
 
 // transactionToPayload converts an accounting.Transaction to the API payload shape.
@@ -557,7 +558,7 @@ func (h *Handler) ListTx() http.Handler {
 			Page:      page,
 		}
 
-		entries, err := h.Store.ListTransactions(r.Context(), opts)
+		entries, total, err := h.Store.ListTransactions(r.Context(), opts)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to list entries: %s", err.Error()), http.StatusInternalServerError)
 			return
@@ -565,6 +566,7 @@ func (h *Handler) ListTx() http.Handler {
 
 		response := listEntriesResponse{
 			Items: make([]transactionPayload, len(entries)),
+			Total: total,
 		}
 		for i, entry := range entries {
 			response.Items[i] = transactionToPayload(entry)

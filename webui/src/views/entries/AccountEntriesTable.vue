@@ -146,6 +146,7 @@ const tableEntries = computed(() =>
                 :first="first"
                 :totalRecords="totalRecords"
                 :rowsPerPageOptions="[25, 50, 100]"
+                :pageLinkSize="11"
                 :rowClass="getRowClass"
                 @page="handlePage"
             >

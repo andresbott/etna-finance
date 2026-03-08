@@ -2154,8 +2154,9 @@ type ListOpts struct {
 const MaxSearchResults = 300
 const DefaultSearchResults = 30
 
-// ListTransactions returns an unsorted list of transactions matching the filter criteria
-func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Transaction, error) {
+// ListTransactions returns a paginated list of transactions matching the filter criteria,
+// along with the total count of matching transactions (before pagination).
+func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Transaction, int64, error) {
 
 	db := store.db.WithContext(ctx).Table("db_transactions")
 
@@ -2228,6 +2229,14 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 
 	db = db.Group("db_transactions.id, db_transactions.date, db_transactions.description, db_transactions.type")
 
+	// Count total matching transactions before applying pagination.
+	// We wrap the grouped query as a subquery so COUNT works correctly.
+	var totalCount int64
+	countErr := store.db.WithContext(ctx).Raw("SELECT COUNT(*) FROM (?) AS sub", db).Scan(&totalCount).Error
+	if countErr != nil {
+		return nil, 0, fmt.Errorf("count transactions: %w", countErr)
+	}
+
 	if opts.Limit == 0 {
 		opts.Limit = DefaultSearchResults
 	}
@@ -2288,9 +2297,9 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 	//q := db.Scan(&debugtarget)
 	if q.Error != nil {
 		if errors.Is(q.Error, gorm.ErrRecordNotFound) {
-			return nil, ErrTransactionNotFound
+			return nil, 0, ErrTransactionNotFound
 		} else {
-			return nil, q.Error
+			return nil, 0, q.Error
 		}
 	}
 	//spew.Dump(debugtarget)
@@ -2387,5 +2396,5 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 			txs = append(txs, tx)
 		}
 	}
-	return txs, nil
+	return txs, totalCount, nil
 }

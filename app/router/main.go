@@ -93,8 +93,8 @@ func New(cfg Cfg) (*MainAppHandler, error) {
 	app.finStore = cfg.FinStore
 
 	prodMid := middleware.New(middleware.Cfg{
-		JsonErrors:  false,
-		GenericErrs: cfg.ProductionMode,
+		JsonErrors:  true,
+		GenericErrs: false,
 		Logger:      cfg.Logger,
 		PromHisto:   middleware.NewPromHistogram("", nil, nil),
 	})

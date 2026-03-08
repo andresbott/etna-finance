@@ -149,7 +149,7 @@ func assertImportedCategories(t *testing.T, store *accounting.Store) {
 func assertImportedTransactions(t *testing.T, store *accounting.Store) {
 	t.Helper()
 	opts := accounting.ListOpts{EndDate: getDate("3000-01-17")}
-	got, err := store.ListTransactions(t.Context(), opts)
+	got, _, err := store.ListTransactions(t.Context(), opts)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
