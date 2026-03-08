@@ -26,7 +26,7 @@ func TestLoadExistingTransactions_PaginatesAll(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer uDb.Close()
+	defer func() { _ = uDb.Close() }()
 
 	mktStore, err := marketdata.NewStore(db)
 	if err != nil {
