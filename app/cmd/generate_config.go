@@ -136,7 +136,7 @@ func generateConfigCmd() *cobra.Command {
 			if _, err := os.Stat(outputFile); err == nil {
 				return fmt.Errorf("file %s already exists, not overwriting", outputFile)
 			}
-			if err := os.WriteFile(outputFile, []byte(defaultConfigYAML), 0644); err != nil {
+			if err := os.WriteFile(outputFile, []byte(defaultConfigYAML), 0600); err != nil {
 				return fmt.Errorf("failed to write config file: %w", err)
 			}
 			fmt.Printf("Configuration written to %s\n", outputFile)

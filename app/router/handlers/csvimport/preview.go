@@ -22,7 +22,7 @@ func (h *ImportHandler) PreviewCSV() http.Handler {
 			http.Error(w, fmt.Sprintf("unable to get uploaded file: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
-		defer file.Close()
+		defer func() { _ = file.Close() }()
 
 		data, err := io.ReadAll(file)
 		if err != nil {

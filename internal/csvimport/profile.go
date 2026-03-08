@@ -45,21 +45,7 @@ type ImportProfile struct {
 }
 
 func dbToProfile(in dbImportProfile) ImportProfile {
-	return ImportProfile{
-		ID:                in.ID,
-		Name:              in.Name,
-		CsvSeparator:      in.CsvSeparator,
-		SkipRows:          in.SkipRows,
-		DateColumn:        in.DateColumn,
-		DateFormat:        in.DateFormat,
-		DescriptionColumn: in.DescriptionColumn,
-		AmountColumn:      in.AmountColumn,
-		AmountMode:        in.AmountMode,
-		CreditColumn:      in.CreditColumn,
-		DebitColumn:       in.DebitColumn,
-		CreatedAt:         in.CreatedAt,
-		UpdatedAt:         in.UpdatedAt,
-	}
+	return ImportProfile(in)
 }
 
 func (s *Store) CreateProfile(ctx context.Context, p ImportProfile) (uint, error) {

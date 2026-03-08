@@ -1,5 +1,4 @@
-
-# slog: Handler chaining, fanout, routing, failover, load balancing...
+# slog-multi: Advanced Handler Composition for Go's Structured Logging (pipelining, fanout, routing, failover...)
 
 [![tag](https://img.shields.io/github/tag/samber/slog-multi.svg)](https://github.com/samber/slog-multi/releases)
 ![Go Version](https://img.shields.io/badge/Go-%3E%3D%201.21-%23007d9c)
@@ -10,43 +9,45 @@
 [![Contributors](https://img.shields.io/github/contributors/samber/slog-multi)](https://github.com/samber/slog-multi/graphs/contributors)
 [![License](https://img.shields.io/github/license/samber/slog-multi)](./LICENSE)
 
-Design workflows of [slog](https://pkg.go.dev/log/slog) handlers:
-- **fanout**: distribute `log.Record` to multiple `slog.Handler` in parallel
-- **pipeline**: rewrite `log.Record` on the fly (eg: for privacy reason)
-- **routing**: forward `log.Record` to all matching `slog.Handler`
-- **failover**: forward `log.Record` to the first available `slog.Handler`
-- **load balancing**: increase log bandwidth by sending `log.Record` to a pool of `slog.Handler`
+**slog-multi** provides advanced composition patterns for Go's structured logging (`slog`). It enables you to build sophisticated logging workflows by combining multiple handlers with different strategies for distribution, routing, transformation, and error handling.
 
-Here a simple workflow with both pipeline and fanout:
+## 🎯 Features
 
-![workflow example with pipeline and fanout](./images/workflow.png)
+- **🔄 Fanout**: Distribute logs to multiple handlers in parallel
+- **🛣️ Router**: Conditionally route logs based on custom criteria
+- **🎯 First Match**: Route logs to the first matching handler only
+- **🔄 Failover**: High-availability logging with automatic fallback
+- **⚖️ Load Balancing**: Distribute load across multiple handlers
+- **🔗 Pipeline**: Transform and filter logs with middleware chains
+- **🛡️ Error Recovery**: Graceful handling of logging failures
+
+Middlewares:
+- **⚡ Inline Handlers**: Quick implementation of custom handlers
+- **🔧 Inline Middleware**: Rapid development of transformation logic
 
 <div align="center">
   <hr>
   <sup><b>Sponsored by:</b></sup>
   <br>
-  <a href="https://quickwit.io?utm_campaign=github_sponsorship&utm_medium=referral&utm_content=samber-slog-multi&utm_source=github">
+  <a href="https://cast.ai/samuel">
     <div>
-      <img src="https://github.com/samber/oops/assets/2951285/49aaaa2b-b8c6-4f21-909f-c12577bb6a2e" width="240" alt="Quickwit">
+      <img src="https://github.com/user-attachments/assets/502f8fa8-e7e8-4754-a51f-036d0443e694" width="200" alt="Cast AI">
     </div>
     <div>
-      Cloud-native search engine for observability - An OSS alternative to Splunk, Elasticsearch, Loki, and Tempo.
+      Cut Kubernetes & AI costs, boost application stability
+    </div>
+  </a>
+  <br>
+  <a href="https://www.dash0.com?utm_campaign=148395251-samber%20github%20sponsorship&utm_source=github&utm_medium=sponsorship&utm_content=samber">
+    <div>
+      <img src="https://github.com/user-attachments/assets/b1f2e876-0954-4dc3-824d-935d29ba8f3f" width="200" alt="Dash0">
+    </div>
+    <div>
+      100% OpenTelemetry-native observability platform<br>Simple to use, built on open standards, and designed for full cost control
     </div>
   </a>
   <hr>
 </div>
-
-**Routing:**
-- [Fanout](#broadcast-slogmultifanout): distributes records to multiple `slog.Handler` in parallel
-- [Router](#routing-slogmultirouter): forwards records to all matching `slog.Handler`
-- [Failover](#failover-slogmultifailover): forwards records to the first available `slog.Handler`
-- [Load balancing](#load-balancing-slogmultipool): balances records between multiple `slog.Handler`
-- [Chaining / Pipe](#chaining-slogmultipipe): builds a chain of Middleware
-- [Recover handler error](#recover-errors-RecoverHandlerError): catch panics and error from handlers
-
-**Middlewares:**
-- [Inline handler](#inline-handler): a shortcut to implement `slog.Handler`
-- [Inline middleware](#inline-middleware): a shortcut to implment `slogmulti.Middleware`
 
 **See also:**
 
@@ -91,7 +92,7 @@ Here a simple workflow with both pipeline and fanout:
 - [slog-parquet](https://github.com/samber/slog-parquet): A `slog` handler for `Parquet` + `Object Storage`
 - [slog-channel](https://github.com/samber/slog-channel): A `slog` handler for Go channels
 
-## 🚀 Install
+## 🚀 Installation
 
 ```sh
 go get github.com/samber/slog-multi
@@ -103,6 +104,8 @@ No breaking changes will be made to exported APIs before v2.0.0.
 
 > [!WARNING]
 > Use this library carefully, log processing can be very costly (!)
+> 
+> Excessive logging —with multiple processing steps and destinations— can introduce significant overhead, which is generally undesirable in performance-critical paths. Logging is always expensive, and sometimes, metrics or a sampling strategy are cheaper. The library itself does not generate extra load.
 
 ## 💡 Usage
 
@@ -110,22 +113,30 @@ GoDoc: [https://pkg.go.dev/github.com/samber/slog-multi](https://pkg.go.dev/gith
 
 ### Broadcast: `slogmulti.Fanout()`
 
-Distribute logs to multiple `slog.Handler` in parallel.
+Distribute logs to multiple `slog.Handler` in parallel for maximum throughput and redundancy.
 
 ```go
 import (
+    "net"
     slogmulti "github.com/samber/slog-multi"
     "log/slog"
+    "os"
+    "time"
 )
 
 func main() {
     logstash, _ := net.Dial("tcp", "logstash.acme:4242")    // use github.com/netbrain/goautosocket for auto-reconnect
+    datadogHandler := slogdatadog.NewDatadogHandler(slogdatadog.Option{
+        APIKey: "your-api-key",
+        Service: "my-service",
+    })
     stderr := os.Stderr
 
     logger := slog.New(
         slogmulti.Fanout(
             slog.NewJSONHandler(logstash, &slog.HandlerOptions{}),  // pass to first handler: logstash over tcp
             slog.NewTextHandler(stderr, &slog.HandlerOptions{}),    // then to second handler: stderr
+            datadogHandler,
             // ...
         ),
     )
@@ -167,13 +178,15 @@ Netcat output:
 
 ### Routing: `slogmulti.Router()`
 
-Distribute logs to all matching `slog.Handler` in parallel.
+Distribute logs to all matching `slog.Handler` based on custom criteria like log level, attributes, or business logic.
 
 ```go
 import (
+    "context"
     slogmulti "github.com/samber/slog-multi"
     slogslack "github.com/samber/slog-slack"
     "log/slog"
+    "os"
 )
 
 func main() {
@@ -181,11 +194,14 @@ func main() {
     slackChannelEU := slogslack.Option{Level: slog.LevelError, WebhookURL: "xxx", Channel: "supervision-eu"}.NewSlackHandler()
     slackChannelAPAC := slogslack.Option{Level: slog.LevelError, WebhookURL: "xxx", Channel: "supervision-apac"}.NewSlackHandler()
 
+    consoleHandler := slog.NewTextHandler(os.Stderr, nil)
+
     logger := slog.New(
         slogmulti.Router().
             Add(slackChannelUS, recordMatchRegion("us")).
             Add(slackChannelEU, recordMatchRegion("eu")).
             Add(slackChannelAPAC, recordMatchRegion("apac")).
+            Add(consoleHandler, slogmulti.LevelIs(slog.LevelInfo, slog.LevelDebug)).
             Handler(),
     )
 
@@ -213,34 +229,95 @@ func recordMatchRegion(region string) func(ctx context.Context, r slog.Record) b
 }
 ```
 
+**Use Cases:**
+- Environment-specific logging (dev vs prod)
+- Level-based routing (errors to Slack, info to console)
+- Business logic routing (user actions vs system events)
+
+### First Match Routing: `Router().FirstMatch()`
+
+Route logs to the **first matching handler only**, unlike regular routing which sends to all matching handlers. Perfect for priority-based routing where you want exactly one handler to receive each log.
+
+```go
+import (
+    slogmulti "github.com/samber/slog-multi"
+    slogslack "github.com/samber/slog-slack"
+    "log/slog"
+)
+
+func main() {
+    queryChannel := slogslack.Option{Level: slog.LevelDebug, WebhookURL: "xxx", Channel: "db-queries"}.NewSlackHandler()
+    requestChannel := slogslack.Option{Level: slog.LevelError, WebhookURL: "xxx", Channel: "service-requests"}.NewSlackHandler()
+    influxdbChannel := slogslack.Option{Level: slog.LevelInfo, WebhookURL: "xxx", Channel: "influxdb-metrics"}.NewSlackHandler()
+    fallbackChannel := slogslack.Option{Level: slog.LevelError, WebhookURL: "xxx", Channel: "logs"}.NewSlackHandler()
+
+    logger := slog.New(
+        slogmulti.Router().
+            Add(queryChannel, slogmulti.AttrKindIs("query", slog.KindString, "args", slog.KindAny)).
+            Add(requestChannel, slogmulti.AttrKindIs("method", slog.KindString, "body", slog.KindAny)).
+            Add(influxdbChannel, slogmulti.AttrValueIs("scope", "influx")).
+            Add(fallbackChannel).  // Catch-all for everything else
+            FirstMatch().           // ← Enable first-match routing
+            Handler(),
+    )
+
+    // Goes to queryChannel only (stops at first match)
+    logger.Debug("Executing SQL query", "query", "SELECT * FROM users WHERE id = ?", "args", []int{1})
+
+    // Goes to requestChannel only (stops at first match)
+    logger.Error("Incoming request failed", "method", "POST", "body", "{'name':'test'}")
+
+    // Goes to fallbackChannel (no other handlers matched)
+    logger.Error("An unexpected error occurred")
+}
+```
+
+#### Built-in Predicates
+
+**Level predicates:**
+- `LevelIs(levels ...slog.Level)` - Match specific log levels
+- `LevelIsNot(levels ...slog.Level)` - Exclude specific log levels
+
+**Message predicates:**
+- `MessageIs(msg string)` - Exact message match
+- `MessageIsNot(msg string)` - Message doesn't match
+- `MessageContains(part string)` - Message contains substring
+- `MessageNotContains(part string)` - Message doesn't contain substring
+
+**Attribute predicates:**
+- `AttrValueIs(key, value, ...)` - Check attributes have exact values
+- `AttrKindIs(key, kind, ...)` - Check attributes have specific types
+
 ### Failover: `slogmulti.Failover()`
 
-List multiple targets for a `slog.Record` instead of retrying on the same unavailable log management system.
+Ensure logging reliability by trying multiple handlers in order until one succeeds. Perfect for high-availability scenarios.
 
 ```go
 import (
     "net"
     slogmulti "github.com/samber/slog-multi"
     "log/slog"
+    "os"
+    "time"
 )
 
 
 func main() {
+    // Create connections to multiple log servers
     // ncat -l 1000 -k
     // ncat -l 1001 -k
     // ncat -l 1002 -k
 
-    // list AZs
-    // use github.com/netbrain/goautosocket for auto-reconnect
+    // List AZs - use github.com/netbrain/goautosocket for auto-reconnect
     logstash1, _ := net.Dial("tcp", "logstash.eu-west-3a.internal:1000")
     logstash2, _ := net.Dial("tcp", "logstash.eu-west-3b.internal:1000")
     logstash3, _ := net.Dial("tcp", "logstash.eu-west-3c.internal:1000")
 
     logger := slog.New(
         slogmulti.Failover()(
-            slog.HandlerOptions{}.NewJSONHandler(logstash1, nil),    // send to this instance first
-            slog.HandlerOptions{}.NewJSONHandler(logstash2, nil),    // then this instance in case of failure
-            slog.HandlerOptions{}.NewJSONHandler(logstash3, nil),    // and finally this instance in case of double failure
+            slog.HandlerOptions{}.NewJSONHandler(logstash1, nil),    // Primary
+            slog.HandlerOptions{}.NewJSONHandler(logstash2, nil),    // Secondary
+            slog.HandlerOptions{}.NewJSONHandler(logstash3, nil),    // Tertiary
         ),
     )
 
@@ -257,59 +334,76 @@ func main() {
 }
 ```
 
+**Use Cases:**
+- High-availability logging infrastructure
+- Disaster recovery scenarios
+- Multi-region deployments
+
 ### Load balancing: `slogmulti.Pool()`
 
-Increase log bandwidth by sending `log.Record` to a pool of `slog.Handler`.
+Distribute logging load across multiple handlers using round-robin with randomization to increase throughput and provide redundancy.
 
 ```go
 import (
     "net"
     slogmulti "github.com/samber/slog-multi"
     "log/slog"
+    "os"
+    "time"
 )
 
 func main() {
+    // Create multiple log servers
     // ncat -l 1000 -k
     // ncat -l 1001 -k
     // ncat -l 1002 -k
 
-    // list AZs
-    // use github.com/netbrain/goautosocket for auto-reconnect
+    // List AZs - use github.com/netbrain/goautosocket for auto-reconnect
     logstash1, _ := net.Dial("tcp", "logstash.eu-west-3a.internal:1000")
     logstash2, _ := net.Dial("tcp", "logstash.eu-west-3b.internal:1000")
     logstash3, _ := net.Dial("tcp", "logstash.eu-west-3c.internal:1000")
 
     logger := slog.New(
         slogmulti.Pool()(
-            // a random handler will be picked
+            // A random handler will be picked for each log
             slog.HandlerOptions{}.NewJSONHandler(logstash1, nil),
             slog.HandlerOptions{}.NewJSONHandler(logstash2, nil),
             slog.HandlerOptions{}.NewJSONHandler(logstash3, nil),
         ),
     )
 
-    logger.
-        With(
-            slog.Group("user",
-                slog.String("id", "user-123"),
-                slog.Time("created_at", time.Now()),
-            ),
-        ).
-        With("environment", "dev").
-        With("error", fmt.Errorf("an error")).
-        Error("A message")
+    // High-volume logging
+    for i := 0; i < 1000; i++ {
+        logger.
+            With(
+                slog.Group("user",
+                    slog.String("id", "user-123"),
+                    slog.Time("created_at", time.Now()),
+                ),
+            ).
+            With("environment", "dev").
+            With("error", fmt.Errorf("an error")).
+            Error("A message")
+    }
 }
 ```
 
-### Recover errors: `slog.RecoverHandlerError()`
+**Use Cases:**
+- High-throughput logging scenarios
+- Distributed logging infrastructure
+- Performance optimization
 
-Returns a `slog.Handler` that recovers from panics or error of the chain of handlers.
+### Recover errors: `slogmulti.RecoverHandlerError()`
+
+Gracefully handle logging failures without crashing the application. Catches both panics and errors from handlers.
 
 ```go
 import (
-	slogformatter "github.com/samber/slog-formatter"
-	slogmulti "github.com/samber/slog-multi"
-	"log/slog"
+    "context"
+    slogformatter "github.com/samber/slog-formatter"
+    slogmulti "github.com/samber/slog-multi"
+    "log/slog"
+    "os"
 )
 
 recovery := slogmulti.RecoverHandlerError(
@@ -336,19 +430,48 @@ logger.Error("a message",
 // time=2023-04-10T14:00:0.000000+00:00 level=ERROR msg="a message" error.message="an error" error.type="*errors.errorString" user="John doe" very_private_data="********"
 ```
 
-### Chaining: `slogmulti.Pipe()`
+### Pipelining: `slogmulti.Pipe()`
 
-Rewrite `log.Record` on the fly (eg: for privacy reason).
+Transform and filter logs using middleware chains. Perfect for data privacy, formatting, and cross-cutting concerns.
 
 ```go
+import (
+    "context"
+    slogmulti "github.com/samber/slog-multi"
+    "log/slog"
+    "os"
+    "time"
+)
+
 func main() {
-    // first middleware: format go `error` type into an object {error: "*myCustomErrorType", message: "could not reach https://a.b/c"}
-    errorFormattingMiddleware := slogmulti.NewHandleInlineMiddleware(errorFormattingMiddleware)
+    // First middleware: format Go `error` type into an structured object {error: "*myCustomErrorType", message: "could not reach https://a.b/c"}
+    errorFormattingMiddleware := slogmulti.NewHandleInlineMiddleware(func(ctx context.Context, record slog.Record, next func(context.Context, slog.Record) error) error {
+        record.Attrs(func(attr slog.Attr) bool {
+            if attr.Key == "error" && attr.Value.Kind() == slog.KindAny {
+                if err, ok := attr.Value.Any().(error); ok {
+                    record.AddAttrs(
+                        slog.String("error_type", "error"),
+                        slog.String("error_message", err.Error()),
+                    )
+                }
+            }
+            return true
+        })
+        return next(ctx, record)
+    })
 
-    // second middleware: remove PII
-    gdprMiddleware := NewGDPRMiddleware()
+    // Second middleware: remove PII
+    gdprMiddleware := slogmulti.NewHandleInlineMiddleware(func(ctx context.Context, record slog.Record, next func(context.Context, slog.Record) error) error {
+        record.Attrs(func(attr slog.Attr) bool {
+            if attr.Key == "email" || attr.Key == "phone" || attr.Key == "created_at" {
+                record.AddAttrs(slog.String(attr.Key, "*********"))
+            }
+            return true
+        })
+        return next(ctx, record)
+    })
 
-    // final handler
+    // Final handler
     sink := slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{})
 
     logger := slog.New(
@@ -383,8 +506,8 @@ Stderr output:
     "level":"ERROR",
     "msg":"A message",
     "user":{
-        "id":"*******",
         "email":"*******",
+        "phone":"*******",
         "created_at":"*******"
     },
     "environment":"dev",
@@ -396,7 +519,15 @@ Stderr output:
 }
 ```
 
-#### Custom middleware
+**Use Cases:**
+- Data privacy and GDPR compliance
+- Error formatting and standardization
+- Log enrichment and transformation
+- Performance monitoring and metrics
+
+## 🔧 Advanced Patterns
+
+### Custom middleware
 
 Middleware must match the following prototype:
 
@@ -408,16 +539,17 @@ The example above uses:
 - a custom middleware, [see here](./examples/pipe/gdpr.go)
 - an inline middleware, [see here](./examples/pipe/errors.go)
 
-Note: `WithAttrs` and `WithGroup` methods of custom middleware must return a new instance, instead of `this`.
+> **Note**: `WithAttrs` and `WithGroup` methods of custom middleware must return a new instance, not `this`.
 
 #### Inline handler
 
-An "inline handler" (aka. lambda), is a shortcut to implement `slog.Handler`, that hooks a single method and proxies others.
+Inline handlers provide shortcuts to implement `slog.Handler` without creating full struct implementations.
 
 ```go
 mdw := slogmulti.NewHandleInlineHandler(
-    // simulate "Handle()"
+    // simulate "Handle()" method
     func(ctx context.Context, groups []string, attrs []slog.Attr, record slog.Record) error {
+        // Custom logic here
         // [...]
         return nil
     },
@@ -426,13 +558,15 @@ mdw := slogmulti.NewHandleInlineHandler(
 
 ```go
 mdw := slogmulti.NewInlineHandler(
-    // simulate "Enabled()"
+    // simulate "Enabled()" method
     func(ctx context.Context, groups []string, attrs []slog.Attr, level slog.Level) bool {
+        // Custom logic here
         // [...]
         return true
     },
-    // simulate "Handle()"
+    // simulate "Handle()" method
     func(ctx context.Context, groups []string, attrs []slog.Attr, record slog.Record) error {
+        // Custom logic here
         // [...]
         return nil
     },
@@ -441,64 +575,110 @@ mdw := slogmulti.NewInlineHandler(
 
 #### Inline middleware
 
-An "inline middleware" (aka. lambda), is a shortcut to implement middleware, that hooks a single method and proxies others.
+Inline middleware provides shortcuts to implement middleware functions that hook specific methods.
+
+#### Hook `Enabled()` Method
 
 ```go
-// hook `logger.Enabled` method
-mdw := slogmulti.NewEnabledInlineMiddleware(func(ctx context.Context, level slog.Level, next func(context.Context, slog.Level) bool) bool{
-    // [...]
+middleware := slogmulti.NewEnabledInlineMiddleware(func(ctx context.Context, level slog.Level, next func(context.Context, slog.Level) bool) bool{
+    // Custom logic before calling next
+    if level == slog.LevelDebug {
+        return false // Skip debug logs
+    }
     return next(ctx, level)
 })
 ```
 
+#### Hook `Handle()` Method
+
 ```go
-// hook `logger.Handle` method
-mdw := slogmulti.NewHandleInlineMiddleware(func(ctx context.Context, record slog.Record, next func(context.Context, slog.Record) error) error {
-    // [...]
+middleware := slogmulti.NewHandleInlineMiddleware(func(ctx context.Context, record slog.Record, next func(context.Context, slog.Record) error) error {
+    // Add timestamp to all logs
+    record.AddAttrs(slog.Time("logged_at", time.Now()))
     return next(ctx, record)
 })
 ```
 
+#### Hook `WithAttrs()` Method
+
 ```go
-// hook `logger.WithAttrs` method
 mdw := slogmulti.NewWithAttrsInlineMiddleware(func(attrs []slog.Attr, next func([]slog.Attr) slog.Handler) slog.Handler{
-    // [...]
+    // Filter out sensitive attributes
+    filtered := make([]slog.Attr, 0, len(attrs))
+    for _, attr := range attrs {
+        if attr.Key != "password" && attr.Key != "token" {
+            filtered = append(filtered, attr)
+        }
+    }
     return next(attrs)
 })
 ```
 
+#### Hook `WithGroup()` Method
+
 ```go
-// hook `logger.WithGroup` method
 mdw := slogmulti.NewWithGroupInlineMiddleware(func(name string, next func(string) slog.Handler) slog.Handler{
-    // [...]
+    // Add prefix to group names
+    prefixedName := "app." + name
     return next(name)
 })
 ```
 
-A super inline middleware that hooks all methods.
+#### Complete Inline Middleware
 
-> Warning: you would rather implement your own middleware.
+> **Warning**: You should implement your own middleware for complex scenarios.
 
 ```go
 mdw := slogmulti.NewInlineMiddleware(
     func(ctx context.Context, level slog.Level, next func(context.Context, slog.Level) bool) bool{
+        // Custom logic here
         // [...]
         return next(ctx, level)
     },
     func(ctx context.Context, record slog.Record, next func(context.Context, slog.Record) error) error{
+        // Custom logic here
         // [...]
         return next(ctx, record)
     },
     func(attrs []slog.Attr, next func([]slog.Attr) slog.Handler) slog.Handler{
+        // Custom logic here
         // [...]
         return next(attrs)
     },
     func(name string, next func(string) slog.Handler) slog.Handler{
+        // Custom logic here
         // [...]
         return next(name)
     },
 )
 ```
+
+## 💡 Best Practices
+
+### Performance Considerations
+
+- **Use Fanout sparingly**: Broadcasting to many handlers can impact performance
+- **Implement sampling**: For high-volume logs, consider sampling strategies
+- **Monitor handler performance**: Some handlers (like network-based ones) can be slow
+- **Use buffering**: Consider buffering for network-based handlers
+
+### Error Handling
+
+- **Always use error recovery**: Wrap handlers with `RecoverHandlerError`
+- **Implement fallbacks**: Use failover patterns for critical logging
+- **Monitor logging failures**: Track when logging fails to identify issues
+
+### Security and Privacy
+
+- **Redact sensitive data**: Use middleware to remove PII and secrets
+- **Validate log content**: Ensure logs don't contain sensitive information
+- **Use secure connections**: For network-based handlers, use TLS
+
+### Monitoring and Observability
+
+- **Add correlation IDs**: Include request IDs in logs for tracing
+- **Structured logging**: Use slog's structured logging features consistently
+- **Log levels**: Use appropriate log levels for different types of information
 
 ## 🤝 Contributing
 
@@ -524,7 +704,7 @@ make watch-test
 
 ## 💫 Show your support
 
-Give a ⭐️ if this project helped you!
+If this project helped you, please give it a ⭐️ on GitHub!
 
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/samber?style=for-the-badge)](https://github.com/sponsors/samber)
 

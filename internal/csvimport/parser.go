@@ -146,14 +146,9 @@ func DetectColumns(headers []string, dataRows [][]string) *DetectedColumns {
 		return nil
 	}
 
-	// Sample up to 20 rows for analysis
-	sampleSize := len(dataRows)
-	if sampleSize > 20 {
-		sampleSize = 20
-	}
+	sampleSize := min(len(dataRows), 20)
 	sample := dataRows[:sampleSize]
 
-	// Profile each column
 	profiles := make([]columnProfile, len(headers))
 	for i, h := range headers {
 		profiles[i] = profileColumn(i, strings.TrimSpace(h), sample)
@@ -161,7 +156,20 @@ func DetectColumns(headers []string, dataRows [][]string) *DetectedColumns {
 
 	result := &DetectedColumns{}
 
-	// Date: pick the column with the highest date ratio (must be > 50%)
+	bestDateIdx := detectDateColumn(profiles, result)
+	numericCols := collectNumericCols(profiles, bestDateIdx)
+	detectAmountColumns(numericCols, sample, result)
+	detectDescriptionColumn(profiles, numericCols, bestDateIdx, result)
+
+	if result.DateColumn == "" && result.DescriptionColumn == "" && result.AmountColumn == "" && result.CreditColumn == "" {
+		return nil
+	}
+
+	return result
+}
+
+// detectDateColumn picks the column with the highest date ratio (>50%) and sets it on result.
+func detectDateColumn(profiles []columnProfile, result *DetectedColumns) int {
 	bestDateIdx := -1
 	bestDateRatio := 0.5
 	for i, p := range profiles {
@@ -173,34 +181,36 @@ func DetectColumns(headers []string, dataRows [][]string) *DetectedColumns {
 	if bestDateIdx >= 0 {
 		result.DateColumn = profiles[bestDateIdx].header
 	}
+	return bestDateIdx
+}
 
-	// Numeric columns: all columns with numRatio > 50% (excluding the date column)
+// collectNumericCols returns columns with numRatio > 50%, excluding the date column.
+func collectNumericCols(profiles []columnProfile, excludeIdx int) []columnProfile {
 	var numericCols []columnProfile
 	for i, p := range profiles {
-		if i == bestDateIdx {
+		if i == excludeIdx {
 			continue
 		}
 		if p.numRatio > 0.5 {
 			numericCols = append(numericCols, p)
 		}
 	}
+	return numericCols
+}
 
-	// Detect credit/debit split: two numeric columns where values are mutually
-	// exclusive (when one has a value the other is empty). This is the hallmark
-	// of split credit/debit columns.
+// detectAmountColumns detects split or single amount columns from numeric columns.
+func detectAmountColumns(numericCols []columnProfile, sample [][]string, result *DetectedColumns) {
 	if len(numericCols) >= 2 {
 		splitA, splitB, isSplit := detectSplitPair(numericCols, sample)
 		if isSplit {
 			result.AmountMode = "split"
 			result.CreditColumn = splitA
 			result.DebitColumn = splitB
+			return
 		}
 	}
-
-	// If no split detected, pick the single best numeric column as amount
-	if result.AmountMode == "" && len(numericCols) > 0 {
+	if len(numericCols) > 0 {
 		result.AmountMode = "single"
-		// Prefer the column with the highest numRatio and lowest emptyRatio
 		best := numericCols[0]
 		for _, p := range numericCols[1:] {
 			if p.numRatio > best.numRatio || (p.numRatio == best.numRatio && p.emptyRatio < best.emptyRatio) {
@@ -209,24 +219,22 @@ func DetectColumns(headers []string, dataRows [][]string) *DetectedColumns {
 		}
 		result.AmountColumn = best.header
 	}
+}
 
-	// Description: among remaining text columns (not date, not numeric, not too
-	// many empties), pick the one with the longest average text length.
+// detectDescriptionColumn picks the text column with the longest average text length.
+func detectDescriptionColumn(profiles []columnProfile, numericCols []columnProfile, dateIdx int, result *DetectedColumns) {
 	usedCols := map[int]bool{}
-	if bestDateIdx >= 0 {
-		usedCols[bestDateIdx] = true
+	if dateIdx >= 0 {
+		usedCols[dateIdx] = true
 	}
 	for _, p := range numericCols {
 		usedCols[p.index] = true
 	}
 
-	var bestDescIdx int = -1
+	bestDescIdx := -1
 	var bestDescLen float64
 	for i, p := range profiles {
-		if usedCols[i] {
-			continue
-		}
-		if p.emptyRatio > 0.5 {
+		if usedCols[i] || p.emptyRatio > 0.5 {
 			continue
 		}
 		if p.avgTextLen > bestDescLen {
@@ -237,13 +245,6 @@ func DetectColumns(headers []string, dataRows [][]string) *DetectedColumns {
 	if bestDescIdx >= 0 {
 		result.DescriptionColumn = profiles[bestDescIdx].header
 	}
-
-	// Only return if we detected at least one useful column
-	if result.DateColumn == "" && result.DescriptionColumn == "" && result.AmountColumn == "" && result.CreditColumn == "" {
-		return nil
-	}
-
-	return result
 }
 
 // profileColumn analyzes sample data for a single column and returns its profile.
@@ -355,7 +356,6 @@ func detectSplitPair(numericCols []columnProfile, sample [][]string) (credit, de
 func ParsePreviewWithAutoDetect(data []byte, profile ImportProfile) (PreviewResult, error) {
 	var detectedSep string
 	var detectedSkip int
-	var detectedDateFormat string
 
 	if profile.CsvSeparator == "" {
 		detectedSep, detectedSkip = DetectCSVSettings(data)
@@ -363,57 +363,14 @@ func ParsePreviewWithAutoDetect(data []byte, profile ImportProfile) (PreviewResu
 		profile.SkipRows = detectedSkip
 	}
 
-	// Auto-detect columns when no column mappings are provided
 	var detectedCols *DetectedColumns
 	if !hasMappings(profile) {
-		header, dataRows, _, _, err := readCSV(bytes.NewReader(data), profile)
-		if err == nil {
-			detectedCols = DetectColumns(header, dataRows)
-			// Apply detected columns to the profile so preview can use them
-			if detectedCols != nil {
-				if profile.DateColumn == "" && detectedCols.DateColumn != "" {
-					profile.DateColumn = detectedCols.DateColumn
-				}
-				if profile.DescriptionColumn == "" && detectedCols.DescriptionColumn != "" {
-					profile.DescriptionColumn = detectedCols.DescriptionColumn
-				}
-				if detectedCols.AmountMode == "split" {
-					if profile.AmountMode == "" || profile.AmountMode == "single" {
-						if profile.CreditColumn == "" && detectedCols.CreditColumn != "" {
-							profile.AmountMode = "split"
-							profile.CreditColumn = detectedCols.CreditColumn
-						}
-						if profile.DebitColumn == "" && detectedCols.DebitColumn != "" {
-							profile.DebitColumn = detectedCols.DebitColumn
-						}
-					}
-				} else {
-					if profile.AmountColumn == "" && detectedCols.AmountColumn != "" {
-						profile.AmountColumn = detectedCols.AmountColumn
-					}
-				}
-			}
-		}
+		detectedCols, profile = autoDetectColumns(data, profile)
 	}
 
-	// Auto-detect date format if not set and a date column is specified
-	if profile.DateFormat == "" && profile.DateColumn != "" {
-		header, dataRows, _, colIndex, err := readCSV(bytes.NewReader(data), profile)
-		_ = header
-		if err == nil {
-			if dateIdx, ok := colIndex[profile.DateColumn]; ok {
-				samples := make([]string, 0, min(len(dataRows), 20))
-				for i := 0; i < len(dataRows) && i < 20; i++ {
-					if dateIdx < len(dataRows[i]) {
-						samples = append(samples, dataRows[i][dateIdx])
-					}
-				}
-				detectedDateFormat = DetectDateFormat(samples)
-				if detectedDateFormat != "" {
-					profile.DateFormat = detectedDateFormat
-				}
-			}
-		}
+	detectedDateFormat := autoDetectDateFormat(data, profile)
+	if detectedDateFormat != "" {
+		profile.DateFormat = detectedDateFormat
 	}
 
 	result, err := ParsePreview(bytes.NewReader(data), profile)
@@ -433,6 +390,65 @@ func ParsePreviewWithAutoDetect(data []byte, profile ImportProfile) (PreviewResu
 	}
 
 	return result, nil
+}
+
+// autoDetectColumns detects column mappings from CSV data and applies them to the profile.
+func autoDetectColumns(data []byte, profile ImportProfile) (*DetectedColumns, ImportProfile) {
+	header, dataRows, _, _, err := readCSV(bytes.NewReader(data), profile)
+	if err != nil {
+		return nil, profile
+	}
+	detectedCols := DetectColumns(header, dataRows)
+	if detectedCols == nil {
+		return nil, profile
+	}
+	profile = applyDetectedColumns(profile, detectedCols)
+	return detectedCols, profile
+}
+
+// applyDetectedColumns merges detected column mappings into the profile where fields are empty.
+func applyDetectedColumns(profile ImportProfile, cols *DetectedColumns) ImportProfile {
+	if profile.DateColumn == "" && cols.DateColumn != "" {
+		profile.DateColumn = cols.DateColumn
+	}
+	if profile.DescriptionColumn == "" && cols.DescriptionColumn != "" {
+		profile.DescriptionColumn = cols.DescriptionColumn
+	}
+	if cols.AmountMode == "split" && (profile.AmountMode == "" || profile.AmountMode == "single") {
+		if profile.CreditColumn == "" && cols.CreditColumn != "" {
+			profile.AmountMode = "split"
+			profile.CreditColumn = cols.CreditColumn
+		}
+		if profile.DebitColumn == "" && cols.DebitColumn != "" {
+			profile.DebitColumn = cols.DebitColumn
+		}
+	} else if profile.AmountColumn == "" && cols.AmountColumn != "" {
+		profile.AmountColumn = cols.AmountColumn
+	}
+	return profile
+}
+
+// autoDetectDateFormat detects the date format from CSV data if not already set.
+// Returns the detected format string, or "" if detection was not needed or failed.
+func autoDetectDateFormat(data []byte, profile ImportProfile) string {
+	if profile.DateFormat != "" || profile.DateColumn == "" {
+		return ""
+	}
+	_, dataRows, _, colIndex, err := readCSV(bytes.NewReader(data), profile)
+	if err != nil {
+		return ""
+	}
+	dateIdx, ok := colIndex[profile.DateColumn]
+	if !ok {
+		return ""
+	}
+	samples := make([]string, 0, min(len(dataRows), 20))
+	for i := 0; i < len(dataRows) && i < 20; i++ {
+		if dateIdx < len(dataRows[i]) {
+			samples = append(samples, dataRows[i][dateIdx])
+		}
+	}
+	return DetectDateFormat(samples)
 }
 
 // resolveAmount reads amount information from a CSV row, supporting both single

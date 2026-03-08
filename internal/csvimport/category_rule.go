@@ -34,15 +34,7 @@ type CategoryRule struct {
 }
 
 func dbToCategoryRule(in dbCategoryRule) CategoryRule {
-	return CategoryRule{
-		ID:         in.ID,
-		Pattern:    in.Pattern,
-		IsRegex:    in.IsRegex,
-		CategoryID: in.CategoryID,
-		Position:   in.Position,
-		CreatedAt:  in.CreatedAt,
-		UpdatedAt:  in.UpdatedAt,
-	}
+	return CategoryRule(in)
 }
 
 func (s *Store) CreateCategoryRule(ctx context.Context, r CategoryRule) (uint, error) {

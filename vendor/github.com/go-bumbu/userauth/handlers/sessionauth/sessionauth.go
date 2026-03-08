@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
+	"log/slog"
 	"net/http"
 	"time"
 )
@@ -28,6 +29,8 @@ type Cfg struct {
 
 	// time between the last session update, used to not overload the session store
 	MinWriteSpace time.Duration
+
+	Logger *slog.Logger
 }
 
 type Manager struct {
@@ -37,6 +40,8 @@ type Manager struct {
 	allowRenew    bool
 	minWriteSpace time.Duration
 	maxSessionDur time.Duration
+
+	logger *slog.Logger
 }
 
 func New(cfg Cfg) (*Manager, error) {
@@ -54,12 +59,17 @@ func New(cfg Cfg) (*Manager, error) {
 		return nil, fmt.Errorf("session store cannot be nil")
 	}
 
+	if cfg.Logger == nil {
+		cfg.Logger = slog.New(slog.DiscardHandler)
+	}
+
 	c := Manager{
 		sessionDur:    cfg.SessionDur,
 		allowRenew:    cfg.AllowRenew,
 		minWriteSpace: cfg.MinWriteSpace,
 		maxSessionDur: cfg.MaxSessionDur,
 		store:         cfg.Store,
+		logger:        cfg.Logger.With("auth-handler", SessionMngrName),
 	}
 	return &c, nil
 }
@@ -128,37 +138,6 @@ func (sMngr *Manager) LogoutUser(r *http.Request, w http.ResponseWriter) error {
 	}
 	return sMngr.write(r, w, session, authData)
 }
-
-//// ReadUpdate is used to read the session, and update the session expiry timestamp
-//// it only extends the session if enough time has passed since the last write to not overload
-//// the session store on many requests.
-//// it returns the session data if the user is logged in
-//func (sMngr *Manager) ReadUpdate(r *http.Request, w http.ResponseWriter) (SessionData, error) {
-//	data, session, err := sMngr.read(r)
-//	if err != nil {
-//		return SessionData{}, err
-//	}
-//
-//	if data.IsAuthenticated {
-//		err = sMngr.write(r, w, session, data)
-//		if err != nil {
-//			return SessionData{}, err
-//		}
-//		return data, nil
-//	}
-//	return SessionData{}, nil
-//}
-
-//// UpdateExpiry will write into the session updating the expiry time of the session
-//// this method contains a throttling mechanism in order to only write session updates after a certain period of time
-//// to avoid overloading the sessions store
-//func (sMngr *Manager) UpdateExpiry(r *http.Request, w http.ResponseWriter) error {
-//	data, session, err := sMngr.read(r)
-//	if err != nil {
-//		return err
-//	}
-//	return sMngr.updateExpiry(data, session, r, w)
-//}
 
 func (sMngr *Manager) updateExpiry(data SessionData, session *sessions.Session, r *http.Request, w http.ResponseWriter) error {
 	if data.LastUpdate.Add(sMngr.minWriteSpace).After(time.Now()) {

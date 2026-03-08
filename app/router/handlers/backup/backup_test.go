@@ -644,7 +644,7 @@ func generateTestBackup(t *testing.T) []byte {
 	if err := backup.ExportToFile(context.Background(), store, mdStore, csvStore, backupFile); err != nil {
 		t.Fatalf("failed to generate test backup: %v", err)
 	}
-	content, err := os.ReadFile(backupFile)
+	content, err := os.ReadFile(filepath.Clean(backupFile))
 	if err != nil {
 		t.Fatalf("failed to read generated backup: %v", err)
 	}

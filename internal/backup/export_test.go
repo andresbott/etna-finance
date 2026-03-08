@@ -155,6 +155,29 @@ type backupPayload struct {
 	CategoryRules     []categoryRuleV1
 }
 
+func unmarshalJSON[T any](data []byte) (T, error) {
+	var result T
+	if err := json.Unmarshal(data, &result); err != nil {
+		return result, fmt.Errorf("failed to unmarshal json: %w", err)
+	}
+	return result, nil
+}
+
+func readZipEntry(f *zip.File) ([]byte, error) {
+	rc, err := f.Open()
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file %s: %w", f.Name, err)
+	}
+	defer func() {
+		_ = rc.Close()
+	}()
+	data, err := io.ReadAll(rc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file %s: %w", f.Name, err)
+	}
+	return data, nil
+}
+
 func readFromZip(zipPath string) (backupPayload, error) {
 	payload := backupPayload{}
 	r, err := zip.OpenReader(zipPath)
@@ -165,88 +188,39 @@ func readFromZip(zipPath string) (backupPayload, error) {
 		_ = r.Close()
 	}()
 
-	// Iterate through files in the zip
 	for _, f := range r.File {
-		rc, err := f.Open()
+		data, err := readZipEntry(f)
 		if err != nil {
-			return payload, fmt.Errorf("failed to open file %s: %w", f.Name, err)
-		}
-
-		data, err := io.ReadAll(rc)
-		if err != nil {
-			_ = rc.Close()
-			return payload, fmt.Errorf("failed to read file %s: %w", f.Name, err)
+			return payload, err
 		}
 
 		switch f.Name {
 		case metaInfoFile:
-			meta := metaInfoV1{}
-			if err := json.Unmarshal(data, &meta); err != nil {
-				return payload, fmt.Errorf("failed to unmarshal json: %w", err)
-			}
-			payload.Meta = meta
+			payload.Meta, err = unmarshalJSON[metaInfoV1](data)
 		case accountProviderFile:
-			var prov []accountProviderV1
-			if err := json.Unmarshal(data, &prov); err != nil {
-				return payload, fmt.Errorf("failed to unmarshal json: %w", err)
-			}
-			payload.Providers = prov
+			payload.Providers, err = unmarshalJSON[[]accountProviderV1](data)
 		case accountsFile:
-			var ac []accountV1
-			if err := json.Unmarshal(data, &ac); err != nil {
-				return payload, fmt.Errorf("failed to unmarshal json: %w", err)
-			}
-			payload.Accounts = ac
+			payload.Accounts, err = unmarshalJSON[[]accountV1](data)
 		case expenseCategoriesFile:
-			var exp []categoryV1
-			if err := json.Unmarshal(data, &exp); err != nil {
-				return payload, fmt.Errorf("failed to unmarshal json: %w", err)
-			}
-			payload.ExpenseCategories = exp
+			payload.ExpenseCategories, err = unmarshalJSON[[]categoryV1](data)
 		case incomeCategoriesFile:
-			var exp []categoryV1
-			if err := json.Unmarshal(data, &exp); err != nil {
-				return payload, fmt.Errorf("failed to unmarshal json: %w", err)
-			}
-			payload.IncomeCategories = exp
+			payload.IncomeCategories, err = unmarshalJSON[[]categoryV1](data)
 		case transactionsFile:
-			var items []TransactionV1
-			if err := json.Unmarshal(data, &items); err != nil {
-				return payload, fmt.Errorf("failed to unmarshal json: %w", err)
-			}
-			payload.Transactions = items
+			payload.Transactions, err = unmarshalJSON[[]TransactionV1](data)
 		case instrumentsFile:
-			var items []instrumentV1
-			if err := json.Unmarshal(data, &items); err != nil {
-				return payload, fmt.Errorf("failed to unmarshal json: %w", err)
-			}
-			payload.Instruments = items
+			payload.Instruments, err = unmarshalJSON[[]instrumentV1](data)
 		case priceHistoryFile:
-			var items []priceRecordV1
-			if err := json.Unmarshal(data, &items); err != nil {
-				return payload, fmt.Errorf("failed to unmarshal json: %w", err)
-			}
-			payload.PriceHistory = items
+			payload.PriceHistory, err = unmarshalJSON[[]priceRecordV1](data)
 		case fxRatesFile:
-			var items []fxRateRecordV1
-			if err := json.Unmarshal(data, &items); err != nil {
-				return payload, fmt.Errorf("failed to unmarshal json: %w", err)
-			}
-			payload.FXRates = items
+			payload.FXRates, err = unmarshalJSON[[]fxRateRecordV1](data)
 		case importProfilesFile:
-			var items []importProfileV1
-			if err := json.Unmarshal(data, &items); err != nil {
-				return payload, fmt.Errorf("failed to unmarshal json: %w", err)
-			}
-			payload.ImportProfiles = items
+			payload.ImportProfiles, err = unmarshalJSON[[]importProfileV1](data)
 		case categoryRulesFile:
-			var items []categoryRuleV1
-			if err := json.Unmarshal(data, &items); err != nil {
-				return payload, fmt.Errorf("failed to unmarshal json: %w", err)
-			}
-			payload.CategoryRules = items
+			payload.CategoryRules, err = unmarshalJSON[[]categoryRuleV1](data)
 		}
-		_ = rc.Close()
+		if err != nil {
+			return payload, err
+		}
 	}
 	return payload, nil
 }

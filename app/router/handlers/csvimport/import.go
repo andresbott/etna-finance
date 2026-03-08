@@ -41,7 +41,7 @@ func (h *ImportHandler) ParseCSV() http.Handler {
 			http.Error(w, fmt.Sprintf("unable to get uploaded file: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
-		defer file.Close()
+		defer func() { _ = file.Close() }()
 
 		// Look up account to get ImportProfileID
 		account, err := h.FinStore.GetAccount(r.Context(), accountID)
@@ -95,6 +95,9 @@ func (h *ImportHandler) ParseCSV() http.Handler {
 }
 
 func (h *ImportHandler) loadExistingTransactions(r *http.Request, accountID uint) ([]csvimport.ExistingTx, error) {
+	if accountID > uint(math.MaxInt) {
+		return nil, fmt.Errorf("accountID %d overflows int", accountID)
+	}
 	opts := accounting.ListOpts{
 		StartDate: time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC),
 		EndDate:   time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC),

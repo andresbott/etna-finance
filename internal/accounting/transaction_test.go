@@ -1570,6 +1570,357 @@ func TestStore_CreateStockSell_withFees(t *testing.T) {
 }
 
 // setupStockGrantTransferTest creates provider, unvested account, investment account and instrument for stock grant and transfer tests.
+func TestStore_UpdateStockBuy(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("storeUpdateStockBuy"))
+			invID, cashID, instID := setupStockBuySellTest(t, ctx, store, mktStore)
+
+			buy := StockBuy{
+				Description:         "Buy AAPL",
+				Date:                getDate("2025-02-01"),
+				InvestmentAccountID: invID,
+				CashAccountID:       cashID,
+				InstrumentID:        instID,
+				Quantity:            10,
+				TotalAmount:         1500.0,
+				StockAmount:         1850.0,
+			}
+			buyID, err := store.CreateStockBuy(ctx, buy)
+			if err != nil {
+				t.Fatalf("CreateStockBuy: %v", err)
+			}
+
+			// Update description
+			err = store.UpdateStockBuy(ctx, StockBuyUpdate{Description: ptr("Updated Buy")}, buyID)
+			if err != nil {
+				t.Fatalf("UpdateStockBuy description: %v", err)
+			}
+			got, err := store.GetTransaction(ctx, buyID)
+			if err != nil {
+				t.Fatalf("GetTransaction: %v", err)
+			}
+			gotBuy, ok := got.(StockBuy)
+			if !ok {
+				t.Fatalf("expected StockBuy, got %T", got)
+			}
+			if gotBuy.Description != "Updated Buy" {
+				t.Errorf("expected description 'Updated Buy', got %q", gotBuy.Description)
+			}
+
+			// Update quantity
+			err = store.UpdateStockBuy(ctx, StockBuyUpdate{Quantity: ptr(20.0)}, buyID)
+			if err != nil {
+				t.Fatalf("UpdateStockBuy quantity: %v", err)
+			}
+			got, _ = store.GetTransaction(ctx, buyID)
+			gotBuy = got.(StockBuy)
+			if gotBuy.Quantity != 20 {
+				t.Errorf("expected quantity 20, got %v", gotBuy.Quantity)
+			}
+
+			// Validation error: empty description
+			err = store.UpdateStockBuy(ctx, StockBuyUpdate{Description: ptr("")}, buyID)
+			if err == nil {
+				t.Fatal("expected error for empty description")
+			}
+
+			// Validation error: zero quantity
+			err = store.UpdateStockBuy(ctx, StockBuyUpdate{Quantity: ptr(0.0)}, buyID)
+			if err == nil {
+				t.Fatal("expected error for zero quantity")
+			}
+
+			// Validation error: non-existent transaction
+			err = store.UpdateStockBuy(ctx, StockBuyUpdate{Description: ptr("x")}, 99999)
+			if err == nil {
+				t.Fatal("expected error for non-existent transaction")
+			}
+		})
+	}
+}
+
+func TestStore_UpdateStockSell(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("storeUpdateStockSell"))
+			invID, cashID, instID := setupStockBuySellTest(t, ctx, store, mktStore)
+
+			// First create a buy to have lots available for selling
+			_, err := store.CreateStockBuy(ctx, StockBuy{
+				Description:         "Buy AAPL",
+				Date:                getDate("2025-02-01"),
+				InvestmentAccountID: invID,
+				CashAccountID:       cashID,
+				InstrumentID:        instID,
+				Quantity:            10,
+				TotalAmount:         1500.0,
+				StockAmount:         1850.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockBuy: %v", err)
+			}
+
+			sell := StockSell{
+				Description:         "Sell AAPL",
+				Date:                getDate("2025-02-02"),
+				InvestmentAccountID: invID,
+				CashAccountID:       cashID,
+				InstrumentID:        instID,
+				Quantity:            3,
+				TotalAmount:         465.0,
+			}
+			sellID, err := store.CreateStockSell(ctx, sell)
+			if err != nil {
+				t.Fatalf("CreateStockSell: %v", err)
+			}
+
+			// Update description
+			err = store.UpdateStockSell(ctx, StockSellUpdate{Description: ptr("Updated Sell")}, sellID)
+			if err != nil {
+				t.Fatalf("UpdateStockSell description: %v", err)
+			}
+			got, err := store.GetTransaction(ctx, sellID)
+			if err != nil {
+				t.Fatalf("GetTransaction: %v", err)
+			}
+			gotSell, ok := got.(StockSell)
+			if !ok {
+				t.Fatalf("expected StockSell, got %T", got)
+			}
+			if gotSell.Description != "Updated Sell" {
+				t.Errorf("expected description 'Updated Sell', got %q", gotSell.Description)
+			}
+
+			// Validation error: empty description
+			err = store.UpdateStockSell(ctx, StockSellUpdate{Description: ptr("")}, sellID)
+			if err == nil {
+				t.Fatal("expected error for empty description")
+			}
+
+			// Validation error: non-existent transaction
+			err = store.UpdateStockSell(ctx, StockSellUpdate{Description: ptr("x")}, 99999)
+			if err == nil {
+				t.Fatal("expected error for non-existent transaction")
+			}
+		})
+	}
+}
+
+func TestStore_UpdateStockGrant(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("storeUpdateStockGrant"))
+			grantAccountID, _, instrumentID := setupStockGrantTransferTest(t, ctx, store, mktStore)
+
+			grant := StockGrant{
+				Description:  "RSU grant",
+				Date:         getDate("2025-03-01"),
+				AccountID:    grantAccountID,
+				InstrumentID: instrumentID,
+				Quantity:     100,
+			}
+			grantID, err := store.CreateStockGrant(ctx, grant)
+			if err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+
+			// Update description
+			err = store.UpdateStockGrant(ctx, StockGrantUpdate{Description: ptr("Updated Grant")}, grantID)
+			if err != nil {
+				t.Fatalf("UpdateStockGrant: %v", err)
+			}
+			got, err := store.GetTransaction(ctx, grantID)
+			if err != nil {
+				t.Fatalf("GetTransaction: %v", err)
+			}
+			gotGrant, ok := got.(StockGrant)
+			if !ok {
+				t.Fatalf("expected StockGrant, got %T", got)
+			}
+			if gotGrant.Description != "Updated Grant" {
+				t.Errorf("expected description 'Updated Grant', got %q", gotGrant.Description)
+			}
+
+			// Update quantity
+			err = store.UpdateStockGrant(ctx, StockGrantUpdate{Quantity: ptr(200.0)}, grantID)
+			if err != nil {
+				t.Fatalf("UpdateStockGrant quantity: %v", err)
+			}
+			got, _ = store.GetTransaction(ctx, grantID)
+			gotGrant = got.(StockGrant)
+			if gotGrant.Quantity != 200 {
+				t.Errorf("expected quantity 200, got %v", gotGrant.Quantity)
+			}
+
+			// Validation error: empty description
+			err = store.UpdateStockGrant(ctx, StockGrantUpdate{Description: ptr("")}, grantID)
+			if err == nil {
+				t.Fatal("expected error for empty description")
+			}
+
+			// Validation error: non-existent transaction
+			err = store.UpdateStockGrant(ctx, StockGrantUpdate{Description: ptr("x")}, 99999)
+			if err == nil {
+				t.Fatal("expected error for non-existent transaction")
+			}
+		})
+	}
+}
+
+func TestStore_UpdateStockTransfer(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("storeUpdateStockXfer"))
+			grantAccountID, investmentAccountID, instrumentID := setupStockGrantTransferTest(t, ctx, store, mktStore)
+
+			// First create a grant so there are lots to transfer
+			_, err := store.CreateStockGrant(ctx, StockGrant{
+				Description:  "RSU grant",
+				Date:         getDate("2025-03-01"),
+				AccountID:    grantAccountID,
+				InstrumentID: instrumentID,
+				Quantity:     100,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+
+			transfer := StockTransfer{
+				Description:     "RSU vest",
+				Date:            getDate("2025-03-15"),
+				SourceAccountID: grantAccountID,
+				TargetAccountID: investmentAccountID,
+				InstrumentID:    instrumentID,
+				Quantity:        50,
+			}
+			transferID, err := store.CreateStockTransfer(ctx, transfer)
+			if err != nil {
+				t.Fatalf("CreateStockTransfer: %v", err)
+			}
+
+			// Update description
+			err = store.UpdateStockTransfer(ctx, StockTransferUpdate{Description: ptr("Updated Transfer")}, transferID)
+			if err != nil {
+				t.Fatalf("UpdateStockTransfer: %v", err)
+			}
+			got, err := store.GetTransaction(ctx, transferID)
+			if err != nil {
+				t.Fatalf("GetTransaction: %v", err)
+			}
+			gotTransfer, ok := got.(StockTransfer)
+			if !ok {
+				t.Fatalf("expected StockTransfer, got %T", got)
+			}
+			if gotTransfer.Description != "Updated Transfer" {
+				t.Errorf("expected description 'Updated Transfer', got %q", gotTransfer.Description)
+			}
+
+			// Validation error: empty description
+			err = store.UpdateStockTransfer(ctx, StockTransferUpdate{Description: ptr("")}, transferID)
+			if err == nil {
+				t.Fatal("expected error for empty description")
+			}
+
+			// Validation error: non-existent transaction
+			err = store.UpdateStockTransfer(ctx, StockTransferUpdate{Description: ptr("x")}, 99999)
+			if err == nil {
+				t.Fatal("expected error for non-existent transaction")
+			}
+		})
+	}
+}
+
+func TestStore_UpdateTransaction(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("storeUpdateTxDispatch"))
+			categorySampleData(t, store, sampleCategories)
+			accountSampleData(t, store)
+
+			// Create an income transaction
+			incomeID, err := store.CreateTransaction(ctx, Income{
+				Description: "salary",
+				Amount:      1000,
+				AccountID:   1,
+				CategoryID:  1,
+				Date:        getDate("2025-01-01"),
+			})
+			if err != nil {
+				t.Fatalf("CreateTransaction income: %v", err)
+			}
+
+			// Update income via UpdateTransaction dispatcher
+			err = store.UpdateTransaction(ctx, IncomeUpdate{Description: ptr("updated salary")}, incomeID)
+			if err != nil {
+				t.Fatalf("UpdateTransaction income: %v", err)
+			}
+			got, _ := store.GetTransaction(ctx, incomeID)
+			if income, ok := got.(Income); !ok || income.Description != "updated salary" {
+				t.Errorf("expected income with description 'updated salary', got %+v", got)
+			}
+
+			// Create an expense transaction (CategoryID 2 = "Home" = ExpenseCategory)
+			expenseID, err := store.CreateTransaction(ctx, Expense{
+				Description: "groceries",
+				Amount:      50,
+				AccountID:   1,
+				CategoryID:  2,
+				Date:        getDate("2025-01-02"),
+			})
+			if err != nil {
+				t.Fatalf("CreateTransaction expense: %v", err)
+			}
+
+			// Update expense via UpdateTransaction dispatcher
+			err = store.UpdateTransaction(ctx, ExpenseUpdate{Description: ptr("updated groceries")}, expenseID)
+			if err != nil {
+				t.Fatalf("UpdateTransaction expense: %v", err)
+			}
+			got, _ = store.GetTransaction(ctx, expenseID)
+			if expense, ok := got.(Expense); !ok || expense.Description != "updated groceries" {
+				t.Errorf("expected expense with description 'updated groceries', got %+v", got)
+			}
+
+			// Test stock buy via UpdateTransaction dispatcher
+			invID, cashID, instID := setupStockBuySellTest(t, ctx, store, mktStore)
+			buyID, err := store.CreateStockBuy(ctx, StockBuy{
+				Description:         "Buy shares",
+				Date:                getDate("2025-02-01"),
+				InvestmentAccountID: invID,
+				CashAccountID:       cashID,
+				InstrumentID:        instID,
+				Quantity:            10,
+				TotalAmount:         1500.0,
+				StockAmount:         1850.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockBuy: %v", err)
+			}
+
+			err = store.UpdateTransaction(ctx, StockBuyUpdate{Description: ptr("Updated buy")}, buyID)
+			if err != nil {
+				t.Fatalf("UpdateTransaction stock buy: %v", err)
+			}
+			got, _ = store.GetTransaction(ctx, buyID)
+			if sb, ok := got.(StockBuy); !ok || sb.Description != "Updated buy" {
+				t.Errorf("expected stock buy with description 'Updated buy', got %+v", got)
+			}
+
+			// Test invalid update type
+			err = store.UpdateTransaction(ctx, EmptyTransactionUpdate{}, incomeID)
+			if err == nil {
+				t.Fatal("expected error for invalid transaction update type")
+			}
+		})
+	}
+}
+
 func setupStockGrantTransferTest(t *testing.T, ctx context.Context, store *Store, mktStore *marketdata.Store) (grantAccountID, investmentAccountID, instrumentID uint) {
 	t.Helper()
 	providerID, err := store.CreateAccountProvider(ctx, AccountProvider{Name: "Broker"})

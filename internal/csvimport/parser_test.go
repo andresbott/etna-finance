@@ -776,11 +776,8 @@ func TestParse_BankExport_FullParse(t *testing.T) {
 	// Count valid rows (non-error) — the blank line after header and footer lines
 	// will produce error rows since they have fewer columns.
 	var validRows []ParsedRow
-	var errorRows []ParsedRow
 	for _, r := range rows {
-		if r.Error != "" {
-			errorRows = append(errorRows, r)
-		} else {
+		if r.Error == "" {
 			validRows = append(validRows, r)
 		}
 	}
@@ -914,7 +911,7 @@ func TestParse_BankExport_DuplicateDetectionWithRepeats(t *testing.T) {
 	// Verify other rows are NOT flagged as duplicates
 	nonPubDups := 0
 	for _, r := range rows {
-		if r.Error == "" && r.IsDuplicate && !(r.Date == "2026-02-20" && strings.Contains(r.Description, "Pub Downtown")) {
+		if r.Error == "" && r.IsDuplicate && (r.Date != "2026-02-20" || !strings.Contains(r.Description, "Pub Downtown")) {
 			nonPubDups++
 		}
 	}
