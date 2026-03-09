@@ -192,10 +192,7 @@ func (store *Store) CreateIncome(ctx context.Context, item Income) (uint, error)
 	if err != nil {
 		return 0, fmt.Errorf("error creating income: %w", err)
 	}
-	allowedAccountTypes := []AccountType{
-		CashAccountType, CheckinAccountType, SavingsAccountType,
-	}
-	if !slices.Contains(allowedAccountTypes, acc.Type) {
+	if !slices.Contains(allowedCashAccountTypes, acc.Type) {
 		return 0, NewValidationErr(fmt.Sprintf("incompatible account type %s for income transaction", acc.Type.String()))
 	}
 
@@ -241,10 +238,7 @@ func (store *Store) CreateExpense(ctx context.Context, item Expense) (uint, erro
 	if err != nil {
 		return 0, fmt.Errorf("error creating expense: %w", err)
 	}
-	allowedAccountTypes := []AccountType{
-		CashAccountType, CheckinAccountType, SavingsAccountType,
-	}
-	if !slices.Contains(allowedAccountTypes, acc.Type) {
+	if !slices.Contains(allowedCashAccountTypes, acc.Type) {
 		return 0, NewValidationErr(fmt.Sprintf("incompatible account type %s for expense transaction", acc.Type.String()))
 	}
 
@@ -291,10 +285,7 @@ func (store *Store) CreateBalanceStatus(ctx context.Context, item BalanceStatus)
 	if err != nil {
 		return 0, fmt.Errorf("error creating balance status: %w", err)
 	}
-	allowedAccountTypes := []AccountType{
-		CashAccountType, CheckinAccountType, SavingsAccountType,
-	}
-	if !slices.Contains(allowedAccountTypes, acc.Type) {
+	if !slices.Contains(allowedCashAccountTypes, acc.Type) {
 		return 0, NewValidationErr(fmt.Sprintf("incompatible account type %s for balance status transaction", acc.Type.String()))
 	}
 
@@ -332,17 +323,14 @@ func (store *Store) CreateTransfer(ctx context.Context, item Transfer) (uint, er
 		return 0, fmt.Errorf("error creating transfer: %w", err)
 	}
 
-	allowedAccountTypes := []AccountType{
-		CashAccountType, CheckinAccountType, SavingsAccountType,
-	}
-	if !slices.Contains(allowedAccountTypes, originAcc.Type) {
+	if !slices.Contains(allowedCashAccountTypes, originAcc.Type) {
 		return 0, NewValidationErr(fmt.Sprintf("incompatible account type %s for transfer transaction", originAcc.Type.String()))
 	}
 	targetAcc, err := store.GetAccount(ctx, item.TargetAccountID)
 	if err != nil {
 		return 0, fmt.Errorf("error creating transfer: %w", err)
 	}
-	if !slices.Contains(allowedAccountTypes, targetAcc.Type) {
+	if !slices.Contains(allowedCashAccountTypes, targetAcc.Type) {
 		return 0, NewValidationErr(fmt.Sprintf("incompatible account type %s for transfer transaction", targetAcc.Type.String()))
 	}
 
@@ -374,7 +362,7 @@ func (store *Store) CreateTransfer(ctx context.Context, item Transfer) (uint, er
 	return tx.Id, nil
 }
 
-var allowedCashAccountTypes = []AccountType{CashAccountType, CheckinAccountType, SavingsAccountType}
+var allowedCashAccountTypes = []AccountType{CashAccountType, CheckinAccountType, SavingsAccountType, LentAccountType}
 var allowedPositionAccountTypes = []AccountType{InvestmentAccountType, UnvestedAccountType}
 
 // resolveInstrumentCurrencyFromTx fetches the instrument currency from the existing transaction.
@@ -505,7 +493,7 @@ func (store *Store) CreateStockBuy(ctx context.Context, item StockBuy) (uint, er
 		return 0, fmt.Errorf("error creating stock buy: %w", err)
 	}
 	if !slices.Contains(allowedCashAccountTypes, cashAcc.Type) {
-		return 0, NewValidationErr("cash account must be Cash, Checkin or Savings for stock buy")
+		return 0, NewValidationErr("cash account must be Cash, Checkin, Savings or Lent for stock buy")
 	}
 
 	instrument, err := store.GetInstrument(ctx, item.InstrumentID)
@@ -618,7 +606,7 @@ func (store *Store) validateStockSell(ctx context.Context, item StockSell) (mark
 		return marketdata.Instrument{}, 0, fmt.Errorf("error creating stock sell: %w", err)
 	}
 	if !slices.Contains(allowedCashAccountTypes, cashAcc.Type) {
-		return marketdata.Instrument{}, 0, NewValidationErr("cash account must be Cash, Checkin or Savings for stock sell")
+		return marketdata.Instrument{}, 0, NewValidationErr("cash account must be Cash, Checkin, Savings or Lent for stock sell")
 	}
 
 	instrument, err := store.GetInstrument(ctx, item.InstrumentID)
@@ -1472,10 +1460,7 @@ func (store *Store) updateIncomeExpense(ctx context.Context, params updateIncome
 			return fmt.Errorf("error updating transaction: %w", err)
 		}
 
-		allowedAccountTypes := []AccountType{
-			CashAccountType, CheckinAccountType, SavingsAccountType,
-		}
-		if !slices.Contains(allowedAccountTypes, acc.Type) {
+		if !slices.Contains(allowedCashAccountTypes, acc.Type) {
 			return NewValidationErr(fmt.Sprintf("incompatible account type '%s' for transaction", acc.Type.String()))
 		}
 
@@ -1612,10 +1597,6 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 		targetFields = append(targetFields, "Amount")
 	}
 
-	allowedAccountTypes := []AccountType{
-		CashAccountType, CheckinAccountType, SavingsAccountType,
-	}
-
 	if input.TargetAccountID != nil {
 		if *input.TargetAccountID == 0 {
 			return NewValidationErr("amount cannot be zero")
@@ -1624,7 +1605,7 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 		if err != nil {
 			return fmt.Errorf("error creating transaction: %w", err)
 		}
-		if !slices.Contains(allowedAccountTypes, acc.Type) {
+		if !slices.Contains(allowedCashAccountTypes, acc.Type) {
 			return NewValidationErr(fmt.Sprintf("incompatible account type '%s' for transaction", acc.Type.String()))
 		}
 		targetEntry.AccountID = *input.TargetAccountID
@@ -1651,7 +1632,7 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 		if err != nil {
 			return fmt.Errorf("error creating transaction: %w", err)
 		}
-		if !slices.Contains(allowedAccountTypes, acc.Type) {
+		if !slices.Contains(allowedCashAccountTypes, acc.Type) {
 			return NewValidationErr(fmt.Sprintf("incompatible account type '%s' for transaction", acc.Type.String()))
 		}
 		originEntry.AccountID = *input.OriginAccountID
@@ -1729,7 +1710,7 @@ func (store *Store) mergeStockBuyFields(ctx context.Context, buy *StockBuy, inpu
 			return fmt.Errorf("error updating stock buy: %w", err)
 		}
 		if !slices.Contains(allowedCashAccountTypes, acc.Type) {
-			return NewValidationErr("cash account must be Cash, Checkin or Savings")
+			return NewValidationErr("cash account must be Cash, Checkin, Savings or Lent")
 		}
 		buy.CashAccountID = *input.CashAccountID
 	}
@@ -1869,7 +1850,7 @@ func (store *Store) mergeStockSellFields(ctx context.Context, sell *StockSell, i
 			return fmt.Errorf("error updating stock sell: %w", err)
 		}
 		if !slices.Contains(allowedCashAccountTypes, acc.Type) {
-			return NewValidationErr("cash account must be Cash, Checkin or Savings")
+			return NewValidationErr("cash account must be Cash, Checkin, Savings or Lent")
 		}
 		sell.CashAccountID = *input.CashAccountID
 	}

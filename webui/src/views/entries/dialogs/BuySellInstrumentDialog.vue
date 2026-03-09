@@ -523,7 +523,7 @@ const handleSellSave = async () => {
                                     v-model="formValues.CashAccountId"
                                     name="CashAccountId"
                                     placeholder="Select cash account"
-                                    :accountTypes="['cash', 'checkin', 'savings']"
+                                    :accountTypes="['cash', 'checkin', 'savings', 'lent']"
                                 />
                                 <Message v-if="$form.CashAccountId?.invalid" severity="error" size="small">
                                     {{ $form.CashAccountId?.error?.message }}
@@ -659,7 +659,7 @@ const handleSellSave = async () => {
                                 v-model="formValues.CashAccountId"
                                 name="CashAccountId"
                                 placeholder="Select cash account"
-                                :accountTypes="['cash', 'checkin', 'savings']"
+                                :accountTypes="['cash', 'checkin', 'savings', 'lent']"
                                 :currency="selectedInstrumentCurrency"
                             />
                             <Message v-if="$form.CashAccountId?.invalid" severity="error" size="small">
