@@ -151,6 +151,60 @@ func (s *Store) Save(ctx context.Context, date time.Time, file multipart.File, h
 	return record.Id, nil
 }
 
+// SaveRaw validates and stores raw bytes as an attachment, returning the attachment ID.
+// Unlike Save, it accepts content bytes directly instead of a multipart form,
+// making it suitable for backup restore where files come from a zip archive.
+func (s *Store) SaveRaw(ctx context.Context, date time.Time, content []byte, originalName, mimeType string) (uint, error) {
+	// Check content size
+	if int64(len(content)) > s.maxSize {
+		return 0, ErrTooLarge
+	}
+
+	// Check mimeType against allowedMimeTypes
+	if !allowedMimeTypes[mimeType] {
+		return 0, ErrMimeNotAllowed
+	}
+
+	// Generate storage path: YYYY/MM/DD_<8-char-hex>.<ext>
+	ext := mimeToExt[mimeType]
+	randBytes := make([]byte, 4)
+	if _, err := rand.Read(randBytes); err != nil {
+		return 0, fmt.Errorf("generating random name: %w", err)
+	}
+	randHex := hex.EncodeToString(randBytes)
+
+	storagePath := fmt.Sprintf("%04d/%02d/%02d_%s%s",
+		date.Year(), date.Month(), date.Day(), randHex, ext)
+
+	absPath := filepath.Join(s.baseDir, storagePath)
+
+	// Create directories
+	dir := filepath.Dir(absPath)
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		return 0, fmt.Errorf("creating directory: %w", err)
+	}
+
+	// Write file to disk
+	if err := os.WriteFile(absPath, content, 0o600); err != nil {
+		return 0, fmt.Errorf("writing file: %w", err)
+	}
+
+	// Insert DB record
+	record := dbAttachment{
+		OriginalName: originalName,
+		StoragePath:  storagePath,
+		MimeType:     mimeType,
+		FileSize:     int64(len(content)),
+	}
+	if err := s.db.WithContext(ctx).Create(&record).Error; err != nil {
+		// Clean up file on DB error
+		_ = os.Remove(absPath)
+		return 0, fmt.Errorf("inserting record: %w", err)
+	}
+
+	return record.Id, nil
+}
+
 // Get returns the attachment metadata for the given ID.
 func (s *Store) Get(ctx context.Context, id uint) (*Attachment, error) {
 	var record dbAttachment
@@ -207,6 +261,28 @@ func detectMimeType(content []byte) string {
 		return "image/webp"
 	}
 	return http.DetectContentType(content)
+}
+
+// WipeData hard-deletes all attachment records from the database and removes
+// the corresponding files from disk. It is used during backup restore to clear
+// existing data before importing.
+func (s *Store) WipeData(ctx context.Context) error {
+	var records []dbAttachment
+	if err := s.db.WithContext(ctx).Unscoped().Find(&records).Error; err != nil {
+		return fmt.Errorf("fetching all attachments: %w", err)
+	}
+
+	// Remove each file from disk (ignore errors — file may already be missing)
+	for _, rec := range records {
+		_ = os.Remove(filepath.Join(s.baseDir, rec.StoragePath))
+	}
+
+	// Hard-delete all DB records
+	if err := s.db.WithContext(ctx).Unscoped().Where("1 = 1").Delete(&dbAttachment{}).Error; err != nil {
+		return fmt.Errorf("deleting all attachments: %w", err)
+	}
+
+	return nil
 }
 
 // Delete removes the file from disk and soft-deletes the DB record.

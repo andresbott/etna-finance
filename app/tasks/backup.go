@@ -10,6 +10,7 @@ import (
 	"github.com/andresbott/etna/internal/accounting"
 	"github.com/andresbott/etna/internal/backup"
 	"github.com/andresbott/etna/internal/csvimport"
+	"github.com/andresbott/etna/internal/filestore"
 	"github.com/andresbott/etna/internal/marketdata"
 	"github.com/andresbott/etna/internal/toolsdata"
 	"github.com/go-bumbu/tempo"
@@ -35,6 +36,8 @@ type BackupTaskCfg struct {
 	MdStore *marketdata.Store
 	// CsvStore is the CSV import store to export data from.
 	CsvStore *csvimport.Store
+	// FileStore is the file attachment store to export data from.
+	FileStore *filestore.Store
 	// ToolsDataStore is the tools data store to export data from.
 	ToolsDataStore *toolsdata.Store
 	// Destination is the directory where backup ZIP files are written.
@@ -47,11 +50,11 @@ type BackupTaskCfg struct {
 
 // NewBackupTaskFn returns the task function that performs the actual backup export.
 // It can be used to enqueue a one-off backup from the API.
-func NewBackupTaskFn(store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, tdStore *toolsdata.Store, destination string, l *slog.Logger) func(ctx context.Context) error {
-	return newBackupFunc(store, mdStore, csvStore, tdStore, destination, l)
+func NewBackupTaskFn(store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, fileStore *filestore.Store, tdStore *toolsdata.Store, destination string, l *slog.Logger) func(ctx context.Context) error {
+	return newBackupFunc(store, mdStore, csvStore, fileStore, tdStore, destination, l)
 }
 
-func newBackupFunc(store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, tdStore *toolsdata.Store, destination string, l *slog.Logger) func(ctx context.Context) error {
+func newBackupFunc(store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, fileStore *filestore.Store, tdStore *toolsdata.Store, destination string, l *slog.Logger) func(ctx context.Context) error {
 	return func(ctx context.Context) error {
 		now := time.Now().Format("2006-01-02_15-04")
 		zipFile := filepath.Join(destination, fmt.Sprintf("backup-%s.zip", now))
@@ -62,7 +65,7 @@ func newBackupFunc(store *accounting.Store, mdStore *marketdata.Store, csvStore 
 		)
 		tempo.Info(ctx, fmt.Sprintf("starting backup: %s", zipFile))
 
-		err := backup.ExportToFile(ctx, store, mdStore, csvStore, tdStore, zipFile)
+		err := backup.ExportToFile(ctx, store, mdStore, csvStore, fileStore, tdStore, zipFile)
 		if err != nil {
 			l.Error("backup failed",
 				slog.String("component", "tasks"),

@@ -477,6 +477,127 @@ func TestMimeDetectionByContent(t *testing.T) {
 	}
 }
 
+func TestSaveRaw(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			baseDir := t.TempDir()
+			store, err := New(db.ConnDbName("TestSaveRaw"), baseDir, 10*1024*1024)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Create a small JPEG-like content (starts with JPEG magic bytes).
+			content := append([]byte{0xFF, 0xD8, 0xFF, 0xE0}, bytes.Repeat([]byte{0x00}, 100)...)
+
+			ctx := context.Background()
+			date := time.Date(2025, 5, 20, 0, 0, 0, 0, time.UTC)
+
+			id, err := store.SaveRaw(ctx, date, content, "receipt.jpg", "image/jpeg")
+			if err != nil {
+				t.Fatalf("SaveRaw failed: %v", err)
+			}
+			if id == 0 {
+				t.Fatal("expected non-zero ID")
+			}
+
+			// Get metadata
+			att, err := store.Get(ctx, id)
+			if err != nil {
+				t.Fatalf("Get failed: %v", err)
+			}
+			if att.OriginalName != "receipt.jpg" {
+				t.Errorf("expected OriginalName 'receipt.jpg', got %q", att.OriginalName)
+			}
+			if att.MimeType != "image/jpeg" {
+				t.Errorf("expected MimeType 'image/jpeg', got %q", att.MimeType)
+			}
+			if att.FileSize != int64(len(content)) {
+				t.Errorf("expected FileSize %d, got %d", len(content), att.FileSize)
+			}
+
+			// Assert file content on disk matches
+			fp, err := store.GetFilePath(ctx, id)
+			if err != nil {
+				t.Fatalf("GetFilePath failed: %v", err)
+			}
+			diskContent := readTestFile(t, fp)
+			if !bytes.Equal(diskContent, content) {
+				t.Error("disk content does not match original")
+			}
+		})
+	}
+}
+
+func TestWipeData(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			baseDir := t.TempDir()
+			store, err := New(db.ConnDbName("TestWipeData"), baseDir, 10*1024*1024)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			ctx := context.Background()
+			date := time.Date(2025, 7, 10, 0, 0, 0, 0, time.UTC)
+
+			// Save two files: a JPEG and a PNG
+			jpegContent := append([]byte{0xFF, 0xD8, 0xFF, 0xE0}, bytes.Repeat([]byte{0x00}, 100)...)
+			id1, err := store.SaveRaw(ctx, date, jpegContent, "photo.jpg", "image/jpeg")
+			if err != nil {
+				t.Fatalf("SaveRaw JPEG failed: %v", err)
+			}
+
+			pngContent := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, bytes.Repeat([]byte{0x00}, 100)...)
+			id2, err := store.SaveRaw(ctx, date, pngContent, "image.png", "image/png")
+			if err != nil {
+				t.Fatalf("SaveRaw PNG failed: %v", err)
+			}
+
+			// Get file paths before wipe
+			fp1, err := store.GetFilePath(ctx, id1)
+			if err != nil {
+				t.Fatalf("GetFilePath id1 failed: %v", err)
+			}
+			fp2, err := store.GetFilePath(ctx, id2)
+			if err != nil {
+				t.Fatalf("GetFilePath id2 failed: %v", err)
+			}
+
+			// Verify files exist before wipe
+			if _, err := os.Stat(fp1); os.IsNotExist(err) {
+				t.Fatal("file1 should exist before wipe")
+			}
+			if _, err := os.Stat(fp2); os.IsNotExist(err) {
+				t.Fatal("file2 should exist before wipe")
+			}
+
+			// Wipe all data
+			err = store.WipeData(ctx)
+			if err != nil {
+				t.Fatalf("WipeData failed: %v", err)
+			}
+
+			// Assert Get returns ErrNotFound for both IDs
+			_, err = store.Get(ctx, id1)
+			if err != ErrNotFound {
+				t.Errorf("expected ErrNotFound for id1 after wipe, got %v", err)
+			}
+			_, err = store.Get(ctx, id2)
+			if err != ErrNotFound {
+				t.Errorf("expected ErrNotFound for id2 after wipe, got %v", err)
+			}
+
+			// Assert files are removed from disk
+			if _, err := os.Stat(fp1); !os.IsNotExist(err) {
+				t.Error("file1 should be removed from disk after wipe")
+			}
+			if _, err := os.Stat(fp2); !os.IsNotExist(err) {
+				t.Error("file2 should be removed from disk after wipe")
+			}
+		})
+	}
+}
+
 // readTestFile reads a file at the given path. It is used in tests where the
 // path is constructed from t.TempDir() and is therefore safe.
 func readTestFile(t *testing.T, path string) []byte {

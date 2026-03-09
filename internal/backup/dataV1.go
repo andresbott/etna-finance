@@ -101,6 +101,8 @@ type TransactionV1 struct {
 	// for revaluation (informative target balance)
 	Balance float64 `json:"balance,omitempty"`
 
+	AttachmentID *uint `json:"attachmentId,omitempty"`
+
 	Date time.Time `json:"date"`
 	Type string    `json:"type"`
 }
@@ -169,4 +171,15 @@ type caseStudyV1 struct {
 	Description          string          `json:"description"`
 	ExpectedAnnualReturn float64         `json:"expectedAnnualReturn"`
 	Params               json.RawMessage `json:"params"`
+}
+
+const attachmentsFile = "attachments.json"
+const attachmentsDir = "attachments/"
+
+type attachmentV1 struct {
+	ID           uint   `json:"id"`
+	OriginalName string `json:"originalName"`
+	MimeType     string `json:"mimeType"`
+	FileSize     int64  `json:"fileSize"`
+	ZipPath      string `json:"zipPath"`
 }

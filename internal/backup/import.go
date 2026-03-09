@@ -14,13 +14,14 @@ import (
 
 	"github.com/andresbott/etna/internal/accounting"
 	"github.com/andresbott/etna/internal/csvimport"
+	"github.com/andresbott/etna/internal/filestore"
 	"github.com/andresbott/etna/internal/marketdata"
 	"github.com/andresbott/etna/internal/toolsdata"
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/text/currency"
 )
 
-func Import(ctx context.Context, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, tdStore *toolsdata.Store, file string) error {
+func Import(ctx context.Context, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, fileStore *filestore.Store, tdStore *toolsdata.Store, file string) error {
 	zipPath, err := checkZip(file)
 	if err != nil {
 		return err
@@ -62,6 +63,13 @@ func Import(ctx context.Context, store *accounting.Store, mdStore *marketdata.St
 		}
 	}
 
+	if fileStore != nil {
+		err = fileStore.WipeData(ctx)
+		if err != nil {
+			return err
+		}
+	}
+
 	profilesMap, err := importProfiles(ctx, csvStore, r)
 	if err != nil {
 		return err
@@ -81,7 +89,12 @@ func Import(ctx context.Context, store *accounting.Store, mdStore *marketdata.St
 		return err
 	}
 
-	err = importTransactions(ctx, store, r, accountsMap, inMap, exMap, instrumentsMap)
+	attachmentsMap, err := importAttachments(ctx, fileStore, r)
+	if err != nil {
+		return err
+	}
+
+	err = importTransactions(ctx, store, r, accountsMap, inMap, exMap, instrumentsMap, attachmentsMap)
 	if err != nil {
 		return err
 	}
@@ -236,7 +249,7 @@ func createCategoriesRecursive(ctx context.Context, store *accounting.Store, cat
 	return nil
 }
 
-func importTransactions(ctx context.Context, store *accounting.Store, r *zip.ReadCloser, accountsMap, incomeMap, expenseMap, instrumentsMap map[uint]uint) error {
+func importTransactions(ctx context.Context, store *accounting.Store, r *zip.ReadCloser, accountsMap, incomeMap, expenseMap, instrumentsMap, attachmentsMap map[uint]uint) error {
 	txs, err := loadV1Json[[]TransactionV1](r, transactionsFile)
 	if err != nil {
 		return err
@@ -252,29 +265,48 @@ func importTransactions(ctx context.Context, store *accounting.Store, r *zip.Rea
 	})
 
 	for _, tx := range txs {
+		var remappedAttID *uint
+		if tx.AttachmentID != nil {
+			if newID, ok := attachmentsMap[*tx.AttachmentID]; ok {
+				remappedAttID = &newID
+			}
+		}
+
 		var item accounting.Transaction
 		switch tx.Type {
 		case txTypeIncome:
+			if tx.AccountID == 0 {
+				continue // skip corrupt/empty transaction
+			}
 			in := accounting.Income{
 				Description: tx.Description, Notes: tx.Notes, Amount: tx.Amount, CategoryID: tx.CategoryID, Date: tx.Date,
 			}
 			in.AccountID = accountsMap[tx.AccountID]
 			in.CategoryID = incomeMap[tx.CategoryID]
+			in.AttachmentID = remappedAttID
 			item = in
 
 		case txTypeExpense:
+			if tx.AccountID == 0 {
+				continue // skip corrupt/empty transaction
+			}
 			ex := accounting.Expense{
 				Description: tx.Description, Notes: tx.Notes, Amount: tx.Amount, CategoryID: tx.CategoryID, Date: tx.Date,
 			}
 			ex.AccountID = accountsMap[tx.AccountID]
 			ex.CategoryID = expenseMap[tx.CategoryID]
+			ex.AttachmentID = remappedAttID
 			item = ex
 		case txTypeTransfer:
+			if tx.OriginAccountID == 0 || tx.TargetAccountID == 0 {
+				continue // skip corrupt/empty transaction
+			}
 			tr := accounting.Transfer{
 				Description: tx.Description, Notes: tx.Notes, OriginAmount: tx.OriginAmount, TargetAmount: tx.TargetAmount, Date: tx.Date,
 			}
 			tr.OriginAccountID = accountsMap[tx.OriginAccountID]
 			tr.TargetAccountID = accountsMap[tx.TargetAccountID]
+			tr.AttachmentID = remappedAttID
 			item = tr
 
 		case txTypeStockBuy:
@@ -288,6 +320,7 @@ func importTransactions(ctx context.Context, store *accounting.Store, r *zip.Rea
 				Quantity:            tx.Quantity,
 				TotalAmount:         tx.TotalAmount,
 				StockAmount:         tx.StockAmount,
+				AttachmentID:        remappedAttID,
 			}
 		case txTypeStockSell:
 			item = accounting.StockSell{
@@ -301,6 +334,7 @@ func importTransactions(ctx context.Context, store *accounting.Store, r *zip.Rea
 				PricePerShare:       tx.PricePerShare,
 				TotalAmount:         tx.TotalAmount,
 				Fees:                tx.Fees,
+				AttachmentID:        remappedAttID,
 			}
 		case txTypeStockGrant:
 			item = accounting.StockGrant{
@@ -311,6 +345,7 @@ func importTransactions(ctx context.Context, store *accounting.Store, r *zip.Rea
 				InstrumentID:    instrumentsMap[tx.InstrumentID],
 				Quantity:        tx.Quantity,
 				FairMarketValue: tx.FairMarketValue,
+				AttachmentID:    remappedAttID,
 			}
 		case txTypeStockTransfer:
 			item = accounting.StockTransfer{
@@ -321,6 +356,7 @@ func importTransactions(ctx context.Context, store *accounting.Store, r *zip.Rea
 				TargetAccountID: accountsMap[tx.TargetAccountID],
 				InstrumentID:    instrumentsMap[tx.InstrumentID],
 				Quantity:        tx.Quantity,
+				AttachmentID:    remappedAttID,
 			}
 		case txTypeStockVest:
 			sourceAccID := accountsMap[tx.SourceAccountID]
@@ -377,9 +413,14 @@ func importTransactions(ctx context.Context, store *accounting.Store, r *zip.Rea
 		if item == nil {
 			continue
 		}
-		_, err = store.CreateTransaction(ctx, item)
+		newTxID, err := store.CreateTransaction(ctx, item)
 		if err != nil {
 			return fmt.Errorf("failed to create transaction: %w", err)
+		}
+		if remappedAttID != nil {
+			if err := store.SetAttachmentID(ctx, newTxID, remappedAttID); err != nil {
+				return fmt.Errorf("failed to set attachment ID on transaction %d: %w", newTxID, err)
+			}
 		}
 	}
 	return nil
@@ -630,4 +671,72 @@ func importCategoryRules(ctx context.Context, csvStore *csvimport.Store, r *zip.
 		}
 	}
 	return nil
+}
+
+func importAttachments(ctx context.Context, fileStore *filestore.Store, r *zip.ReadCloser) (map[uint]uint, error) {
+	attachmentsMap := map[uint]uint{}
+	if fileStore == nil {
+		return attachmentsMap, nil
+	}
+
+	manifest, err := loadAttachmentManifest(r)
+	if err != nil {
+		return attachmentsMap, nil // gracefully skip (old backup without attachments)
+	}
+
+	for _, att := range manifest {
+		content, err := readZipBinary(r, att.ZipPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read attachment %s from zip: %w", att.ZipPath, err)
+		}
+
+		date := time.Now()
+		newID, err := fileStore.SaveRaw(ctx, date, content, att.OriginalName, att.MimeType)
+		if err != nil {
+			return nil, fmt.Errorf("failed to save attachment %d: %w", att.ID, err)
+		}
+		attachmentsMap[att.ID] = newID
+	}
+
+	return attachmentsMap, nil
+}
+
+func loadAttachmentManifest(r *zip.ReadCloser) ([]attachmentV1, error) {
+	for _, f := range r.File {
+		if f.Name != attachmentsFile {
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			return nil, err
+		}
+		defer func() { _ = rc.Close() }()
+
+		data, err := io.ReadAll(rc)
+		if err != nil {
+			return nil, err
+		}
+
+		var manifest []attachmentV1
+		if err := json.Unmarshal(data, &manifest); err != nil {
+			return nil, err
+		}
+		return manifest, nil
+	}
+	return nil, fmt.Errorf("attachments manifest not found")
+}
+
+func readZipBinary(r *zip.ReadCloser, path string) ([]byte, error) {
+	for _, f := range r.File {
+		if f.Name != path {
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			return nil, err
+		}
+		defer func() { _ = rc.Close() }()
+		return io.ReadAll(rc)
+	}
+	return nil, fmt.Errorf("file %s not found in zip", path)
 }

@@ -18,6 +18,7 @@ export const useSettingsStore = defineStore('settings', () => {
     const financialSimulator = ref<boolean>(false)
     const marketDataSymbols = ref<string[]>([])
     const version = ref<string>('')
+    const maxAttachmentSizeMB = ref<number>(10)
 
     const hasMultipleCurrencies = computed(() => currencies.value.length > 1)
 
@@ -34,6 +35,7 @@ export const useSettingsStore = defineStore('settings', () => {
             financialSimulator.value = res.data.financialSimulator
             marketDataSymbols.value = res.data.marketDataSymbols ?? []
             version.value = res.data.version ?? ''
+            maxAttachmentSizeMB.value = res.data.maxAttachmentSizeMB || 10
             isLoaded.value = true
         } catch (err: unknown) {
             console.error('Failed to fetch application settings:', err)
@@ -55,6 +57,7 @@ export const useSettingsStore = defineStore('settings', () => {
         financialSimulator.value = false
         marketDataSymbols.value = []
         version.value = ''
+        maxAttachmentSizeMB.value = 10
     }
 
     return {
@@ -70,6 +73,7 @@ export const useSettingsStore = defineStore('settings', () => {
         financialSimulator,
         marketDataSymbols,
         version,
+        maxAttachmentSizeMB,
         hasMultipleCurrencies,
 
         fetchSettings,
