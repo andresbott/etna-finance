@@ -178,7 +178,7 @@ const emit = defineEmits(['update:visible'])
                     <AccountSelector
                         v-model="formValues.AccountId"
                         name="AccountId"
-                        :accountTypes="['cash', 'checkin', 'bank', 'savings']"
+                        :accountTypes="['cash', 'checkin', 'bank', 'savings', 'lent']"
                     />
                     <Message v-if="$form.AccountId?.invalid" severity="error" size="small">
                         {{ $form.AccountId.error?.message }}

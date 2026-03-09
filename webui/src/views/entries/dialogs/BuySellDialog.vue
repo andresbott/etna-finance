@@ -218,7 +218,7 @@ const handleSubmit = async (e) => {
                                     v-model="formValues.CashAccountId"
                                     name="CashAccountId"
                                     placeholder="Select cash account"
-                                    :accountTypes="['cash', 'checkin', 'bank', 'savings']"
+                                    :accountTypes="['cash', 'checkin', 'bank', 'savings', 'lent']"
                                 />
                                 <Message v-if="$form.CashAccountId?.invalid" severity="error" size="small">
                                     {{ $form.CashAccountId?.error?.message }}
@@ -361,7 +361,7 @@ const handleSubmit = async (e) => {
                                     v-model="formValues.CashAccountId"
                                     name="CashAccountId"
                                     placeholder="Select cash account"
-                                    :accountTypes="['cash', 'checkin', 'bank', 'savings']"
+                                    :accountTypes="['cash', 'checkin', 'bank', 'savings', 'lent']"
                                 />
                                 <Message v-if="$form.CashAccountId?.invalid" severity="error" size="small">
                                     {{ $form.CashAccountId?.error?.message }}
