@@ -9,6 +9,7 @@ import Column from 'primevue/column'
 import Card from 'primevue/card'
 import Message from 'primevue/message'
 import Checkbox from 'primevue/checkbox'
+import FileInput from '@/components/common/FileInput.vue'
 
 import { parseCSV, submitImport } from '@/lib/api/CsvImport'
 import { useAccounts } from '@/composables/useAccounts'
@@ -109,12 +110,6 @@ const getRowClass = (data) => ({
 })
 
 /* --- File handling --- */
-const onFileChange = (event) => {
-    const files = event.target.files
-    if (files && files.length > 0) {
-        selectedFile.value = files[0]
-    }
-}
 
 /* --- Parse --- */
 const handleParse = async () => {
@@ -232,14 +227,11 @@ const checkedCount = computed(() => {
                     <template #title>Upload CSV File</template>
                     <template #content>
                         <div class="upload-form">
-                            <div class="file-input-wrapper">
-                                <input
-                                    type="file"
-                                    accept=".csv"
-                                    @change="onFileChange"
-                                    class="file-input"
-                                />
-                            </div>
+                            <FileInput
+                                v-model="selectedFile"
+                                accept=".csv"
+                                label="Choose CSV file"
+                            />
 
                             <div class="upload-actions">
                                 <Button
@@ -424,14 +416,6 @@ const checkedCount = computed(() => {
     display: flex;
     flex-direction: column;
     gap: 1rem;
-}
-
-.file-input-wrapper {
-    margin-bottom: 0.5rem;
-}
-
-.file-input {
-    width: 100%;
 }
 
 .upload-actions {

@@ -18,6 +18,7 @@ import TabList from 'primevue/tablist'
 import Tab from 'primevue/tab'
 import TabPanels from 'primevue/tabpanels'
 import TabPanel from 'primevue/tabpanel'
+import FileInput from '@/components/common/FileInput.vue'
 import Checkbox from 'primevue/checkbox'
 import { useToast } from 'primevue/usetoast'
 import { getProfiles, createProfile, updateProfile, deleteProfile, previewCSV, getCategoryRules, createCategoryRule, updateCategoryRule, deleteCategoryRule } from '@/lib/api/CsvImport'
@@ -142,9 +143,7 @@ const openEditDialog = (profile) => {
 }
 
 // File selection — triggers auto-detection
-const onFileSelected = async (event) => {
-    const file = event.target.files[0] || null
-    sampleFile.value = file
+watch(sampleFile, async (file) => {
     if (!file) return
 
     isLoadingFile.value = true
@@ -192,7 +191,7 @@ const onFileSelected = async (event) => {
     } finally {
         isLoadingFile.value = false
     }
-}
+})
 
 // Preview refresh with debounce
 let previewTimeout = null
@@ -782,12 +781,10 @@ onMounted(() => {
 
                                     <div class="field">
                                         <label for="sampleFile">Sample CSV File</label>
-                                        <input
-                                            id="sampleFile"
-                                            type="file"
+                                        <FileInput
+                                            v-model="sampleFile"
                                             accept=".csv,.txt"
-                                            @change="onFileSelected"
-                                            class="file-input"
+                                            label="Choose CSV file"
                                         />
                                         <small class="text-color-secondary">Upload a sample to auto-detect separator, skip rows, and column headers</small>
                                     </div>
@@ -1104,15 +1101,6 @@ onMounted(() => {
     p {
         font-size: 1rem;
     }
-}
-
-.file-input {
-    padding: 0.5rem;
-    border: 1px solid var(--surface-300);
-    border-radius: var(--border-radius);
-    background-color: var(--surface-0);
-    color: var(--text-color);
-    font-size: 0.9rem;
 }
 
 .pattern-text {

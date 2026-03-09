@@ -20,6 +20,7 @@ import (
 	"github.com/andresbott/etna/app/tasks"
 	"github.com/andresbott/etna/internal/accounting"
 	"github.com/andresbott/etna/internal/csvimport"
+	"github.com/andresbott/etna/internal/filestore"
 	"github.com/andresbott/etna/internal/marketdata"
 	"github.com/andresbott/etna/internal/marketdata/importer"
 	"github.com/andresbott/etna/internal/taskrunner"
@@ -36,6 +37,7 @@ import (
 const dbFile = "carbon.db"
 const sessionsDir = "sessions"
 const backupsDir = "backup"
+const attachmentsDir = "attachments"
 
 func serverCmd() *cobra.Command {
 	var configFile = "./config.yaml"
@@ -101,39 +103,14 @@ func runServer(configFile string) error {
 	}
 
 	// ——— Application stores (shared by router and task runner) ———
-	marketStore, err := marketdata.NewStore(db)
+	marketStore, finStore, csvImportStore, attachmentStore, err := initStores(db, cfg)
 	if err != nil {
-		return fmt.Errorf("market data store: %w", err)
-	}
-	finStore, err := accounting.NewStore(db, marketStore)
-	if err != nil {
-		return fmt.Errorf("accounting store: %w", err)
-	}
-
-	csvImportStore, err := csvimport.NewStore(db)
-	if err != nil {
-		return fmt.Errorf("csv import store: %w", err)
+		return err
 	}
 
 	// ——— Instruments config vs DB consistency ———
-	// If config has Instruments: false but DB contains investment/unvested accounts, override to true.
-	ctx := context.Background()
-	accounts, err := finStore.ListAccounts(ctx)
-	if err != nil {
-		return fmt.Errorf("listing accounts at startup: %w", err)
-	}
-	hasInvestmentAccounts := false
-	for _, acc := range accounts {
-		if acc.Type == accounting.InvestmentAccountType || acc.Type == accounting.UnvestedAccountType {
-			hasInvestmentAccounts = true
-			break
-		}
-	}
-	if hasInvestmentAccounts && !cfg.Settings.Instruments {
-		cfg.Settings.Instruments = true
-		l.Warn("config discrepancy: Settings.Instruments is false but database contains investment or unvested accounts; enabling Instruments",
-			slog.String("component", "startup"),
-			slog.String("reason", "db_has_investment_accounts"))
+	if err := reconcileInstrumentsSetting(cfg, finStore, l); err != nil {
+		return err
 	}
 
 	// ——— Task runner and cron scheduler (started inside GroupRunner task) ———
@@ -160,19 +137,21 @@ func runServer(configFile string) error {
 		BackupDestination: backupDest,
 		ProductionMode:    cfg.Env.Production,
 		AppSettings: handlers.AppSettings{
-			DateFormat:   cfg.Settings.DateFormat,
-			MainCurrency: cfg.Settings.MainCurrency,
-			Currencies:   cfg.Settings.AllCurrencies(),
-			Instruments:  cfg.Settings.Instruments,
-			Version:      metainfo.Version,
+			DateFormat:          cfg.Settings.DateFormat,
+			MainCurrency:        cfg.Settings.MainCurrency,
+			Currencies:          cfg.Settings.AllCurrencies(),
+			Instruments:         cfg.Settings.Instruments,
+			MaxAttachmentSizeMB: cfg.Settings.MaxAttachmentSizeMB,
+			Version:             metainfo.Version,
 		},
 		TaskRunner:    taskRunner,
 		ScheduleStore: scheduleStore,
 		Scheduler:     scheduler,
 		TaskLogGetter: taskrunner.NewFileTaskLogReader(filepath.Join(cfg.DataDir, "tasklogs")),
-		FinStore:       finStore,
-		MarketStore:    marketStore,
-		CsvImportStore: csvImportStore,
+		FinStore:        finStore,
+		MarketStore:     marketStore,
+		CsvImportStore:  csvImportStore,
+		AttachmentStore: attachmentStore,
 	}
 	mainAppHandler, err := router.New(routerCfg)
 	if err != nil {
@@ -217,6 +196,52 @@ func runServer(configFile string) error {
 	}()
 
 	return g.Wait()
+}
+
+// initStores creates the application-level data stores shared by router and task runner.
+func initStores(db *gorm.DB, cfg AppCfg) (*marketdata.Store, *accounting.Store, *csvimport.Store, *filestore.Store, error) {
+	marketStore, err := marketdata.NewStore(db)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("market data store: %w", err)
+	}
+	finStore, err := accounting.NewStore(db, marketStore)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("accounting store: %w", err)
+	}
+	csvImportStore, err := csvimport.NewStore(db)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("csv import store: %w", err)
+	}
+	maxAttachmentBytes := int64(10 * 1024 * 1024) // default 10MB
+	if cfg.Settings.MaxAttachmentSizeMB > 0 {
+		maxAttachmentBytes = int64(cfg.Settings.MaxAttachmentSizeMB * 1024 * 1024)
+	}
+	attachmentStore, err := filestore.New(db, filepath.Join(cfg.DataDir, attachmentsDir), maxAttachmentBytes)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("attachment store: %w", err)
+	}
+	return marketStore, finStore, csvImportStore, attachmentStore, nil
+}
+
+// reconcileInstrumentsSetting enables Instruments if the DB contains investment/unvested accounts.
+func reconcileInstrumentsSetting(cfg AppCfg, finStore *accounting.Store, l *slog.Logger) error {
+	ctx := context.Background()
+	accounts, err := finStore.ListAccounts(ctx)
+	if err != nil {
+		return fmt.Errorf("listing accounts at startup: %w", err)
+	}
+	for _, acc := range accounts {
+		if acc.Type == accounting.InvestmentAccountType || acc.Type == accounting.UnvestedAccountType {
+			if !cfg.Settings.Instruments {
+				cfg.Settings.Instruments = true
+				l.Warn("config discrepancy: Settings.Instruments is false but database contains investment or unvested accounts; enabling Instruments",
+					slog.String("component", "startup"),
+					slog.String("reason", "db_has_investment_accounts"))
+			}
+			break
+		}
+	}
+	return nil
 }
 
 // serveHTTP binds the listener, serves until ctx is cancelled, then shuts down gracefully.
@@ -413,6 +438,18 @@ func initDataDir(path string) error {
 		return fmt.Errorf("failed to stat path: %w", err)
 	} else if !sessionsDirInfo.IsDir() {
 		return fmt.Errorf("sessions path is not a directory: %s", absPath)
+	}
+
+	// create attachments dir
+	attachmentsDirInfo, err := os.Stat(filepath.Join(absPath, attachmentsDir))
+	if os.IsNotExist(err) {
+		if err := os.MkdirAll(filepath.Join(absPath, attachmentsDir), 0750); err != nil {
+			return fmt.Errorf("failed to create directory: %w", err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("failed to stat path: %w", err)
+	} else if !attachmentsDirInfo.IsDir() {
+		return fmt.Errorf("attachments path is not a directory: %s", absPath)
 	}
 
 	return nil

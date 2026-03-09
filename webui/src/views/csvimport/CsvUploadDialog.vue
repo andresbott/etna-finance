@@ -5,6 +5,7 @@ import { useToast } from 'primevue/usetoast'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
 import Message from 'primevue/message'
+import FileInput from '@/components/common/FileInput.vue'
 import { parseCSV } from '@/lib/api/CsvImport'
 import { getApiErrorMessage } from '@/utils/apiError'
 
@@ -27,14 +28,6 @@ const toast = useToast()
 const selectedFile = ref(null)
 const isParsing = ref(false)
 const parseError = ref('')
-
-const onFileChange = (event) => {
-    const files = event.target.files
-    if (files && files.length > 0) {
-        selectedFile.value = files[0]
-        parseError.value = ''
-    }
-}
 
 const handleParse = async () => {
     if (!selectedFile.value || !props.accountId) return
@@ -72,14 +65,11 @@ const handleClose = () => {
         :style="{ width: '30rem' }"
     >
         <div class="upload-form">
-            <div class="file-input-wrapper">
-                <input
-                    type="file"
-                    accept=".csv"
-                    @change="onFileChange"
-                    class="file-input"
-                />
-            </div>
+            <FileInput
+                v-model="selectedFile"
+                accept=".csv"
+                label="Choose CSV file"
+            />
 
             <Message v-if="parseError" severity="error" :closable="false" class="mt-3">
                 {{ parseError }}
@@ -110,7 +100,4 @@ const handleClose = () => {
     gap: 1rem;
 }
 
-.file-input {
-    width: 100%;
-}
 </style>

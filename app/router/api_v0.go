@@ -67,7 +67,7 @@ const finReport = "/fin/report"
 //nolint:gocognit,gocyclo // the function is quite big and verbose but easy to follow
 func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 
-	finHndlr := finHandler.Handler{Store: h.finStore, InstrumentStore: h.marketStore}
+	finHndlr := finHandler.Handler{Store: h.finStore, InstrumentStore: h.marketStore, FileStore: h.attachmentStore}
 
 	// ==========================================================================
 	// Account Providers
@@ -337,6 +337,58 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 		}
 
 		finHndlr.DeleteTx(itemId).ServeHTTP(w, r)
+	})
+
+	// ==========================================================================
+	// Attachments
+	// ==========================================================================
+
+	r.Path(fmt.Sprintf("%s/{id}/attachment", finEntries)).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err := sessionauth.CtxGetUserData(r)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+
+		finHndlr.UploadAttachment(itemId).ServeHTTP(w, r)
+	})
+
+	r.Path(fmt.Sprintf("%s/{id}/attachment", finEntries)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err := sessionauth.CtxGetUserData(r)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+
+		finHndlr.GetAttachment(itemId).ServeHTTP(w, r)
+	})
+
+	r.Path(fmt.Sprintf("%s/{id}/attachment", finEntries)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err := sessionauth.CtxGetUserData(r)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+
+		finHndlr.DeleteAttachment(itemId).ServeHTTP(w, r)
 	})
 
 	// ==========================================================================

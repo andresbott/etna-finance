@@ -80,6 +80,10 @@ Settings:
   # Automatically enabled if the database already contains investment accounts.
   Instruments: false
 
+  # Maximum file upload size for transaction attachments, in MB.
+  # 0 or omitted = default (10 MB).
+  # MaxAttachmentSizeMB: 10
+
 # -----------------------------------------------------------------------------
 # Auth — authentication and session management
 # -----------------------------------------------------------------------------

@@ -6,11 +6,12 @@ import (
 )
 
 type AppSettings struct {
-	DateFormat   string   `json:"dateFormat"`
-	MainCurrency string   `json:"mainCurrency"`
-	Currencies   []string `json:"currencies"`
-	Instruments  bool     `json:"instruments"`
-	Version      string   `json:"version"`
+	DateFormat          string   `json:"dateFormat"`
+	MainCurrency        string   `json:"mainCurrency"`
+	Currencies          []string `json:"currencies"`
+	Instruments         bool     `json:"instruments"`
+	MaxAttachmentSizeMB float64  `json:"maxAttachmentSizeMB"`
+	Version             string   `json:"version"`
 }
 
 // SettingsResponse is the payload for GET /settings. It extends AppSettings with
