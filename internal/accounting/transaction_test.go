@@ -2,6 +2,7 @@ package accounting
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"sort"
 	"strings"
@@ -136,6 +137,38 @@ func TestStore_CreateTransaction(t *testing.T) {
 				AccountID:   1,
 				CategoryID:  2,
 			}, wantErr: "date cannot be zero",
+		},
+		{
+			name:   "create valid balance status",
+			tenant: tenant1,
+			input: BalanceStatus{
+				Description: "balance check",
+				Amount:      1500.50,
+				AccountID:   1,
+				Date:        time.Now(),
+			},
+		},
+		{
+			name:   "balance status on investment account should fail",
+			tenant: tenant1,
+			input: BalanceStatus{
+				Description: "balance check",
+				Amount:      1500.50,
+				AccountID:   5,
+				Date:        time.Now(),
+			},
+			wantErr: "incompatible account type Investment for balance status transaction",
+		},
+		{
+			name:   "balance status with zero account should fail",
+			tenant: tenant1,
+			input: BalanceStatus{
+				Description: "balance check",
+				Amount:      1500.50,
+				AccountID:   0,
+				Date:        time.Now(),
+			},
+			wantErr: "account id is required",
 		},
 	}
 
@@ -1184,6 +1217,8 @@ var ignoreUnexportedTxFields = []cmp.Option{
 	cmpopts.IgnoreUnexported(StockSell{}),
 	cmpopts.IgnoreUnexported(StockGrant{}),
 	cmpopts.IgnoreUnexported(StockTransfer{}),
+	cmpopts.IgnoreUnexported(BalanceStatus{}),
+	cmpopts.IgnoreFields(BalanceStatus{}, "Id"),
 }
 var ignoreUnexportedAndIds = []cmp.Option{
 	cmpopts.IgnoreUnexported(Income{}),
@@ -2194,6 +2229,7 @@ func transactionSampleData(t *testing.T, store *Store, data map[int]Transaction)
 		{AccountProviderID: accProviderId, Name: "acc2", Currency: currency.USD, Type: CashAccountType},
 		{AccountProviderID: accProviderId, Name: "acc3", Currency: currency.CHF, Type: CashAccountType},
 		{AccountProviderID: accProviderId, Name: "acc4", Currency: currency.CHF, Type: CashAccountType},
+		{AccountProviderID: accProviderId, Name: "acc5", Currency: currency.EUR, Type: InvestmentAccountType},
 	}
 	for _, acc := range Accs {
 		_, err = store.CreateAccount(t.Context(), acc)
@@ -2222,5 +2258,221 @@ func transactionSampleData(t *testing.T, store *Store, data map[int]Transaction)
 		if err != nil {
 			t.Fatalf("error creating account: %v", err)
 		}
+	}
+}
+
+func TestStore_BalanceStatus_RoundTrip(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			dbCon := db.ConnDbName("balanceStatusRoundTrip")
+			store, _ := newAccountingStoreWithMarketData(t, dbCon)
+
+			categorySampleData(t, store, sampleCategories)
+			transactionSampleData(t, store, sampleTransactions)
+
+			input := BalanceStatus{
+				Description: "March statement balance",
+				Amount:      2500.75,
+				AccountID:   1,
+				Date:        getDate("2025-03-01"),
+			}
+
+			id, err := store.CreateTransaction(t.Context(), input)
+			if err != nil {
+				t.Fatalf("unexpected error creating balance status: %v", err)
+			}
+			if id == 0 {
+				t.Fatal("expected valid id, got 0")
+			}
+
+			got, err := store.GetTransaction(t.Context(), id)
+			if err != nil {
+				t.Fatalf("unexpected error getting balance status: %v", err)
+			}
+
+			bs, ok := got.(BalanceStatus)
+			if !ok {
+				t.Fatalf("expected BalanceStatus, got %T", got)
+			}
+
+			if bs.Id != id {
+				t.Errorf("expected Id=%d, got %d", id, bs.Id)
+			}
+			if bs.Description != input.Description {
+				t.Errorf("expected Description=%q, got %q", input.Description, bs.Description)
+			}
+			if bs.Amount != input.Amount {
+				t.Errorf("expected Amount=%f, got %f", input.Amount, bs.Amount)
+			}
+			if bs.AccountID != input.AccountID {
+				t.Errorf("expected AccountID=%d, got %d", input.AccountID, bs.AccountID)
+			}
+			if !bs.Date.Equal(input.Date) {
+				t.Errorf("expected Date=%v, got %v", input.Date, bs.Date)
+			}
+		})
+	}
+}
+
+func TestStore_UpdateBalanceStatus(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			dbCon := db.ConnDbName("updateBalanceStatus")
+			store, _ := newAccountingStoreWithMarketData(t, dbCon)
+
+			categorySampleData(t, store, sampleCategories)
+			transactionSampleData(t, store, sampleTransactions)
+
+			input := BalanceStatus{
+				Description: "original balance",
+				Amount:      1000.00,
+				AccountID:   1,
+				Date:        getDate("2025-03-01"),
+			}
+
+			id, err := store.CreateTransaction(t.Context(), input)
+			if err != nil {
+				t.Fatalf("unexpected error creating balance status: %v", err)
+			}
+
+			newDesc := "updated balance"
+			newAmount := 2000.50
+			err = store.UpdateTransaction(t.Context(), BalanceStatusUpdate{
+				Description: &newDesc,
+				Amount:      &newAmount,
+			}, id)
+			if err != nil {
+				t.Fatalf("unexpected error updating balance status: %v", err)
+			}
+
+			got, err := store.GetTransaction(t.Context(), id)
+			if err != nil {
+				t.Fatalf("unexpected error getting balance status: %v", err)
+			}
+
+			bs, ok := got.(BalanceStatus)
+			if !ok {
+				t.Fatalf("expected BalanceStatus, got %T", got)
+			}
+
+			if bs.Description != newDesc {
+				t.Errorf("expected Description=%q, got %q", newDesc, bs.Description)
+			}
+			if bs.Amount != newAmount {
+				t.Errorf("expected Amount=%f, got %f", newAmount, bs.Amount)
+			}
+			// Unchanged fields should remain
+			if bs.AccountID != input.AccountID {
+				t.Errorf("expected AccountID=%d, got %d", input.AccountID, bs.AccountID)
+			}
+		})
+	}
+}
+
+func TestStore_BalanceStatus_DoesNotAffectBalance(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			dbCon := db.ConnDbName("TestBalanceStatusDoesNotAffectBalance")
+			store, _ := newAccountingStoreWithMarketData(t, dbCon)
+
+			accountSampleData(t, store)
+			ctx := t.Context()
+
+			// Create an income entry: amount=1000, accountID=1, date 2025-01-15
+			_, err := store.CreateTransaction(ctx, Income{
+				Description: "salary",
+				Amount:      1000,
+				AccountID:   1,
+				Date:        getDate("2025-01-15"),
+			})
+			if err != nil {
+				t.Fatalf("unexpected error creating income: %v", err)
+			}
+
+			// Get balance before balance status
+			balBefore, err := store.AccountBalanceSingle(ctx, 1, getDate("2025-12-31"))
+			if err != nil {
+				t.Fatalf("unexpected error getting balance: %v", err)
+			}
+
+			// Create a balance status: amount=5000, accountID=1, date 2025-06-15
+			_, err = store.CreateTransaction(ctx, BalanceStatus{
+				Description: "bank statement",
+				Amount:      5000,
+				AccountID:   1,
+				Date:        getDate("2025-06-15"),
+			})
+			if err != nil {
+				t.Fatalf("unexpected error creating balance status: %v", err)
+			}
+
+			// Get balance after balance status
+			balAfter, err := store.AccountBalanceSingle(ctx, 1, getDate("2025-12-31"))
+			if err != nil {
+				t.Fatalf("unexpected error getting balance after: %v", err)
+			}
+
+			if balBefore.Sum != balAfter.Sum {
+				t.Errorf("balance changed after adding balance status: before=%f, after=%f", balBefore.Sum, balAfter.Sum)
+			}
+		})
+	}
+}
+
+func TestStore_PriorPageBalance_ExcludesBalanceStatus(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			dbCon := db.ConnDbName("TestPriorPageBalanceExcludesBalanceStatus")
+			store, _ := newAccountingStoreWithMarketData(t, dbCon)
+
+			accountSampleData(t, store)
+			ctx := t.Context()
+
+			// Create 5 income entries: amount=100 each, accountID=1
+			for i := 1; i <= 5; i++ {
+				_, err := store.CreateTransaction(ctx, Income{
+					Description: fmt.Sprintf("income %d", i),
+					Amount:      100,
+					AccountID:   1,
+					Date:        getDate(fmt.Sprintf("2025-01-0%d", i)),
+				})
+				if err != nil {
+					t.Fatalf("unexpected error creating income %d: %v", i, err)
+				}
+			}
+
+			// Create a balance status: amount=9999, accountID=1, date 2025-01-03
+			_, err := store.CreateTransaction(ctx, BalanceStatus{
+				Description: "bank statement",
+				Amount:      9999,
+				AccountID:   1,
+				Date:        getDate("2025-01-03"),
+			})
+			if err != nil {
+				t.Fatalf("unexpected error creating balance status: %v", err)
+			}
+
+			// Transactions sorted DESC by date, then by ID:
+			// income Jan 5 (100), income Jan 4 (100), balance status Jan 3 (9999), income Jan 3 (100), income Jan 2 (100), income Jan 1 (100)
+			// Page 1 (limit=2) shows: income Jan 5 + income Jan 4
+			// Prior balance = sum of remaining income entries = 100 + 100 + 100 = 300
+			opts := ListOpts{
+				StartDate: getDate("2025-01-01"),
+				EndDate:   getDate("2025-12-31"),
+				AccountId: []int{1},
+				Limit:     2,
+				Page:      1,
+			}
+
+			got, err := store.PriorPageBalance(ctx, opts, 1)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			want := 300.0
+			if got != want {
+				t.Errorf("PriorPageBalance = %v, want %v (balance status amount should not contribute)", got, want)
+			}
+		})
 	}
 }

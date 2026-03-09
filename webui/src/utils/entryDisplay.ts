@@ -10,6 +10,7 @@ const ENTRY_TYPE_ICONS: Record<string, string> = {
     stocksell: 'pi pi-chart-line text-orange-500',
     stockgrant: 'pi pi-gift text-purple-500',
     stocktransfer: 'pi pi-arrow-right-arrow-left text-indigo-500',
+    balancestatus: 'pi pi-calculator text-gray-500',
     'opening-balance': 'pi pi-calculator text-gray-500'
 }
 

@@ -25,6 +25,7 @@ const (
 	StockGrantTransaction // position increase without cash (vest, gift, grant, etc.)
 	StockTransferTransaction
 	LoanTransaction
+	BalanceStatusTransaction
 )
 
 type dbTransaction struct {
@@ -146,6 +147,17 @@ type StockTransfer struct {
 	baseTx
 }
 
+// BalanceStatus records the real bank statement balance at a point in time.
+// It does NOT affect the running balance calculation.
+type BalanceStatus struct {
+	Id          uint
+	Description string
+	Amount      float64
+	AccountID   uint
+	Date        time.Time
+	baseTx
+}
+
 // CreateTransaction creates a new transaction in the DB.
 // It delegates to the appropriate CreateX function depending on the input type.
 func (store *Store) CreateTransaction(ctx context.Context, input Transaction) (uint, error) {
@@ -164,6 +176,8 @@ func (store *Store) CreateTransaction(ctx context.Context, input Transaction) (u
 		return store.CreateStockGrant(ctx, item)
 	case StockTransfer:
 		return store.CreateStockTransfer(ctx, item)
+	case BalanceStatus:
+		return store.CreateBalanceStatus(ctx, item)
 	default:
 		return 0, errors.New("invalid transaction type")
 	}
@@ -254,6 +268,45 @@ func (store *Store) CreateExpense(ctx context.Context, item Expense) (uint, erro
 				CategoryID: item.CategoryID,
 				Amount:     -item.Amount,
 				EntryType:  expenseEntry,
+			},
+		},
+	}
+
+	if err := validateTransaction(tx); err != nil {
+		return 0, err
+	}
+
+	if err := store.db.WithContext(ctx).Create(&tx).Error; err != nil {
+		return 0, err
+	}
+	return tx.Id, nil
+}
+
+func (store *Store) CreateBalanceStatus(ctx context.Context, item BalanceStatus) (uint, error) {
+	if item.AccountID == 0 {
+		return 0, ErrValidation("account id is required")
+	}
+
+	acc, err := store.GetAccount(ctx, item.AccountID)
+	if err != nil {
+		return 0, fmt.Errorf("error creating balance status: %w", err)
+	}
+	allowedAccountTypes := []AccountType{
+		CashAccountType, CheckinAccountType, SavingsAccountType,
+	}
+	if !slices.Contains(allowedAccountTypes, acc.Type) {
+		return 0, NewValidationErr(fmt.Sprintf("incompatible account type %s for balance status transaction", acc.Type.String()))
+	}
+
+	tx := dbTransaction{
+		Description: item.Description,
+		Date:        item.Date,
+		Type:        BalanceStatusTransaction,
+		Entries: []dbEntry{
+			{
+				AccountID: item.AccountID,
+				Amount:    item.Amount,
+				EntryType: balanceStatusEntry,
 			},
 		},
 	}
@@ -948,6 +1001,8 @@ func publicTransactions(in dbTransaction) (Transaction, error) {
 		return stockGrantFromDb(in)
 	case StockTransferTransaction:
 		return stockTransferFromDb(in)
+	case BalanceStatusTransaction:
+		return balanceStatusFromDb(in)
 	default:
 		return EmptyTransaction{}, ErrTransactionTypeNotFound
 	}
@@ -960,6 +1015,16 @@ func incomeFromDb(in dbTransaction) (Transaction, error) {
 		Amount:      in.Entries[0].Amount,
 		AccountID:   in.Entries[0].AccountID,
 		CategoryID:  in.Entries[0].CategoryID,
+	}, nil
+}
+
+func balanceStatusFromDb(in dbTransaction) (Transaction, error) {
+	return BalanceStatus{
+		Id:          in.Id,
+		Description: in.Description,
+		Date:        in.Date,
+		Amount:      in.Entries[0].Amount,
+		AccountID:   in.Entries[0].AccountID,
 	}, nil
 }
 
@@ -1272,6 +1337,15 @@ type StockTransferUpdate struct {
 	txUpdate
 }
 
+type BalanceStatusUpdate struct {
+	Description *string
+	Date        *time.Time
+	Amount      *float64
+	AccountID   *uint
+
+	txUpdate
+}
+
 // TODO: there is nothing preventing an income category to be tagged with an expense entry
 
 func (store *Store) UpdateTransaction(ctx context.Context, input TransactionUpdate, Id uint) error {
@@ -1290,6 +1364,8 @@ func (store *Store) UpdateTransaction(ctx context.Context, input TransactionUpda
 		return store.UpdateStockGrant(ctx, item, Id)
 	case StockTransferUpdate:
 		return store.UpdateStockTransfer(ctx, item, Id)
+	case BalanceStatusUpdate:
+		return store.UpdateBalanceStatus(ctx, item, Id)
 	default:
 		return errors.New("invalid baseTx type")
 	}
@@ -1321,6 +1397,19 @@ func (store *Store) UpdateExpense(ctx context.Context, input ExpenseUpdate, id u
 		expectedCategoryType: ExpenseCategory,
 		txType:               ExpenseTransaction,
 		entryType:            expenseEntry,
+	}
+	return store.updateIncomeExpense(ctx, params, id)
+}
+
+func (store *Store) UpdateBalanceStatus(ctx context.Context, input BalanceStatusUpdate, id uint) error {
+	params := updateIncomeExpenseParams{
+		description:      input.Description,
+		date:             input.Date,
+		amount:           input.Amount,
+		accountID:        input.AccountID,
+		amountMultiplier: 1,
+		txType:           BalanceStatusTransaction,
+		entryType:        balanceStatusEntry,
 	}
 	return store.updateIncomeExpense(ctx, params, id)
 }
@@ -2207,7 +2296,10 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
         CAST(MAX(CASE WHEN db_trades.trade_type = 4 THEN db_trades.account_id END) AS INTEGER) AS trade_transfer_source_id,
         CAST(MAX(CASE WHEN db_trades.trade_type = 5 THEN db_trades.account_id END) AS INTEGER) AS trade_transfer_target_id,
         CAST(MAX(CASE WHEN db_trades.trade_type IN (4, 5) THEN db_trades.instrument_id END) AS INTEGER) AS trade_transfer_instrument_id,
-        CAST(MAX(CASE WHEN db_trades.trade_type IN (4, 5) THEN db_trades.quantity END) AS REAL) AS trade_transfer_quantity
+        CAST(MAX(CASE WHEN db_trades.trade_type IN (4, 5) THEN db_trades.quantity END) AS REAL) AS trade_transfer_quantity,
+
+        -- balance status
+        CAST(SUM(CASE WHEN db_entries.entry_type = 12 THEN db_entries.amount ELSE 0 END) AS REAL) AS balance_status_amount
     `).
 		Joins("LEFT JOIN db_entries ON db_entries.transaction_id = db_transactions.id").
 		Joins("LEFT JOIN db_trades ON db_trades.transaction_id = db_transactions.id")
@@ -2249,7 +2341,11 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 	}
 	offset := (opts.Page - 1) * opts.Limit
 
-	db = db.Order("db_transactions.date DESC").Limit(opts.Limit).Offset(offset)
+	// Balance-status entries represent "end-of-day stated balance", so they
+	// must sort as the last entry of their day.  In the DESC display order
+	// that means they come FIRST within the same date (sort-key 0 < 1).
+	db = db.Order("db_transactions.date DESC, CASE WHEN db_transactions.type = 9 THEN 0 ELSE 1 END, db_transactions.id DESC").
+		Limit(opts.Limit).Offset(offset)
 
 	//debugtarget := []map[string]any{} // left for debugging
 	type intermediate struct {
@@ -2290,6 +2386,8 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 		TradeTransferTargetId     uint
 		TradeTransferInstrumentId uint
 		TradeTransferQuantity     float64
+
+		BalanceStatusAmount float64
 	}
 
 	var target []intermediate
@@ -2391,6 +2489,14 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 				InstrumentID:    item.TradeTransferInstrumentId,
 				Quantity:        item.TradeTransferQuantity,
 			})
+		case BalanceStatusTransaction:
+			txs = append(txs, BalanceStatus{
+				Id:          item.TransactionId,
+				Description: item.Description,
+				Date:        item.Date,
+				Amount:      item.BalanceStatusAmount,
+				AccountID:   item.AccountId,
+			})
 		default:
 			tx := EmptyTransaction{}
 			txs = append(txs, tx)
@@ -2436,7 +2542,7 @@ func (store *Store) PriorPageBalance(ctx context.Context, opts ListOpts, account
 	}
 
 	subQ = subQ.Group("db_transactions.id").
-		Order("db_transactions.date DESC").
+		Order("db_transactions.date DESC, CASE WHEN db_transactions.type = 9 THEN 0 ELSE 1 END, db_transactions.id DESC").
 		Limit(-1).
 		Offset(priorOffset)
 

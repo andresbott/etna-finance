@@ -108,7 +108,8 @@ const getRowClass = (data) => ({
     'stockbuy-row': data.type === 'stockbuy',
     'stocksell-row': data.type === 'stocksell',
     'stockgrant-row': data.type === 'stockgrant',
-    'stocktransfer-row': data.type === 'stocktransfer'
+    'stocktransfer-row': data.type === 'stocktransfer',
+    'balancestatus-row': data.type === 'balancestatus'
 })
 
 /* --- Event Handlers --- */
@@ -273,6 +274,9 @@ const handlePage = (event) => {
                                     style="font-size: 0.9rem; margin: 0 8px"
                                 />{{ getAccountName(data.targetAccountId) }}
                             </span>
+                            <span v-else-if="data.type === 'balancestatus'">
+                                {{ getAccountName(data.accountId) }}
+                            </span>
                             <span v-else>
                                 {{ getAccountName(data.accountId) }}
                             </span>
@@ -355,6 +359,10 @@ const handlePage = (event) => {
                         </div>
                         <div v-else-if="data.type === 'stocktransfer'" class="amount">
                             {{ data.quantity }} (transfer)
+                        </div>
+                        <div v-else-if="data.type === 'balancestatus'" class="amount balance-status">
+                            {{ (data.Amount ?? 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                            {{ getAccountCurrency(data.accountId) }}
                         </div>
                         <div v-else class="amount">
                             {{

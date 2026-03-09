@@ -1,17 +1,17 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
 import Select from 'primevue/select'
 import IncomeExpenseDialog from '@/views/entries/dialogs/IncomeExpenseDialog.vue'
 import BuySellInstrumentDialog from '@/views/entries/dialogs/BuySellInstrumentDialog.vue'
 import GrantDialog from '@/views/entries/dialogs/GrantDialog.vue'
 import TransferInstrumentDialog from '@/views/entries/dialogs/TransferInstrumentDialog.vue'
 import TransferDialog from '@/views/entries/dialogs/TransferDialog.vue'
+import BalanceStatusDialog from '@/views/entries/dialogs/BalanceStatusDialog.vue'
+import CsvUploadDialog from '@/views/csvimport/CsvUploadDialog.vue'
 import { getAllowedOperations } from '@/types/account'
 import { useSettingsStore } from '@/store/settingsStore.js'
 
 const settings = useSettingsStore()
-const router = useRouter()
 
 /* Props for pre-populating account fields */
 const props = defineProps({
@@ -46,7 +46,9 @@ const dialogs = ref({
     buyStock: false,
     sellStock: false,
     grantStock: false,
-    transferInstrument: false
+    transferInstrument: false,
+    balanceStatus: false,
+    importCsv: false
 })
 
 /* Selected value for dropdown */
@@ -55,11 +57,7 @@ const selectedOption = ref(null)
 /* Open the respective dialog when a dropdown item is selected */
 const handleSelection = (event) => {
     if (event.value) {
-        if (event.value === 'importCsv') {
-            router.push({ name: 'csv-import', params: { accountId: props.defaultAccountId } })
-        } else {
-            dialogs.value[event.value] = true
-        }
+        dialogs.value[event.value] = true
         // Reset selection after opening dialog
         setTimeout(() => {
             selectedOption.value = null
@@ -103,6 +101,11 @@ const allDropdownOptions = [
         label: 'Transfer instrument',
         value: 'transferInstrument',
         icon: 'pi pi-arrow-right-arrow-left'
+    },
+    {
+        label: 'Balance Status',
+        value: 'balanceStatus',
+        icon: 'pi pi-calculator'
     },
     {
         label: 'Import CSV',
@@ -212,12 +215,26 @@ const dropdownOptions = computed(() => {
             @update:visible="dialogs.grantStock = $event"
         />
 
+        <!-- Balance Status Dialog -->
+        <BalanceStatusDialog
+            v-model:visible="dialogs.balanceStatus"
+            :isEdit="false"
+            :account-id="defaultAccountId"
+            @update:visible="dialogs.balanceStatus = $event"
+        />
+
         <!-- Transfer instrument Dialog -->
         <TransferInstrumentDialog
             v-model:visible="dialogs.transferInstrument"
             :isEdit="false"
             :origin-account-id="defaultOriginAccountId ?? defaultAccountId"
             @update:visible="dialogs.transferInstrument = $event"
+        />
+
+        <!-- CSV Upload Dialog -->
+        <CsvUploadDialog
+            v-model:visible="dialogs.importCsv"
+            :account-id="defaultAccountId"
         />
     </div>
 </template>

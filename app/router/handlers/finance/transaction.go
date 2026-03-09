@@ -71,6 +71,7 @@ type transactionPayload struct {
 		LotID    uint    `json:"lotId"`
 		Quantity float64 `json:"quantity"`
 	} `json:"lotAllocations,omitempty"`
+
 }
 
 func (h *Handler) CreateTx() http.Handler {
@@ -158,6 +159,13 @@ func (h *Handler) CreateTx() http.Handler {
 				TargetAccountID: payload.TargetAccountID,
 				InstrumentID:    payload.InstrumentID,
 				Quantity:        payload.Quantity,
+			}
+		case accounting.BalanceStatusTransaction:
+			entry = accounting.BalanceStatus{
+				Description: payload.Description,
+				Date:        payload.Date.Time,
+				Amount:      payload.Amount,
+				AccountID:   payload.AccountId,
 			}
 		default:
 			http.Error(w, fmt.Sprintf("unknown entry type: %s", payload.Type), http.StatusBadRequest)
@@ -351,6 +359,13 @@ func (h *Handler) UpdateTx(Id uint) http.Handler {
 				SourceAccountID: payload.OriginAccountID,
 				TargetAccountID: payload.TargetAccountID,
 			}
+		case accounting.BalanceStatus:
+			entry = accounting.BalanceStatusUpdate{
+				Description: payload.Description,
+				Date:        datePtr,
+				Amount:      payload.Amount,
+				AccountID:   payload.AccountId,
+			}
 		default:
 			http.Error(w, fmt.Sprintf("unknown entry type: %T", tr), http.StatusBadRequest)
 			return
@@ -474,6 +489,15 @@ func transactionToPayload(entry accounting.Transaction) transactionPayload {
 			TargetAccountID: entry.TargetAccountID,
 			InstrumentID:    entry.InstrumentID,
 			Quantity:        entry.Quantity,
+		}
+	case accounting.BalanceStatus:
+		return transactionPayload{
+			Id:          entry.Id,
+			Description: entry.Description,
+			Date:        dateOnlyTime{Time: entry.Date},
+			Type:        balanceStatusTxStr,
+			Amount:      entry.Amount,
+			AccountId:   entry.AccountID,
 		}
 	default:
 		return transactionPayload{Type: unknownTxStr}
@@ -604,6 +628,7 @@ const (
 	stockSellTxStr     = "stocksell"
 	stockGrantTxStr    = "stockgrant"
 	stockTransferTxStr = "stocktransfer"
+	balanceStatusTxStr = "balancestatus"
 )
 
 func parseTxType(in string) accounting.TxType {
@@ -622,6 +647,8 @@ func parseTxType(in string) accounting.TxType {
 		return accounting.StockGrantTransaction
 	case stockTransferTxStr:
 		return accounting.StockTransferTransaction
+	case balanceStatusTxStr:
+		return accounting.BalanceStatusTransaction
 	default:
 		return accounting.UnknownTransaction
 	}

@@ -11,7 +11,9 @@ import EntriesTable from './EntriesTable.vue'
 
 import { useEntries } from '@/composables/useEntries.ts'
 import { getEntry } from '@/lib/api/Entry'
+import { useRouteState } from '@/composables/useRouteState'
 import IncomeExpenseDialog from '@/views/entries/dialogs/IncomeExpenseDialog.vue'
+import BalanceStatusDialog from '@/views/entries/dialogs/BalanceStatusDialog.vue'
 import AddEntryMenu from '@/views/entries/AddEntryMenu.vue'
 
 const props = defineProps({
@@ -21,15 +23,16 @@ const props = defineProps({
 
 const FINANCIAL_ENTRY_TYPES = ['transfer', 'stockbuy', 'stocksell', 'stockgrant', 'stocktransfer']
 
-/* --- Reactive State --- */
+/* --- Reactive State (synced with URL query params) --- */
 const today = new Date()
-const startDate = ref(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 35))
-const endDate = ref(new Date())
+const { startDate, endDate, page } = useRouteState({
+    startDate: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 35),
+    endDate: new Date()
+})
 
 /* --- Pagination State --- */
-const page = ref(1)
 const limit = ref(props.financialOnly ? 500 : 25)
-const first = ref(0) // First row index for DataTable
+const first = computed(() => (page.value - 1) * limit.value)
 
 const { entries, totalRecords, isLoading, isFetching, deleteEntry, isDeleting, refetch } = useEntries({
     startDate,
@@ -60,22 +63,19 @@ const paginationTotal = computed(() =>
 
 /* --- Pagination Handler --- */
 const handlePage = (event) => {
-    first.value = event.first
     limit.value = event.rows
-    if (!props.financialOnly) page.value = event.page + 1 // Server-side: API uses 1-based page
+    page.value = event.page + 1 // PrimeVue uses 0-based page, we use 1-based
 }
 
 /* --- Reset pagination when date range changes --- */
 watch([startDate, endDate], () => {
     page.value = 1
-    first.value = 0
 })
 
 watch(
     () => props.financialOnly,
     (financialOnly) => {
         limit.value = financialOnly ? 500 : 25
-        first.value = 0
         page.value = 1
     },
     { immediate: true }
@@ -98,7 +98,8 @@ const dialogs = {
     buyStock: ref(false),
     sellStock: ref(false),
     grantStock: ref(false),
-    transferInstrument: ref(false)
+    transferInstrument: ref(false),
+    balanceStatus: ref(false)
 }
 
 /* --- Entry Actions --- */
@@ -130,6 +131,8 @@ const openEditEntryDialog = async (entry) => {
         dialogs.grantStock.value = true
     } else if (entry.type === 'stocktransfer') {
         dialogs.transferInstrument.value = true
+    } else if (entry.type === 'balancestatus') {
+        dialogs.balanceStatus.value = true
     }
 }
 
@@ -152,6 +155,8 @@ const openDuplicateEntryDialog = (entry) => {
         dialogs.grantStock.value = true
     } else if (entry.type === 'stocktransfer') {
         dialogs.transferInstrument.value = true
+    } else if (entry.type === 'balancestatus') {
+        dialogs.balanceStatus.value = true
     }
 }
 
@@ -291,6 +296,16 @@ const handleDeleteEntry = async () => {
         :origin-account-id="selectedEntry?.originAccountId"
         :target-account-id="selectedEntry?.targetAccountId"
         @update:visible="dialogs.transferInstrument.value = $event"
+    />
+
+    <BalanceStatusDialog
+        v-model:visible="dialogs.balanceStatus.value"
+        :is-edit="isEditMode"
+        :entry-id="selectedEntry?.id"
+        :description="selectedEntry?.description"
+        :amount="selectedEntry?.Amount"
+        :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
+        :account-id="selectedEntry?.accountId"
     />
 
     <!-- Delete Confirmation Dialog -->

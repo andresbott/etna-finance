@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 
@@ -170,6 +170,24 @@ const handleImport = async () => {
         isSubmitting.value = false
     }
 }
+
+/* --- Load parsed rows from router state if available --- */
+onMounted(() => {
+    const state = history.state
+    if (state?.parsedRows) {
+        try {
+            const rows = JSON.parse(state.parsedRows)
+            parsedRows.value = rows
+            const checked = {}
+            for (const row of rows) {
+                checked[row.rowNumber] = !row.isDuplicate && !row.error
+            }
+            checkedRows.value = checked
+        } catch (_) {
+            // Ignore invalid state
+        }
+    }
+})
 
 /* --- Cancel --- */
 const handleCancel = () => {

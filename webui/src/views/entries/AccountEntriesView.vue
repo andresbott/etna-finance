@@ -12,7 +12,9 @@ import AccountEntriesTable from './AccountEntriesTable.vue'
 
 import { useEntries } from '@/composables/useEntries.ts'
 import { getEntry } from '@/lib/api/Entry'
+import { useRouteState } from '@/composables/useRouteState'
 import IncomeExpenseDialog from '@/views/entries/dialogs/IncomeExpenseDialog.vue'
+import BalanceStatusDialog from '@/views/entries/dialogs/BalanceStatusDialog.vue'
 import AddEntryMenu from '@/views/entries/AddEntryMenu.vue'
 import { useAccounts } from '@/composables/useAccounts'
 import { useBalance } from '@/composables/useGetBalanceReport'
@@ -21,18 +23,19 @@ import { useBalance } from '@/composables/useGetBalanceReport'
 const route = useRoute()
 const accountId = computed(() => route.params.id)
 
-/* --- Reactive State --- */
+/* --- Reactive State (synced with URL query params) --- */
 const today = new Date()
-const startDate = ref(new Date(today.setDate(today.getDate() - 35)))
-const endDate = ref(new Date())
+const { startDate, endDate, page } = useRouteState({
+    startDate: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 35),
+    endDate: new Date()
+})
 
 // Create accountIds array for the API query - filters entries server-side
 const accountIds = computed(() => accountId.value ? [String(accountId.value)] : [])
 
 /* --- Pagination State --- */
-const page = ref(1)
 const limit = ref(25)
-const first = ref(0) // First row index for DataTable
+const first = computed(() => (page.value - 1) * limit.value)
 
 const { entries: fetchedEntries, totalRecords, priorBalance, isLoading, isFetching, deleteEntry, isDeleting, refetch } = useEntries({
     startDate,
@@ -51,13 +54,11 @@ const paginationTotal = computed(() => (totalRecords.value || 0) + 1) // +1 for 
 const handlePage = (event) => {
     page.value = event.page + 1 // PrimeVue uses 0-based page, API uses 1-based
     limit.value = event.rows
-    first.value = event.first
 }
 
 /* --- Reset pagination when date range or account changes --- */
 watch([startDate, endDate, accountId], () => {
     page.value = 1
-    first.value = 0
 })
 
 /* --- Accounts --- */
@@ -167,7 +168,8 @@ const dialogs = {
     buyStock: ref(false),
     sellStock: ref(false),
     grantStock: ref(false),
-    transferInstrument: ref(false)
+    transferInstrument: ref(false),
+    balanceStatus: ref(false)
 }
 
 /* --- Entry Actions --- */
@@ -199,6 +201,8 @@ const openEditEntryDialog = async (entry) => {
         dialogs.grantStock.value = true
     } else if (entry.type === 'stocktransfer') {
         dialogs.transferInstrument.value = true
+    } else if (entry.type === 'balancestatus') {
+        dialogs.balanceStatus.value = true
     }
 }
 
@@ -221,6 +225,8 @@ const openDuplicateEntryDialog = (entry) => {
         dialogs.grantStock.value = true
     } else if (entry.type === 'stocktransfer') {
         dialogs.transferInstrument.value = true
+    } else if (entry.type === 'balancestatus') {
+        dialogs.balanceStatus.value = true
     }
 }
 
@@ -370,6 +376,16 @@ const handleDeleteEntry = async () => {
         :origin-account-id="selectedEntry?.originAccountId"
         :target-account-id="selectedEntry?.targetAccountId"
         @update:visible="dialogs.transferInstrument.value = $event"
+    />
+
+    <BalanceStatusDialog
+        v-model:visible="dialogs.balanceStatus.value"
+        :is-edit="isEditMode"
+        :entry-id="selectedEntry?.id"
+        :description="selectedEntry?.description"
+        :amount="selectedEntry?.Amount"
+        :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
+        :account-id="selectedEntry?.accountId"
     />
 
     <!-- Delete Confirmation Dialog -->

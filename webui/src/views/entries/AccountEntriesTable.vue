@@ -79,7 +79,8 @@ const getRowClass = (data) => ({
     'stocksell-row': data.type === 'stocksell',
     'stockgrant-row': data.type === 'stockgrant',
     'stocktransfer-row': data.type === 'stocktransfer',
-    'opening-balance-row': data.type === 'opening-balance'
+    'opening-balance-row': data.type === 'opening-balance',
+    'balancestatus-row': data.type === 'balancestatus'
 })
 
 /* --- Event Handlers --- */
@@ -108,6 +109,7 @@ const entriesWithBalance = computed(() => {
     const result = entriesReversed.map((entry) => {
         let entryAmount = 0
         if (entry.type === 'opening-balance') entryAmount = 0
+        else if (entry.type === 'balancestatus') entryAmount = 0
         else if (entry.type === 'expense') entryAmount = -(entry.Amount || 0)
         else if (entry.type === 'income') entryAmount = entry.Amount || 0
         else if (entry.type === 'transfer') {
@@ -243,6 +245,10 @@ const tableEntries = computed(() =>
                                     <template v-else-if="String(data.targetAccountId) === String(accountId)">+{{ data.quantity }}</template>
                                     <template v-else>—</template>
                                 </template>
+                            </div>
+                            <div v-else-if="data.type === 'balancestatus'" class="amount balance-status">
+                                {{ formatAmount(data.Amount) }}
+                                {{ getAccountCurrency(data.accountId) }}
                             </div>
                             <div v-else class="amount">
                                 {{ (data.totalAmount ?? data.targetAmount ?? 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
