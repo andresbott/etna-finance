@@ -202,6 +202,7 @@ const (
 	SavingsAccountType                // where you save money and get dividends
 	InvestmentAccountType             // stocks and others (vested)
 	UnvestedAccountType               // not yet accessible (e.g. unvested RSUs); can transfer to Investment
+	LentAccountType                   // money lent to others; owned but not in any account
 )
 
 func (t AccountType) String() string {
@@ -216,6 +217,8 @@ func (t AccountType) String() string {
 		return "Investment"
 	case UnvestedAccountType:
 		return "Unvested"
+	case LentAccountType:
+		return "Lent"
 	default:
 		return "Unknown"
 	}
@@ -224,7 +227,7 @@ func (t AccountType) String() string {
 // RequiresCurrency returns true for account types that require a currency (all except Unknown).
 func (t AccountType) RequiresCurrency() bool {
 	switch t {
-	case CashAccountType, CheckinAccountType, SavingsAccountType, InvestmentAccountType, UnvestedAccountType:
+	case CashAccountType, CheckinAccountType, SavingsAccountType, InvestmentAccountType, UnvestedAccountType, LentAccountType:
 		return true
 	default:
 		return false

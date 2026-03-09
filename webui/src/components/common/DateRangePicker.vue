@@ -98,6 +98,12 @@ const setPreviousYear = () => {
     localEndDate.value = new Date(previousYear, 11, 31) // December 31st
 }
 
+const setLast10Years = () => {
+    const now = new Date()
+    localStartDate.value = new Date(now.getFullYear() - 10, now.getMonth(), now.getDate())
+    localEndDate.value = now
+}
+
 const now = new Date()
 const currentYear = now.getFullYear()
 const currentMonthName = now.toLocaleString('en-US', { month: 'long' })
@@ -109,7 +115,8 @@ const quickSelectOptions = ref([
     { label: `Previous Month (${previousMonthName})`, value: 'previous-month' },
     { label: `Current Month (${currentMonthName})`, value: 'current-month' },
     { label: `Previous Year (${currentYear - 1})`, value: 'previous-year' },
-    { label: `Current Year (${currentYear})`, value: 'current-year' }
+    { label: `Current Year (${currentYear})`, value: 'current-year' },
+    { label: 'Last 10 Years', value: 'last-10-years' }
 ])
 
 const effectiveDateFormat = computed(() => props.dateFormat ?? pickerDateFormat.value)
@@ -127,6 +134,8 @@ watch(selectedQuickOption, (newValue) => {
         setPreviousMonth()
     } else if (newValue === 'previous-year') {
         setPreviousYear()
+    } else if (newValue === 'last-10-years') {
+        setLast10Years()
     }
     
     // Reset selection after applying
@@ -164,6 +173,7 @@ watch(selectedQuickOption, (newValue) => {
             optionLabel="label"
             optionValue="value"
             placeholder="Quick Select"
+            scrollHeight="22rem"
             class="quick-select"
         />
     </div>

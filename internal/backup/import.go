@@ -156,6 +156,8 @@ func parseAccountType(in string) accounting.AccountType {
 		return accounting.InvestmentAccountType
 	case "Unvested":
 		return accounting.UnvestedAccountType
+	case "Lent":
+		return accounting.LentAccountType
 	default:
 		return accounting.UnknownAccountType
 	}

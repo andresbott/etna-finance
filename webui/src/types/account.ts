@@ -38,6 +38,7 @@ export const ACCOUNT_TYPES = {
     SAVINGS: 'savings',
     INVESTMENT: 'investment',
     UNVESTED: 'unvested', // not yet accessible (e.g. unvested RSUs); can transfer to Investment
+    LENT: 'lent', // money lent to others; owned but not in any account
 } as const
 
 export type AccountType = typeof ACCOUNT_TYPES[keyof typeof ACCOUNT_TYPES]
@@ -51,6 +52,7 @@ export const ACCOUNT_TYPE_ICONS: Record<AccountType, string> = {
     [ACCOUNT_TYPES.SAVINGS]: 'pi-box',
     [ACCOUNT_TYPES.INVESTMENT]: 'pi-chart-line',
     [ACCOUNT_TYPES.UNVESTED]: 'pi-gift',
+    [ACCOUNT_TYPES.LENT]: 'pi-send',
 }
 
 /**
@@ -62,6 +64,7 @@ export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
     [ACCOUNT_TYPES.SAVINGS]: 'Savings',
     [ACCOUNT_TYPES.INVESTMENT]: 'Investment',
     [ACCOUNT_TYPES.UNVESTED]: 'Unvested products',
+    [ACCOUNT_TYPES.LENT]: 'Lent money',
 }
 
 /**
@@ -91,6 +94,7 @@ export const ENTRY_OPERATIONS = {
     SELL_STOCK: 'sellStock',
     GRANT_STOCK: 'grantStock',
     TRANSFER_INSTRUMENT: 'transferInstrument',
+    BALANCE_STATUS: 'balanceStatus',
     IMPORT_CSV: 'importCsv',
 } as const
 
@@ -110,18 +114,21 @@ export const ALLOWED_OPERATIONS_BY_ACCOUNT_TYPE: Record<AccountType, EntryOperat
         ENTRY_OPERATIONS.INCOME,
         ENTRY_OPERATIONS.EXPENSE,
         ENTRY_OPERATIONS.TRANSFER,
+        ENTRY_OPERATIONS.BALANCE_STATUS,
         ENTRY_OPERATIONS.IMPORT_CSV,
     ],
     [ACCOUNT_TYPES.CHECKING]: [
         ENTRY_OPERATIONS.INCOME,
         ENTRY_OPERATIONS.EXPENSE,
         ENTRY_OPERATIONS.TRANSFER,
+        ENTRY_OPERATIONS.BALANCE_STATUS,
         ENTRY_OPERATIONS.IMPORT_CSV,
     ],
     [ACCOUNT_TYPES.SAVINGS]: [
         ENTRY_OPERATIONS.INCOME,
         ENTRY_OPERATIONS.EXPENSE,
         ENTRY_OPERATIONS.TRANSFER,
+        ENTRY_OPERATIONS.BALANCE_STATUS,
         ENTRY_OPERATIONS.IMPORT_CSV,
     ],
     [ACCOUNT_TYPES.INVESTMENT]: [
@@ -135,6 +142,13 @@ export const ALLOWED_OPERATIONS_BY_ACCOUNT_TYPE: Record<AccountType, EntryOperat
         ENTRY_OPERATIONS.SELL_STOCK,
         ENTRY_OPERATIONS.GRANT_STOCK,
         ENTRY_OPERATIONS.TRANSFER_INSTRUMENT,
+    ],
+    [ACCOUNT_TYPES.LENT]: [
+        ENTRY_OPERATIONS.INCOME,
+        ENTRY_OPERATIONS.EXPENSE,
+        ENTRY_OPERATIONS.TRANSFER,
+        ENTRY_OPERATIONS.BALANCE_STATUS,
+        ENTRY_OPERATIONS.IMPORT_CSV,
     ],
 }
 

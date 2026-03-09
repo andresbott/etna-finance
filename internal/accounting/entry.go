@@ -21,6 +21,7 @@ const (
 	stockGrantEntry   // position increase without cash (vest, gift, grant, etc.)
 	stockTransferOutEntry
 	stockTransferInEntry
+	balanceStatusEntry
 )
 
 type dbEntry struct {
