@@ -38,6 +38,7 @@ type AppSettings struct {
 	MainCurrency         string
 	AdditionalCurrencies []string // currencies to track; main currency is implicit, do not repeat
 	Instruments          bool
+	MaxAttachmentSizeMB  float64 // max upload size in MB; 0 = default (10 MB)
 }
 
 // AllCurrencies returns MainCurrency plus AdditionalCurrencies (main is implicit, not repeated in config).

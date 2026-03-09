@@ -304,6 +304,7 @@ const handleDeleteEntry = async () => {
         :entry-id="selectedEntry?.id"
         :category-id="selectedEntry?.categoryId"
         :autofocus-amount="isDuplicateMode"
+        :attachment-id="selectedEntry?.attachmentId"
     />
 
     <TransferDialog
@@ -319,6 +320,7 @@ const handleDeleteEntry = async () => {
         :target-account-id="selectedEntry?.targetAccountId"
         :origin-account-id="selectedEntry?.originAccountId"
         :autofocus-amount="isDuplicateMode"
+        :attachment-id="selectedEntry?.attachmentId"
     />
 
     <BuySellInstrumentDialog
@@ -386,6 +388,7 @@ const handleDeleteEntry = async () => {
         :amount="selectedEntry?.Amount"
         :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
         :account-id="selectedEntry?.accountId"
+        :attachment-id="selectedEntry?.attachmentId"
     />
 
     <!-- Delete Confirmation Dialog -->

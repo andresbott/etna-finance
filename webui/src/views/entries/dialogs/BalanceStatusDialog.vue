@@ -5,6 +5,7 @@ import Button from 'primevue/button'
 import { Form } from '@primevue/forms'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
+import { useQueryClient } from '@tanstack/vue-query'
 import { useEntries } from '@/composables/useEntries.ts'
 import {
     getFormattedAccountId,
@@ -22,7 +23,10 @@ import DatePicker from 'primevue/datepicker'
 import { useDateFormat } from '@/composables/useDateFormat'
 import { accountValidation } from '@/utils/entryValidation'
 import { getApiErrorMessage } from '@/utils/apiError'
+import { uploadAttachment, deleteAttachment, getAttachmentUrl } from '@/lib/api/Attachment'
+import FileInput from '@/components/common/FileInput.vue'
 
+const queryClient = useQueryClient()
 const { createEntry, updateEntry, isCreating, isUpdating } = useEntries({})
 const backendError = ref('')
 const { pickerDateFormat, dateValidation } = useDateFormat()
@@ -34,8 +38,13 @@ const props = defineProps({
     amount: { type: Number, default: 0 },
     date: { type: Date, default: () => new Date() },
     accountId: { type: Number, default: null },
-    visible: { type: Boolean, default: false }
+    visible: { type: Boolean, default: false },
+    attachmentId: { type: Number, default: null }
 })
+
+const selectedFile = ref(null)
+const existingAttachmentId = ref(null)
+const attachmentPendingDelete = ref(false)
 
 const formValues = ref({
     description: props.description,
@@ -53,6 +62,9 @@ watch(props, (newProps) => {
         AccountId: getFormattedAccountId(newProps.accountId),
         date: getDateOnly(newProps.date)
     }
+    existingAttachmentId.value = newProps.attachmentId || null
+    selectedFile.value = null
+    attachmentPendingDelete.value = false
     formKey.value++
 })
 
@@ -91,17 +103,40 @@ const handleSubmit = async (e) => {
     }
 
     backendError.value = ''
+
+    const shouldDeleteAttachment = attachmentPendingDelete.value && !!existingAttachmentId.value
+    const fileToUpload = selectedFile.value
+
     try {
+        let result
         if (props.isEdit) {
-            await updateEntry({ id: props.entryId, ...entryData })
+            result = await updateEntry({ id: props.entryId, ...entryData })
         } else {
-            await createEntry(entryData)
+            result = await createEntry(entryData)
         }
+
+        const savedId = props.isEdit ? props.entryId : result.id
+
+        let attachmentChanged = false
+        if (shouldDeleteAttachment) {
+            try { await deleteAttachment(savedId); attachmentChanged = true } catch (e) { console.error('Failed to delete attachment:', e) }
+        }
+        if (fileToUpload) {
+            try { await uploadAttachment(savedId, fileToUpload); attachmentChanged = true } catch (e) { console.error('Failed to upload attachment:', e) }
+        }
+        if (attachmentChanged) {
+            queryClient.invalidateQueries({ queryKey: ['entries'] })
+        }
+
         emit('update:visible', false)
     } catch (error) {
         backendError.value = getApiErrorMessage(error)
         console.error(`Failed to ${props.isEdit ? 'update' : 'create'} balance status:`, error)
     }
+}
+
+const viewAttachment = () => {
+    window.open(getAttachmentUrl(props.entryId), '_blank')
 }
 
 // Define the emit for updating visibility
@@ -183,6 +218,36 @@ const emit = defineEmits(['update:visible'])
                     <Message v-if="$form.AccountId?.invalid" severity="error" size="small">
                         {{ $form.AccountId.error?.message }}
                     </Message>
+                </div>
+
+                <div>
+                    <label class="form-label">Attachment</label>
+                    <div v-if="existingAttachmentId && !attachmentPendingDelete && !selectedFile" class="flex align-items-center gap-2">
+                        <Button
+                            icon="pi pi-paperclip"
+                            label="View attachment"
+                            text
+                            size="small"
+                            @click="viewAttachment"
+                        />
+                        <Button
+                            icon="pi pi-trash"
+                            text
+                            rounded
+                            severity="danger"
+                            size="small"
+                            @click="attachmentPendingDelete = true"
+                            v-tooltip.bottom="'Remove attachment'"
+                        />
+                    </div>
+                    <div v-else>
+                        <FileInput
+                            v-model="selectedFile"
+                            accept=".jpg,.jpeg,.png,.webp,.pdf"
+                            label="Choose file"
+                            icon="pi pi-paperclip"
+                        />
+                    </div>
                 </div>
 
                 <div class="flex justify-content-end gap-3">

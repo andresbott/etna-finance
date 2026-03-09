@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/andresbott/etna/internal/accounting"
+	"github.com/andresbott/etna/internal/filestore"
 	"github.com/andresbott/etna/internal/marketdata"
 
 	"golang.org/x/text/currency"
@@ -17,6 +18,7 @@ import (
 type Handler struct {
 	Store           *accounting.Store
 	InstrumentStore *marketdata.Store
+	FileStore       *filestore.Store
 }
 
 type accountProviderPayload struct {

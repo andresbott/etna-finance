@@ -6,6 +6,7 @@ export interface Entry {
     accountId: string
     categoryId?: number
     notes?: string
+    attachmentId?: number | null
 }
 
 export interface CreateEntryDTO {

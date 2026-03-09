@@ -41,6 +41,7 @@ Settings:
   MainCurrency:         "CHF"         # main currency is implicit; do not repeat in AdditionalCurrencies
   AdditionalCurrencies: []             # extra currencies to track, e.g. ["USD", "EUR"]
   Instruments:          false
+  # MaxAttachmentSizeMB: 10   # max file upload size in MB; 0 or omitted = default (10 MB)
   # Alternatives:
   # DateFormat: "DD/MM/YYYY"
   # AdditionalCurrencies: ["USD", "EUR"]

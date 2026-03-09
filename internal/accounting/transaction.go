@@ -36,8 +36,9 @@ type dbTransaction struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	DeletedAt   gorm.DeletedAt `gorm:"index"`
-	Entries     []dbEntry      `gorm:"foreignKey:TransactionID"` // One-to-many relationship
-	Trades      []dbTrade      `gorm:"foreignKey:TransactionID"` // One-to-many for stock operations
+	AttachmentID *uint
+	Entries      []dbEntry `gorm:"foreignKey:TransactionID"` // One-to-many relationship
+	Trades       []dbTrade `gorm:"foreignKey:TransactionID"` // One-to-many for stock operations
 }
 
 type Transaction interface {
@@ -53,23 +54,25 @@ type EmptyTransaction struct {
 }
 
 type Income struct {
-	Id          uint
-	Description string
-	Amount      float64
-	AccountID   uint
-	CategoryID  uint
-	Date        time.Time
+	Id           uint
+	Description  string
+	Amount       float64
+	AccountID    uint
+	CategoryID   uint
+	Date         time.Time
+	AttachmentID *uint
 
 	baseTx
 }
 
 type Expense struct {
-	Id          uint
-	Description string
-	Amount      float64
-	AccountID   uint
-	CategoryID  uint
-	Date        time.Time
+	Id           uint
+	Description  string
+	Amount       float64
+	AccountID    uint
+	CategoryID   uint
+	Date         time.Time
+	AttachmentID *uint
 
 	baseTx
 }
@@ -82,6 +85,7 @@ type Transfer struct {
 	TargetAmount    float64
 	TargetAccountID uint
 	Date            time.Time
+	AttachmentID    *uint
 
 	baseTx
 }
@@ -99,6 +103,7 @@ type StockBuy struct {
 	Quantity            float64
 	TotalAmount         float64 // total cash spent (positive), in cash account currency
 	StockAmount         float64 // monetary value of shares (positive), in investment account / instrument currency
+	AttachmentID        *uint
 	baseTx
 }
 
@@ -118,6 +123,7 @@ type StockSell struct {
 	CostBasis           float64  // allocated cost from replay (computed)
 	RealizedGainLoss    float64  // P&L = totalAmount - costBasis - fees (computed)
 	LotSelections       []LotSelection // nil/empty → FIFO; non-nil → manual allocation
+	AttachmentID        *uint
 	baseTx
 }
 
@@ -132,6 +138,7 @@ type StockGrant struct {
 	InstrumentID    uint
 	Quantity        float64
 	FairMarketValue float64 // per-share FMV at grant/vest; 0 if omitted (cost basis = 0 for those shares)
+	AttachmentID    *uint
 	baseTx
 }
 
@@ -144,17 +151,19 @@ type StockTransfer struct {
 	TargetAccountID uint // Investment or Unvested
 	InstrumentID    uint
 	Quantity        float64
+	AttachmentID    *uint
 	baseTx
 }
 
 // BalanceStatus records the real bank statement balance at a point in time.
 // It does NOT affect the running balance calculation.
 type BalanceStatus struct {
-	Id          uint
-	Description string
-	Amount      float64
-	AccountID   uint
-	Date        time.Time
+	Id           uint
+	Description  string
+	Amount       float64
+	AccountID    uint
+	Date         time.Time
+	AttachmentID *uint
 	baseTx
 }
 
@@ -998,31 +1007,34 @@ func publicTransactions(in dbTransaction) (Transaction, error) {
 
 func incomeFromDb(in dbTransaction) (Transaction, error) {
 	return Income{
-		Description: in.Description,
-		Date:        in.Date,
-		Amount:      in.Entries[0].Amount,
-		AccountID:   in.Entries[0].AccountID,
-		CategoryID:  in.Entries[0].CategoryID,
+		Description:  in.Description,
+		Date:         in.Date,
+		Amount:       in.Entries[0].Amount,
+		AccountID:    in.Entries[0].AccountID,
+		CategoryID:   in.Entries[0].CategoryID,
+		AttachmentID: in.AttachmentID,
 	}, nil
 }
 
 func balanceStatusFromDb(in dbTransaction) (Transaction, error) {
 	return BalanceStatus{
-		Id:          in.Id,
-		Description: in.Description,
-		Date:        in.Date,
-		Amount:      in.Entries[0].Amount,
-		AccountID:   in.Entries[0].AccountID,
+		Id:           in.Id,
+		Description:  in.Description,
+		Date:         in.Date,
+		Amount:       in.Entries[0].Amount,
+		AccountID:    in.Entries[0].AccountID,
+		AttachmentID: in.AttachmentID,
 	}, nil
 }
 
 func expenseFromDb(in dbTransaction) (Transaction, error) {
 	return Expense{
-		Description: in.Description,
-		Date:        in.Date,
-		Amount:      -in.Entries[0].Amount,
-		AccountID:   in.Entries[0].AccountID,
-		CategoryID:  in.Entries[0].CategoryID,
+		Description:  in.Description,
+		Date:         in.Date,
+		Amount:       -in.Entries[0].Amount,
+		AccountID:    in.Entries[0].AccountID,
+		CategoryID:   in.Entries[0].CategoryID,
+		AttachmentID: in.AttachmentID,
 	}, nil
 }
 
@@ -1045,6 +1057,7 @@ func transferFromDb(in dbTransaction) (Transaction, error) {
 		TargetAmount:    inEntity.Amount,
 		TargetAccountID: inEntity.AccountID,
 		Date:            in.Date,
+		AttachmentID:    in.AttachmentID,
 	}, nil
 }
 
@@ -1080,6 +1093,7 @@ func stockBuyFromDb(in dbTransaction) (Transaction, error) {
 		Quantity:            trade.Quantity,
 		TotalAmount:         -cashEntry.Amount,
 		StockAmount:         trade.TotalAmount,
+		AttachmentID:        in.AttachmentID,
 	}, nil
 }
 
@@ -1155,6 +1169,7 @@ func stockSellFromDb(in dbTransaction) (Transaction, error) {
 		CostBasis:           costBasis,
 		RealizedGainLoss:    realizedGainLoss,
 		Fees:                fees,
+		AttachmentID:        in.AttachmentID,
 	}, nil
 }
 
@@ -1177,6 +1192,7 @@ func stockGrantFromDb(in dbTransaction) (Transaction, error) {
 		InstrumentID:    trade.InstrumentID,
 		Quantity:        trade.Quantity,
 		FairMarketValue: trade.PricePerShare,
+		AttachmentID:    in.AttachmentID,
 	}, nil
 }
 
@@ -1202,6 +1218,7 @@ func stockTransferFromDb(in dbTransaction) (Transaction, error) {
 		TargetAccountID: inTrade.AccountID,
 		InstrumentID:    outTrade.InstrumentID,
 		Quantity:        outTrade.Quantity,
+		AttachmentID:    in.AttachmentID,
 	}, nil
 }
 
@@ -1231,6 +1248,22 @@ func (store *Store) DeleteTransaction(ctx context.Context, Id uint) error {
 		}
 		return nil
 	})
+}
+
+// SetAttachmentID sets or clears the attachment ID on a transaction.
+// Pass nil to detach (clear) the attachment.
+func (store *Store) SetAttachmentID(ctx context.Context, txId uint, attachmentID *uint) error {
+	result := store.db.WithContext(ctx).
+		Model(&dbTransaction{}).
+		Where("id = ?", txId).
+		Update("attachment_id", attachmentID)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrTransactionNotFound
+	}
+	return nil
 }
 
 type TransactionUpdate interface {
@@ -2238,6 +2271,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
         db_transactions.date,
         db_transactions.description,
         db_transactions.type,
+        db_transactions.attachment_id,
 		COALESCE(MAX(db_entries.category_id), 0) AS category_id,
 		COALESCE(MAX(db_entries.account_id), 0) AS account_id,
 
@@ -2334,6 +2368,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 		Description   string
 		Type          TxType
 		TransactionId uint
+		AttachmentID  *uint
 
 		CategoryId       uint
 		AccountId        uint
@@ -2389,22 +2424,24 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 		switch item.Type {
 		case IncomeTransaction:
 			tx := Income{
-				Id:          item.TransactionId,
-				Description: item.Description,
-				Amount:      item.IncomeAmount,
-				AccountID:   item.IncomeAccountId,
-				CategoryID:  item.CategoryId,
-				Date:        item.Date,
+				Id:           item.TransactionId,
+				Description:  item.Description,
+				Amount:       item.IncomeAmount,
+				AccountID:    item.IncomeAccountId,
+				CategoryID:   item.CategoryId,
+				Date:         item.Date,
+				AttachmentID: item.AttachmentID,
 			}
 			txs = append(txs, tx)
 		case ExpenseTransaction:
 			tx := Expense{
-				Id:          item.TransactionId,
-				Description: item.Description,
-				Amount:      -item.ExpenseAmount,
-				AccountID:   item.ExpenseAccountId,
-				CategoryID:  item.CategoryId,
-				Date:        item.Date,
+				Id:           item.TransactionId,
+				Description:  item.Description,
+				Amount:       -item.ExpenseAmount,
+				AccountID:    item.ExpenseAccountId,
+				CategoryID:   item.CategoryId,
+				Date:         item.Date,
+				AttachmentID: item.AttachmentID,
 			}
 			txs = append(txs, tx)
 		case TransferTransaction:
@@ -2416,6 +2453,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 				OriginAccountID: item.OriginAccountId,
 				TargetAmount:    item.TargetAmount,
 				TargetAccountID: item.TargetAccountId,
+				AttachmentID:    item.AttachmentID,
 			}
 			txs = append(txs, tx)
 		case StockBuyTransaction:
@@ -2433,6 +2471,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 				Quantity:            item.TradeBuyQuantity,
 				TotalAmount:         totalAmount,
 				StockAmount:         item.TradeBuyAmount,
+				AttachmentID:        item.AttachmentID,
 			})
 		case StockSellTransaction:
 			realizedGainLoss := item.IncomeAmount - item.ExpenseAmount
@@ -2449,6 +2488,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 				TotalAmount:         item.TradeSellAmount,
 				CostBasis:           costBasis,
 				RealizedGainLoss:    realizedGainLoss,
+				AttachmentID:        item.AttachmentID,
 			})
 		case StockGrantTransaction:
 			txs = append(txs, StockGrant{
@@ -2459,6 +2499,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 				InstrumentID:    item.TradeGrantInstrumentId,
 				Quantity:        item.TradeGrantQuantity,
 				FairMarketValue: item.TradeGrantFmv,
+				AttachmentID:    item.AttachmentID,
 			})
 		case StockTransferTransaction:
 			txs = append(txs, StockTransfer{
@@ -2469,14 +2510,16 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 				TargetAccountID: item.TradeTransferTargetId,
 				InstrumentID:    item.TradeTransferInstrumentId,
 				Quantity:        item.TradeTransferQuantity,
+				AttachmentID:    item.AttachmentID,
 			})
 		case BalanceStatusTransaction:
 			txs = append(txs, BalanceStatus{
-				Id:          item.TransactionId,
-				Description: item.Description,
-				Date:        item.Date,
-				Amount:      item.BalanceStatusAmount,
-				AccountID:   item.AccountId,
+				Id:           item.TransactionId,
+				Description:  item.Description,
+				Date:         item.Date,
+				Amount:       item.BalanceStatusAmount,
+				AccountID:    item.AccountId,
+				AttachmentID: item.AttachmentID,
 			})
 		default:
 			tx := EmptyTransaction{}

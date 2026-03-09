@@ -9,6 +9,7 @@ import { useAccountUtils } from '@/utils/accountUtils'
 import { useInstruments } from '@/composables/useInstruments'
 import { useDateFormat } from '@/composables/useDateFormat'
 import { ACCOUNT_TYPES } from '@/types/account'
+import { getAttachmentUrl } from '@/lib/api/Attachment'
 
 /* --- Props --- */
 const props = defineProps({
@@ -100,6 +101,10 @@ const handlePage = (event) => {
     emit('page', event)
 }
 
+const openAttachment = (data) => {
+    window.open(getAttachmentUrl(data.id), '_blank')
+}
+
 /* --- Balance (cash accounts only) --- */
 const entriesWithBalance = computed(() => {
     if (!props.entries || props.entries.length === 0 || isInstrumentAccount.value) return props.entries ?? []
@@ -161,6 +166,7 @@ const tableEntries = computed(() =>
                             {{ data.description }}
                         </span>
                         <span v-else>{{ data.description }}</span>
+                        <i v-if="data.attachmentId" class="pi pi-paperclip attachment-icon" @click="openAttachment(data)" v-tooltip.bottom="'View Attachment'" />
                     </template>
                 </Column>
 
@@ -373,3 +379,15 @@ const tableEntries = computed(() =>
     </Card>
 </template>
 
+<style scoped>
+.attachment-icon {
+    font-size: 0.85rem;
+    margin-left: 0.4rem;
+    cursor: pointer;
+    opacity: 0.6;
+    font-weight: bold;
+}
+.attachment-icon:hover {
+    opacity: 1;
+}
+</style>

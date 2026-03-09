@@ -10,6 +10,7 @@ import (
 	"github.com/andresbott/etna/app/spa"
 	"github.com/andresbott/etna/internal/accounting"
 	"github.com/andresbott/etna/internal/csvimport"
+	"github.com/andresbott/etna/internal/filestore"
 	"github.com/andresbott/etna/internal/marketdata"
 	"github.com/andresbott/etna/internal/taskrunner"
 	"github.com/go-bumbu/http/middleware"
@@ -36,9 +37,10 @@ type Cfg struct {
 	// TaskLogGetter: when set, tasks API serves execution logs (GET /tasks/executions/:id/logs).
 	TaskLogGetter taskrunner.TaskLogGetter
 	// FinStore and MarketStore: when set, used instead of creating from Db (e.g. when task runner is initialized in runServer).
-	FinStore       *accounting.Store
-	MarketStore    *marketdata.Store
-	CsvImportStore *csvimport.Store
+	FinStore        *accounting.Store
+	MarketStore     *marketdata.Store
+	CsvImportStore  *csvimport.Store
+	AttachmentStore *filestore.Store
 }
 
 // MainAppHandler is the entrypoint http handler for the whole application
@@ -60,6 +62,7 @@ type MainAppHandler struct {
 	scheduleStore     *taskrunner.ScheduleStore
 	taskLogGetter     taskrunner.TaskLogGetter
 	csvImportStore    *csvimport.Store
+	attachmentStore   *filestore.Store
 }
 
 func (h *MainAppHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -84,6 +87,7 @@ func New(cfg Cfg) (*MainAppHandler, error) {
 		scheduler:         cfg.Scheduler,
 		taskLogGetter:     cfg.TaskLogGetter,
 		csvImportStore:    cfg.CsvImportStore,
+		attachmentStore:   cfg.AttachmentStore,
 	}
 
 	if cfg.MarketStore == nil || cfg.FinStore == nil {

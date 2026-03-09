@@ -8,6 +8,7 @@ import { useCategoryUtils } from '@/utils/categoryUtils'
 import { useAccountUtils } from '@/utils/accountUtils'
 import { useInstruments } from '@/composables/useInstruments'
 import { useDateFormat } from '@/composables/useDateFormat'
+import { getAttachmentUrl } from '@/lib/api/Attachment'
 
 /* --- Props --- */
 const props = defineProps({
@@ -128,6 +129,10 @@ const handleDelete = (entry) => {
 const handlePage = (event) => {
     emit('page', event)
 }
+
+const openAttachment = (data) => {
+    window.open(getAttachmentUrl(data.id), '_blank')
+}
 </script>
 
 <template>
@@ -154,6 +159,7 @@ const handlePage = (event) => {
                     <Column field="description" header="Description" class="description-column">
                         <template #body="{ data }">
                             {{ data.description || '—' }}
+                            <i v-if="data.attachmentId" class="pi pi-paperclip attachment-icon" @click="openAttachment(data)" v-tooltip.bottom="'View Attachment'" />
                         </template>
                     </Column>
                     <Column header="Account">
@@ -226,7 +232,7 @@ const handlePage = (event) => {
                             <span v-else class="text-500">—</span>
                         </template>
                     </Column>
-                    <Column header="Actions" style="width: 150px">
+                    <Column header="Actions" style="width: 120px">
                         <template #body="{ data }">
                             <div class="flex gap-2 justify-content-start">
                                 <Button icon="pi pi-pencil" text rounded class="p-1" @click="handleEdit(data)" v-tooltip.bottom="'Edit'" />
@@ -241,13 +247,14 @@ const handlePage = (event) => {
                 <template v-else>
                     <Column field="description" header="Description" class="description-column">
                         <template #body="{ data }">
-                            <span 
+                            <span
                                 v-if="data.type === 'expense' || data.type === 'income'"
                                 v-tooltip.bottom="`Category: ${getCategoryPath(data?.categoryId, data.type)}`"
                             >
                                 {{ data.description }}
                             </span>
                             <span v-else>{{ data.description }}</span>
+                            <i v-if="data.attachmentId" class="pi pi-paperclip attachment-icon" @click="openAttachment(data)" v-tooltip.bottom="'View Attachment'" />
                         </template>
                     </Column>
 
@@ -375,7 +382,7 @@ const handlePage = (event) => {
                     </template>
                 </Column>
 
-                    <Column header="Actions" style="width: 150px">
+                    <Column header="Actions" style="width: 120px">
                         <template #body="{ data }">
                             <div class="flex gap-2 justify-content-start">
                                 <Button
@@ -412,4 +419,17 @@ const handlePage = (event) => {
         </template>
     </Card>
 </template>
+
+<style scoped>
+.attachment-icon {
+    font-size: 0.85rem;
+    margin-left: 0.4rem;
+    cursor: pointer;
+    opacity: 0.6;
+    font-weight: bold;
+}
+.attachment-icon:hover {
+    opacity: 1;
+}
+</style>
 

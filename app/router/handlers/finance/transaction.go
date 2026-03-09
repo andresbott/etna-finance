@@ -72,6 +72,7 @@ type transactionPayload struct {
 		Quantity float64 `json:"quantity"`
 	} `json:"lotAllocations,omitempty"`
 
+	AttachmentID *uint `json:"attachmentId,omitempty"`
 }
 
 func (h *Handler) CreateTx() http.Handler {
@@ -386,7 +387,15 @@ func (h *Handler) UpdateTx(Id uint) http.Handler {
 
 func (h *Handler) DeleteTx(Id uint) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		err := h.Store.DeleteTransaction(r.Context(), Id)
+		// Clean up attachment if exists
+		tx, err := h.Store.GetTransaction(r.Context(), Id)
+		if err == nil {
+			if attID := transactionAttachmentID(tx); attID != nil && h.FileStore != nil {
+				_ = h.FileStore.Delete(r.Context(), *attID)
+			}
+		}
+
+		err = h.Store.DeleteTransaction(r.Context(), Id)
 		if err != nil {
 			if errors.Is(err, accounting.ErrEntryNotFound) {
 				http.Error(w, "entry not found", http.StatusNotFound)
@@ -411,23 +420,25 @@ func transactionToPayload(entry accounting.Transaction) transactionPayload {
 	switch entry := entry.(type) {
 	case accounting.Income:
 		return transactionPayload{
-			Id:          entry.Id,
-			Description: entry.Description,
-			Date:        dateOnlyTime{Time: entry.Date},
-			Type:        incomeTxStr,
-			Amount:      entry.Amount,
-			AccountId:   entry.AccountID,
-			CategoryId:  entry.CategoryID,
+			Id:           entry.Id,
+			Description:  entry.Description,
+			Date:         dateOnlyTime{Time: entry.Date},
+			Type:         incomeTxStr,
+			Amount:       entry.Amount,
+			AccountId:    entry.AccountID,
+			CategoryId:   entry.CategoryID,
+			AttachmentID: entry.AttachmentID,
 		}
 	case accounting.Expense:
 		return transactionPayload{
-			Id:          entry.Id,
-			Description: entry.Description,
-			Date:        dateOnlyTime{Time: entry.Date},
-			Type:        expenseTxStr,
-			Amount:      entry.Amount,
-			AccountId:   entry.AccountID,
-			CategoryId:  entry.CategoryID,
+			Id:           entry.Id,
+			Description:  entry.Description,
+			Date:         dateOnlyTime{Time: entry.Date},
+			Type:         expenseTxStr,
+			Amount:       entry.Amount,
+			AccountId:    entry.AccountID,
+			CategoryId:   entry.CategoryID,
+			AttachmentID: entry.AttachmentID,
 		}
 	case accounting.Transfer:
 		return transactionPayload{
@@ -439,6 +450,7 @@ func transactionToPayload(entry accounting.Transaction) transactionPayload {
 			TargetAccountID: entry.TargetAccountID,
 			OriginAmount:    entry.OriginAmount,
 			OriginAccountID: entry.OriginAccountID,
+			AttachmentID:    entry.AttachmentID,
 		}
 	case accounting.StockBuy:
 		return transactionPayload{
@@ -452,6 +464,7 @@ func transactionToPayload(entry accounting.Transaction) transactionPayload {
 			TotalAmount:         entry.TotalAmount,
 			InvestmentAccountID: entry.InvestmentAccountID,
 			CashAccountID:       entry.CashAccountID,
+			AttachmentID:        entry.AttachmentID,
 		}
 	case accounting.StockSell:
 		return transactionPayload{
@@ -467,6 +480,7 @@ func transactionToPayload(entry accounting.Transaction) transactionPayload {
 			Fees:                entry.Fees,
 			InvestmentAccountID: entry.InvestmentAccountID,
 			CashAccountID:       entry.CashAccountID,
+			AttachmentID:        entry.AttachmentID,
 		}
 	case accounting.StockGrant:
 		return transactionPayload{
@@ -478,6 +492,7 @@ func transactionToPayload(entry accounting.Transaction) transactionPayload {
 			InstrumentID:    entry.InstrumentID,
 			Quantity:        entry.Quantity,
 			FairMarketValue: entry.FairMarketValue,
+			AttachmentID:    entry.AttachmentID,
 		}
 	case accounting.StockTransfer:
 		return transactionPayload{
@@ -489,15 +504,17 @@ func transactionToPayload(entry accounting.Transaction) transactionPayload {
 			TargetAccountID: entry.TargetAccountID,
 			InstrumentID:    entry.InstrumentID,
 			Quantity:        entry.Quantity,
+			AttachmentID:    entry.AttachmentID,
 		}
 	case accounting.BalanceStatus:
 		return transactionPayload{
-			Id:          entry.Id,
-			Description: entry.Description,
-			Date:        dateOnlyTime{Time: entry.Date},
-			Type:        balanceStatusTxStr,
-			Amount:      entry.Amount,
-			AccountId:   entry.AccountID,
+			Id:           entry.Id,
+			Description:  entry.Description,
+			Date:         dateOnlyTime{Time: entry.Date},
+			Type:         balanceStatusTxStr,
+			Amount:       entry.Amount,
+			AccountId:    entry.AccountID,
+			AttachmentID: entry.AttachmentID,
 		}
 	default:
 		return transactionPayload{Type: unknownTxStr}
