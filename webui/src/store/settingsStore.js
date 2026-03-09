@@ -16,6 +16,7 @@ export const useSettingsStore = defineStore('settings', () => {
     const instruments = ref(false)
     const marketDataSymbols = ref([])
     const version = ref('')
+    const maxAttachmentSizeMB = ref(10)
 
     const hasMultipleCurrencies = computed(() => currencies.value.length > 1)
 
@@ -30,6 +31,7 @@ export const useSettingsStore = defineStore('settings', () => {
             instruments.value = res.data.instruments
             marketDataSymbols.value = res.data.marketDataSymbols ?? []
             version.value = res.data.version ?? ''
+            maxAttachmentSizeMB.value = res.data.maxAttachmentSizeMB || 10
             isLoaded.value = true
         } catch (err) {
             console.error('Failed to fetch application settings:', err)
@@ -49,6 +51,7 @@ export const useSettingsStore = defineStore('settings', () => {
         instruments.value = false
         marketDataSymbols.value = []
         version.value = ''
+        maxAttachmentSizeMB.value = 10
     }
 
     return {
@@ -62,6 +65,7 @@ export const useSettingsStore = defineStore('settings', () => {
         instruments,
         marketDataSymbols,
         version,
+        maxAttachmentSizeMB,
         hasMultipleCurrencies,
 
         fetchSettings,

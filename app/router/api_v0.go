@@ -820,6 +820,7 @@ func (h *MainAppHandler) backupApi(r *mux.Router) {
 		Store:       h.finStore,
 		MdStore:     h.marketStore,
 		CsvStore:    h.csvImportStore,
+		FileStore:   h.attachmentStore,
 	}
 	r.Path(backupPath).Methods(http.MethodGet).Handler(backupHndl.List())
 	r.Path(backupPath).Methods(http.MethodPost).Handler(backupHndl.CreateBackup())

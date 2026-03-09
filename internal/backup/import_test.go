@@ -1,11 +1,14 @@
 package backup
 
 import (
+	"context"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/andresbott/etna/internal/accounting"
 	"github.com/andresbott/etna/internal/csvimport"
+	"github.com/andresbott/etna/internal/filestore"
 	"github.com/andresbott/etna/internal/marketdata"
 	"github.com/glebarez/sqlite"
 	"github.com/google/go-cmp/cmp"
@@ -19,6 +22,7 @@ type testStores struct {
 	accounting *accounting.Store
 	marketdata *marketdata.Store
 	csvimport  *csvimport.Store
+	filestore  *filestore.Store
 }
 
 func setupImportTest(t *testing.T) testStores {
@@ -41,16 +45,20 @@ func setupImportTest(t *testing.T) testStores {
 	if err != nil {
 		t.Fatalf("unable to create csvimport store: %v", err)
 	}
+	fileStore, err := filestore.New(db, filepath.Join(t.TempDir(), "attachments"), 10*1024*1024)
+	if err != nil {
+		t.Fatalf("unable to create filestore: %v", err)
+	}
 
-	sampleDataNoise(t, store, mdStore, csvStore)
+	sampleDataNoise(t, store, mdStore, csvStore, nil)
 
 	backupFile := "testdata/backup-v1.zip"
-	err = Import(t.Context(), store, mdStore, csvStore, backupFile)
+	err = Import(t.Context(), store, mdStore, csvStore, fileStore, backupFile)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	return testStores{accounting: store, marketdata: mdStore, csvimport: csvStore}
+	return testStores{accounting: store, marketdata: mdStore, csvimport: csvStore, filestore: fileStore}
 }
 
 func TestImportV1(t *testing.T) {
@@ -79,6 +87,9 @@ func TestImportV1(t *testing.T) {
 	})
 	t.Run("assert category rules", func(t *testing.T) {
 		assertImportedCategoryRules(t, stores.csvimport)
+	})
+	t.Run("assert attachments", func(t *testing.T) {
+		assertImportedAttachments(t, stores.filestore)
 	})
 }
 
@@ -153,8 +164,9 @@ func assertImportedTransactions(t *testing.T, store *accounting.Store) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	attID := uint(1)
 	want := []accounting.Transaction{
-		accounting.Income{Id: 2, Description: "i1", Amount: 12.5, AccountID: 2, CategoryID: 2, Date: getDate("2022-01-20")},
+		accounting.Income{Id: 2, Description: "i1", Amount: 12.5, AccountID: 2, CategoryID: 2, Date: getDate("2022-01-20"), AttachmentID: &attID},
 		accounting.Expense{Id: 3, Description: "e1", Amount: 22.6, AccountID: 2, CategoryID: 5, Date: getDate("2022-01-19")},
 		accounting.Transfer{Id: 4, Description: "tr1", OriginAmount: 36.6, OriginAccountID: 2, TargetAmount: 1.5, TargetAccountID: 3, Date: getDate("2022-01-18")},
 		accounting.Income{Id: 5, Description: "i1", Amount: 10.5, AccountID: 5, CategoryID: 0, Date: getDate("2022-01-17")},
@@ -238,7 +250,7 @@ func assertImportedCategoryRules(t *testing.T, csvStore *csvimport.Store) {
 
 // sampleDataNoise is used to generate some entries in the store before running an import
 // this should generate noise before wiping data
-func sampleDataNoise(t *testing.T, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store) {
+func sampleDataNoise(t *testing.T, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, fileStore *filestore.Store) {
 
 	// =========================================
 	// create accounts providers
@@ -292,4 +304,26 @@ func sampleDataNoise(t *testing.T, store *accounting.Store, mdStore *marketdata.
 		DescriptionColumn: "desc", AmountColumn: "amt", AmountMode: "single",
 	})
 
+}
+
+func assertImportedAttachments(t *testing.T, fileStore *filestore.Store) {
+	t.Helper()
+	if fileStore == nil {
+		t.Skip("filestore not available")
+		return
+	}
+	// After import, we should have at least the attachment from the test fixture.
+	// The attachment IDs are remapped, so we just check that we can get attachment ID 1
+	// (the new ID after import)
+	ctx := context.Background()
+	att, err := fileStore.Get(ctx, 1)
+	if err != nil {
+		t.Fatalf("expected attachment 1 to exist after import, got: %v", err)
+	}
+	if att.OriginalName != "receipt.jpg" {
+		t.Errorf("expected OriginalName 'receipt.jpg', got %q", att.OriginalName)
+	}
+	if att.MimeType != "image/jpeg" {
+		t.Errorf("expected MimeType 'image/jpeg', got %q", att.MimeType)
+	}
 }

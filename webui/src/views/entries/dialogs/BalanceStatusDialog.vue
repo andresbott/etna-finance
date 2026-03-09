@@ -25,11 +25,14 @@ import { accountValidation } from '@/utils/entryValidation'
 import { getApiErrorMessage } from '@/utils/apiError'
 import { uploadAttachment, deleteAttachment, getAttachmentUrl } from '@/lib/api/Attachment'
 import FileInput from '@/components/common/FileInput.vue'
+import { useSettingsStore } from '@/store/settingsStore'
 
 const queryClient = useQueryClient()
 const { createEntry, updateEntry, isCreating, isUpdating } = useEntries({})
 const backendError = ref('')
 const { pickerDateFormat, dateValidation } = useDateFormat()
+const settingsStore = useSettingsStore()
+const maxAttachmentBytes = computed(() => settingsStore.maxAttachmentSizeMB * 1024 * 1024)
 
 const props = defineProps({
     isEdit: { type: Boolean, default: false },
@@ -45,6 +48,7 @@ const props = defineProps({
 const selectedFile = ref(null)
 const existingAttachmentId = ref(null)
 const attachmentPendingDelete = ref(false)
+const fileError = ref('')
 
 const formValues = ref({
     description: props.description,
@@ -65,6 +69,7 @@ watch(props, (newProps) => {
     existingAttachmentId.value = newProps.attachmentId || null
     selectedFile.value = null
     attachmentPendingDelete.value = false
+    fileError.value = ''
     formKey.value++
 })
 
@@ -86,6 +91,7 @@ const dialogTitle = computed(() => {
 const handleSubmit = async (e) => {
     e.preventDefault?.()
     if (e.valid === false) return
+    if (fileError.value) return
     const values = getSubmitValues(e, formValues)
     const accountId = extractAccountId(values.AccountId)
     const description = (values.description ?? formValues.value.description ?? '').toString().trim()
@@ -122,7 +128,8 @@ const handleSubmit = async (e) => {
             try { await deleteAttachment(savedId); attachmentChanged = true } catch (e) { console.error('Failed to delete attachment:', e) }
         }
         if (fileToUpload) {
-            try { await uploadAttachment(savedId, fileToUpload); attachmentChanged = true } catch (e) { console.error('Failed to upload attachment:', e) }
+            await uploadAttachment(savedId, fileToUpload)
+            attachmentChanged = true
         }
         if (attachmentChanged) {
             queryClient.invalidateQueries({ queryKey: ['entries'] })
@@ -246,6 +253,8 @@ const emit = defineEmits(['update:visible'])
                             accept=".jpg,.jpeg,.png,.webp,.pdf"
                             label="Choose file"
                             icon="pi pi-paperclip"
+                            :maxSizeBytes="maxAttachmentBytes"
+                            @error="fileError = $event"
                         />
                     </div>
                 </div>

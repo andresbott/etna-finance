@@ -2,6 +2,7 @@ package backup
 
 import (
 	"archive/zip"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/andresbott/etna/internal/accounting"
 	"github.com/andresbott/etna/internal/csvimport"
+	"github.com/andresbott/etna/internal/filestore"
 	"github.com/andresbott/etna/internal/marketdata"
 	"github.com/glebarez/sqlite"
 	"github.com/google/go-cmp/cmp"
@@ -41,14 +43,18 @@ func TestExport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unable to create csvimport store: %v", err)
 	}
-	sampleData(t, store, mdStore, csvStore)
+	fileStore, err := filestore.New(db, filepath.Join(t.TempDir(), "attachments"), 10*1024*1024)
+	if err != nil {
+		t.Fatalf("unable to create filestore: %v", err)
+	}
+	sampleData(t, store, mdStore, csvStore, fileStore)
 
 	// set tx list size to 2 to force pagination
 	entriesLimit = 2
 
 	tmpdir := t.TempDir()
 	target := filepath.Join(tmpdir, "backup.zip")
-	err = export(t.Context(), store, mdStore, csvStore, target)
+	err = export(t.Context(), store, mdStore, csvStore, fileStore, target)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -84,7 +90,7 @@ func TestExport(t *testing.T) {
 			{ID: 3, ParentId: 0, Name: "ex1", Description: "dex1", Icon: "expense-icon"},
 		},
 		Transactions: []TransactionV1{
-			{Id: 1, Description: "i1", Amount: 12.5, AccountID: 1, CategoryID: 1, Date: getDate("2022-01-20"), Type: txTypeIncome},
+			{Id: 1, Description: "i1", Amount: 12.5, AccountID: 1, CategoryID: 1, Date: getDate("2022-01-20"), Type: txTypeIncome, AttachmentID: uintPtr(1)},
 			{Id: 2, Description: "e1", Amount: 22.6, AccountID: 1, CategoryID: 3, Date: getDate("2022-01-19"), Type: txTypeExpense},
 			{Id: 3, Description: "tr1", OriginAmount: 36.6, OriginAccountID: 1, TargetAmount: 1.5, TargetAccountID: 2, Date: getDate("2022-01-18"), Type: txTypeTransfer},
 			{Id: 4, Description: "i1", Amount: 10.5, AccountID: 4, CategoryID: 0, Date: getDate("2022-01-17"), Type: txTypeIncome},
@@ -105,6 +111,9 @@ func TestExport(t *testing.T) {
 		CategoryRules: []categoryRuleV1{
 			{ID: 1, Pattern: "grocery", CategoryID: 3, Position: 0},
 		},
+		Attachments: []attachmentV1{
+			{ID: 1, OriginalName: "receipt.jpg", MimeType: "image/jpeg", FileSize: 54, ZipPath: "attachments/1.jpg"},
+		},
 	}
 
 	sortCategories := func(a, b categoryV1) bool { return a.ID < b.ID }
@@ -116,6 +125,7 @@ func TestExport(t *testing.T) {
 		cmpopts.SortSlices(func(a, b fxRateRecordV1) bool { return a.Main < b.Main }),
 		cmpopts.SortSlices(func(a, b importProfileV1) bool { return a.ID < b.ID }),
 		cmpopts.SortSlices(func(a, b categoryRuleV1) bool { return a.ID < b.ID }),
+		cmpopts.SortSlices(func(a, b attachmentV1) bool { return a.ID < b.ID }),
 	); diff != "" {
 		t.Errorf("unexpected result (-want +got):\n%s", diff)
 	}
@@ -141,6 +151,8 @@ func copyFile(source string) {
 	_, _ = io.Copy(dstFile, srcFile)
 }
 
+func uintPtr(v uint) *uint { return &v }
+
 type backupPayload struct {
 	Meta              metaInfoV1
 	Providers         []accountProviderV1
@@ -153,6 +165,7 @@ type backupPayload struct {
 	FXRates           []fxRateRecordV1
 	ImportProfiles    []importProfileV1
 	CategoryRules     []categoryRuleV1
+	Attachments       []attachmentV1
 }
 
 func unmarshalJSON[T any](data []byte) (T, error) {
@@ -217,6 +230,8 @@ func readFromZip(zipPath string) (backupPayload, error) {
 			payload.ImportProfiles, err = unmarshalJSON[[]importProfileV1](data)
 		case categoryRulesFile:
 			payload.CategoryRules, err = unmarshalJSON[[]categoryRuleV1](data)
+		case attachmentsFile:
+			payload.Attachments, err = unmarshalJSON[[]attachmentV1](data)
 		}
 		if err != nil {
 			return payload, err
@@ -225,7 +240,7 @@ func readFromZip(zipPath string) (backupPayload, error) {
 	return payload, nil
 }
 
-func sampleData(t *testing.T, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store) {
+func sampleData(t *testing.T, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, fileStore *filestore.Store) {
 
 	// =========================================
 	// create accounts providers
@@ -364,6 +379,21 @@ func sampleData(t *testing.T, store *accounting.Store, mdStore *marketdata.Store
 		t.Fatalf("error creating category rule: %v", err)
 	}
 
+	// =========================================
+	// Attach a file to the first transaction
+	// =========================================
+	if fileStore != nil {
+		jpegContent := append([]byte{0xFF, 0xD8, 0xFF, 0xE0}, bytes.Repeat([]byte{0x00}, 50)...)
+		attID, err := fileStore.SaveRaw(t.Context(), getDate("2022-01-20"), jpegContent, "receipt.jpg", "image/jpeg")
+		if err != nil {
+			t.Fatalf("error saving attachment: %v", err)
+		}
+		err = store.SetAttachmentID(t.Context(), 1, &attID)
+		if err != nil {
+			t.Fatalf("error setting attachment ID: %v", err)
+		}
+	}
+
 }
 func TestRoundTrip(t *testing.T) {
 	// Source DB
@@ -383,12 +413,16 @@ func TestRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sampleData(t, store1, mdStore1, csvStore1)
+	fileStore1, err := filestore.New(db1, filepath.Join(t.TempDir(), "att1"), 10*1024*1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sampleData(t, store1, mdStore1, csvStore1, fileStore1)
 
 	// Export 1
 	tmpdir := t.TempDir()
 	target1 := filepath.Join(tmpdir, "export1.zip")
-	err = export(t.Context(), store1, mdStore1, csvStore1, target1)
+	err = export(t.Context(), store1, mdStore1, csvStore1, fileStore1, target1)
 	if err != nil {
 		t.Fatalf("export1 failed: %v", err)
 	}
@@ -410,16 +444,20 @@ func TestRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	fileStore2, err := filestore.New(db2, filepath.Join(t.TempDir(), "att2"), 10*1024*1024)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Import
-	err = Import(t.Context(), store2, mdStore2, csvStore2, target1)
+	err = Import(t.Context(), store2, mdStore2, csvStore2, fileStore2, target1)
 	if err != nil {
 		t.Fatalf("import failed: %v", err)
 	}
 
 	// Export 2
 	target2 := filepath.Join(tmpdir, "export2.zip")
-	err = export(t.Context(), store2, mdStore2, csvStore2, target2)
+	err = export(t.Context(), store2, mdStore2, csvStore2, fileStore2, target2)
 	if err != nil {
 		t.Fatalf("export2 failed: %v", err)
 	}
@@ -440,7 +478,7 @@ func TestRoundTrip(t *testing.T) {
 		cmpopts.IgnoreFields(accountProviderV1{}, "ID"),
 		cmpopts.IgnoreFields(accountV1{}, "ID", "AccountProviderID", "ImportProfileID"),
 		cmpopts.IgnoreFields(categoryV1{}, "ID", "ParentId"),
-		cmpopts.IgnoreFields(TransactionV1{}, "Id", "AccountID", "CategoryID", "OriginAccountID", "TargetAccountID", "InvestmentAccountID", "CashAccountID", "SourceAccountID", "InstrumentID"),
+		cmpopts.IgnoreFields(TransactionV1{}, "Id", "AccountID", "CategoryID", "OriginAccountID", "TargetAccountID", "InvestmentAccountID", "CashAccountID", "SourceAccountID", "InstrumentID", "AttachmentID"),
 		cmpopts.IgnoreFields(instrumentV1{}, "ID", "InstrumentProviderID"),
 		cmpopts.IgnoreFields(importProfileV1{}, "ID"),
 		cmpopts.IgnoreFields(categoryRuleV1{}, "ID", "CategoryID"),
@@ -453,6 +491,8 @@ func TestRoundTrip(t *testing.T) {
 		cmpopts.SortSlices(func(a, b fxRateRecordV1) bool { return a.Main < b.Main }),
 		cmpopts.SortSlices(func(a, b importProfileV1) bool { return a.Name < b.Name }),
 		cmpopts.SortSlices(func(a, b categoryRuleV1) bool { return a.Pattern < b.Pattern }),
+		cmpopts.IgnoreFields(attachmentV1{}, "ID", "ZipPath"),
+		cmpopts.SortSlices(func(a, b attachmentV1) bool { return a.OriginalName < b.OriginalName }),
 	); diff != "" {
 		t.Errorf("round-trip mismatch (-first +second):\n%s", diff)
 	}

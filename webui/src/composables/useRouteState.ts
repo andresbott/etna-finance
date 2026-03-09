@@ -16,7 +16,7 @@ function parseDate(s: string): Date | null {
 }
 
 /**
- * Syncs startDate, endDate, and page with URL query parameters.
+ * Syncs startDate, endDate, page, and limit with URL query parameters.
  * On init, reads from query params if present; otherwise uses provided defaults.
  * On change, updates the URL without a full navigation.
  */
@@ -24,6 +24,7 @@ export function useRouteState(defaults: {
     startDate: Date
     endDate: Date
     page?: number
+    limit?: number
 }) {
     const route = useRoute()
     const router = useRouter()
@@ -31,10 +32,12 @@ export function useRouteState(defaults: {
     const initFrom = route.query.from ? parseDate(route.query.from as string) : null
     const initTo = route.query.to ? parseDate(route.query.to as string) : null
     const initPage = route.query.page ? Number(route.query.page) : null
+    const initLimit = route.query.limit ? Number(route.query.limit) : null
 
     const startDate = ref(initFrom ?? defaults.startDate)
     const endDate = ref(initTo ?? defaults.endDate)
     const page = ref(initPage && initPage > 0 ? initPage : (defaults.page ?? 1))
+    const limit = ref(initLimit && initLimit > 0 ? initLimit : (defaults.limit ?? 25))
 
     let updating = false
 
@@ -46,12 +49,13 @@ export function useRouteState(defaults: {
                 ...route.query,
                 from: formatDate(startDate.value),
                 to: formatDate(endDate.value),
-                page: String(page.value)
+                page: String(page.value),
+                limit: String(limit.value)
             }
         }).finally(() => { updating = false })
     }
 
-    watch([startDate, endDate, page], syncToRoute, { immediate: true })
+    watch([startDate, endDate, page, limit], syncToRoute, { immediate: true })
 
     // When navigating back/forward, pick up query changes
     watch(
@@ -61,12 +65,14 @@ export function useRouteState(defaults: {
             const qFrom = q.from ? parseDate(q.from as string) : null
             const qTo = q.to ? parseDate(q.to as string) : null
             const qPage = q.page ? Number(q.page) : null
+            const qLimit = q.limit ? Number(q.limit) : null
 
             if (qFrom && formatDate(qFrom) !== formatDate(startDate.value)) startDate.value = qFrom
             if (qTo && formatDate(qTo) !== formatDate(endDate.value)) endDate.value = qTo
             if (qPage && qPage > 0 && qPage !== page.value) page.value = qPage
+            if (qLimit && qLimit > 0 && qLimit !== limit.value) limit.value = qLimit
         }
     )
 
-    return { startDate, endDate, page }
+    return { startDate, endDate, page, limit }
 }

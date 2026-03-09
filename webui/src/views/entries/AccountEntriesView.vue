@@ -25,16 +25,13 @@ const accountId = computed(() => route.params.id)
 
 /* --- Reactive State (synced with URL query params) --- */
 const today = new Date()
-const { startDate, endDate, page } = useRouteState({
+const { startDate, endDate, page, limit } = useRouteState({
     startDate: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 35),
     endDate: new Date()
 })
 
 // Create accountIds array for the API query - filters entries server-side
 const accountIds = computed(() => accountId.value ? [String(accountId.value)] : [])
-
-/* --- Pagination State --- */
-const limit = ref(25)
 const first = computed(() => (page.value - 1) * limit.value)
 
 const { entries: fetchedEntries, totalRecords, priorBalance, isLoading, isFetching, deleteEntry, isDeleting, refetch } = useEntries({

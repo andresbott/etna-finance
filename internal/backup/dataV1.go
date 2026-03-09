@@ -85,6 +85,8 @@ type TransactionV1 struct {
 	// for stock transfer
 	SourceAccountID uint `json:"sourceAccountId,omitempty"`
 
+	AttachmentID *uint `json:"attachmentId,omitempty"`
+
 	Date time.Time `json:"date"`
 	Type string    `json:"type"`
 }
@@ -136,4 +138,15 @@ type categoryRuleV1 struct {
 	IsRegex    bool   `json:"isRegex"`
 	CategoryID uint   `json:"categoryId"`
 	Position   int    `json:"position"`
+}
+
+const attachmentsFile = "attachments.json"
+const attachmentsDir = "attachments/"
+
+type attachmentV1 struct {
+	ID           uint   `json:"id"`
+	OriginalName string `json:"originalName"`
+	MimeType     string `json:"mimeType"`
+	FileSize     int64  `json:"fileSize"`
+	ZipPath      string `json:"zipPath"`
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/andresbott/etna/internal/accounting"
 	"github.com/andresbott/etna/internal/backup"
 	"github.com/andresbott/etna/internal/csvimport"
+	"github.com/andresbott/etna/internal/filestore"
 	"github.com/andresbott/etna/internal/marketdata"
 )
 
@@ -24,6 +25,7 @@ type Handler struct {
 	Store       *accounting.Store
 	MdStore     *marketdata.Store
 	CsvStore    *csvimport.Store
+	FileStore   *filestore.Store
 }
 
 type listPayload struct {
@@ -170,7 +172,7 @@ func (h *Handler) CreateBackup() http.Handler {
 		backupFile := filepath.Join(absPath, fmt.Sprintf("backup-%s.zip", now))
 
 		// Create the backup file
-		err = backup.ExportToFile(r.Context(), h.Store, h.MdStore, h.CsvStore, backupFile)
+		err = backup.ExportToFile(r.Context(), h.Store, h.MdStore, h.CsvStore, h.FileStore, backupFile)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed to create backup: %v", err), http.StatusInternalServerError)
 			return
@@ -246,14 +248,10 @@ func (h *Handler) RestoreUpload() http.Handler {
 			http.Error(w, fmt.Sprintf("failed to create file: %v", err), http.StatusInternalServerError)
 			return
 		}
-		defer func() {
-			if err := dstFile.Close(); err != nil {
-				http.Error(w, fmt.Sprintf("failed to close file: %v", err), http.StatusInternalServerError)
-			}
-		}()
 
 		// Copy uploaded file to destination
 		if _, err := io.Copy(dstFile, file); err != nil {
+			_ = dstFile.Close()
 			remErr := os.Remove(dstPath) // Clean up on error
 			if remErr != nil {
 				http.Error(w, fmt.Sprintf("failed to save file because of: %v and failed to cleanup afterwards: %v", err, remErr), http.StatusInternalServerError)
@@ -263,13 +261,13 @@ func (h *Handler) RestoreUpload() http.Handler {
 		}
 
 		// Close the file before attempting to restore from it
-		err = dstFile.Close()
-		if err != nil {
+		if err := dstFile.Close(); err != nil {
 			http.Error(w, fmt.Sprintf("failed to close uploaded file: %v", err), http.StatusInternalServerError)
+			return
 		}
 
 		// Attempt to restore from the uploaded file
-		if err := backup.Import(r.Context(), h.Store, h.MdStore, h.CsvStore, dstPath); err != nil {
+		if err := backup.Import(r.Context(), h.Store, h.MdStore, h.CsvStore, h.FileStore, dstPath); err != nil {
 			http.Error(w, fmt.Sprintf("failed to restore backup: %v", err), http.StatusInternalServerError)
 			return
 		}
@@ -307,7 +305,7 @@ func (h *Handler) RestoreFromExisting(id string) http.Handler {
 		}
 
 		// Attempt to restore from the file
-		if err := backup.Import(r.Context(), h.Store, h.MdStore, h.CsvStore, targetFile); err != nil {
+		if err := backup.Import(r.Context(), h.Store, h.MdStore, h.CsvStore, h.FileStore, targetFile); err != nil {
 			http.Error(w, fmt.Sprintf("failed to restore backup: %v", err), http.StatusInternalServerError)
 			return
 		}

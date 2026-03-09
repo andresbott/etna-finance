@@ -53,3 +53,17 @@ func (zw *zipWriter) writeJsonFile(filename string, data any) error {
 
 	return nil
 }
+
+// writeBinaryFile writes raw bytes into the zip archive at the given path.
+func (zw *zipWriter) writeBinaryFile(filename string, data []byte) error {
+	f, err := zw.writer.Create(filename)
+	if err != nil {
+		return fmt.Errorf("failed to create file in zip: %w", err)
+	}
+
+	if _, err := f.Write(data); err != nil {
+		return fmt.Errorf("failed to write binary data: %w", err)
+	}
+
+	return nil
+}

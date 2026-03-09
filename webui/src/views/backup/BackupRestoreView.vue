@@ -8,7 +8,9 @@ import Button from 'primevue/button'
 import Message from 'primevue/message'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
+import Dialog from 'primevue/dialog'
 import ConfirmDialog from '@/components/common/confirmDialog.vue'
+import FileInput from '@/components/common/FileInput.vue'
 import { useBackups } from '@/composables/useBackups'
 
 const successMessage = ref('')
@@ -17,6 +19,8 @@ const deleteDialogVisible = ref(false)
 const backupToDelete = ref(null)
 const restoreDialogVisible = ref(false)
 const backupToRestore = ref(null)
+const uploadRestoreDialogVisible = ref(false)
+const selectedFile = ref(null)
 
 // Use the composable
 const {
@@ -45,27 +49,23 @@ const handleBackup = async () => {
     }
 }
 
-const fileInputRef = ref(null)
-
-const triggerFileUpload = () => {
-    fileInputRef.value?.click()
+const openUploadRestoreDialog = () => {
+    selectedFile.value = null
+    uploadRestoreDialogVisible.value = true
 }
 
-const handleFileSelected = async (event) => {
+const handleUploadRestore = async () => {
     successMessage.value = ''
     errorMessage.value = ''
-    
-    const file = event.target.files?.[0]
-    if (!file) return
-    
+
     try {
-        await restoreBackup(file)
+        await restoreBackup(selectedFile.value)
+        uploadRestoreDialogVisible.value = false
         successMessage.value = 'Data restored successfully from uploaded backup!'
-        // Clear the input so the same file can be selected again
-        event.target.value = ''
     } catch (error) {
         errorMessage.value = 'Failed to restore data: ' + error.message
-        event.target.value = ''
+    } finally {
+        selectedFile.value = null
     }
 }
 
@@ -163,16 +163,8 @@ const formatFileSize = (bytes) => {
                             <Button
                                 label="Upload & Restore Backup"
                                 icon="pi pi-upload"
-                                @click="triggerFileUpload"
-                                :loading="isRestoring"
-                                :disabled="isCreating"
-                            />
-                            <input
-                                ref="fileInputRef"
-                                type="file"
-                                accept=".json,.zip"
-                                @change="handleFileSelected"
-                                style="display: none"
+                                @click="openUploadRestoreDialog"
+                                :disabled="isCreating || isRestoring"
                             />
                         </div>
 
@@ -255,7 +247,7 @@ const formatFileSize = (bytes) => {
         @confirm="handleDeleteBackup"
     />
 
-    <!-- Restore Confirmation Dialog -->
+    <!-- Restore from existing backup Confirmation Dialog -->
     <ConfirmDialog
         v-model:visible="restoreDialogVisible"
         :name="backupToRestore?.filename"
@@ -263,6 +255,45 @@ const formatFileSize = (bytes) => {
         message="Are you sure you want to restore this backup? This will replace all current data."
         @confirm="handleRestoreBackup"
     />
+
+    <!-- Upload & Restore Dialog -->
+    <Dialog
+        v-model:visible="uploadRestoreDialogVisible"
+        modal
+        :closable="true"
+        :draggable="false"
+        header="Restore from file"
+        class="entry-dialog"
+    >
+        <Message severity="warn" :closable="false" class="mb-3" :pt="{ transition: { name: 'none' } }">
+            <strong>Warning:</strong> Restoring a backup will permanently wipe all current data and replace it with the contents of the uploaded file. This action cannot be undone.
+        </Message>
+
+        <div class="mb-4">
+            <label class="block mb-2">Select a backup file:</label>
+            <FileInput v-model="selectedFile" accept=".json,.zip" label="Choose backup file" />
+        </div>
+
+        <div class="flex justify-content-end gap-3">
+            <Button
+                type="button"
+                label="Restore"
+                icon="pi pi-upload"
+                severity="danger"
+                :loading="isRestoring"
+                :disabled="!selectedFile"
+                @click="handleUploadRestore"
+            />
+            <Button
+                type="button"
+                label="Cancel"
+                icon="pi pi-times"
+                severity="secondary"
+                :disabled="isRestoring"
+                @click="uploadRestoreDialogVisible = false"
+            />
+        </div>
+    </Dialog>
 </template>
 
 <style scoped lang="scss">
