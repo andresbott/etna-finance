@@ -33,9 +33,8 @@ type dbTransaction struct {
 	Date        time.Time `gorm:"not null"`
 	Description string    `gorm:"size:255"`
 	Type        TxType
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	DeletedAt   gorm.DeletedAt `gorm:"index"`
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 	AttachmentID *uint
 	Entries      []dbEntry `gorm:"foreignKey:TransactionID"` // One-to-many relationship
 	Trades       []dbTrade `gorm:"foreignKey:TransactionID"` // One-to-many for stock operations
