@@ -35,6 +35,9 @@ jobs:
         working-directory: webui
         run: npm ci
 
+      - name: Run UI tests
+        run: make ui-test
+
       - name: Build frontend
         run: make package-ui
 
