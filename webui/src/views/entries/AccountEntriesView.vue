@@ -17,6 +17,7 @@ import IncomeExpenseDialog from '@/views/entries/dialogs/IncomeExpenseDialog.vue
 import BalanceStatusDialog from '@/views/entries/dialogs/BalanceStatusDialog.vue'
 import AddEntryMenu from '@/views/entries/AddEntryMenu.vue'
 import { useAccounts } from '@/composables/useAccounts'
+import { findAccountById } from '@/utils/accountUtils'
 import { useBalance } from '@/composables/useGetBalanceReport'
 
 /* --- Route --- */
@@ -79,20 +80,8 @@ const accountName = computed(() => {
 const accountCurrency = computed(() => currentAccount.value?.currency ?? '')
 
 const currentAccount = computed(() => {
-    if (!accountId.value) return null
-    if (!accounts?.value) return null
-
-    for (const provider of accounts.value) {
-        if (provider.accounts) {
-            for (const account of provider.accounts) {
-                if (String(account.id) === String(accountId.value)) {
-                    return account
-                }
-            }
-        }
-    }
-
-    return null
+    if (!accountId.value || !accounts?.value) return null
+    return findAccountById(accounts.value, accountId.value)
 })
 
 const accountType = computed(() => currentAccount.value?.type ?? null)

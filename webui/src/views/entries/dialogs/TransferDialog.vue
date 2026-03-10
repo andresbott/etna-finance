@@ -6,8 +6,9 @@ import { Form } from '@primevue/forms'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
 import { useQueryClient } from '@tanstack/vue-query'
-import { useEntries } from '@/composables/useEntries.ts'
+import { useEntryMutations } from '@/composables/useEntryMutations'
 import { useAccounts } from '@/composables/useAccounts'
+import { findAccountById } from '@/utils/accountUtils'
 import {
     getFormattedAccountId,
     getDateOnly,
@@ -29,7 +30,7 @@ import { uploadAttachment, deleteAttachment, getAttachmentUrl } from '@/lib/api/
 import FileInput from '@/components/common/FileInput.vue'
 
 const queryClient = useQueryClient()
-const { createEntry, updateEntry, isCreating, isUpdating } = useEntries({})
+const { createEntry, updateEntry, isCreating, isUpdating } = useEntryMutations()
 const backendError = ref('')
 const { accounts } = useAccounts()
 const { pickerDateFormat, dateValidation } = useDateFormat()
@@ -78,18 +79,19 @@ const formValues = ref({
     originAccountId: getFormattedAccountId(props.originAccountId)
 })
 
-// Watch props to update form values when editing
+// Reset form when dialog opens
 const formKey = ref(0)
-watch(props, (newProps) => {
+watch(() => props.visible, (visible) => {
+    if (!visible) return
     formValues.value = {
-        description: newProps.description,
-        date: getDateOnly(newProps.date),
-        targetAmount: newProps.targetAmount,
-        originAmount: newProps.originAmount,
-        targetAccountId: getFormattedAccountId(newProps.targetAccountId),
-        originAccountId: getFormattedAccountId(newProps.originAccountId)
+        description: props.description,
+        date: getDateOnly(props.date),
+        targetAmount: props.targetAmount,
+        originAmount: props.originAmount,
+        targetAccountId: getFormattedAccountId(props.targetAccountId),
+        originAccountId: getFormattedAccountId(props.originAccountId)
     }
-    existingAttachmentId.value = newProps.attachmentId || null
+    existingAttachmentId.value = props.attachmentId || null
     selectedFile.value = null
     attachmentPendingDelete.value = false
     formKey.value++
@@ -113,18 +115,7 @@ const updateSelectedTargetAccount = (accountObject) => {
         return
     }
 
-    // Search through all providers and their accounts
-    let found = null
-    if (accounts.value) {
-        for (const provider of accounts.value) {
-            found = provider.accounts.find((acc) => acc.id === accountId)
-            if (found) {
-                break
-            }
-        }
-    }
-
-    selectedTargetAccount.value = found
+    selectedTargetAccount.value = findAccountById(accounts.value, accountId)
 }
 
 // Update selected origin account when it changes
@@ -141,18 +132,7 @@ const updateSelectedOriginAccount = (accountObject) => {
         return
     }
 
-    // Search through all providers and their accounts
-    let found = null
-    if (accounts.value) {
-        for (const provider of accounts.value) {
-            found = provider.accounts.find((acc) => acc.id === accountId)
-            if (found) {
-                break
-            }
-        }
-    }
-
-    selectedOriginAccount.value = found
+    selectedOriginAccount.value = findAccountById(accounts.value, accountId)
 }
 
 // Handle account selection changes

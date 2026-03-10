@@ -6,8 +6,9 @@ import { Form } from '@primevue/forms'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
 import { useQueryClient } from '@tanstack/vue-query'
-import { useEntries } from '@/composables/useEntries.ts'
+import { useEntryMutations } from '@/composables/useEntryMutations'
 import { useAccounts } from '@/composables/useAccounts'
+import { findAccountById } from '@/utils/accountUtils'
 import {
     getFormattedAccountId,
     getDateOnly,
@@ -29,7 +30,7 @@ import { uploadAttachment, deleteAttachment, getAttachmentUrl } from '@/lib/api/
 import FileInput from '@/components/common/FileInput.vue'
 
 const queryClient = useQueryClient()
-const { createEntry, updateEntry, isCreating, isUpdating } = useEntries({})
+const { createEntry, updateEntry, isCreating, isUpdating } = useEntryMutations()
 const backendError = ref('')
 const { accounts } = useAccounts()
 const { pickerDateFormat, dateValidation } = useDateFormat()
@@ -80,18 +81,19 @@ const formValues = ref({
     date: getDateOnly(props.date)
 })
 
-// Watch props to update form values when editing
+// Reset form when dialog opens
 const formKey = ref(0)
-watch(props, (newProps) => {
+watch(() => props.visible, (visible) => {
+    if (!visible) return
     formValues.value = {
-        description: newProps.description,
-        amount: newProps.amount,
-        AccountId: getFormattedAccountId(newProps.accountId),
-        stockAmount: newProps.stockAmount,
-        date: getDateOnly(newProps.date)
+        description: props.description,
+        amount: props.amount,
+        AccountId: getFormattedAccountId(props.accountId),
+        stockAmount: props.stockAmount,
+        date: getDateOnly(props.date)
     }
-    categoryId.value = newProps.categoryId
-    existingAttachmentId.value = newProps.attachmentId || null
+    categoryId.value = props.categoryId
+    existingAttachmentId.value = props.attachmentId || null
     selectedFile.value = null
     attachmentPendingDelete.value = false
     formKey.value++
@@ -112,7 +114,6 @@ const updateSelectedAccount = (accountObject) => {
         return
     }
 
-    // Find the account in the accounts structure
     const accountId = extractAccountId(accountObject)
 
     if (isNaN(accountId) || accountId === null) {
@@ -120,18 +121,7 @@ const updateSelectedAccount = (accountObject) => {
         return
     }
 
-    // Search through all providers and their accounts
-    let found = null
-    if (accounts.value) {
-        for (const provider of accounts.value) {
-            found = provider.accounts.find((acc) => acc.id === accountId)
-            if (found) {
-                break
-            }
-        }
-    }
-
-    selectedAccount.value = found
+    selectedAccount.value = findAccountById(accounts.value, accountId)
 }
 
 // Also keep the watch for reactive updates, with immediate flag

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest'
+import { describe, it, expect, vi, beforeEach, type Mock, type MockInstance } from 'vitest'
 import { apiClient } from './client'
 import {
     GetBackupFiles,
@@ -96,9 +96,9 @@ describe('DeleteBackupFile', () => {
 describe('DownloadBackupFile', () => {
     let mockCreateObjectURL: Mock
     let mockRevokeObjectURL: Mock
-    let mockCreateElement: Mock
-    let mockAppendChild: Mock
-    let mockRemoveChild: Mock
+    let mockCreateElement: MockInstance
+    let mockAppendChild: MockInstance
+    let mockRemoveChild: MockInstance
     let mockClick: Mock
     let mockLink: { href: string; download: string; click: Mock }
 

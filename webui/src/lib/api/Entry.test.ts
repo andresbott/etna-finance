@@ -49,7 +49,7 @@ import {
 } from '@/lib/api/Entry'
 import { apiClient } from '@/lib/api/client'
 
-const mockedClient = vi.mocked(apiClient)
+const mockedClient = vi.mocked(apiClient, true)
 
 describe('Entry API wrappers', () => {
     beforeEach(() => {

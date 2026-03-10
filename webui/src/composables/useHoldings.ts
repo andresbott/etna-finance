@@ -151,12 +151,13 @@ export function useHoldings() {
                 }
 
                 if (accounts.length === 0) return null
-                return {
+                const result: ProviderWithHoldings = {
                     id: provider.id,
                     name: provider.name,
-                    icon: provider.icon,
                     accounts
                 }
+                if (provider.icon) result.icon = provider.icon
+                return result
             })
             .filter((p): p is ProviderWithHoldings => p != null)
     })

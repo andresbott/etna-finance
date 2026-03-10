@@ -53,10 +53,11 @@ describe('findAccountById', () => {
         expect(result!.name).toBe('Investment B')
     })
 
-    it('returns null when string id does not match numeric account id (strict equality)', () => {
-        // account.id is 20 (number), search with '20' (string) — strict equality fails
+    it('finds account by string id matching numeric account id via coercion', () => {
+        // account.id is 20 (number), search with '20' (string) — String coercion matches
         const result = findAccountById(sampleProviders, '20')
-        expect(result).toBeNull()
+        expect(result).not.toBeNull()
+        expect(result!.name).toBe('Savings A')
     })
 
     it('finds account by string id when account.id is also a string', () => {

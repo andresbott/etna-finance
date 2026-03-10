@@ -23,7 +23,7 @@ vi.mock('@/lib/api/client', () => ({
 // Import the mocked client so we can set return values
 import { apiClient } from '@/lib/api/client'
 
-const mockedClient = vi.mocked(apiClient)
+const mockedClient = vi.mocked(apiClient, true)
 
 beforeEach(() => {
     vi.clearAllMocks()
