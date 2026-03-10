@@ -110,11 +110,11 @@ export function useEntries(options: UseEntriesOptions = {}) {
     })
 
     // Computed values for easy access to pagination data
-    const entries = computed(() => entriesQuery.data.value?.items || [])
-    const totalRecords = computed(() => entriesQuery.data.value?.total || 0)
-    const currentPage = computed(() => entriesQuery.data.value?.page || 1)
-    const pageSize = computed(() => entriesQuery.data.value?.limit || DEFAULT_PAGE_SIZE)
-    const priorBalance = computed(() => entriesQuery.data.value?.priorBalance || 0)
+    const entries = computed(() => entriesQuery.data.value?.items ?? [])
+    const totalRecords = computed(() => entriesQuery.data.value?.total ?? 0)
+    const currentPage = computed(() => entriesQuery.data.value?.page ?? 1)
+    const pageSize = computed(() => entriesQuery.data.value?.limit ?? DEFAULT_PAGE_SIZE)
+    const priorBalance = computed(() => entriesQuery.data.value?.priorBalance ?? 0)
 
     return {
         // Queries - now with proper pagination access

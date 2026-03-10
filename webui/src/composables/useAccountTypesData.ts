@@ -103,10 +103,12 @@ export function useAccountTypesData() {
             if (accounts && accounts.length > 0) {
                 const accountIds = accounts.map((a) => a.id).filter(Boolean)
                 if (accountIds.length > 0) {
+                    const oneYearAgo = new Date()
+                    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
                     mutate({
                         accountIds,
                         steps: 30,
-                        startDate: '2025-01-03'
+                        startDate: oneYearAgo.toISOString().split('T')[0]
                     })
                 }
             }

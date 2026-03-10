@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { VerticalLayout } from '@go-bumbu/vue-layouts'
 import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
 
@@ -43,7 +43,7 @@ const deleteProviderDialogVisible = ref(false)
 const treeTableData = computed(() => {
     if (!accounts.value) return []
 
-    const data = accounts.value.map((provider) => {
+    return accounts.value.map((provider) => {
         const allChildren = provider.accounts?.map((account) => ({
             key: account.id,
             data: {
@@ -70,14 +70,15 @@ const treeTableData = computed(() => {
             children
         }
     })
+})
 
+// Auto-expand all provider nodes when data changes
+watch(treeTableData, (data) => {
     expandedKeys.value = data.reduce((acc, node) => {
         acc[node.key] = true
         return acc
     }, {})
-
-    return data
-})
+}, { immediate: true })
 
 // Handlers
 const openNewProviderDialog = () => {

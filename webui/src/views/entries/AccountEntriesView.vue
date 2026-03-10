@@ -210,7 +210,6 @@ const openDuplicateEntryDialog = (entry) => {
     isEditMode.value = false // Not in edit mode, creating a new entry
     isDuplicateMode.value = true
     selectedEntry.value = entry
-    console.log('Duplicating entry:', entry)
 
     if (entry.type === 'expense' || entry.type === 'income') {
         // Use IncomeExpenseDialog for income and expense entries

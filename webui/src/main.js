@@ -77,7 +77,6 @@ app.use(router)
 
 // focus trap
 import FocusTrap from 'primevue/focustrap'
-import { Ripple } from 'primevue'
 app.directive('focustrap', FocusTrap)
 
 // vue query
@@ -88,7 +87,7 @@ const queryClient = new QueryClient({
             refetchOnWindowFocus: false, // Disable refetching when window regains focus
             retry: 3, // Number of retries if query fails
             staleTime: 1000 * 60 * 5, // Data considered fresh for 5 minutes
-            cacheTime: 1000 * 60 * 30 // Cache data for 30 minutes
+            gcTime: 1000 * 60 * 30 // Cache data for 30 minutes
         },
         mutations: {
             // Global default settings for mutations

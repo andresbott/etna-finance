@@ -67,7 +67,7 @@ export const useUserStore = defineStore('user', () => {
                 return response
             },
             (error) => {
-                if (error.response.status === 401) {
+                if (error.response?.status === 401) {
                     console.log('authentication returned 401')
                     isLoggedIn.value = false
                     wrongPwErr.value = true

@@ -81,13 +81,16 @@ export function useHoldings() {
     const pricesQuery = useQuery({
         queryKey: computed(() => ['holdings-prices', symbolSet.value.join(',')]),
         queryFn: async () => {
-            const map: Record<string, number> = {}
-            for (const sym of symbolSet.value) {
-                try {
+            const results = await Promise.allSettled(
+                symbolSet.value.map(async (sym) => {
                     const p = await getLatestPrice(sym)
-                    if (p?.price != null) map[sym] = p.price
-                } catch {
-                    // ignore missing prices
+                    return { sym, price: p?.price ?? null }
+                })
+            )
+            const map: Record<string, number> = {}
+            for (const result of results) {
+                if (result.status === 'fulfilled' && result.value.price != null) {
+                    map[result.value.sym] = result.value.price
                 }
             }
             return map
