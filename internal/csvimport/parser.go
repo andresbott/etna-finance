@@ -554,6 +554,18 @@ func readCSV(r io.Reader, profile ImportProfile) (header []string, dataRows [][]
 // knownDateFormats lists the Go reference-time formats we try for auto-detection,
 // ordered from least ambiguous to most ambiguous.
 var knownDateFormats = []string{
+	// Date-time formats (most specific first)
+	"2006-01-02 15:04:05",  // YYYY-MM-DD HH:MM:SS (ISO 8601)
+	"02/01/2006 15:04:05",  // DD/MM/YYYY HH:MM:SS (European)
+	"01/02/2006 15:04:05",  // MM/DD/YYYY HH:MM:SS (US)
+	"02.01.2006 15:04:05",  // DD.MM.YYYY HH:MM:SS (European dots)
+	"2006/01/02 15:04:05",  // YYYY/MM/DD HH:MM:SS
+	"02-01-2006 15:04:05",  // DD-MM-YYYY HH:MM:SS
+	"01-02-2006 15:04:05",  // MM-DD-YYYY HH:MM:SS
+	"2006-01-02T15:04:05",  // ISO 8601 with T separator
+	"2006-01-02T15:04:05Z", // ISO 8601 UTC
+
+	// Date-only formats
 	"2006-01-02",  // YYYY-MM-DD (ISO 8601)
 	"02.01.2006",  // DD.MM.YYYY (European with dots)
 	"02/01/2006",  // DD/MM/YYYY (European with slashes)
@@ -760,6 +772,11 @@ func ParsePreview(r io.Reader, profile ImportProfile) (PreviewResult, error) {
 
 		// Parse date
 		rawDate := strings.TrimSpace(row[dateIdx])
+		if rawDate == "" {
+			parsed.Error = "empty date"
+			rows = append(rows, parsed)
+			continue
+		}
 		t, err := time.Parse(profile.DateFormat, rawDate)
 		if err != nil {
 			parsed.Error = fmt.Sprintf("invalid date %q: %v", rawDate, err)
@@ -845,6 +862,11 @@ func Parse(r io.Reader, profile ImportProfile, rules []CategoryRule, existing []
 
 		// Parse date
 		rawDate := strings.TrimSpace(row[dateIdx])
+		if rawDate == "" {
+			parsed.Error = "empty date"
+			result = append(result, parsed)
+			continue
+		}
 		t, err := time.Parse(profile.DateFormat, rawDate)
 		if err != nil {
 			parsed.Error = fmt.Sprintf("invalid date %q: %v", rawDate, err)

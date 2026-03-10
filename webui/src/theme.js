@@ -136,6 +136,15 @@ const CustomTheme = definePreset(Lara, {
                 }
             }
         },
+        radiobutton: {
+            root: {
+                width: '22px',
+                height: '22px'
+            },
+            icon: {
+                size: '12px'
+            }
+        },
         panel: {
             colorScheme: {
                 light: {
