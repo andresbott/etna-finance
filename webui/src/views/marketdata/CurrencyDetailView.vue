@@ -24,7 +24,7 @@ import {
     TooltipComponent,
     LegendComponent
 } from 'echarts/components'
-import ConfirmDialog from '@/components/common/confirmDialog.vue'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { useSettingsStore } from '@/store/settingsStore'
 import { useDateFormat } from '@/composables/useDateFormat'
 import { toLocalDateString } from '@/composables/useMarketData'
@@ -35,6 +35,7 @@ import {
     getChangeSeverity
 } from '@/composables/useCurrencyRates'
 import type { RateRecord } from '@/lib/api/CurrencyRates'
+import type { RateHistoryRange } from '@/composables/useCurrencyRates'
 
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent])
@@ -49,10 +50,10 @@ const TAB_NAMES = ['overview', 'raw-data']
 const leftSidebarCollapsed = ref(true)
 const activeTabIndex = ref(0)
 
-const currency = computed(() => (route.params.currency || '').toUpperCase())
+const currency = computed(() => (String(route.params.currency || '')).toUpperCase())
 
 function tabFromRoute() {
-    const tab = route.params.tab
+    const tab = String(route.params.tab || '')
     return TAB_NAMES.indexOf(tab) >= 0 ? TAB_NAMES.indexOf(tab) : 0
 }
 
@@ -76,7 +77,7 @@ const dateRangeOptions = [
     { value: '6m', label: '6M' },
     { value: 'max', label: 'Max' }
 ]
-const selectedRange = ref('6m')
+const selectedRange = ref<RateHistoryRange>('6m')
 
 const { data: rateHistoryData, refetch: refetchRateHistory } = useRateHistory(
     mainCurrency,
@@ -131,7 +132,7 @@ const chartOption = computed(() => {
         },
         tooltip: {
             trigger: 'axis',
-            formatter: (params) => {
+            formatter: (params: any) => {
                 const x = params[0]
                 return `<strong>${x.axisValueLabel}</strong><br/>${pairLabel.value}: <strong>${Number(x.value).toFixed(4)}</strong>`
             }
@@ -267,7 +268,7 @@ function goBack() {
                         </template>
                         <template #content>
                             <TabView v-model:activeIndex="activeTabIndex">
-                                <TabPanel header="Overview">
+                                <TabPanel header="Overview" value="overview">
                                     <div class="instrument-content">
                                         <div class="price-row">
                                             <span class="current-price">{{ currentRate.toFixed(4) }}</span>
@@ -301,7 +302,7 @@ function goBack() {
                                     </div>
                                 </TabPanel>
 
-                                <TabPanel header="Raw data">
+                                <TabPanel header="Raw data" value="raw-data">
                                     <div class="raw-data-toolbar mb-3">
                                         <Button label="Add" icon="pi pi-plus" :loading="isCreating" @click="openAddDataDialog" />
                                     </div>
@@ -365,7 +366,7 @@ function goBack() {
                                 <DatePicker
                                     id="fx-data-date"
                                     :modelValue="dataDialogForm.date ? new Date(dataDialogForm.date + 'T12:00:00') : null"
-                                    @update:modelValue="(d) => { dataDialogForm.date = d ? toLocalDateString(d) : '' }"
+                                    @update:modelValue="(d: any) => { dataDialogForm.date = d ? toLocalDateString(d) : '' }"
                                     :dateFormat="pickerDateFormat"
                                     showIcon
                                     class="w-full"

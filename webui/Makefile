@@ -18,22 +18,13 @@ type-check: ## check correct types
 run: ## run the local dev
 	@npm run dev
 
-storybook: ## run storybook dev server
-	@npm run storybook
-
 build: ## build a production release
 	@npm run build
 
 ##@ Testing
 
-test: ## run all tests (unit + storybook)
+test: ## run all tests
 	@npm test
-
-test-unit: ## run unit tests only
-	@npm run test:unit
-
-test-storybook: ## run storybook tests only
-	@npm run test:storybook
 
 test-watch: ## run tests in watch mode
 	@npm run test:watch

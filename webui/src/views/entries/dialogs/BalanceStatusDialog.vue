@@ -6,7 +6,7 @@ import { Form } from '@primevue/forms'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
 import { useQueryClient } from '@tanstack/vue-query'
-import { useEntries } from '@/composables/useEntries.ts'
+import { useEntryMutations } from '@/composables/useEntryMutations'
 import {
     getFormattedAccountId,
     getDateOnly,
@@ -27,7 +27,7 @@ import { uploadAttachment, deleteAttachment, getAttachmentUrl } from '@/lib/api/
 import FileInput from '@/components/common/FileInput.vue'
 
 const queryClient = useQueryClient()
-const { createEntry, updateEntry, isCreating, isUpdating } = useEntries({})
+const { createEntry, updateEntry, isCreating, isUpdating } = useEntryMutations()
 const backendError = ref('')
 const { pickerDateFormat, dateValidation } = useDateFormat()
 
@@ -53,16 +53,17 @@ const formValues = ref({
     date: getDateOnly(props.date)
 })
 
-// Watch props to update form values when editing
+// Reset form when dialog opens
 const formKey = ref(0)
-watch(props, (newProps) => {
+watch(() => props.visible, (visible) => {
+    if (!visible) return
     formValues.value = {
-        description: newProps.description,
-        amount: newProps.amount,
-        AccountId: getFormattedAccountId(newProps.accountId),
-        date: getDateOnly(newProps.date)
+        description: props.description,
+        amount: props.amount,
+        AccountId: getFormattedAccountId(props.accountId),
+        date: getDateOnly(props.date)
     }
-    existingAttachmentId.value = newProps.attachmentId || null
+    existingAttachmentId.value = props.attachmentId || null
     selectedFile.value = null
     attachmentPendingDelete.value = false
     formKey.value++

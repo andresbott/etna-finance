@@ -15,7 +15,7 @@ import Column from 'primevue/column'
 import Dialog from 'primevue/dialog'
 import DatePicker from 'primevue/datepicker'
 import InputNumber from 'primevue/inputnumber'
-import ConfirmDialog from '@/components/common/confirmDialog.vue'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { useDateFormat } from '@/composables/useDateFormat'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
@@ -197,7 +197,7 @@ const chartOption = computed(() => {
         },
         tooltip: {
             trigger: 'axis',
-            formatter: (params) => {
+            formatter: (params: any) => {
                 const p = params[0]
                 return `<strong>${p.axisValueLabel}</strong><br/>
                     Price: <strong>${p.value.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong> ${inst.currency || ''}`
@@ -216,7 +216,7 @@ const chartOption = computed(() => {
             type: 'value',
             scale: true,
             axisLabel: {
-                formatter: (v) => v.toFixed(0)
+                formatter: (v: number) => v.toFixed(0)
             },
             splitLine: {
                 lineStyle: { type: 'dashed', opacity: 0.4 }
@@ -296,7 +296,7 @@ function goBack() {
                 </template>
                 <template #content>
                     <TabView v-model:activeIndex="activeTabIndex">
-                        <TabPanel header="Overview">
+                        <TabPanel header="Overview" value="overview">
                             <div class="instrument-content">
                                 <div class="price-row">
                                     <span class="current-price">{{ formatPrice(instrument.lastPrice) }}</span>
@@ -336,7 +336,7 @@ function goBack() {
                             </div>
                         </TabPanel>
 
-                        <TabPanel header="Raw data">
+                        <TabPanel header="Raw data" value="raw-data">
                             <div class="raw-data-toolbar mb-3">
                                 <Button label="Add" icon="pi pi-plus" :loading="isCreating" @click="openAddDataDialog" />
                             </div>
@@ -395,7 +395,7 @@ function goBack() {
                                 <DatePicker
                                     :id="'data-date'"
                                     :modelValue="dataDialogForm.date ? new Date(dataDialogForm.date + 'T12:00:00') : null"
-                                    @update:modelValue="(d: Date | null) => { dataDialogForm.date = d ? toLocalDateString(d) : '' }"
+                                    @update:modelValue="(d: any) => { dataDialogForm.date = d ? toLocalDateString(d) : '' }"
                                     :dateFormat="pickerDateFormat"
                                     showIcon
                                     class="w-full"

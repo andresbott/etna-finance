@@ -10,6 +10,7 @@ import { useInstruments } from '@/composables/useInstruments'
 import { useDateFormat } from '@/composables/useDateFormat'
 import { ACCOUNT_TYPES } from '@/types/account'
 import { getAttachmentUrl } from '@/lib/api/Attachment'
+import { formatAmount, formatCurrency } from '@/utils/currency'
 
 /* --- Props --- */
 const props = defineProps({
@@ -68,8 +69,7 @@ const instrumentsMap = computed(() => {
 })
 const getInstrumentSymbol = (instrumentId) => instrumentsMap.value[instrumentId]?.symbol ?? '—'
 const getInstrumentCurrency = (instrumentId) => instrumentsMap.value[instrumentId]?.currency ?? ''
-const formatPrice = (n) => (n != null && !Number.isNaN(n) ? n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—')
-const formatAmount = (n) => (n != null && !Number.isNaN(n) ? n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00')
+const formatPrice = (n) => (n != null && !Number.isNaN(n) ? formatCurrency(n, 2, 2) : '—')
 
 /* --- Helpers --- */
 const getRowClass = (data) => ({
@@ -161,7 +161,7 @@ const tableEntries = computed(() =>
                     <template #body="{ data }">
                         <span
                             v-if="data.type === 'transfer'"
-                            v-tooltip.bottom="`${getAccountName(data.originAccountId)}: ${data.originAmount?.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${getAccountCurrency(data.originAccountId)} → ${getAccountName(data.targetAccountId)}: ${data.targetAmount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${getAccountCurrency(data.targetAccountId)}`"
+                            v-tooltip.bottom="`${getAccountName(data.originAccountId)}: ${data.originAmount != null ? formatAmount(data.originAmount) : '0.00'} ${getAccountCurrency(data.originAccountId)} → ${getAccountName(data.targetAccountId)}: ${formatAmount(data.targetAmount)} ${getAccountCurrency(data.targetAccountId)}`"
                         >
                             {{ data.description }}
                         </span>
@@ -190,17 +190,17 @@ const tableEntries = computed(() =>
                         <template v-if="!isInstrumentAccount">
                             <div v-if="data.type === 'opening-balance'" class="amount opening-balance"></div>
                             <div v-else-if="data.type === 'expense'" class="amount expense">
-                                -{{ data.Amount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                                -{{ formatAmount(data.Amount) }}
                             </div>
                             <div v-else-if="data.type === 'income'" class="amount income">
-                                +{{ data.Amount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                                +{{ formatAmount(data.Amount) }}
                             </div>
                             <div v-else-if="data.type === 'transfer'" class="amount transfer">
                                 <template v-if="String(data.targetAccountId) === String(accountId)">
-                                    +{{ data.targetAmount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                                    +{{ formatAmount(data.targetAmount) }}
                                 </template>
                                 <template v-else>
-                                    -{{ (data.originAmount ?? 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                                    -{{ formatAmount(data.originAmount ?? 0) }}
                                 </template>
                             </div>
                             <div v-else-if="data.type === 'stockbuy'" class="amount" :class="String(data.cashAccountId) === String(accountId) ? 'amount-negative' : 'amount-positive'">
@@ -257,23 +257,23 @@ const tableEntries = computed(() =>
                                 {{ getAccountCurrency(data.accountId) }}
                             </div>
                             <div v-else class="amount">
-                                {{ (data.totalAmount ?? data.targetAmount ?? 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                                {{ formatAmount(data.totalAmount ?? data.targetAmount ?? 0) }}
                             </div>
                         </template>
                         <!-- Instrument layout: quantity + ticker -->
                         <template v-else>
                             <div v-if="data.type === 'opening-balance'" class="amount opening-balance">—</div>
                             <div v-else-if="data.type === 'expense'" class="amount expense">
-                                -{{ data.Amount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                                -{{ formatAmount(data.Amount) }}
                             </div>
                             <div v-else-if="data.type === 'income'" class="amount income">
-                                +{{ data.Amount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                                +{{ formatAmount(data.Amount) }}
                             </div>
                             <div v-else-if="data.type === 'transfer'" class="amount transfer">
                                 <template v-if="String(data.targetAccountId) === String(accountId)">
-                                    +{{ data.targetAmount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                                    +{{ formatAmount(data.targetAmount) }}
                                 </template>
-                                <template v-else>-{{ (data.originAmount ?? 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</template>
+                                <template v-else>-{{ formatAmount(data.originAmount ?? 0) }}</template>
                             </div>
                             <div v-else-if="data.type === 'stockbuy'" class="amount" :class="String(data.cashAccountId) === String(accountId) ? 'amount-negative' : 'amount-positive'">
                                 <template v-if="data.instrumentId != null && data.quantity != null">
@@ -312,7 +312,7 @@ const tableEntries = computed(() =>
                                 </template>
                             </div>
                             <div v-else class="amount">
-                                {{ (data.totalAmount ?? data.targetAmount ?? 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                                {{ formatAmount(data.totalAmount ?? data.targetAmount ?? 0) }}
                             </div>
                         </template>
                     </template>
@@ -321,7 +321,7 @@ const tableEntries = computed(() =>
                 <Column v-if="!isInstrumentAccount" field="balance" header="Balance" bodyStyle="text-align: right" class="balance-column">
                     <template #body="{ data }">
                         <div class="balance" :class="{ 'balance-negative': data.balance < 0 }">
-                            {{ data.balance.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                            {{ formatAmount(data.balance) }}
                         </div>
                     </template>
                 </Column>

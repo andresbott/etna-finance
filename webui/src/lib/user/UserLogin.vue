@@ -8,10 +8,10 @@ import InputGroupAddon from 'primevue/inputgroupaddon'
 import Button from 'primevue/button'
 import Message from 'primevue/message'
 import { ref } from 'vue'
-import { useUserStore } from '@/lib/user/userstore.js'
+import { useUserStore } from '@/store/userStore'
 import { Form } from '@primevue/forms'
 import router from '@/router/index.js'
-import LoadingScreen from '@/components/common/loadingScreen.vue'
+import LoadingScreen from '@/components/common/LoadingScreen.vue'
 const user = useUserStore()
 import { FormField } from '@primevue/forms'
 

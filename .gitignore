@@ -39,3 +39,6 @@ zarf/appData/session
 # local env (secrets, API keys)
 .env
 config.yaml
+
+# Playwright MCP logs
+.playwright-mcp/

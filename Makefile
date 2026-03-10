@@ -9,6 +9,9 @@ default: help
 test: ## run fast go tests
 	@go test ./... -cover
 
+ui-test: ## run webui unit tests
+	@cd webui && npm test
+
 it-test: ## run db IT tests
 	@cd internal/accounting && go test -v --alldbs
 	@cd internal/backup && go test -v --alldbs
@@ -49,7 +52,7 @@ license-check: ## check for invalid licenses
 	@go list -m -mod=readonly -json all | go-licence-detector -includeIndirect -rules allowedLicenses.json -overrides overrideLicenses.json
 
 .PHONY: verify
-verify: test license-check lint benchmark coverage ## run all tests
+verify: test ui-test license-check lint benchmark coverage ## run all tests
 
 coverage-report: ## generate a coverage report
 	go test -covermode=count -coverpkg=./... -coverprofile coverage.cover.out  ./...

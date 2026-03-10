@@ -12,7 +12,7 @@ export function findAccountById(providers: AccountProvider[], id: number | strin
     for (const provider of providers) {
         if (provider.accounts) {
             for (const account of provider.accounts) {
-                if (account.id === String(id) || account.id === id) {
+                if (String(account.id) === String(id)) {
                     return account
                 }
             }

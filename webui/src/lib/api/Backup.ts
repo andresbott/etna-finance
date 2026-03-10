@@ -10,16 +10,16 @@ export interface BackupListResponse {
     files: BackupFile[]
 }
 
-export const GetBackupFiles = async (): Promise<BackupFile[]> => {
+export const getBackupFiles = async (): Promise<BackupFile[]> => {
     const { data } = await apiClient.get<BackupListResponse>('/backup')
     return data.files
 }
 
-export const DeleteBackupFile = async (id: string): Promise<void> => {
+export const deleteBackupFile = async (id: string): Promise<void> => {
     await apiClient.delete(`/backup/${id}`)
 }
 
-export const DownloadBackupFile = async (id: string, filename: string): Promise<void> => {
+export const downloadBackupFile = async (id: string, filename: string): Promise<void> => {
     const response = await apiClient.get(`/backup/${id}`, {
         responseType: 'blob'
     })
@@ -36,11 +36,11 @@ export const DownloadBackupFile = async (id: string, filename: string): Promise<
     window.URL.revokeObjectURL(url)
 }
 
-export const CreateBackup = async (): Promise<void> => {
+export const createBackup = async (): Promise<void> => {
     await apiClient.post('/backup')
 }
 
-export const RestoreBackup = async (file: File): Promise<void> => {
+export const restoreBackup = async (file: File): Promise<void> => {
     const formData = new FormData()
     formData.append('file', file)
     await apiClient.post('/restore', formData, {
@@ -50,6 +50,6 @@ export const RestoreBackup = async (file: File): Promise<void> => {
     })
 }
 
-export const RestoreBackupFromExisting = async (id: string): Promise<void> => {
+export const restoreBackupFromExisting = async (id: string): Promise<void> => {
     await apiClient.post(`/restore/${id}`)
 }

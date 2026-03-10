@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, computed, nextTick } from 'vue'
+import { ref, watch, computed } from 'vue'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
 import { Form } from '@primevue/forms'
@@ -11,12 +11,11 @@ import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
 import DatePicker from 'primevue/datepicker'
 import Select from 'primevue/select'
-import { useQueryClient } from '@tanstack/vue-query'
+import { useQueryClient, useMutation } from '@tanstack/vue-query'
 import AccountSelector from '@/components/AccountSelector.vue'
 import { useInstruments } from '@/composables/useInstruments'
-import { useMutation } from '@tanstack/vue-query'
 import { createStockTransaction } from '@/lib/api/Entry'
-import { useEntries } from '@/composables/useEntries'
+import { useEntryMutations } from '@/composables/useEntryMutations'
 import { useDateFormat } from '@/composables/useDateFormat'
 import {
     getFormattedAccountId,
@@ -33,7 +32,7 @@ import { getLatestPrice } from '@/lib/api/MarketData'
 const queryClient = useQueryClient()
 const backendError = ref('')
 const { instruments: instrumentsData } = useInstruments()
-const { updateEntry } = useEntries({})
+const { updateEntry } = useEntryMutations()
 
 const createMutation = useMutation({
     mutationFn: createStockTransaction,

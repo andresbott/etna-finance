@@ -9,12 +9,12 @@ import type {
 } from '@/types/category'
 
 //* ================  INCOME  ================*//
-export const GetIncomeCategories = async (): Promise<Category[]> => {
+export const getIncomeCategories = async (): Promise<Category[]> => {
     const { data } = await apiClient.get('/fin/category/income')
     return data.items
 }
 
-export const CreateIncomeCategory = async (payload: CreateIncomeCategoryDTO): Promise<Category> => {
+export const createIncomeCategory = async (payload: CreateIncomeCategoryDTO): Promise<Category> => {
     const { data } = await apiClient.post('/fin/category/income', payload)
     return data
 }
@@ -24,7 +24,7 @@ interface UpdateIncomeCategoryArgs {
     payload: UpdateIncomeCategoryDTO
 }
 
-export const UpdateIncomeCategory = async ({
+export const updateIncomeCategory = async ({
     id,
     payload
 }: UpdateIncomeCategoryArgs): Promise<Category> => {
@@ -38,12 +38,12 @@ export const deleteIncomeCategory = async (id: number): Promise<void> => {
 
 //* ================  Expense  ================*//
 
-export const GetExpenseCategories = async (): Promise<Category[]> => {
+export const getExpenseCategories = async (): Promise<Category[]> => {
     const { data } = await apiClient.get('/fin/category/expense')
     return data.items
 }
 
-export const CreateExpenseCategory = async (
+export const createExpenseCategory = async (
     payload: CreateExpenseCategoryDTO
 ): Promise<ExpenseCategory> => {
     const { data } = await apiClient.post('/fin/category/expense', payload)
@@ -55,7 +55,7 @@ interface UpdateExpenseCategoryArgs {
     payload: UpdateExpenseCategoryDTO
 }
 
-export const UpdateExpenseCategory = async ({
+export const updateExpenseCategory = async ({
     id,
     payload
 }: UpdateExpenseCategoryArgs): Promise<ExpenseCategory> => {
@@ -63,6 +63,6 @@ export const UpdateExpenseCategory = async ({
     return data
 }
 
-export const DeleteExpenseCategory = async (id: number): Promise<void> => {
+export const deleteExpenseCategory = async (id: number): Promise<void> => {
     await apiClient.delete(`/fin/category/expense/${id}`)
 }

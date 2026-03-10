@@ -5,7 +5,7 @@ import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
 import TopBar from '@/views/topbar.vue'
 import Card from 'primevue/card'
 import Button from 'primevue/button'
-import { useUserStore } from '@/lib/user/userstore.js'
+import { useUserStore } from '@/store/userStore'
 
 const user = useUserStore()
 </script>

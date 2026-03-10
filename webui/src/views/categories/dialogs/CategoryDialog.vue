@@ -8,7 +8,7 @@ import { ref, watch, computed } from 'vue'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
-import CategorySelect from '@/components/common/categorySelect.vue'
+import CategorySelect from '@/components/common/CategorySelect.vue'
 import IconSelect from '@/components/common/IconSelect.vue'
 
 const props = defineProps({
