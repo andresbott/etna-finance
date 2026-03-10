@@ -26,6 +26,22 @@ export function useAccountTypesData() {
         return accounts
     })
 
+    const balanceReportQuery = useQuery({
+        queryKey: computed(() => {
+            const ids = allAccounts.value.map((a) => a.id).filter(Boolean)
+            return ['balanceReport', ...ids]
+        }),
+        queryFn: () => {
+            const accountIds = allAccounts.value.map((a) => a.id).filter(Boolean)
+            const oneYearAgo = new Date()
+            oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
+            return getBalanceReport(accountIds, 30, oneYearAgo.toISOString().split('T')[0])
+        },
+        enabled: computed(() => allAccounts.value.length > 0)
+    })
+
+    const balanceReport = computed(() => balanceReportQuery.data.value)
+
     function getLatestBalance(account: { reportData?: Array<{ Sum: number }> }): number {
         if (!account.reportData || account.reportData.length === 0) return 0
         const latestEntry = account.reportData[account.reportData.length - 1]
@@ -94,22 +110,6 @@ export function useAccountTypesData() {
         }
         return total
     }
-
-    const balanceReportQuery = useQuery({
-        queryKey: computed(() => {
-            const ids = allAccounts.value.map((a) => a.id).filter(Boolean)
-            return ['balanceReport', ...ids]
-        }),
-        queryFn: () => {
-            const accountIds = allAccounts.value.map((a) => a.id).filter(Boolean)
-            const oneYearAgo = new Date()
-            oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
-            return getBalanceReport(accountIds, 30, oneYearAgo.toISOString().split('T')[0])
-        },
-        enabled: computed(() => allAccounts.value.length > 0)
-    })
-
-    const balanceReport = computed(() => balanceReportQuery.data.value)
 
     return {
         accountsByType,

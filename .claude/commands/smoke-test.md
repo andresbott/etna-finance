@@ -1,0 +1,1 @@
+Run a full smoke test of the application using the smoke-test skill. Follow the skill instructions exactly: start the backend, start the frontend, use Playwright MCP to navigate every page, check console messages for errors, and report a summary of results. Clean up processes when done.
