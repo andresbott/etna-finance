@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import type { RouteLocationNormalized, NavigationGuardNext } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
-import { useSettingsStore } from '@/store/settingsStore.js'
+import { useSettingsStore } from '@/store/settingsStore'
 
 const router = createRouter({
     // history: createWebHistory(),
@@ -167,7 +168,7 @@ const router = createRouter({
             component: () => import('@/views/marketdata/CurrencyDetailView.vue'),
             beforeEnter: (to, _from, next) => {
                 const validTabs = ['overview', 'raw-data']
-                if (to.params.tab && !validTabs.includes(to.params.tab)) {
+                if (to.params.tab && !validTabs.includes(to.params.tab as string)) {
                     next({ path: `/market-data/currency-exchange/${to.params.currency}/overview` })
                 } else {
                     next()
@@ -197,7 +198,7 @@ const router = createRouter({
             component: () => import('@/views/marketdata/StockDetailView.vue'),
             beforeEnter: (to, _from, next) => {
                 const validTabs = ['overview', 'raw-data']
-                if (to.params.tab && !validTabs.includes(to.params.tab)) {
+                if (to.params.tab && !validTabs.includes(to.params.tab as string)) {
                     next({ path: `/market-data/stock-market/${to.params.id}/overview` })
                 } else {
                     next()
@@ -262,7 +263,7 @@ router.beforeEach((to, from, next) => {
     const user = useUserStore()
     const settings = useSettingsStore()
 
-    const navigate = function (to, next) {
+    const navigate = function (to: RouteLocationNormalized, next: NavigationGuardNext) {
         if (to.matched.some((record) => record.meta.requiresAuth)) {
             if (!user.isLoggedIn) {
                 next({ name: 'login' })

@@ -15,21 +15,15 @@ describe('formatCurrency', () => {
   })
 
   it('respects custom fraction digits', () => {
-    expect(formatCurrency(1.5, 'en-US', 0, 0)).toBe('2')
-  })
-
-  it('respects locale', () => {
-    const result = formatCurrency(1234.5, 'de-DE')
-    // German locale uses period as thousands separator and comma for decimal
-    expect(result).toContain('1.234,50')
+    expect(formatCurrency(1.5, 0, 0)).toBe('2')
   })
 
   it('formats with more decimal places when requested', () => {
-    expect(formatCurrency(1.23456, 'en-US', 2, 4)).toBe('1.2346')
+    expect(formatCurrency(1.23456, 2, 4)).toBe('1.2346')
   })
 
   it('pads with zeros to meet minimum fraction digits', () => {
-    expect(formatCurrency(5, 'en-US', 3, 3)).toBe('5.000')
+    expect(formatCurrency(5, 3, 3)).toBe('5.000')
   })
 
   it('formats very large numbers', () => {

@@ -1,6 +1,7 @@
 import { createApp, nextTick } from 'vue'
 import { VueQueryPlugin, QueryClient } from '@tanstack/vue-query'
 import App from './App.vue'
+// @ts-expect-error theme.js has no type declarations
 import CustomTheme from '@/theme.js'
 
 import 'primeflex/primeflex.css'

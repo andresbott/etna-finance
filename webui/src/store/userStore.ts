@@ -17,9 +17,9 @@ export const useUserStore = defineStore('user', () => {
 
     const user = ref('')
 
-    const logoutCallbacks = []
+    const logoutCallbacks: Array<() => void> = []
 
-    const registerLogoutAction = (callback) => {
+    const registerLogoutAction = (callback: () => void) => {
         if (typeof callback === 'function') {
             logoutCallbacks.push(callback)
         } else {
@@ -51,7 +51,12 @@ export const useUserStore = defineStore('user', () => {
             })
     }
 
-    const login = (user, pass, keepMeLoggedIn, onSuccessNavigate) => {
+    const login = (
+        user: string,
+        pass: string,
+        keepMeLoggedIn: boolean | undefined,
+        onSuccessNavigate?: () => void
+    ) => {
         if (!keepMeLoggedIn) {
             keepMeLoggedIn = false
         }
@@ -98,16 +103,6 @@ export const useUserStore = defineStore('user', () => {
             .catch((err) => {
                 console.log(err)
                 // todo propagate login error
-
-                // this.$toasted.show(
-                //     'Please enter the correct details and try again',
-                //     err,
-                //     {
-                //         position: 'top-left',
-                //         duration: 200,
-                //         type: danger,
-                //     }
-                // )
             })
             .finally(() => {
                 isLoading.value = false

@@ -6,16 +6,16 @@ const API_BASE_URL = import.meta.env.VITE_SERVER_URL_V0
 const SETTINGS_ENDPOINT = `${API_BASE_URL}/settings`
 
 export const useSettingsStore = defineStore('settings', () => {
-    const isLoaded = ref(false)
-    const isLoading = ref(false)
-    const error = ref(null)
+    const isLoaded = ref<boolean>(false)
+    const isLoading = ref<boolean>(false)
+    const error = ref<string | null>(null)
 
-    const dateFormat = ref('')
-    const mainCurrency = ref('')
-    const currencies = ref([])
-    const instruments = ref(false)
-    const marketDataSymbols = ref([])
-    const version = ref('')
+    const dateFormat = ref<string>('')
+    const mainCurrency = ref<string>('')
+    const currencies = ref<string[]>([])
+    const instruments = ref<boolean>(false)
+    const marketDataSymbols = ref<string[]>([])
+    const version = ref<string>('')
 
     const hasMultipleCurrencies = computed(() => currencies.value.length > 1)
 
@@ -31,9 +31,9 @@ export const useSettingsStore = defineStore('settings', () => {
             marketDataSymbols.value = res.data.marketDataSymbols ?? []
             version.value = res.data.version ?? ''
             isLoaded.value = true
-        } catch (err) {
+        } catch (err: unknown) {
             console.error('Failed to fetch application settings:', err)
-            error.value = err.message || 'Failed to load settings'
+            error.value = err instanceof Error ? err.message : 'Failed to load settings'
         } finally {
             isLoading.value = false
         }

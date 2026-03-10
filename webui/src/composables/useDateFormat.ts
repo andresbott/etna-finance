@@ -16,7 +16,7 @@ import { useSettingsStore } from '@/store/settingsStore'
  * Backend tokens: YYYY, YY, MM, DD  –  separators: - / .
  * PrimeVue tokens: dd (day), mm (month), yy (4-digit year), y (2-digit year)
  */
-function toPrimeVueDateFormat(backendFormat) {
+function toPrimeVueDateFormat(backendFormat: string | undefined): string {
     if (!backendFormat) return 'dd/mm/yy'
     return backendFormat
         .replace('YYYY', 'yy')
@@ -28,7 +28,7 @@ function toPrimeVueDateFormat(backendFormat) {
 /**
  * Format a Date (or ISO date string) for display using the given format pattern.
  */
-function formatDisplayDate(date, format) {
+function formatDisplayDate(date: Date | string | null | undefined, format?: string): string {
     if (!date) return ''
     const d = new Date(date)
     if (isNaN(d.getTime())) return String(date)
@@ -50,7 +50,7 @@ function formatDisplayDate(date, format) {
 /**
  * Format time part as HH:mm (24h) from a Date or ISO string.
  */
-function formatTime(date) {
+function formatTime(date: Date | string | null | undefined): string {
     if (!date) return ''
     const d = new Date(date)
     if (isNaN(d.getTime())) return ''
@@ -63,7 +63,7 @@ function formatTime(date) {
  * Parse a date string according to a backend format pattern (DD/MM/YYYY etc.).
  * Returns a Date if parsing succeeds, or the original value otherwise.
  */
-function parseDateString(value, format) {
+function parseDateString(value: unknown, format?: string): Date | unknown {
     if (value instanceof Date) return value
     if (typeof value !== 'string' || !value.trim()) return value
 
@@ -105,9 +105,9 @@ export function useDateFormat() {
 
     const pickerDateFormat = computed(() => toPrimeVueDateFormat(settings.dateFormat))
 
-    const formatDate = (date) => formatDisplayDate(date, settings.dateFormat)
+    const formatDate = (date: Date | string | null | undefined) => formatDisplayDate(date, settings.dateFormat)
 
-    const formatDateTime = (date) => {
+    const formatDateTime = (date: Date | string | null | undefined) => {
         const datePart = formatDisplayDate(date, settings.dateFormat)
         const timePart = formatTime(date)
         return datePart && timePart ? `${datePart} ${timePart}` : datePart || timePart || ''

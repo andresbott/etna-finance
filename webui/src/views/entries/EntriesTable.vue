@@ -9,6 +9,7 @@ import { useAccountUtils } from '@/utils/accountUtils'
 import { useInstruments } from '@/composables/useInstruments'
 import { useDateFormat } from '@/composables/useDateFormat'
 import { getAttachmentUrl } from '@/lib/api/Attachment'
+import { formatAmount, formatCurrency } from '@/utils/currency'
 
 /* --- Props --- */
 const props = defineProps({
@@ -193,19 +194,19 @@ const openAttachment = (data) => {
                     <Column header="Amount" bodyStyle="text-align: right" class="amount-column">
                         <template #body="{ data }">
                             <div v-if="data.type === 'transfer'" class="amount transfer">
-                                {{ data.originAmount?.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00' }}
+                                {{ data.originAmount != null ? formatAmount(data.originAmount) : '0.00' }}
                                 {{ getAccountCurrency(data.originAccountId) }}
                                 <i class="pi pi-arrow-right" style="font-size: 0.9rem; margin: 0 8px" />
-                                {{ (data.targetAmount ?? 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                                {{ formatAmount(data.targetAmount ?? 0) }}
                                 {{ getAccountCurrency(data.targetAccountId) }}
                             </div>
                             <div v-else-if="data.type === 'stockbuy' || data.type === 'stocksell'" class="amount" :class="isStockSell(data) ? 'amount-positive' : 'amount-negative'">
-                                {{ isStockSell(data) ? '+' : '' }}{{ stockTradeTotalAmount(data).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                                {{ isStockSell(data) ? '+' : '' }}{{ formatAmount(stockTradeTotalAmount(data)) }}
                                 {{ getAccountCurrency(data.cashAccountId) }}
-                                <span v-if="isStockSell(data) && (data.fees ?? 0) > 0" class="text-color-secondary text-sm ml-1">(fee: {{ (data.fees).toLocaleString('es-ES', { minimumFractionDigits: 2 }) }})</span>
+                                <span v-if="isStockSell(data) && (data.fees ?? 0) > 0" class="text-color-secondary text-sm ml-1">(fee: {{ formatCurrency(data.fees, 2, 6) }})</span>
                             </div>
                             <div v-else-if="data.type === 'stockgrant'" class="amount">
-                                {{ ((data.fairMarketValue ?? 0) * (data.quantity ?? 0)).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                                {{ formatAmount((data.fairMarketValue ?? 0) * (data.quantity ?? 0)) }}
                                 {{ getInstrumentCurrency(data.instrumentId) }}
                             </div>
                             <div v-else-if="data.type === 'stocktransfer'" class="amount">
@@ -217,7 +218,7 @@ const openAttachment = (data) => {
                     <Column header="Price" bodyStyle="text-align: right">
                         <template #body="{ data }">
                             <span v-if="financialPrice(data) != null">
-                                {{ (financialPrice(data)).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                                {{ formatAmount(financialPrice(data)) }}
                                 {{ financialPriceCurrency(data) }}
                             </span>
                             <span v-else class="text-500">—</span>
@@ -226,7 +227,7 @@ const openAttachment = (data) => {
                     <Column header="Gain/Loss" bodyStyle="text-align: right">
                         <template #body="{ data }">
                             <span v-if="financialGainLoss(data)" :class="financialGainLoss(data).value >= 0 ? 'amount amount-positive' : 'amount amount-negative'">
-                                {{ financialGainLoss(data).value >= 0 ? '+' : '' }}{{ financialGainLoss(data).value.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                                {{ financialGainLoss(data).value >= 0 ? '+' : '' }}{{ formatAmount(financialGainLoss(data).value) }}
                                 {{ financialGainLoss(data).currency }}
                             </span>
                             <span v-else class="text-500">—</span>
@@ -299,68 +300,48 @@ const openAttachment = (data) => {
                     <Column field="Amount" header="Amount" bodyStyle="text-align: right" class="amount-column">
                     <template #body="{ data }">
                         <div v-if="data.type === 'expense'" class="amount expense">
-                            -{{
-                                data.Amount.toLocaleString('es-ES', {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2
-                                })
-                            }}
+                            -{{ formatAmount(data.Amount) }}
                             {{ getAccountCurrency(data.accountId) }}
                         </div>
                         <div v-else-if="data.type === 'income'" class="amount income">
-                            +{{
-                                data.Amount.toLocaleString('es-ES', {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2
-                                })
-                            }}
+                            +{{ formatAmount(data.Amount) }}
                             {{ getAccountCurrency(data.accountId) }}
                         </div>
                         <div v-else-if="data.type === 'transfer'" class="amount transfer">
-                            {{
-                                data.originAmount?.toLocaleString('es-ES', {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2
-                                }) || '0.00'
-                            }}
+                            {{ data.originAmount != null ? formatAmount(data.originAmount) : '0.00' }}
                             {{ getAccountCurrency(data.originAccountId) }}
                             <i
                                 class="pi pi-arrow-right"
                                 style="font-size: 0.9rem; margin: 0 8px"
                             />
-                            {{
-                                data.targetAmount.toLocaleString('es-ES', {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2
-                                })
-                            }}
+                            {{ formatAmount(data.targetAmount) }}
                             {{ getAccountCurrency(data.targetAccountId) }}
                         </div>
                         <div v-else-if="data.type === 'stockbuy' || data.type === 'stocksell'" class="amount stock-trade">
                             <template v-if="data.quantity && (data.StockAmount != null || data.costBasis != null)">
                                 ({{ getInstrumentSymbol(data.instrumentId) }}) {{ data.quantity }}
-                                @ {{ ((data.costBasis ?? data.StockAmount) / data.quantity).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                                @ {{ formatAmount((data.costBasis ?? data.StockAmount) / data.quantity) }}
                                 {{ getInstrumentCurrency(data.instrumentId) }}
                                 <i
                                     class="pi pi-arrow-right"
                                     style="font-size: 0.9rem; margin: 0 8px"
                                 />
-                                <span :class="isStockSell(data) ? 'stock-trade-total sell' : 'stock-trade-total buy'">{{ isStockSell(data) ? '+' : '' }}{{ stockTradeTotalAmount(data).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ getAccountCurrency(data.cashAccountId) }}</span>
+                                <span :class="isStockSell(data) ? 'stock-trade-total sell' : 'stock-trade-total buy'">{{ isStockSell(data) ? '+' : '' }}{{ formatAmount(stockTradeTotalAmount(data)) }} {{ getAccountCurrency(data.cashAccountId) }}</span>
                                 <span v-if="isStockSell(data) && data.fees > 0" class="text-color-secondary text-sm ml-1">
-                                    (fee: {{ (data.fees).toLocaleString('es-ES', { minimumFractionDigits: 2 }) }})
+                                    (fee: {{ formatCurrency(data.fees, 2, 6) }})
                                 </span>
                             </template>
                             <template v-else-if="data.quantity && data.totalAmount != null">
                                 ({{ getInstrumentSymbol(data.instrumentId) }}) {{ data.quantity }}
                                 <i class="pi pi-arrow-right" style="font-size: 0.9rem; margin: 0 8px" />
-                                <span :class="isStockSell(data) ? 'stock-trade-total sell' : 'stock-trade-total buy'">{{ isStockSell(data) ? '+' : '' }}{{ stockTradeTotalAmount(data).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ getAccountCurrency(data.cashAccountId) }}</span>
+                                <span :class="isStockSell(data) ? 'stock-trade-total sell' : 'stock-trade-total buy'">{{ isStockSell(data) ? '+' : '' }}{{ formatAmount(stockTradeTotalAmount(data)) }} {{ getAccountCurrency(data.cashAccountId) }}</span>
                             </template>
                             <template v-else>—</template>
                         </div>
                         <div v-else-if="data.type === 'stockgrant'" class="amount stock-trade">
                             <template v-if="data.quantity != null && data.instrumentId != null">
                                 ({{ getInstrumentSymbol(data.instrumentId) }}) {{ data.quantity }}
-                                @ {{ ((data.fairMarketValue ?? 0)).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ getInstrumentCurrency(data.instrumentId) }}
+                                @ {{ formatAmount(data.fairMarketValue ?? 0) }} {{ getInstrumentCurrency(data.instrumentId) }}
                             </template>
                             <template v-else>—</template>
                         </div>
@@ -368,16 +349,11 @@ const openAttachment = (data) => {
                             {{ data.quantity }} (transfer)
                         </div>
                         <div v-else-if="data.type === 'balancestatus'" class="amount balance-status">
-                            {{ (data.Amount ?? 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                            {{ formatAmount(data.Amount ?? 0) }}
                             {{ getAccountCurrency(data.accountId) }}
                         </div>
                         <div v-else class="amount">
-                            {{
-                                (data.totalAmount || data.targetAmount || 0).toLocaleString('es-ES', {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2
-                                })
-                            }}
+                            {{ formatAmount(data.totalAmount || data.targetAmount || 0) }}
                         </div>
                     </template>
                 </Column>
