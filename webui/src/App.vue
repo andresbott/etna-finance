@@ -7,7 +7,7 @@ import Footer from './views/parts/Footer.vue'
 import SidebarMenu from './components/SidebarMenu.vue'
 import SecondaryMenu from './components/SecondaryMenu.vue'
 import { useUiStore } from '@/store/uiStore.js'
-import { useUserStore } from '@/lib/user/userstore.js'
+import { useUserStore } from '@/store/userStore'
 import Toast from 'primevue/toast'
 // import { VueQueryDevtools } from '@tanstack/vue-query-devtools'
 

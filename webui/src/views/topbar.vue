@@ -1,7 +1,7 @@
 <script setup>
 import { HorizontalLayout as HL } from '@go-bumbu/vue-layouts'
 
-import { useUserStore } from '@/lib/user/userstore.js'
+import { useUserStore } from '@/store/userStore'
 import Button from 'primevue/button'
 import Avatar from 'primevue/avatar'
 import AppTitle from '@/views/parts/AppTitle.vue'
