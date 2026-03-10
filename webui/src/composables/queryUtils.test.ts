@@ -6,7 +6,6 @@ describe('invalidateAndRefetch', () => {
     function createMockQueryClient() {
         return {
             invalidateQueries: vi.fn(),
-            refetchQueries: vi.fn(),
         } as unknown as QueryClient
     }
 
@@ -20,14 +19,14 @@ describe('invalidateAndRefetch', () => {
         expect(qc.invalidateQueries).toHaveBeenCalledWith({ queryKey: key })
     })
 
-    it('calls refetchQueries with the provided queryKey', () => {
-        const qc = createMockQueryClient()
+    it('does not call refetchQueries (invalidateQueries already triggers refetch for active queries)', () => {
+        const qc = createMockQueryClient() as QueryClient & { refetchQueries: ReturnType<typeof vi.fn> }
+        ;(qc as any).refetchQueries = vi.fn()
         const key = ['transactions']
 
         invalidateAndRefetch(qc, key)
 
-        expect(qc.refetchQueries).toHaveBeenCalledOnce()
-        expect(qc.refetchQueries).toHaveBeenCalledWith({ queryKey: key })
+        expect((qc as any).refetchQueries).not.toHaveBeenCalled()
     })
 
     it('passes compound query keys correctly', () => {
@@ -37,15 +36,13 @@ describe('invalidateAndRefetch', () => {
         invalidateAndRefetch(qc, key)
 
         expect(qc.invalidateQueries).toHaveBeenCalledWith({ queryKey: key })
-        expect(qc.refetchQueries).toHaveBeenCalledWith({ queryKey: key })
     })
 
-    it('calls both invalidate and refetch (not just one)', () => {
+    it('calls invalidateQueries exactly once', () => {
         const qc = createMockQueryClient()
 
         invalidateAndRefetch(qc, ['any'])
 
         expect(qc.invalidateQueries).toHaveBeenCalledOnce()
-        expect(qc.refetchQueries).toHaveBeenCalledOnce()
     })
 })
