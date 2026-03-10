@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
-import { GetBackupFiles, DeleteBackupFile, CreateBackup, RestoreBackup, RestoreBackupFromExisting, DownloadBackupFile } from '@/lib/api/Backup'
+import { getBackupFiles, deleteBackupFile, createBackup, restoreBackup, restoreBackupFromExisting, downloadBackupFile } from '@/lib/api/Backup'
 
 export function useBackups() {
     const queryClient = useQueryClient()
@@ -8,12 +8,12 @@ export function useBackups() {
     // Query to get list of backup files
     const backupFilesQuery = useQuery({
         queryKey: QUERY_KEY,
-        queryFn: GetBackupFiles
+        queryFn: getBackupFiles
     })
 
     // Mutation to create a new backup
     const createBackupMutation = useMutation({
-        mutationFn: CreateBackup,
+        mutationFn: createBackup,
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: QUERY_KEY })
         }
@@ -21,7 +21,7 @@ export function useBackups() {
 
     // Mutation to delete a backup file
     const deleteBackupMutation = useMutation({
-        mutationFn: (id: string) => DeleteBackupFile(id),
+        mutationFn: (id: string) => deleteBackupFile(id),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: QUERY_KEY })
         }
@@ -30,12 +30,12 @@ export function useBackups() {
     // Mutation to download a backup file
     const downloadBackupMutation = useMutation({
         mutationFn: ({ id, filename }: { id: string; filename: string }) => 
-            DownloadBackupFile(id, filename)
+            downloadBackupFile(id, filename)
     })
 
     // Mutation to restore from a backup file
     const restoreBackupMutation = useMutation({
-        mutationFn: (file: File) => RestoreBackup(file),
+        mutationFn: (file: File) => restoreBackup(file),
         onSuccess: () => {
             // Optionally invalidate all queries since data is being restored
             queryClient.invalidateQueries()
@@ -44,7 +44,7 @@ export function useBackups() {
 
     // Mutation to restore from an existing backup by ID
     const restoreBackupFromExistingMutation = useMutation({
-        mutationFn: (id: string) => RestoreBackupFromExisting(id),
+        mutationFn: (id: string) => restoreBackupFromExisting(id),
         onSuccess: () => {
             // Optionally invalidate all queries since data is being restored
             queryClient.invalidateQueries()

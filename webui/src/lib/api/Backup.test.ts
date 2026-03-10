@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach, type Mock, type MockInstance } from 'vitest'
 import { apiClient } from './client'
 import {
-    GetBackupFiles,
-    DeleteBackupFile,
-    DownloadBackupFile,
-    CreateBackup,
-    RestoreBackup,
-    RestoreBackupFromExisting,
+    getBackupFiles,
+    deleteBackupFile,
+    downloadBackupFile,
+    createBackup,
+    restoreBackup,
+    restoreBackupFromExisting,
     type BackupFile,
 } from './Backup'
 
@@ -32,12 +32,12 @@ const mockBackupFile2: BackupFile = {
     size: 2048,
 }
 
-describe('GetBackupFiles', () => {
+describe('getBackupFiles', () => {
     it('calls GET /backup and returns files array', async () => {
         const files = [mockBackupFile, mockBackupFile2];
         (apiClient.get as Mock).mockResolvedValue({ data: { files } })
 
-        const result = await GetBackupFiles()
+        const result = await getBackupFiles()
 
         expect(apiClient.get).toHaveBeenCalledWith('/backup')
         expect(apiClient.get).toHaveBeenCalledTimes(1)
@@ -47,7 +47,7 @@ describe('GetBackupFiles', () => {
     it('returns empty array when no backup files exist', async () => {
         (apiClient.get as Mock).mockResolvedValue({ data: { files: [] } })
 
-        const result = await GetBackupFiles()
+        const result = await getBackupFiles()
 
         expect(result).toEqual([])
     })
@@ -56,15 +56,15 @@ describe('GetBackupFiles', () => {
         const error = new Error('Network error');
         (apiClient.get as Mock).mockRejectedValue(error)
 
-        await expect(GetBackupFiles()).rejects.toThrow('Network error')
+        await expect(getBackupFiles()).rejects.toThrow('Network error')
     })
 })
 
-describe('DeleteBackupFile', () => {
+describe('deleteBackupFile', () => {
     it('calls DELETE /backup/:id with the correct id', async () => {
         (apiClient.delete as Mock).mockResolvedValue({})
 
-        await DeleteBackupFile('backup-001')
+        await deleteBackupFile('backup-001')
 
         expect(apiClient.delete).toHaveBeenCalledWith('/backup/backup-001')
         expect(apiClient.delete).toHaveBeenCalledTimes(1)
@@ -73,7 +73,7 @@ describe('DeleteBackupFile', () => {
     it('returns void', async () => {
         (apiClient.delete as Mock).mockResolvedValue({})
 
-        const result = await DeleteBackupFile('backup-001')
+        const result = await deleteBackupFile('backup-001')
 
         expect(result).toBeUndefined()
     })
@@ -81,7 +81,7 @@ describe('DeleteBackupFile', () => {
     it('constructs URL correctly with special characters in id', async () => {
         (apiClient.delete as Mock).mockResolvedValue({})
 
-        await DeleteBackupFile('abc-123-def')
+        await deleteBackupFile('abc-123-def')
 
         expect(apiClient.delete).toHaveBeenCalledWith('/backup/abc-123-def')
     })
@@ -89,11 +89,11 @@ describe('DeleteBackupFile', () => {
     it('propagates API errors', async () => {
         (apiClient.delete as Mock).mockRejectedValue(new Error('Not found'));
 
-        await expect(DeleteBackupFile('nonexistent')).rejects.toThrow('Not found')
+        await expect(deleteBackupFile('nonexistent')).rejects.toThrow('Not found')
     })
 })
 
-describe('DownloadBackupFile', () => {
+describe('downloadBackupFile', () => {
     let mockCreateObjectURL: Mock
     let mockRevokeObjectURL: Mock
     let mockCreateElement: MockInstance
@@ -120,7 +120,7 @@ describe('DownloadBackupFile', () => {
         const blobData = new Uint8Array([1, 2, 3]);
         (apiClient.get as Mock).mockResolvedValue({ data: blobData })
 
-        await DownloadBackupFile('backup-001', 'backup-2026-03-10.db')
+        await downloadBackupFile('backup-001', 'backup-2026-03-10.db')
 
         expect(apiClient.get).toHaveBeenCalledWith('/backup/backup-001', {
             responseType: 'blob',
@@ -132,7 +132,7 @@ describe('DownloadBackupFile', () => {
         const blobData = new Uint8Array([1, 2, 3]);
         (apiClient.get as Mock).mockResolvedValue({ data: blobData })
 
-        await DownloadBackupFile('backup-001', 'my-backup.db')
+        await downloadBackupFile('backup-001', 'my-backup.db')
 
         expect(mockCreateObjectURL).toHaveBeenCalledTimes(1)
         expect(mockLink.href).toBe('blob:http://localhost/fake-url')
@@ -146,7 +146,7 @@ describe('DownloadBackupFile', () => {
     it('creates an anchor element for the download', async () => {
         (apiClient.get as Mock).mockResolvedValue({ data: new Uint8Array([]) })
 
-        await DownloadBackupFile('backup-001', 'test.db')
+        await downloadBackupFile('backup-001', 'test.db')
 
         expect(mockCreateElement).toHaveBeenCalledWith('a')
     })
@@ -154,7 +154,7 @@ describe('DownloadBackupFile', () => {
     it('cleans up the blob URL after download', async () => {
         (apiClient.get as Mock).mockResolvedValue({ data: new Uint8Array([]) })
 
-        await DownloadBackupFile('backup-001', 'test.db')
+        await downloadBackupFile('backup-001', 'test.db')
 
         expect(mockRevokeObjectURL).toHaveBeenCalledTimes(1)
     })
@@ -162,7 +162,7 @@ describe('DownloadBackupFile', () => {
     it('constructs URL correctly with the given id', async () => {
         (apiClient.get as Mock).mockResolvedValue({ data: new Uint8Array([]) })
 
-        await DownloadBackupFile('xyz-789', 'file.db')
+        await downloadBackupFile('xyz-789', 'file.db')
 
         expect(apiClient.get).toHaveBeenCalledWith('/backup/xyz-789', {
             responseType: 'blob',
@@ -170,11 +170,11 @@ describe('DownloadBackupFile', () => {
     })
 })
 
-describe('CreateBackup', () => {
+describe('createBackup', () => {
     it('calls POST /backup', async () => {
         (apiClient.post as Mock).mockResolvedValue({})
 
-        await CreateBackup()
+        await createBackup()
 
         expect(apiClient.post).toHaveBeenCalledWith('/backup')
         expect(apiClient.post).toHaveBeenCalledTimes(1)
@@ -183,7 +183,7 @@ describe('CreateBackup', () => {
     it('returns void', async () => {
         (apiClient.post as Mock).mockResolvedValue({})
 
-        const result = await CreateBackup()
+        const result = await createBackup()
 
         expect(result).toBeUndefined()
     })
@@ -191,16 +191,16 @@ describe('CreateBackup', () => {
     it('propagates API errors', async () => {
         (apiClient.post as Mock).mockRejectedValue(new Error('Server error'));
 
-        await expect(CreateBackup()).rejects.toThrow('Server error')
+        await expect(createBackup()).rejects.toThrow('Server error')
     })
 })
 
-describe('RestoreBackup', () => {
+describe('restoreBackup', () => {
     it('calls POST /restore with FormData containing the file', async () => {
         const file = new File(['db-content'], 'backup.db', { type: 'application/octet-stream' });
         (apiClient.post as Mock).mockResolvedValue({})
 
-        await RestoreBackup(file)
+        await restoreBackup(file)
 
         expect(apiClient.post).toHaveBeenCalledTimes(1)
 
@@ -215,7 +215,7 @@ describe('RestoreBackup', () => {
         const file = new File(['content'], 'test.db');
         (apiClient.post as Mock).mockResolvedValue({})
 
-        await RestoreBackup(file)
+        await restoreBackup(file)
 
         const [, , config] = (apiClient.post as Mock).mock.calls[0]
         expect(config).toEqual({
@@ -229,7 +229,7 @@ describe('RestoreBackup', () => {
         const file = new File(['content'], 'test.db');
         (apiClient.post as Mock).mockResolvedValue({})
 
-        const result = await RestoreBackup(file)
+        const result = await restoreBackup(file)
 
         expect(result).toBeUndefined()
     })
@@ -238,7 +238,7 @@ describe('RestoreBackup', () => {
         const file = new File(['data'], 'my-backup.db');
         (apiClient.post as Mock).mockResolvedValue({})
 
-        await RestoreBackup(file)
+        await restoreBackup(file)
 
         const [, formData] = (apiClient.post as Mock).mock.calls[0]
         expect(formData.has('file')).toBe(true)
@@ -248,15 +248,15 @@ describe('RestoreBackup', () => {
         const file = new File(['data'], 'backup.db');
         (apiClient.post as Mock).mockRejectedValue(new Error('Upload failed'));
 
-        await expect(RestoreBackup(file)).rejects.toThrow('Upload failed')
+        await expect(restoreBackup(file)).rejects.toThrow('Upload failed')
     })
 })
 
-describe('RestoreBackupFromExisting', () => {
+describe('restoreBackupFromExisting', () => {
     it('calls POST /restore/:id with the correct id', async () => {
         (apiClient.post as Mock).mockResolvedValue({})
 
-        await RestoreBackupFromExisting('backup-001')
+        await restoreBackupFromExisting('backup-001')
 
         expect(apiClient.post).toHaveBeenCalledWith('/restore/backup-001')
         expect(apiClient.post).toHaveBeenCalledTimes(1)
@@ -265,7 +265,7 @@ describe('RestoreBackupFromExisting', () => {
     it('returns void', async () => {
         (apiClient.post as Mock).mockResolvedValue({})
 
-        const result = await RestoreBackupFromExisting('backup-001')
+        const result = await restoreBackupFromExisting('backup-001')
 
         expect(result).toBeUndefined()
     })
@@ -273,7 +273,7 @@ describe('RestoreBackupFromExisting', () => {
     it('constructs URL correctly with the given id', async () => {
         (apiClient.post as Mock).mockResolvedValue({})
 
-        await RestoreBackupFromExisting('abc-456')
+        await restoreBackupFromExisting('abc-456')
 
         expect(apiClient.post).toHaveBeenCalledWith('/restore/abc-456')
     })
@@ -281,6 +281,6 @@ describe('RestoreBackupFromExisting', () => {
     it('propagates API errors', async () => {
         (apiClient.post as Mock).mockRejectedValue(new Error('Restore failed'));
 
-        await expect(RestoreBackupFromExisting('bad-id')).rejects.toThrow('Restore failed')
+        await expect(restoreBackupFromExisting('bad-id')).rejects.toThrow('Restore failed')
     })
 })

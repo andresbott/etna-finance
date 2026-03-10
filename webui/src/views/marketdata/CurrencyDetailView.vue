@@ -24,7 +24,7 @@ import {
     TooltipComponent,
     LegendComponent
 } from 'echarts/components'
-import ConfirmDialog from '@/components/common/confirmDialog.vue'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { useSettingsStore } from '@/store/settingsStore'
 import { useDateFormat } from '@/composables/useDateFormat'
 import { toLocalDateString } from '@/composables/useMarketData'

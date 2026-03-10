@@ -8,7 +8,7 @@ import Button from 'primevue/button'
 import Message from 'primevue/message'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
-import ConfirmDialog from '@/components/common/confirmDialog.vue'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { useBackups } from '@/composables/useBackups'
 
 const successMessage = ref('')

@@ -9,7 +9,7 @@ import TreeTable from 'primevue/treetable'
 import Card from 'primevue/card'
 
 import AccountDialog from '@/views/accounts/AccountDialog.vue'
-import DeleteDialog from '@/components/common/confirmDialog.vue'
+import DeleteDialog from '@/components/common/ConfirmDialog.vue'
 import AccountProviderDialog from './AccountProviderDialog.vue'
 
 import { useAccounts } from '@/composables/useAccounts'

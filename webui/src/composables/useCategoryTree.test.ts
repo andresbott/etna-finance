@@ -1,26 +1,26 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { flushPromises } from '@vue/test-utils'
 import {
-    GetIncomeCategories,
-    GetExpenseCategories,
+    getIncomeCategories,
+    getExpenseCategories,
 } from '../lib/api/Category'
 import { renderComposable, createTestQueryClient } from '../test/helpers'
 import { useCategoryTree } from './useCategoryTree'
 import type { QueryClient } from '@tanstack/vue-query'
 
 vi.mock('../lib/api/Category', () => ({
-    GetIncomeCategories: vi.fn(),
-    CreateIncomeCategory: vi.fn(),
-    UpdateIncomeCategory: vi.fn(),
+    getIncomeCategories: vi.fn(),
+    createIncomeCategory: vi.fn(),
+    updateIncomeCategory: vi.fn(),
     deleteIncomeCategory: vi.fn(),
-    GetExpenseCategories: vi.fn(),
-    CreateExpenseCategory: vi.fn(),
-    UpdateExpenseCategory: vi.fn(),
-    DeleteExpenseCategory: vi.fn(),
+    getExpenseCategories: vi.fn(),
+    createExpenseCategory: vi.fn(),
+    updateExpenseCategory: vi.fn(),
+    deleteExpenseCategory: vi.fn(),
 }))
 
-const mockedGetIncomeCategories = GetIncomeCategories as ReturnType<typeof vi.fn>
-const mockedGetExpenseCategories = GetExpenseCategories as ReturnType<typeof vi.fn>
+const mockedgetIncomeCategories = getIncomeCategories as ReturnType<typeof vi.fn>
+const mockedgetExpenseCategories = getExpenseCategories as ReturnType<typeof vi.fn>
 
 describe('useCategoryTree', () => {
     let unmount: () => void
@@ -37,8 +37,8 @@ describe('useCategoryTree', () => {
 
     describe('IncomeTreeData', () => {
         it('returns empty array when income categories have not loaded yet', () => {
-            mockedGetIncomeCategories.mockReturnValue(new Promise(() => {}))
-            mockedGetExpenseCategories.mockReturnValue(new Promise(() => {}))
+            mockedgetIncomeCategories.mockReturnValue(new Promise(() => {}))
+            mockedgetExpenseCategories.mockReturnValue(new Promise(() => {}))
 
             const rendered = renderComposable(() => useCategoryTree(), { queryClient })
             unmount = rendered.unmount
@@ -47,8 +47,8 @@ describe('useCategoryTree', () => {
         })
 
         it('returns empty array when income categories data is empty', async () => {
-            mockedGetIncomeCategories.mockResolvedValue([])
-            mockedGetExpenseCategories.mockResolvedValue([])
+            mockedgetIncomeCategories.mockResolvedValue([])
+            mockedgetExpenseCategories.mockResolvedValue([])
 
             const rendered = renderComposable(() => useCategoryTree(), { queryClient })
             unmount = rendered.unmount
@@ -64,8 +64,8 @@ describe('useCategoryTree', () => {
                 { id: 2, name: 'Freelance', parentId: null },
                 { id: 3, name: 'Consulting', parentId: 2 },
             ]
-            mockedGetIncomeCategories.mockResolvedValue(categories)
-            mockedGetExpenseCategories.mockResolvedValue([])
+            mockedgetIncomeCategories.mockResolvedValue(categories)
+            mockedgetExpenseCategories.mockResolvedValue([])
 
             const rendered = renderComposable(() => useCategoryTree(), { queryClient })
             unmount = rendered.unmount
@@ -92,8 +92,8 @@ describe('useCategoryTree', () => {
             const categories = [
                 { id: 10, name: 'Investments', parentId: null, description: 'Investment income' },
             ]
-            mockedGetIncomeCategories.mockResolvedValue(categories)
-            mockedGetExpenseCategories.mockResolvedValue([])
+            mockedgetIncomeCategories.mockResolvedValue(categories)
+            mockedgetExpenseCategories.mockResolvedValue([])
 
             const rendered = renderComposable(() => useCategoryTree(), { queryClient })
             unmount = rendered.unmount
@@ -112,10 +112,10 @@ describe('useCategoryTree', () => {
         })
 
         it('recomputes when income categories data changes', async () => {
-            mockedGetIncomeCategories.mockResolvedValue([
+            mockedgetIncomeCategories.mockResolvedValue([
                 { id: 1, name: 'Salary', parentId: null },
             ])
-            mockedGetExpenseCategories.mockResolvedValue([])
+            mockedgetExpenseCategories.mockResolvedValue([])
 
             const rendered = renderComposable(() => useCategoryTree(), { queryClient })
             unmount = rendered.unmount
@@ -125,7 +125,7 @@ describe('useCategoryTree', () => {
             expect(rendered.result.IncomeTreeData.value).toHaveLength(1)
 
             // Simulate refetch with new data
-            mockedGetIncomeCategories.mockResolvedValue([
+            mockedgetIncomeCategories.mockResolvedValue([
                 { id: 1, name: 'Salary', parentId: null },
                 { id: 2, name: 'Bonus', parentId: null },
             ])
@@ -138,8 +138,8 @@ describe('useCategoryTree', () => {
 
     describe('ExpenseTreeData', () => {
         it('returns empty array when expense categories have not loaded yet', () => {
-            mockedGetIncomeCategories.mockReturnValue(new Promise(() => {}))
-            mockedGetExpenseCategories.mockReturnValue(new Promise(() => {}))
+            mockedgetIncomeCategories.mockReturnValue(new Promise(() => {}))
+            mockedgetExpenseCategories.mockReturnValue(new Promise(() => {}))
 
             const rendered = renderComposable(() => useCategoryTree(), { queryClient })
             unmount = rendered.unmount
@@ -148,8 +148,8 @@ describe('useCategoryTree', () => {
         })
 
         it('returns empty array when expense categories data is empty', async () => {
-            mockedGetIncomeCategories.mockResolvedValue([])
-            mockedGetExpenseCategories.mockResolvedValue([])
+            mockedgetIncomeCategories.mockResolvedValue([])
+            mockedgetExpenseCategories.mockResolvedValue([])
 
             const rendered = renderComposable(() => useCategoryTree(), { queryClient })
             unmount = rendered.unmount
@@ -166,8 +166,8 @@ describe('useCategoryTree', () => {
                 { id: 102, name: 'Utilities', parentId: 100 },
                 { id: 103, name: 'Food', parentId: null },
             ]
-            mockedGetIncomeCategories.mockResolvedValue([])
-            mockedGetExpenseCategories.mockResolvedValue(categories)
+            mockedgetIncomeCategories.mockResolvedValue([])
+            mockedgetExpenseCategories.mockResolvedValue(categories)
 
             const rendered = renderComposable(() => useCategoryTree(), { queryClient })
             unmount = rendered.unmount
@@ -191,8 +191,8 @@ describe('useCategoryTree', () => {
         })
 
         it('recomputes when expense categories data changes', async () => {
-            mockedGetIncomeCategories.mockResolvedValue([])
-            mockedGetExpenseCategories.mockResolvedValue([
+            mockedgetIncomeCategories.mockResolvedValue([])
+            mockedgetExpenseCategories.mockResolvedValue([
                 { id: 100, name: 'Housing', parentId: null },
             ])
 
@@ -204,7 +204,7 @@ describe('useCategoryTree', () => {
             expect(rendered.result.ExpenseTreeData.value).toHaveLength(1)
 
             // Simulate refetch with new data
-            mockedGetExpenseCategories.mockResolvedValue([
+            mockedgetExpenseCategories.mockResolvedValue([
                 { id: 100, name: 'Housing', parentId: null },
                 { id: 103, name: 'Food', parentId: null },
             ])
@@ -217,8 +217,8 @@ describe('useCategoryTree', () => {
 
     describe('return value', () => {
         it('returns both IncomeTreeData and ExpenseTreeData', () => {
-            mockedGetIncomeCategories.mockResolvedValue([])
-            mockedGetExpenseCategories.mockResolvedValue([])
+            mockedgetIncomeCategories.mockResolvedValue([])
+            mockedgetExpenseCategories.mockResolvedValue([])
 
             const rendered = renderComposable(() => useCategoryTree(), { queryClient })
             unmount = rendered.unmount

@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
-    GetIncomeCategories,
-    CreateIncomeCategory,
-    UpdateIncomeCategory,
+    getIncomeCategories,
+    createIncomeCategory,
+    updateIncomeCategory,
     deleteIncomeCategory,
-    GetExpenseCategories,
-    CreateExpenseCategory,
-    UpdateExpenseCategory,
-    DeleteExpenseCategory
+    getExpenseCategories,
+    createExpenseCategory,
+    updateExpenseCategory,
+    deleteExpenseCategory
 } from '@/lib/api/Category'
 
 // Mock the apiClient module
@@ -33,7 +33,7 @@ beforeEach(() => {
 //  INCOME CATEGORIES
 // ──────────────────────────────────────────────
 
-describe('GetIncomeCategories', () => {
+describe('getIncomeCategories', () => {
     it('calls GET /fin/category/income and returns items', async () => {
         const categories = [
             { id: '1', name: 'Salary', description: 'Monthly salary' },
@@ -41,7 +41,7 @@ describe('GetIncomeCategories', () => {
         ]
         mockedClient.get.mockResolvedValue({ data: { items: categories } })
 
-        const result = await GetIncomeCategories()
+        const result = await getIncomeCategories()
 
         expect(mockedClient.get).toHaveBeenCalledWith('/fin/category/income')
         expect(mockedClient.get).toHaveBeenCalledTimes(1)
@@ -51,7 +51,7 @@ describe('GetIncomeCategories', () => {
     it('returns an empty array when the API returns no items', async () => {
         mockedClient.get.mockResolvedValue({ data: { items: [] } })
 
-        const result = await GetIncomeCategories()
+        const result = await getIncomeCategories()
 
         expect(result).toEqual([])
     })
@@ -59,17 +59,17 @@ describe('GetIncomeCategories', () => {
     it('propagates API errors', async () => {
         mockedClient.get.mockRejectedValue(new Error('Network Error'))
 
-        await expect(GetIncomeCategories()).rejects.toThrow('Network Error')
+        await expect(getIncomeCategories()).rejects.toThrow('Network Error')
     })
 })
 
-describe('CreateIncomeCategory', () => {
+describe('createIncomeCategory', () => {
     it('calls POST /fin/category/income with the payload and returns the created category', async () => {
         const payload = { name: 'Bonus', description: 'Year-end bonus', icon: 'gift' }
         const created = { id: '3', ...payload }
         mockedClient.post.mockResolvedValue({ data: created })
 
-        const result = await CreateIncomeCategory(payload)
+        const result = await createIncomeCategory(payload)
 
         expect(mockedClient.post).toHaveBeenCalledWith('/fin/category/income', payload)
         expect(mockedClient.post).toHaveBeenCalledTimes(1)
@@ -81,7 +81,7 @@ describe('CreateIncomeCategory', () => {
         const created = { id: '4', name: 'Interest' }
         mockedClient.post.mockResolvedValue({ data: created })
 
-        const result = await CreateIncomeCategory(payload)
+        const result = await createIncomeCategory(payload)
 
         expect(mockedClient.post).toHaveBeenCalledWith('/fin/category/income', payload)
         expect(result).toEqual(created)
@@ -91,7 +91,7 @@ describe('CreateIncomeCategory', () => {
         const payload = { name: 'Sub-salary', parentId: 1 }
         mockedClient.post.mockResolvedValue({ data: { id: '5', ...payload } })
 
-        await CreateIncomeCategory(payload)
+        await createIncomeCategory(payload)
 
         expect(mockedClient.post).toHaveBeenCalledWith('/fin/category/income', payload)
     })
@@ -99,17 +99,17 @@ describe('CreateIncomeCategory', () => {
     it('propagates API errors', async () => {
         mockedClient.post.mockRejectedValue(new Error('Bad Request'))
 
-        await expect(CreateIncomeCategory({ name: 'Fail' })).rejects.toThrow('Bad Request')
+        await expect(createIncomeCategory({ name: 'Fail' })).rejects.toThrow('Bad Request')
     })
 })
 
-describe('UpdateIncomeCategory', () => {
+describe('updateIncomeCategory', () => {
     it('calls PUT /fin/category/income/:id with the payload and returns updated category', async () => {
         const payload = { name: 'Updated Salary', description: 'Updated desc' }
         const updated = { id: '1', ...payload }
         mockedClient.put.mockResolvedValue({ data: updated })
 
-        const result = await UpdateIncomeCategory({ id: 1, payload })
+        const result = await updateIncomeCategory({ id: 1, payload })
 
         expect(mockedClient.put).toHaveBeenCalledWith('/fin/category/income/1', payload)
         expect(mockedClient.put).toHaveBeenCalledTimes(1)
@@ -120,7 +120,7 @@ describe('UpdateIncomeCategory', () => {
         const payload = { icon: 'star' }
         mockedClient.put.mockResolvedValue({ data: { id: '2', name: 'Freelance', icon: 'star' } })
 
-        const result = await UpdateIncomeCategory({ id: 2, payload })
+        const result = await updateIncomeCategory({ id: 2, payload })
 
         expect(mockedClient.put).toHaveBeenCalledWith('/fin/category/income/2', payload)
         expect(result.icon).toBe('star')
@@ -130,7 +130,7 @@ describe('UpdateIncomeCategory', () => {
         const payload = { name: 'Test' }
         mockedClient.put.mockResolvedValue({ data: { id: '99', name: 'Test' } })
 
-        await UpdateIncomeCategory({ id: 99, payload })
+        await updateIncomeCategory({ id: 99, payload })
 
         expect(mockedClient.put).toHaveBeenCalledWith('/fin/category/income/99', payload)
     })
@@ -138,7 +138,7 @@ describe('UpdateIncomeCategory', () => {
     it('propagates API errors', async () => {
         mockedClient.put.mockRejectedValue(new Error('Not Found'))
 
-        await expect(UpdateIncomeCategory({ id: 999, payload: { name: 'X' } })).rejects.toThrow(
+        await expect(updateIncomeCategory({ id: 999, payload: { name: 'X' } })).rejects.toThrow(
             'Not Found'
         )
     })
@@ -174,7 +174,7 @@ describe('deleteIncomeCategory', () => {
 //  EXPENSE CATEGORIES
 // ──────────────────────────────────────────────
 
-describe('GetExpenseCategories', () => {
+describe('getExpenseCategories', () => {
     it('calls GET /fin/category/expense and returns items', async () => {
         const categories = [
             { id: '10', name: 'Food', description: 'Groceries and dining' },
@@ -182,7 +182,7 @@ describe('GetExpenseCategories', () => {
         ]
         mockedClient.get.mockResolvedValue({ data: { items: categories } })
 
-        const result = await GetExpenseCategories()
+        const result = await getExpenseCategories()
 
         expect(mockedClient.get).toHaveBeenCalledWith('/fin/category/expense')
         expect(mockedClient.get).toHaveBeenCalledTimes(1)
@@ -192,7 +192,7 @@ describe('GetExpenseCategories', () => {
     it('returns an empty array when the API returns no items', async () => {
         mockedClient.get.mockResolvedValue({ data: { items: [] } })
 
-        const result = await GetExpenseCategories()
+        const result = await getExpenseCategories()
 
         expect(result).toEqual([])
     })
@@ -200,17 +200,17 @@ describe('GetExpenseCategories', () => {
     it('propagates API errors', async () => {
         mockedClient.get.mockRejectedValue(new Error('Server Error'))
 
-        await expect(GetExpenseCategories()).rejects.toThrow('Server Error')
+        await expect(getExpenseCategories()).rejects.toThrow('Server Error')
     })
 })
 
-describe('CreateExpenseCategory', () => {
+describe('createExpenseCategory', () => {
     it('calls POST /fin/category/expense with the payload and returns the created category', async () => {
         const payload = { name: 'Rent', description: 'Monthly rent', icon: 'home' }
         const created = { id: '12', ...payload }
         mockedClient.post.mockResolvedValue({ data: created })
 
-        const result = await CreateExpenseCategory(payload)
+        const result = await createExpenseCategory(payload)
 
         expect(mockedClient.post).toHaveBeenCalledWith('/fin/category/expense', payload)
         expect(mockedClient.post).toHaveBeenCalledTimes(1)
@@ -222,7 +222,7 @@ describe('CreateExpenseCategory', () => {
         const created = { id: '13', name: 'Utilities' }
         mockedClient.post.mockResolvedValue({ data: created })
 
-        const result = await CreateExpenseCategory(payload)
+        const result = await createExpenseCategory(payload)
 
         expect(mockedClient.post).toHaveBeenCalledWith('/fin/category/expense', payload)
         expect(result).toEqual(created)
@@ -232,7 +232,7 @@ describe('CreateExpenseCategory', () => {
         const payload = { name: 'Electricity', parentId: 13 }
         mockedClient.post.mockResolvedValue({ data: { id: '14', ...payload } })
 
-        await CreateExpenseCategory(payload)
+        await createExpenseCategory(payload)
 
         expect(mockedClient.post).toHaveBeenCalledWith('/fin/category/expense', payload)
     })
@@ -241,7 +241,7 @@ describe('CreateExpenseCategory', () => {
         const payload = { name: 'Misc', parentId: null }
         mockedClient.post.mockResolvedValue({ data: { id: '15', name: 'Misc', parentId: null } })
 
-        await CreateExpenseCategory(payload)
+        await createExpenseCategory(payload)
 
         expect(mockedClient.post).toHaveBeenCalledWith('/fin/category/expense', payload)
     })
@@ -249,17 +249,17 @@ describe('CreateExpenseCategory', () => {
     it('propagates API errors', async () => {
         mockedClient.post.mockRejectedValue(new Error('Validation Error'))
 
-        await expect(CreateExpenseCategory({ name: '' })).rejects.toThrow('Validation Error')
+        await expect(createExpenseCategory({ name: '' })).rejects.toThrow('Validation Error')
     })
 })
 
-describe('UpdateExpenseCategory', () => {
+describe('updateExpenseCategory', () => {
     it('calls PUT /fin/category/expense/:id with the payload and returns updated category', async () => {
         const payload = { name: 'Updated Food', description: 'Updated desc' }
         const updated = { id: '10', ...payload }
         mockedClient.put.mockResolvedValue({ data: updated })
 
-        const result = await UpdateExpenseCategory({ id: 10, payload })
+        const result = await updateExpenseCategory({ id: 10, payload })
 
         expect(mockedClient.put).toHaveBeenCalledWith('/fin/category/expense/10', payload)
         expect(mockedClient.put).toHaveBeenCalledTimes(1)
@@ -272,7 +272,7 @@ describe('UpdateExpenseCategory', () => {
             data: { id: '11', name: 'Transport', icon: 'car' }
         })
 
-        const result = await UpdateExpenseCategory({ id: 11, payload })
+        const result = await updateExpenseCategory({ id: 11, payload })
 
         expect(mockedClient.put).toHaveBeenCalledWith('/fin/category/expense/11', payload)
         expect(result.icon).toBe('car')
@@ -282,7 +282,7 @@ describe('UpdateExpenseCategory', () => {
         const payload = { name: 'Test' }
         mockedClient.put.mockResolvedValue({ data: { id: '77', name: 'Test' } })
 
-        await UpdateExpenseCategory({ id: 77, payload })
+        await updateExpenseCategory({ id: 77, payload })
 
         expect(mockedClient.put).toHaveBeenCalledWith('/fin/category/expense/77', payload)
     })
@@ -291,16 +291,16 @@ describe('UpdateExpenseCategory', () => {
         mockedClient.put.mockRejectedValue(new Error('Not Found'))
 
         await expect(
-            UpdateExpenseCategory({ id: 999, payload: { name: 'X' } })
+            updateExpenseCategory({ id: 999, payload: { name: 'X' } })
         ).rejects.toThrow('Not Found')
     })
 })
 
-describe('DeleteExpenseCategory', () => {
+describe('deleteExpenseCategory', () => {
     it('calls DELETE /fin/category/expense/:id and returns void', async () => {
         mockedClient.delete.mockResolvedValue({ data: null })
 
-        const result = await DeleteExpenseCategory(10)
+        const result = await deleteExpenseCategory(10)
 
         expect(mockedClient.delete).toHaveBeenCalledWith('/fin/category/expense/10')
         expect(mockedClient.delete).toHaveBeenCalledTimes(1)
@@ -310,7 +310,7 @@ describe('DeleteExpenseCategory', () => {
     it('interpolates the id into the URL correctly', async () => {
         mockedClient.delete.mockResolvedValue({ data: null })
 
-        await DeleteExpenseCategory(55)
+        await deleteExpenseCategory(55)
 
         expect(mockedClient.delete).toHaveBeenCalledWith('/fin/category/expense/55')
     })
@@ -318,6 +318,6 @@ describe('DeleteExpenseCategory', () => {
     it('propagates API errors', async () => {
         mockedClient.delete.mockRejectedValue(new Error('Forbidden'))
 
-        await expect(DeleteExpenseCategory(10)).rejects.toThrow('Forbidden')
+        await expect(deleteExpenseCategory(10)).rejects.toThrow('Forbidden')
     })
 })

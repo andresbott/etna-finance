@@ -1,38 +1,38 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { flushPromises } from '@vue/test-utils'
 import {
-    GetIncomeCategories,
-    CreateIncomeCategory,
-    UpdateIncomeCategory,
+    getIncomeCategories,
+    createIncomeCategory,
+    updateIncomeCategory,
     deleteIncomeCategory,
-    GetExpenseCategories,
-    CreateExpenseCategory,
-    UpdateExpenseCategory,
-    DeleteExpenseCategory,
+    getExpenseCategories,
+    createExpenseCategory,
+    updateExpenseCategory,
+    deleteExpenseCategory,
 } from '../lib/api/Category'
 import { renderComposable, createTestQueryClient } from '../test/helpers'
 import { useCategories } from './useCategories'
 import type { QueryClient } from '@tanstack/vue-query'
 
 vi.mock('../lib/api/Category', () => ({
-    GetIncomeCategories: vi.fn(),
-    CreateIncomeCategory: vi.fn(),
-    UpdateIncomeCategory: vi.fn(),
+    getIncomeCategories: vi.fn(),
+    createIncomeCategory: vi.fn(),
+    updateIncomeCategory: vi.fn(),
     deleteIncomeCategory: vi.fn(),
-    GetExpenseCategories: vi.fn(),
-    CreateExpenseCategory: vi.fn(),
-    UpdateExpenseCategory: vi.fn(),
-    DeleteExpenseCategory: vi.fn(),
+    getExpenseCategories: vi.fn(),
+    createExpenseCategory: vi.fn(),
+    updateExpenseCategory: vi.fn(),
+    deleteExpenseCategory: vi.fn(),
 }))
 
-const mockedGetIncomeCategories = GetIncomeCategories as ReturnType<typeof vi.fn>
-const mockedCreateIncomeCategory = CreateIncomeCategory as ReturnType<typeof vi.fn>
-const mockedUpdateIncomeCategory = UpdateIncomeCategory as ReturnType<typeof vi.fn>
+const mockedgetIncomeCategories = getIncomeCategories as ReturnType<typeof vi.fn>
+const mockedcreateIncomeCategory = createIncomeCategory as ReturnType<typeof vi.fn>
+const mockedupdateIncomeCategory = updateIncomeCategory as ReturnType<typeof vi.fn>
 const mockedDeleteIncomeCategory = deleteIncomeCategory as ReturnType<typeof vi.fn>
-const mockedGetExpenseCategories = GetExpenseCategories as ReturnType<typeof vi.fn>
-const mockedCreateExpenseCategory = CreateExpenseCategory as ReturnType<typeof vi.fn>
-const mockedUpdateExpenseCategory = UpdateExpenseCategory as ReturnType<typeof vi.fn>
-const mockedDeleteExpenseCategory = DeleteExpenseCategory as ReturnType<typeof vi.fn>
+const mockedgetExpenseCategories = getExpenseCategories as ReturnType<typeof vi.fn>
+const mockedcreateExpenseCategory = createExpenseCategory as ReturnType<typeof vi.fn>
+const mockedupdateExpenseCategory = updateExpenseCategory as ReturnType<typeof vi.fn>
+const mockeddeleteExpenseCategory = deleteExpenseCategory as ReturnType<typeof vi.fn>
 
 describe('useCategories', () => {
     let unmount: () => void
@@ -55,7 +55,7 @@ describe('useCategories', () => {
                 { id: '1', name: 'Salary' },
                 { id: '2', name: 'Freelance' },
             ]
-            mockedGetIncomeCategories.mockResolvedValue(categories)
+            mockedgetIncomeCategories.mockResolvedValue(categories)
 
             const { result } = renderComposable(() => useCategories(), { queryClient })
             unmount = renderComposable(() => useCategories(), { queryClient }).unmount
@@ -66,12 +66,12 @@ describe('useCategories', () => {
 
             await flushPromises()
 
-            expect(mockedGetIncomeCategories).toHaveBeenCalled()
+            expect(mockedgetIncomeCategories).toHaveBeenCalled()
             expect(rendered.result.incomeCategories.data.value).toEqual(categories)
         })
 
         it('exposes loading state while fetching income categories', () => {
-            mockedGetIncomeCategories.mockReturnValue(new Promise(() => {})) // never resolves
+            mockedgetIncomeCategories.mockReturnValue(new Promise(() => {})) // never resolves
 
             const rendered = renderComposable(() => useCategories(), { queryClient })
             unmount = rendered.unmount
@@ -80,7 +80,7 @@ describe('useCategories', () => {
         })
 
         it('exposes error when income categories fetch fails', async () => {
-            mockedGetIncomeCategories.mockRejectedValue(new Error('Network error'))
+            mockedgetIncomeCategories.mockRejectedValue(new Error('Network error'))
 
             const rendered = renderComposable(() => useCategories(), { queryClient })
             unmount = rendered.unmount
@@ -95,10 +95,10 @@ describe('useCategories', () => {
     // ================  INCOME MUTATIONS  ================
 
     describe('createIncomeCategory mutation', () => {
-        it('calls CreateIncomeCategory with the payload', async () => {
-            mockedGetIncomeCategories.mockResolvedValue([])
+        it('calls createIncomeCategory with the payload', async () => {
+            mockedgetIncomeCategories.mockResolvedValue([])
             const newCategory = { id: '3', name: 'Bonus' }
-            mockedCreateIncomeCategory.mockResolvedValue(newCategory)
+            mockedcreateIncomeCategory.mockResolvedValue(newCategory)
 
             const rendered = renderComposable(() => useCategories(), { queryClient })
             unmount = rendered.unmount
@@ -108,12 +108,12 @@ describe('useCategories', () => {
             rendered.result.createIncomeCategory.mutate(payload)
             await flushPromises()
 
-            expect(mockedCreateIncomeCategory).toHaveBeenCalledWith(payload)
+            expect(mockedcreateIncomeCategory).toHaveBeenCalledWith(payload)
         })
 
         it('invalidates incomeCategories query on success', async () => {
-            mockedGetIncomeCategories.mockResolvedValue([])
-            mockedCreateIncomeCategory.mockResolvedValue({ id: '3', name: 'Bonus' })
+            mockedgetIncomeCategories.mockResolvedValue([])
+            mockedcreateIncomeCategory.mockResolvedValue({ id: '3', name: 'Bonus' })
             const spy = vi.spyOn(queryClient, 'invalidateQueries')
 
             const rendered = renderComposable(() => useCategories(), { queryClient })
@@ -128,9 +128,9 @@ describe('useCategories', () => {
     })
 
     describe('updateIncomeMutation', () => {
-        it('calls UpdateIncomeCategory with id and payload', async () => {
-            mockedGetIncomeCategories.mockResolvedValue([])
-            mockedUpdateIncomeCategory.mockResolvedValue({ id: '1', name: 'Updated' })
+        it('calls updateIncomeCategory with id and payload', async () => {
+            mockedgetIncomeCategories.mockResolvedValue([])
+            mockedupdateIncomeCategory.mockResolvedValue({ id: '1', name: 'Updated' })
 
             const rendered = renderComposable(() => useCategories(), { queryClient })
             unmount = rendered.unmount
@@ -139,12 +139,12 @@ describe('useCategories', () => {
             rendered.result.updateIncomeMutation.mutate({ id: 1, payload: { name: 'Updated' } })
             await flushPromises()
 
-            expect(mockedUpdateIncomeCategory).toHaveBeenCalledWith({ id: 1, payload: { name: 'Updated' } })
+            expect(mockedupdateIncomeCategory).toHaveBeenCalledWith({ id: 1, payload: { name: 'Updated' } })
         })
 
         it('invalidates incomeCategories query on success', async () => {
-            mockedGetIncomeCategories.mockResolvedValue([])
-            mockedUpdateIncomeCategory.mockResolvedValue({ id: '1', name: 'Updated' })
+            mockedgetIncomeCategories.mockResolvedValue([])
+            mockedupdateIncomeCategory.mockResolvedValue({ id: '1', name: 'Updated' })
             const spy = vi.spyOn(queryClient, 'invalidateQueries')
 
             const rendered = renderComposable(() => useCategories(), { queryClient })
@@ -160,7 +160,7 @@ describe('useCategories', () => {
 
     describe('deleteIncomeMutation', () => {
         it('calls deleteIncomeCategory with the id', async () => {
-            mockedGetIncomeCategories.mockResolvedValue([])
+            mockedgetIncomeCategories.mockResolvedValue([])
             mockedDeleteIncomeCategory.mockResolvedValue(undefined)
 
             const rendered = renderComposable(() => useCategories(), { queryClient })
@@ -174,7 +174,7 @@ describe('useCategories', () => {
         })
 
         it('invalidates incomeCategories query on success', async () => {
-            mockedGetIncomeCategories.mockResolvedValue([])
+            mockedgetIncomeCategories.mockResolvedValue([])
             mockedDeleteIncomeCategory.mockResolvedValue(undefined)
             const spy = vi.spyOn(queryClient, 'invalidateQueries')
 
@@ -197,21 +197,21 @@ describe('useCategories', () => {
                 { id: '10', name: 'Rent' },
                 { id: '11', name: 'Food' },
             ]
-            mockedGetExpenseCategories.mockResolvedValue(categories)
-            mockedGetIncomeCategories.mockResolvedValue([])
+            mockedgetExpenseCategories.mockResolvedValue(categories)
+            mockedgetIncomeCategories.mockResolvedValue([])
 
             const rendered = renderComposable(() => useCategories(), { queryClient })
             unmount = rendered.unmount
 
             await flushPromises()
 
-            expect(mockedGetExpenseCategories).toHaveBeenCalled()
+            expect(mockedgetExpenseCategories).toHaveBeenCalled()
             expect(rendered.result.expenseCategories.data.value).toEqual(categories)
         })
 
         it('exposes loading state while fetching expense categories', () => {
-            mockedGetExpenseCategories.mockReturnValue(new Promise(() => {}))
-            mockedGetIncomeCategories.mockReturnValue(new Promise(() => {}))
+            mockedgetExpenseCategories.mockReturnValue(new Promise(() => {}))
+            mockedgetIncomeCategories.mockReturnValue(new Promise(() => {}))
 
             const rendered = renderComposable(() => useCategories(), { queryClient })
             unmount = rendered.unmount
@@ -220,8 +220,8 @@ describe('useCategories', () => {
         })
 
         it('exposes error when expense categories fetch fails', async () => {
-            mockedGetExpenseCategories.mockRejectedValue(new Error('Server error'))
-            mockedGetIncomeCategories.mockResolvedValue([])
+            mockedgetExpenseCategories.mockRejectedValue(new Error('Server error'))
+            mockedgetIncomeCategories.mockResolvedValue([])
 
             const rendered = renderComposable(() => useCategories(), { queryClient })
             unmount = rendered.unmount
@@ -235,10 +235,10 @@ describe('useCategories', () => {
     // ================  EXPENSE MUTATIONS  ================
 
     describe('createExpenseMutation', () => {
-        it('calls CreateExpenseCategory with the payload', async () => {
-            mockedGetIncomeCategories.mockResolvedValue([])
-            mockedGetExpenseCategories.mockResolvedValue([])
-            mockedCreateExpenseCategory.mockResolvedValue({ id: '12', name: 'Transport' })
+        it('calls createExpenseCategory with the payload', async () => {
+            mockedgetIncomeCategories.mockResolvedValue([])
+            mockedgetExpenseCategories.mockResolvedValue([])
+            mockedcreateExpenseCategory.mockResolvedValue({ id: '12', name: 'Transport' })
 
             const rendered = renderComposable(() => useCategories(), { queryClient })
             unmount = rendered.unmount
@@ -248,13 +248,13 @@ describe('useCategories', () => {
             rendered.result.createExpenseMutation.mutate(payload)
             await flushPromises()
 
-            expect(mockedCreateExpenseCategory).toHaveBeenCalledWith(payload)
+            expect(mockedcreateExpenseCategory).toHaveBeenCalledWith(payload)
         })
 
         it('invalidates expenseCategory query on success', async () => {
-            mockedGetIncomeCategories.mockResolvedValue([])
-            mockedGetExpenseCategories.mockResolvedValue([])
-            mockedCreateExpenseCategory.mockResolvedValue({ id: '12', name: 'Transport' })
+            mockedgetIncomeCategories.mockResolvedValue([])
+            mockedgetExpenseCategories.mockResolvedValue([])
+            mockedcreateExpenseCategory.mockResolvedValue({ id: '12', name: 'Transport' })
             const spy = vi.spyOn(queryClient, 'invalidateQueries')
 
             const rendered = renderComposable(() => useCategories(), { queryClient })
@@ -269,10 +269,10 @@ describe('useCategories', () => {
     })
 
     describe('updateExpenseMutation', () => {
-        it('calls UpdateExpenseCategory with id and payload', async () => {
-            mockedGetIncomeCategories.mockResolvedValue([])
-            mockedGetExpenseCategories.mockResolvedValue([])
-            mockedUpdateExpenseCategory.mockResolvedValue({ id: '10', name: 'Updated Rent' })
+        it('calls updateExpenseCategory with id and payload', async () => {
+            mockedgetIncomeCategories.mockResolvedValue([])
+            mockedgetExpenseCategories.mockResolvedValue([])
+            mockedupdateExpenseCategory.mockResolvedValue({ id: '10', name: 'Updated Rent' })
 
             const rendered = renderComposable(() => useCategories(), { queryClient })
             unmount = rendered.unmount
@@ -281,13 +281,13 @@ describe('useCategories', () => {
             rendered.result.updateExpenseMutation.mutate({ id: 10, payload: { name: 'Updated Rent' } })
             await flushPromises()
 
-            expect(mockedUpdateExpenseCategory).toHaveBeenCalledWith({ id: 10, payload: { name: 'Updated Rent' } })
+            expect(mockedupdateExpenseCategory).toHaveBeenCalledWith({ id: 10, payload: { name: 'Updated Rent' } })
         })
 
         it('invalidates expenseCategory query on success', async () => {
-            mockedGetIncomeCategories.mockResolvedValue([])
-            mockedGetExpenseCategories.mockResolvedValue([])
-            mockedUpdateExpenseCategory.mockResolvedValue({ id: '10', name: 'Updated' })
+            mockedgetIncomeCategories.mockResolvedValue([])
+            mockedgetExpenseCategories.mockResolvedValue([])
+            mockedupdateExpenseCategory.mockResolvedValue({ id: '10', name: 'Updated' })
             const spy = vi.spyOn(queryClient, 'invalidateQueries')
 
             const rendered = renderComposable(() => useCategories(), { queryClient })
@@ -302,10 +302,10 @@ describe('useCategories', () => {
     })
 
     describe('deleteExpenseMutation', () => {
-        it('calls DeleteExpenseCategory with the id', async () => {
-            mockedGetIncomeCategories.mockResolvedValue([])
-            mockedGetExpenseCategories.mockResolvedValue([])
-            mockedDeleteExpenseCategory.mockResolvedValue(undefined)
+        it('calls deleteExpenseCategory with the id', async () => {
+            mockedgetIncomeCategories.mockResolvedValue([])
+            mockedgetExpenseCategories.mockResolvedValue([])
+            mockeddeleteExpenseCategory.mockResolvedValue(undefined)
 
             const rendered = renderComposable(() => useCategories(), { queryClient })
             unmount = rendered.unmount
@@ -314,13 +314,13 @@ describe('useCategories', () => {
             rendered.result.deleteExpenseMutation.mutate(10)
             await flushPromises()
 
-            expect(mockedDeleteExpenseCategory).toHaveBeenCalledWith(10)
+            expect(mockeddeleteExpenseCategory).toHaveBeenCalledWith(10)
         })
 
         it('invalidates expenseCategory query on success', async () => {
-            mockedGetIncomeCategories.mockResolvedValue([])
-            mockedGetExpenseCategories.mockResolvedValue([])
-            mockedDeleteExpenseCategory.mockResolvedValue(undefined)
+            mockedgetIncomeCategories.mockResolvedValue([])
+            mockedgetExpenseCategories.mockResolvedValue([])
+            mockeddeleteExpenseCategory.mockResolvedValue(undefined)
             const spy = vi.spyOn(queryClient, 'invalidateQueries')
 
             const rendered = renderComposable(() => useCategories(), { queryClient })
@@ -338,8 +338,8 @@ describe('useCategories', () => {
 
     describe('return value', () => {
         it('returns all expected keys', () => {
-            mockedGetIncomeCategories.mockResolvedValue([])
-            mockedGetExpenseCategories.mockResolvedValue([])
+            mockedgetIncomeCategories.mockResolvedValue([])
+            mockedgetExpenseCategories.mockResolvedValue([])
 
             const rendered = renderComposable(() => useCategories(), { queryClient })
             unmount = rendered.unmount
