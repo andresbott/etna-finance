@@ -1203,3 +1203,78 @@ func TestParse_SplitColumns(t *testing.T) {
 		t.Errorf("row 1: expected expense/-45.30, got %s/%f", rows[1].Type, rows[1].Amount)
 	}
 }
+
+func TestDetectDateFormat_DateTime(t *testing.T) {
+	samples := []string{"2018-12-15 13:58:16", "2018-12-15 13:59:33", "2019-01-02 10:00:00"}
+	got := DetectDateFormat(samples)
+	if got != "2006-01-02 15:04:05" {
+		t.Errorf("expected '2006-01-02 15:04:05', got %q", got)
+	}
+}
+
+func TestDetectDateFormat_DateTimeWithEmpties(t *testing.T) {
+	samples := []string{"2018-12-15 13:58:16", "", "2018-12-15 13:59:33"}
+	got := DetectDateFormat(samples)
+	if got != "2006-01-02 15:04:05" {
+		t.Errorf("expected '2006-01-02 15:04:05', got %q", got)
+	}
+}
+
+func TestParse_EmptyDateProducesRowError(t *testing.T) {
+	csv := `Date,Description,Amount
+2018-12-15 13:58:16,Top-up by *9509,1.00
+,Bad row with empty date,10.00
+2018-12-15 13:59:33,Top-up by *9509,10.00
+`
+	profile := ImportProfile{
+		CsvSeparator:      ",",
+		DateColumn:        "Date",
+		DateFormat:        "2006-01-02 15:04:05",
+		DescriptionColumn: "Description",
+		AmountColumn:      "Amount",
+	}
+	rows, err := Parse(strings.NewReader(csv), profile, nil, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rows) != 3 {
+		t.Fatalf("expected 3 rows, got %d", len(rows))
+	}
+	if rows[0].Error != "" {
+		t.Errorf("row 0: unexpected error: %s", rows[0].Error)
+	}
+	if rows[0].Date != "2018-12-15" {
+		t.Errorf("row 0: expected date 2018-12-15, got %s", rows[0].Date)
+	}
+	if rows[1].Error != "empty date" {
+		t.Errorf("row 1: expected 'empty date' error, got %q", rows[1].Error)
+	}
+	if rows[2].Error != "" {
+		t.Errorf("row 2: unexpected error: %s", rows[2].Error)
+	}
+}
+
+func TestParsePreviewWithAutoDetect_RevolutCSV(t *testing.T) {
+	data := []byte(`Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance
+Deposit,Current,2018-12-15 13:58:16,,Top-up by *9509,1.00,0.00,CHF,REVERTED,
+Deposit,Current,2018-12-15 13:58:49,2018-12-15 13:59:33,Top-up by *9509,10.00,0.00,CHF,COMPLETED,10.00
+`)
+	profile := ImportProfile{} // fully empty — auto-detect everything
+	result, err := ParsePreviewWithAutoDetect(data, profile)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.DetectedColumns == nil {
+		t.Fatal("expected DetectedColumns, got nil")
+	}
+	if result.DetectedColumns.DateColumn != "Started Date" && result.DetectedColumns.DateColumn != "Completed Date" {
+		t.Errorf("expected a date column detected, got %q", result.DetectedColumns.DateColumn)
+	}
+	if result.DetectedDateFormat != "2006-01-02 15:04:05" {
+		t.Errorf("expected DetectedDateFormat='2006-01-02 15:04:05', got %q", result.DetectedDateFormat)
+	}
+	// Should have preview rows parsed
+	if len(result.Rows) == 0 {
+		t.Error("expected preview rows, got 0")
+	}
+}
