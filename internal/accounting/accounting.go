@@ -36,6 +36,19 @@ func NewStore(db *gorm.DB, marketStore *marketdata.Store) (*Store, error) {
 		return nil, err
 	}
 
+	// Migration: remove soft-deleted transactions and drop the deleted_at column.
+	// Transactions previously used GORM soft-delete, but this caused ghost records
+	// that broke backup export and category-rule reapply (entries were hard-deleted
+	// while the transaction row lingered with deleted_at set).
+	if db.Migrator().HasColumn(&dbTransaction{}, "deleted_at") {
+		if err := db.Exec("DELETE FROM db_transactions WHERE deleted_at IS NOT NULL").Error; err != nil {
+			return nil, fmt.Errorf("purge soft-deleted transactions: %w", err)
+		}
+		if err := db.Migrator().DropColumn(&dbTransaction{}, "deleted_at"); err != nil {
+			return nil, fmt.Errorf("drop deleted_at column: %w", err)
+		}
+	}
+
 	categoryTree, err := closuretree.New(db, dbCategory{}) // init the closure tree, this includes gorm automigrate
 	if err != nil {
 		return nil, err
