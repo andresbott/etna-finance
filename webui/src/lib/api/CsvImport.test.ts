@@ -5,10 +5,13 @@ import {
     createProfile,
     updateProfile,
     deleteProfile,
-    getCategoryRules,
-    createCategoryRule,
-    updateCategoryRule,
-    deleteCategoryRule,
+    getCategoryRuleGroups,
+    createCategoryRuleGroup,
+    updateCategoryRuleGroup,
+    deleteCategoryRuleGroup,
+    createCategoryRulePattern,
+    updateCategoryRulePattern,
+    deleteCategoryRulePattern,
     parseCSV,
     submitImport,
     previewCSV,
@@ -17,7 +20,8 @@ import {
 } from './CsvImport'
 import type {
     ImportProfile,
-    CategoryRule,
+    CategoryRuleGroup,
+    CategoryRulePattern,
     ParsedRow,
     PreviewResult,
     ReapplyRow,
@@ -44,12 +48,18 @@ const mockProfile: ImportProfile = {
     debitColumn: '',
 }
 
-const mockCategoryRule: CategoryRule = {
+const mockCategoryRuleGroup: CategoryRuleGroup = {
+    id: 1,
+    name: 'Grocery',
+    categoryId: 5,
+    priority: 0,
+    patterns: [{ id: 1, pattern: 'grocery', isRegex: false }],
+}
+
+const mockCategoryRulePattern: CategoryRulePattern = {
     id: 1,
     pattern: 'grocery',
     isRegex: false,
-    categoryId: 5,
-    position: 0,
 }
 
 const mockParsedRow: ParsedRow = {
@@ -135,54 +145,93 @@ describe('deleteProfile', () => {
     })
 })
 
-// --- Category Rules ---
+// --- Category Rule Groups ---
 
-describe('getCategoryRules', () => {
-    it('calls GET /import/category-rules and returns data', async () => {
-        const rules = [mockCategoryRule];
-        (apiClient.get as Mock).mockResolvedValue({ data: rules })
+describe('getCategoryRuleGroups', () => {
+    it('calls GET /import/category-rule-groups and returns data', async () => {
+        const groups = [mockCategoryRuleGroup];
+        (apiClient.get as Mock).mockResolvedValue({ data: groups })
 
-        const result = await getCategoryRules()
+        const result = await getCategoryRuleGroups()
 
-        expect(apiClient.get).toHaveBeenCalledWith('/import/category-rules')
+        expect(apiClient.get).toHaveBeenCalledWith('/import/category-rule-groups')
         expect(apiClient.get).toHaveBeenCalledTimes(1)
-        expect(result).toEqual(rules)
+        expect(result).toEqual(groups)
     })
 })
 
-describe('createCategoryRule', () => {
-    it('calls POST /import/category-rules with payload and returns created rule', async () => {
-        const { id, ...payload } = mockCategoryRule;
-        (apiClient.post as Mock).mockResolvedValue({ data: mockCategoryRule })
+describe('createCategoryRuleGroup', () => {
+    it('calls POST /import/category-rule-groups with payload and returns created group', async () => {
+        const { id, ...payload } = mockCategoryRuleGroup;
+        (apiClient.post as Mock).mockResolvedValue({ data: mockCategoryRuleGroup })
 
-        const result = await createCategoryRule(payload)
+        const result = await createCategoryRuleGroup(payload)
 
-        expect(apiClient.post).toHaveBeenCalledWith('/import/category-rules', payload)
+        expect(apiClient.post).toHaveBeenCalledWith('/import/category-rule-groups', payload)
         expect(apiClient.post).toHaveBeenCalledTimes(1)
-        expect(result).toEqual(mockCategoryRule)
+        expect(result).toEqual(mockCategoryRuleGroup)
     })
 })
 
-describe('updateCategoryRule', () => {
-    it('calls PUT /import/category-rules/:id with partial payload', async () => {
-        const payload: Partial<CategoryRule> = { pattern: 'supermarket' };
-        (apiClient.put as Mock).mockResolvedValue({ data: { ...mockCategoryRule, ...payload } })
+describe('updateCategoryRuleGroup', () => {
+    it('calls PUT /import/category-rule-groups/:id with partial payload', async () => {
+        const payload: Partial<CategoryRuleGroup> = { name: 'Supermarket' };
+        (apiClient.put as Mock).mockResolvedValue({ data: { ...mockCategoryRuleGroup, ...payload } })
 
-        const result = await updateCategoryRule(1, payload)
+        const result = await updateCategoryRuleGroup(1, payload)
 
-        expect(apiClient.put).toHaveBeenCalledWith('/import/category-rules/1', payload)
+        expect(apiClient.put).toHaveBeenCalledWith('/import/category-rule-groups/1', payload)
         expect(apiClient.put).toHaveBeenCalledTimes(1)
-        expect(result).toEqual({ ...mockCategoryRule, ...payload })
+        expect(result).toEqual({ ...mockCategoryRuleGroup, ...payload })
     })
 })
 
-describe('deleteCategoryRule', () => {
-    it('calls DELETE /import/category-rules/:id', async () => {
+describe('deleteCategoryRuleGroup', () => {
+    it('calls DELETE /import/category-rule-groups/:id', async () => {
         (apiClient.delete as Mock).mockResolvedValue({ data: {} })
 
-        await deleteCategoryRule(1)
+        await deleteCategoryRuleGroup(1)
 
-        expect(apiClient.delete).toHaveBeenCalledWith('/import/category-rules/1')
+        expect(apiClient.delete).toHaveBeenCalledWith('/import/category-rule-groups/1')
+        expect(apiClient.delete).toHaveBeenCalledTimes(1)
+    })
+})
+
+// --- Category Rule Patterns ---
+
+describe('createCategoryRulePattern', () => {
+    it('calls POST /import/category-rule-groups/:groupId/patterns with payload', async () => {
+        const { id, ...payload } = mockCategoryRulePattern;
+        (apiClient.post as Mock).mockResolvedValue({ data: mockCategoryRulePattern })
+
+        const result = await createCategoryRulePattern(1, payload)
+
+        expect(apiClient.post).toHaveBeenCalledWith('/import/category-rule-groups/1/patterns', payload)
+        expect(apiClient.post).toHaveBeenCalledTimes(1)
+        expect(result).toEqual(mockCategoryRulePattern)
+    })
+})
+
+describe('updateCategoryRulePattern', () => {
+    it('calls PUT /import/category-rule-groups/:groupId/patterns/:id with partial payload', async () => {
+        const payload: Partial<CategoryRulePattern> = { pattern: 'supermarket' };
+        (apiClient.put as Mock).mockResolvedValue({ data: { ...mockCategoryRulePattern, ...payload } })
+
+        const result = await updateCategoryRulePattern(1, 1, payload)
+
+        expect(apiClient.put).toHaveBeenCalledWith('/import/category-rule-groups/1/patterns/1', payload)
+        expect(apiClient.put).toHaveBeenCalledTimes(1)
+        expect(result).toEqual({ ...mockCategoryRulePattern, ...payload })
+    })
+})
+
+describe('deleteCategoryRulePattern', () => {
+    it('calls DELETE /import/category-rule-groups/:groupId/patterns/:id', async () => {
+        (apiClient.delete as Mock).mockResolvedValue({ data: {} })
+
+        await deleteCategoryRulePattern(1, 2)
+
+        expect(apiClient.delete).toHaveBeenCalledWith('/import/category-rule-groups/1/patterns/2')
         expect(apiClient.delete).toHaveBeenCalledTimes(1)
     })
 })

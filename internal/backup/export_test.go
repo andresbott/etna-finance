@@ -102,8 +102,10 @@ func TestExport(t *testing.T) {
 		ImportProfiles: []importProfileV1{
 			{ID: 1, Name: "bank-csv", CsvSeparator: ",", DateColumn: "Date", DateFormat: "2006-01-02", DescriptionColumn: "Description", AmountColumn: "Amount", AmountMode: "single"},
 		},
-		CategoryRules: []categoryRuleV1{
-			{ID: 1, Pattern: "grocery", CategoryID: 3, Position: 0},
+		CategoryRules: []categoryRuleGroupV1{
+			{ID: 1, Name: "grocery", CategoryID: 3, Priority: 0, Patterns: []categoryRulePatternV1{
+				{ID: 1, Pattern: "grocery"},
+			}},
 		},
 	}
 
@@ -115,7 +117,7 @@ func TestExport(t *testing.T) {
 		cmpopts.SortSlices(func(a, b priceRecordV1) bool { return a.Time.Before(b.Time) }),
 		cmpopts.SortSlices(func(a, b fxRateRecordV1) bool { return a.Main < b.Main }),
 		cmpopts.SortSlices(func(a, b importProfileV1) bool { return a.ID < b.ID }),
-		cmpopts.SortSlices(func(a, b categoryRuleV1) bool { return a.ID < b.ID }),
+		cmpopts.SortSlices(func(a, b categoryRuleGroupV1) bool { return a.ID < b.ID }),
 	); diff != "" {
 		t.Errorf("unexpected result (-want +got):\n%s", diff)
 	}
@@ -152,7 +154,7 @@ type backupPayload struct {
 	PriceHistory      []priceRecordV1
 	FXRates           []fxRateRecordV1
 	ImportProfiles    []importProfileV1
-	CategoryRules     []categoryRuleV1
+	CategoryRules     []categoryRuleGroupV1
 }
 
 func unmarshalJSON[T any](data []byte) (T, error) {
@@ -216,7 +218,7 @@ func readFromZip(zipPath string) (backupPayload, error) {
 		case importProfilesFile:
 			payload.ImportProfiles, err = unmarshalJSON[[]importProfileV1](data)
 		case categoryRulesFile:
-			payload.CategoryRules, err = unmarshalJSON[[]categoryRuleV1](data)
+			payload.CategoryRules, err = unmarshalJSON[[]categoryRuleGroupV1](data)
 		}
 		if err != nil {
 			return payload, err
@@ -355,13 +357,14 @@ func sampleData(t *testing.T, store *accounting.Store, mdStore *marketdata.Store
 	}
 
 	// =========================================
-	// create category rules
+	// create category rule groups
 	// =========================================
-	_, err = csvStore.CreateCategoryRule(t.Context(), csvimport.CategoryRule{
-		Pattern: "grocery", CategoryID: ex1, Position: 0,
+	_, err = csvStore.CreateCategoryRuleGroup(t.Context(), csvimport.CategoryRuleGroup{
+		Name: "grocery", CategoryID: ex1, Priority: 0,
+		Patterns: []csvimport.CategoryRulePattern{{Pattern: "grocery"}},
 	})
 	if err != nil {
-		t.Fatalf("error creating category rule: %v", err)
+		t.Fatalf("error creating category rule group: %v", err)
 	}
 
 }
@@ -443,7 +446,8 @@ func TestRoundTrip(t *testing.T) {
 		cmpopts.IgnoreFields(TransactionV1{}, "Id", "AccountID", "CategoryID", "OriginAccountID", "TargetAccountID", "InvestmentAccountID", "CashAccountID", "SourceAccountID", "InstrumentID"),
 		cmpopts.IgnoreFields(instrumentV1{}, "ID", "InstrumentProviderID"),
 		cmpopts.IgnoreFields(importProfileV1{}, "ID"),
-		cmpopts.IgnoreFields(categoryRuleV1{}, "ID", "CategoryID"),
+		cmpopts.IgnoreFields(categoryRuleGroupV1{}, "ID", "CategoryID"),
+		cmpopts.IgnoreFields(categoryRulePatternV1{}, "ID"),
 		cmpopts.SortSlices(func(a, b accountProviderV1) bool { return a.Name < b.Name }),
 		cmpopts.SortSlices(func(a, b accountV1) bool { return a.Name < b.Name }),
 		cmpopts.SortSlices(func(a, b categoryV1) bool { return a.Name < b.Name }),
@@ -452,7 +456,7 @@ func TestRoundTrip(t *testing.T) {
 		cmpopts.SortSlices(func(a, b priceRecordV1) bool { return a.Time.Before(b.Time) }),
 		cmpopts.SortSlices(func(a, b fxRateRecordV1) bool { return a.Main < b.Main }),
 		cmpopts.SortSlices(func(a, b importProfileV1) bool { return a.Name < b.Name }),
-		cmpopts.SortSlices(func(a, b categoryRuleV1) bool { return a.Pattern < b.Pattern }),
+		cmpopts.SortSlices(func(a, b categoryRuleGroupV1) bool { return a.Name < b.Name }),
 	); diff != "" {
 		t.Errorf("round-trip mismatch (-first +second):\n%s", diff)
 	}

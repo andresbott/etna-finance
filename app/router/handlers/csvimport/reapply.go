@@ -13,18 +13,18 @@ import (
 
 // ReapplyRow represents a single transaction row in the reapply preview response.
 type ReapplyRow struct {
-	TransactionID    uint    `json:"transactionId"`
-	TransactionType  string  `json:"transactionType"`
-	Description      string  `json:"description"`
-	Date             string  `json:"date"`
-	Amount           float64 `json:"amount"`
-	AccountID        uint    `json:"accountId"`
-	AccountName      string  `json:"accountName"`
-	CurrentCategoryID   uint   `json:"currentCategoryId"`
-	CurrentCategoryName string `json:"currentCategoryName"`
-	NewCategoryID       uint   `json:"newCategoryId"`
-	NewCategoryName     string `json:"newCategoryName"`
-	Changed             bool   `json:"changed"`
+	TransactionID       uint    `json:"transactionId"`
+	TransactionType     string  `json:"transactionType"`
+	Description         string  `json:"description"`
+	Date                string  `json:"date"`
+	Amount              float64 `json:"amount"`
+	AccountID           uint    `json:"accountId"`
+	AccountName         string  `json:"accountName"`
+	CurrentCategoryID   uint    `json:"currentCategoryId"`
+	CurrentCategoryName string  `json:"currentCategoryName"`
+	NewCategoryID       uint    `json:"newCategoryId"`
+	NewCategoryName     string  `json:"newCategoryName"`
+	Changed             bool    `json:"changed"`
 }
 
 // ReapplyPreview returns an http.Handler that previews the effect of re-applying
@@ -33,14 +33,14 @@ func (h *ImportHandler) ReapplyPreview() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		// Load category rules
-		rules, err := h.CsvStore.ListCategoryRules(ctx)
+		// Load category rule groups
+		groups, err := h.CsvStore.ListCategoryRuleGroups(ctx)
 		if err != nil {
-			http.Error(w, "unable to list category rules: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, "unable to list category rule groups: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		if len(rules) == 0 {
+		if len(groups) == 0 {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte("[]"))
@@ -96,8 +96,8 @@ func (h *ImportHandler) ReapplyPreview() http.Handler {
 			for _, tx := range txs {
 				switch item := tx.(type) {
 				case accounting.Income:
-					newCatID := csvimport.MatchCategory(item.Description, rules)
-					if newCatID == 0 {
+					newCatID := csvimport.MatchCategory(item.Description, groups)
+					if newCatID == 0 || newCatID == item.CategoryID {
 						continue
 					}
 					rows = append(rows, ReapplyRow{
@@ -112,11 +112,11 @@ func (h *ImportHandler) ReapplyPreview() http.Handler {
 						CurrentCategoryName: catNames[item.CategoryID],
 						NewCategoryID:       newCatID,
 						NewCategoryName:     catNames[newCatID],
-						Changed:             item.CategoryID != newCatID,
+						Changed:             true,
 					})
 				case accounting.Expense:
-					newCatID := csvimport.MatchCategory(item.Description, rules)
-					if newCatID == 0 {
+					newCatID := csvimport.MatchCategory(item.Description, groups)
+					if newCatID == 0 || newCatID == item.CategoryID {
 						continue
 					}
 					rows = append(rows, ReapplyRow{
@@ -131,7 +131,7 @@ func (h *ImportHandler) ReapplyPreview() http.Handler {
 						CurrentCategoryName: catNames[item.CategoryID],
 						NewCategoryID:       newCatID,
 						NewCategoryName:     catNames[newCatID],
-						Changed:             item.CategoryID != newCatID,
+						Changed:             true,
 					})
 				}
 			}

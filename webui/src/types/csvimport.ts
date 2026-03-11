@@ -12,12 +12,18 @@ export interface ImportProfile {
   debitColumn: string
 }
 
-export interface CategoryRule {
+export interface CategoryRuleGroup {
+  id: number
+  name: string
+  categoryId: number
+  priority: number
+  patterns: CategoryRulePattern[]
+}
+
+export interface CategoryRulePattern {
   id: number
   pattern: string
   isRegex: boolean
-  categoryId: number
-  position: number
 }
 
 export interface DetectedColumns {

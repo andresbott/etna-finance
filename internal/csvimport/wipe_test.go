@@ -16,11 +16,12 @@ func TestWipeData(t *testing.T) {
 		t.Fatalf("unexpected error creating profile: %v", err)
 	}
 
-	// Create a category rule
-	r := validCategoryRule()
-	_, err = store.CreateCategoryRule(ctx, r)
+	// Create a category rule group with a pattern
+	g := validCategoryRuleGroup()
+	g.Patterns = []CategoryRulePattern{{Pattern: "TEST", IsRegex: false}}
+	_, err = store.CreateCategoryRuleGroup(ctx, g)
 	if err != nil {
-		t.Fatalf("unexpected error creating category rule: %v", err)
+		t.Fatalf("unexpected error creating category rule group: %v", err)
 	}
 
 	// Verify data exists
@@ -32,12 +33,12 @@ func TestWipeData(t *testing.T) {
 		t.Fatal("expected at least one profile before wipe")
 	}
 
-	rules, err := store.ListCategoryRules(ctx)
+	groups, err := store.ListCategoryRuleGroups(ctx)
 	if err != nil {
-		t.Fatalf("unexpected error listing category rules: %v", err)
+		t.Fatalf("unexpected error listing category rule groups: %v", err)
 	}
-	if len(rules) == 0 {
-		t.Fatal("expected at least one category rule before wipe")
+	if len(groups) == 0 {
+		t.Fatal("expected at least one category rule group before wipe")
 	}
 
 	// Wipe data
@@ -55,11 +56,11 @@ func TestWipeData(t *testing.T) {
 		t.Fatalf("expected 0 profiles after wipe, got %d", len(profiles))
 	}
 
-	rules, err = store.ListCategoryRules(ctx)
+	groups, err = store.ListCategoryRuleGroups(ctx)
 	if err != nil {
-		t.Fatalf("unexpected error listing category rules after wipe: %v", err)
+		t.Fatalf("unexpected error listing category rule groups after wipe: %v", err)
 	}
-	if len(rules) != 0 {
-		t.Fatalf("expected 0 category rules after wipe, got %d", len(rules))
+	if len(groups) != 0 {
+		t.Fatalf("expected 0 category rule groups after wipe, got %d", len(groups))
 	}
 }

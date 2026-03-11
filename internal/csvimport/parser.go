@@ -808,7 +808,7 @@ func ParsePreview(r io.Reader, profile ImportProfile) (PreviewResult, error) {
 // Parse reads a CSV from r using the given profile's column mappings, applies
 // category matching rules, and detects duplicates against existing transactions.
 // It is a pure function with no DB access.
-func Parse(r io.Reader, profile ImportProfile, rules []CategoryRule, existing []ExistingTx) ([]ParsedRow, error) {
+func Parse(r io.Reader, profile ImportProfile, groups []CategoryRuleGroup, existing []ExistingTx) ([]ParsedRow, error) {
 	header, dataRows, skip, colIndex, err := readCSV(r, profile)
 	if err != nil {
 		return nil, err
@@ -889,7 +889,7 @@ func Parse(r io.Reader, profile ImportProfile, rules []CategoryRule, existing []
 		parsed.Type = txType
 
 		// Match category
-		parsed.CategoryID = MatchCategory(parsed.Description, rules)
+		parsed.CategoryID = MatchCategory(parsed.Description, groups)
 
 		// Check duplicate
 		key := dupKey(parsed.Date, parsed.Amount)
@@ -909,19 +909,21 @@ func dupKey(date string, amount float64) string {
 	return fmt.Sprintf("%s|%.2f", date, amount)
 }
 
-// MatchCategory iterates rules in order and returns the categoryID of the first
-// matching rule, or 0 if none match.
-func MatchCategory(description string, rules []CategoryRule) uint {
+// MatchCategory iterates groups in order and returns the categoryID of the first
+// group where any pattern matches, or 0 if none match.
+func MatchCategory(description string, groups []CategoryRuleGroup) uint {
 	descLower := strings.ToLower(description)
-	for _, rule := range rules {
-		if rule.IsRegex {
-			matched, err := regexp.MatchString(rule.Pattern, description)
-			if err == nil && matched {
-				return rule.CategoryID
-			}
-		} else {
-			if strings.Contains(descLower, strings.ToLower(rule.Pattern)) {
-				return rule.CategoryID
+	for _, group := range groups {
+		for _, pattern := range group.Patterns {
+			if pattern.IsRegex {
+				matched, err := regexp.MatchString(pattern.Pattern, description)
+				if err == nil && matched {
+					return group.CategoryID
+				}
+			} else {
+				if strings.Contains(descLower, strings.ToLower(pattern.Pattern)) {
+					return group.CategoryID
+				}
 			}
 		}
 	}

@@ -224,15 +224,18 @@ func assertImportedProfiles(t *testing.T, csvStore *csvimport.Store) {
 
 func assertImportedCategoryRules(t *testing.T, csvStore *csvimport.Store) {
 	t.Helper()
-	rules, err := csvStore.ListCategoryRules(t.Context())
+	groups, err := csvStore.ListCategoryRuleGroups(t.Context())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(rules) != 1 {
-		t.Fatalf("expected 1 rule, got %d", len(rules))
+	if len(groups) != 1 {
+		t.Fatalf("expected 1 group, got %d", len(groups))
 	}
-	if rules[0].Pattern != "grocery" {
-		t.Errorf("expected pattern grocery, got %s", rules[0].Pattern)
+	if len(groups[0].Patterns) != 1 {
+		t.Fatalf("expected 1 pattern, got %d", len(groups[0].Patterns))
+	}
+	if groups[0].Patterns[0].Pattern != "grocery" {
+		t.Errorf("expected pattern grocery, got %s", groups[0].Patterns[0].Pattern)
 	}
 }
 

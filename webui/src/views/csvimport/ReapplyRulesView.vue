@@ -31,15 +31,9 @@ const isSubmitting = ref(false)
 const checkedRows = ref({})
 
 /* --- Summary --- */
-const summary = computed(() => {
-    if (!rows.value) return { changedCount: 0, unchangedCount: 0 }
-    let changedCount = 0
-    let unchangedCount = 0
-    for (const row of rows.value) {
-        if (row.changed) changedCount++
-        else unchangedCount++
-    }
-    return { changedCount, unchangedCount }
+const totalCount = computed(() => {
+    if (!rows.value) return 0
+    return rows.value.length
 })
 
 /* --- Checked count --- */
@@ -51,8 +45,7 @@ const checkedCount = computed(() => {
 /* --- Row class --- */
 const getRowClass = (data) => ({
     'expense-row': data.transactionType === 'expense',
-    'income-row': data.transactionType === 'income',
-    'unchanged-row': !data.changed
+    'income-row': data.transactionType === 'income'
 })
 
 /* --- Load preview --- */
@@ -99,7 +92,7 @@ const handleSubmit = async () => {
             detail: `${result.updated} transactions updated successfully.`,
             life: 4000
         })
-        router.push('/setup/category-rules')
+        router.push('/setup/csv-profiles')
     } catch (err) {
         toast.add({
             severity: 'error',
@@ -114,7 +107,7 @@ const handleSubmit = async () => {
 
 /* --- Navigation --- */
 const handleBack = () => {
-    router.push('/setup/category-rules')
+    router.push('/setup/csv-profiles')
 }
 
 onMounted(() => {
@@ -144,10 +137,7 @@ onMounted(() => {
                 <!-- Summary Bar -->
                 <div class="summary-bar">
                     <span class="summary-item summary-changed">
-                        <i class="pi pi-sync"></i> {{ summary.changedCount }} to update
-                    </span>
-                    <span class="summary-item summary-unchanged">
-                        <i class="pi pi-check-circle"></i> {{ summary.unchangedCount }} already correct
+                        <i class="pi pi-sync"></i> {{ totalCount }} to update
                     </span>
                 </div>
 
@@ -171,7 +161,7 @@ onMounted(() => {
                             </template>
 
                             <!-- Checkbox column -->
-                            <Column header="" style="width: 50px">
+                            <Column header="" style="width: 2.5rem">
                                 <template #body="{ data }">
                                     <Checkbox
                                         v-model="checkedRows[data.transactionId]"
@@ -181,24 +171,24 @@ onMounted(() => {
                             </Column>
 
                             <!-- Type icon -->
-                            <Column header="" style="width: 40px">
+                            <Column header="" style="width: 2rem">
                                 <template #body="{ data }">
                                     <i :class="getEntryTypeIcon(data.transactionType)" style="font-size: 0.8rem" />
                                 </template>
                             </Column>
 
                             <!-- Description -->
-                            <Column field="description" header="Description" />
+                            <Column field="description" header="Description" bodyClass="description-cell" />
 
                             <!-- Date -->
-                            <Column field="date" header="Date" style="width: 120px">
+                            <Column field="date" header="Date" style="width: 7rem">
                                 <template #body="{ data }">
                                     {{ formatDate(data.date) }}
                                 </template>
                             </Column>
 
                             <!-- Amount -->
-                            <Column field="amount" header="Amount" bodyStyle="text-align: right" style="width: 120px">
+                            <Column field="amount" header="Amount" bodyStyle="text-align: right" style="width: 6rem">
                                 <template #body="{ data }">
                                     <div class="amount" :class="data.transactionType === 'expense' ? 'expense' : 'income'">
                                         <template v-if="data.transactionType === 'expense'">-</template>
@@ -209,17 +199,17 @@ onMounted(() => {
                             </Column>
 
                             <!-- Account -->
-                            <Column field="accountName" header="Account" style="width: 150px" />
+                            <Column field="accountName" header="Account" style="width: 8rem" bodyStyle="white-space: nowrap" />
 
                             <!-- Current Category -->
-                            <Column header="Current Category" style="width: 180px">
+                            <Column header="Current" style="width: 8rem">
                                 <template #body="{ data }">
                                     {{ data.currentCategoryName || '—' }}
                                 </template>
                             </Column>
 
                             <!-- New Category -->
-                            <Column header="New Category" style="width: 180px">
+                            <Column header="New" style="width: 8rem">
                                 <template #body="{ data }">
                                     <span :class="{ 'category-changed': data.changed }">
                                         {{ data.newCategoryName || '—' }}
@@ -321,10 +311,6 @@ onMounted(() => {
     color: var(--blue-600);
 }
 
-.summary-unchanged {
-    color: var(--green-600);
-}
-
 .preview-actions {
     display: flex;
     gap: 0.75rem;
@@ -356,7 +342,16 @@ onMounted(() => {
     opacity: 0.5;
 }
 
-:deep(.unchanged-row) {
-    opacity: 0.6;
+:deep(.datatable-compact .p-datatable-tbody > tr > td) {
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
 }
+
+:deep(.description-cell) {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 1px;
+}
+
 </style>

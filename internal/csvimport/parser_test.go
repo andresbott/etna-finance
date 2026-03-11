@@ -118,11 +118,11 @@ func TestParse_CategoryMatchSubstring(t *testing.T) {
 01/03/2026,GROCERY store purchase,-25.00
 `
 	profile := defaultProfile()
-	rules := []CategoryRule{
-		{Pattern: "grocery", IsRegex: false, CategoryID: 10, Position: 1},
+	groups := []CategoryRuleGroup{
+		{CategoryID: 10, Priority: 1, Patterns: []CategoryRulePattern{{Pattern: "grocery", IsRegex: false}}},
 	}
 
-	rows, err := Parse(strings.NewReader(csv), profile, rules, nil)
+	rows, err := Parse(strings.NewReader(csv), profile, groups, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -136,11 +136,11 @@ func TestParse_CategoryMatchRegex(t *testing.T) {
 01/03/2026,Payment REF-12345,-100.00
 `
 	profile := defaultProfile()
-	rules := []CategoryRule{
-		{Pattern: `REF-\d+`, IsRegex: true, CategoryID: 20, Position: 1},
+	groups := []CategoryRuleGroup{
+		{CategoryID: 20, Priority: 1, Patterns: []CategoryRulePattern{{Pattern: `REF-\d+`, IsRegex: true}}},
 	}
 
-	rows, err := Parse(strings.NewReader(csv), profile, rules, nil)
+	rows, err := Parse(strings.NewReader(csv), profile, groups, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -154,12 +154,12 @@ func TestParse_CategoryFirstMatchWins(t *testing.T) {
 01/03/2026,Grocery Store payment,-30.00
 `
 	profile := defaultProfile()
-	rules := []CategoryRule{
-		{Pattern: "grocery", IsRegex: false, CategoryID: 10, Position: 1},
-		{Pattern: "store", IsRegex: false, CategoryID: 20, Position: 2},
+	groups := []CategoryRuleGroup{
+		{CategoryID: 10, Priority: 1, Patterns: []CategoryRulePattern{{Pattern: "grocery", IsRegex: false}}},
+		{CategoryID: 20, Priority: 2, Patterns: []CategoryRulePattern{{Pattern: "store", IsRegex: false}}},
 	}
 
-	rows, err := Parse(strings.NewReader(csv), profile, rules, nil)
+	rows, err := Parse(strings.NewReader(csv), profile, groups, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -173,11 +173,11 @@ func TestParse_CategoryNoMatch(t *testing.T) {
 01/03/2026,Random purchase,-15.00
 `
 	profile := defaultProfile()
-	rules := []CategoryRule{
-		{Pattern: "grocery", IsRegex: false, CategoryID: 10, Position: 1},
+	groups := []CategoryRuleGroup{
+		{CategoryID: 10, Priority: 1, Patterns: []CategoryRulePattern{{Pattern: "grocery", IsRegex: false}}},
 	}
 
-	rows, err := Parse(strings.NewReader(csv), profile, rules, nil)
+	rows, err := Parse(strings.NewReader(csv), profile, groups, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -943,13 +943,13 @@ func TestParse_BankExport_BlankAndFooterRowsAreErrors(t *testing.T) {
 
 func TestParse_BankExport_CategoryMatching(t *testing.T) {
 	profile := bankExportProfile()
-	rules := []CategoryRule{
-		{Pattern: "grocery", IsRegex: false, CategoryID: 10, Position: 1},
-		{Pattern: "salary", IsRegex: false, CategoryID: 20, Position: 2},
-		{Pattern: `Insurance`, IsRegex: false, CategoryID: 30, Position: 3},
+	groups := []CategoryRuleGroup{
+		{CategoryID: 10, Priority: 1, Patterns: []CategoryRulePattern{{Pattern: "grocery", IsRegex: false}}},
+		{CategoryID: 20, Priority: 2, Patterns: []CategoryRulePattern{{Pattern: "salary", IsRegex: false}}},
+		{CategoryID: 30, Priority: 3, Patterns: []CategoryRulePattern{{Pattern: "Insurance", IsRegex: false}}},
 	}
 
-	rows, err := Parse(strings.NewReader(bankExportCSV), profile, rules, nil)
+	rows, err := Parse(strings.NewReader(bankExportCSV), profile, groups, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

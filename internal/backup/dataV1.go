@@ -130,10 +130,16 @@ type importProfileV1 struct {
 	DebitColumn       string `json:"debitColumn"`
 }
 
-type categoryRuleV1 struct {
-	ID         uint   `json:"id"`
-	Pattern    string `json:"pattern"`
-	IsRegex    bool   `json:"isRegex"`
-	CategoryID uint   `json:"categoryId"`
-	Position   int    `json:"position"`
+type categoryRuleGroupV1 struct {
+	ID         uint                    `json:"id"`
+	Name       string                  `json:"name"`
+	CategoryID uint                    `json:"categoryId"`
+	Priority   int                     `json:"position"`
+	Patterns   []categoryRulePatternV1 `json:"patterns"`
+}
+
+type categoryRulePatternV1 struct {
+	ID      uint   `json:"id"`
+	Pattern string `json:"pattern"`
+	IsRegex bool   `json:"isRegex"`
 }
