@@ -36,18 +36,15 @@ export const useUserStore = defineStore('user', () => {
             .get(statusPath)
             .then((res) => {
                 if (res.status === 200) {
-                    console.debug(res.data)
                     loggedInUser.value = res.data['username']
                     isLoggedIn.value = res.data['logged-in']
                     if (res.data['logged-in']) {
                         settingsStore.fetchSettings()
                     }
-                } else {
-                    console.log(res)
                 }
             })
             .catch((err) => {
-                console.log(err)
+                console.error(err)
             })
     }
 
@@ -73,7 +70,6 @@ export const useUserStore = defineStore('user', () => {
             },
             (error) => {
                 if (error.response?.status === 401) {
-                    console.log('authentication returned 401')
                     isLoggedIn.value = false
                     wrongPwErr.value = true
                 }
@@ -86,7 +82,6 @@ export const useUserStore = defineStore('user', () => {
             .post(loginPath, data)
             .then((res) => {
                 if (res.status === 200) {
-                    console.debug(res.data)
                     loggedInUser.value = user
                     isLoggedIn.value = true
                     wrongPwErr.value = false
@@ -96,12 +91,10 @@ export const useUserStore = defineStore('user', () => {
                     if (onSuccessNavigate) {
                         onSuccessNavigate()
                     }
-                } else {
-                    console.log(res)
                 }
             })
             .catch((err) => {
-                console.log(err)
+                console.error(err)
                 // todo propagate login error
             })
             .finally(() => {
@@ -130,7 +123,7 @@ export const useUserStore = defineStore('user', () => {
                 // router.push('/login')
             })
             .catch((err) => {
-                console.log(err)
+                console.error(err)
                 // todo propagate login error
             })
             .finally(() => {

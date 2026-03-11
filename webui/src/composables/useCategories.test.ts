@@ -41,6 +41,9 @@ describe('useCategories', () => {
     beforeEach(() => {
         vi.clearAllMocks()
         queryClient = createTestQueryClient()
+        // Provide default mocks so both queries return valid data
+        mockedgetIncomeCategories.mockResolvedValue([])
+        mockedgetExpenseCategories.mockResolvedValue([])
     })
 
     afterEach(() => {
