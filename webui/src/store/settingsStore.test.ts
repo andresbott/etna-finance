@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import axios from 'axios'
 
@@ -7,9 +7,16 @@ vi.mock('axios')
 const mockedAxios = vi.mocked(axios, true)
 
 describe('settingsStore', () => {
+    let consoleErrorSpy: ReturnType<typeof vi.spyOn>
+
     beforeEach(() => {
         setActivePinia(createPinia())
         vi.clearAllMocks()
+        consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    })
+
+    afterEach(() => {
+        consoleErrorSpy.mockRestore()
     })
 
     async function importStore() {
@@ -193,18 +200,16 @@ describe('settingsStore', () => {
         })
 
         it('logs error to console on failure', async () => {
-            const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
             const err = new Error('Network Error')
             mockedAxios.get.mockRejectedValue(err)
             const store = await importStore()
 
             await store.fetchSettings()
 
-            expect(consoleSpy).toHaveBeenCalledWith(
+            expect(consoleErrorSpy).toHaveBeenCalledWith(
                 'Failed to fetch application settings:',
                 err,
             )
-            consoleSpy.mockRestore()
         })
     })
 

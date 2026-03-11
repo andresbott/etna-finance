@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import axios from 'axios'
 
@@ -36,12 +36,18 @@ import { useSettingsStore } from '@/store/settingsStore'
 describe('userStore', () => {
     let store: ReturnType<typeof useUserStore>
     let settingsStore: ReturnType<typeof useSettingsStore>
+    let consoleErrorSpy: ReturnType<typeof vi.spyOn>
 
     beforeEach(() => {
         vi.clearAllMocks()
         setActivePinia(createPinia())
         store = useUserStore()
         settingsStore = useSettingsStore()
+        consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    })
+
+    afterEach(() => {
+        consoleErrorSpy.mockRestore()
     })
 
     describe('initial state', () => {
