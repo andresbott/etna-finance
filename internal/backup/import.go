@@ -303,7 +303,7 @@ func importTransactions(ctx context.Context, store *accounting.Store, r *zip.Rea
 }
 
 // Load V1 data from json files
-func loadV1Json[T metaInfoV1 | []accountProviderV1 | []accountV1 | []categoryV1 | []TransactionV1 | []instrumentV1 | []priceRecordV1 | []fxRateRecordV1 | []importProfileV1 | []categoryRuleV1](r *zip.ReadCloser, fileName string) (T, error) {
+func loadV1Json[T metaInfoV1 | []accountProviderV1 | []accountV1 | []categoryV1 | []TransactionV1 | []instrumentV1 | []priceRecordV1 | []fxRateRecordV1 | []importProfileV1 | []categoryRuleGroupV1](r *zip.ReadCloser, fileName string) (T, error) {
 	var result T
 
 	for _, f := range r.File {
@@ -465,24 +465,29 @@ func importProfiles(ctx context.Context, csvStore *csvimport.Store, r *zip.ReadC
 }
 
 func importCategoryRules(ctx context.Context, csvStore *csvimport.Store, r *zip.ReadCloser, incomeMap, expenseMap map[uint]uint) error {
-	rules, err := loadV1Json[[]categoryRuleV1](r, categoryRulesFile)
+	groups, err := loadV1Json[[]categoryRuleGroupV1](r, categoryRulesFile)
 	if err != nil {
 		return err
 	}
-	for _, rule := range rules {
-		catID := incomeMap[rule.CategoryID]
+	for _, g := range groups {
+		catID := incomeMap[g.CategoryID]
 		if catID == 0 {
-			catID = expenseMap[rule.CategoryID]
+			catID = expenseMap[g.CategoryID]
 		}
-		item := csvimport.CategoryRule{
-			Pattern:    rule.Pattern,
-			IsRegex:    rule.IsRegex,
+		item := csvimport.CategoryRuleGroup{
+			Name:       g.Name,
 			CategoryID: catID,
-			Position:   rule.Position,
+			Priority:   g.Priority,
 		}
-		_, err := csvStore.CreateCategoryRule(ctx, item)
+		for _, p := range g.Patterns {
+			item.Patterns = append(item.Patterns, csvimport.CategoryRulePattern{
+				Pattern: p.Pattern,
+				IsRegex: p.IsRegex,
+			})
+		}
+		_, err := csvStore.CreateCategoryRuleGroup(ctx, item)
 		if err != nil {
-			return fmt.Errorf("failed to create category rule: %w", err)
+			return fmt.Errorf("failed to create category rule group: %w", err)
 		}
 	}
 	return nil

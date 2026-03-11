@@ -6,22 +6,21 @@ import (
 	"testing"
 )
 
-func validCategoryRule() CategoryRule {
-	return CategoryRule{
-		Pattern:    "AMAZON",
-		IsRegex:    false,
+func validCategoryRuleGroup() CategoryRuleGroup {
+	return CategoryRuleGroup{
+		Name:       "Test Group",
 		CategoryID: 1,
-		Position:   10,
+		Priority:   10,
 	}
 }
 
-func TestCreateCategoryRule(t *testing.T) {
+func TestCreateCategoryRuleGroup(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		r := validCategoryRule()
-		id, err := store.CreateCategoryRule(ctx, r)
+		g := validCategoryRuleGroup()
+		id, err := store.CreateCategoryRuleGroup(ctx, g)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -30,24 +29,67 @@ func TestCreateCategoryRule(t *testing.T) {
 		}
 	})
 
-	t.Run("success with valid regex", func(t *testing.T) {
-		r := validCategoryRule()
-		r.IsRegex = true
-		r.Pattern = `^AMAZON\s+\d+`
-		id, err := store.CreateCategoryRule(ctx, r)
+	t.Run("success with initial patterns", func(t *testing.T) {
+		g := validCategoryRuleGroup()
+		g.Patterns = []CategoryRulePattern{
+			{Pattern: "AMAZON", IsRegex: false},
+			{Pattern: "NETFLIX", IsRegex: false},
+		}
+		id, err := store.CreateCategoryRuleGroup(ctx, g)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if id == 0 {
 			t.Fatal("expected non-zero id")
 		}
+
+		got, err := store.GetCategoryRuleGroup(ctx, id)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(got.Patterns) != 2 {
+			t.Fatalf("expected 2 patterns, got %d", len(got.Patterns))
+		}
 	})
 
-	t.Run("invalid regex", func(t *testing.T) {
-		r := validCategoryRule()
-		r.IsRegex = true
-		r.Pattern = `[invalid`
-		_, err := store.CreateCategoryRule(ctx, r)
+	t.Run("validation error empty name", func(t *testing.T) {
+		g := validCategoryRuleGroup()
+		g.Name = ""
+		_, err := store.CreateCategoryRuleGroup(ctx, g)
+		if err == nil {
+			t.Fatal("expected validation error, got nil")
+		}
+		var valErr ErrValidation
+		if !errors.As(err, &valErr) {
+			t.Fatalf("expected ErrValidation, got %T: %v", err, err)
+		}
+		if err.Error() != "name cannot be empty" {
+			t.Errorf("expected error %q, got %q", "name cannot be empty", err.Error())
+		}
+	})
+
+	t.Run("validation error zero categoryID", func(t *testing.T) {
+		g := validCategoryRuleGroup()
+		g.CategoryID = 0
+		_, err := store.CreateCategoryRuleGroup(ctx, g)
+		if err == nil {
+			t.Fatal("expected validation error, got nil")
+		}
+		var valErr ErrValidation
+		if !errors.As(err, &valErr) {
+			t.Fatalf("expected ErrValidation, got %T: %v", err, err)
+		}
+		if err.Error() != "category_id cannot be zero" {
+			t.Errorf("expected error %q, got %q", "category_id cannot be zero", err.Error())
+		}
+	})
+
+	t.Run("invalid regex in initial pattern", func(t *testing.T) {
+		g := validCategoryRuleGroup()
+		g.Patterns = []CategoryRulePattern{
+			{Pattern: `[invalid`, IsRegex: true},
+		}
+		_, err := store.CreateCategoryRuleGroup(ctx, g)
 		if err == nil {
 			t.Fatal("expected validation error, got nil")
 		}
@@ -56,217 +98,352 @@ func TestCreateCategoryRule(t *testing.T) {
 			t.Fatalf("expected ErrValidation, got %T: %v", err, err)
 		}
 	})
-
-	t.Run("validation errors", func(t *testing.T) {
-		tests := []struct {
-			name    string
-			rule    CategoryRule
-			wantErr string
-		}{
-			{
-				name:    "empty pattern",
-				rule:    func() CategoryRule { r := validCategoryRule(); r.Pattern = ""; return r }(),
-				wantErr: "pattern cannot be empty",
-			},
-			{
-				name:    "zero category_id",
-				rule:    func() CategoryRule { r := validCategoryRule(); r.CategoryID = 0; return r }(),
-				wantErr: "category_id cannot be zero",
-			},
-		}
-		for _, tc := range tests {
-			t.Run(tc.name, func(t *testing.T) {
-				_, err := store.CreateCategoryRule(ctx, tc.rule)
-				if err == nil {
-					t.Fatal("expected validation error, got nil")
-				}
-				var valErr ErrValidation
-				if !errors.As(err, &valErr) {
-					t.Fatalf("expected ErrValidation, got %T: %v", err, err)
-				}
-				if err.Error() != tc.wantErr {
-					t.Errorf("expected error %q, got %q", tc.wantErr, err.Error())
-				}
-			})
-		}
-	})
 }
 
-func TestGetCategoryRule(t *testing.T) {
+func TestGetCategoryRuleGroup(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
 
-	t.Run("existing rule", func(t *testing.T) {
-		r := validCategoryRule()
-		id, err := store.CreateCategoryRule(ctx, r)
+	t.Run("existing group with patterns", func(t *testing.T) {
+		g := validCategoryRuleGroup()
+		g.Patterns = []CategoryRulePattern{
+			{Pattern: "AMAZON", IsRegex: false},
+		}
+		id, err := store.CreateCategoryRuleGroup(ctx, g)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		got, err := store.GetCategoryRule(ctx, id)
+
+		got, err := store.GetCategoryRuleGroup(ctx, id)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if got.ID != id {
 			t.Errorf("expected id %d, got %d", id, got.ID)
 		}
-		if got.Pattern != r.Pattern {
-			t.Errorf("expected pattern %q, got %q", r.Pattern, got.Pattern)
+		if got.Name != g.Name {
+			t.Errorf("expected name %q, got %q", g.Name, got.Name)
 		}
-		if got.IsRegex != r.IsRegex {
-			t.Errorf("expected is_regex %v, got %v", r.IsRegex, got.IsRegex)
+		if got.CategoryID != g.CategoryID {
+			t.Errorf("expected category_id %d, got %d", g.CategoryID, got.CategoryID)
 		}
-		if got.CategoryID != r.CategoryID {
-			t.Errorf("expected category_id %d, got %d", r.CategoryID, got.CategoryID)
+		if got.Priority != g.Priority {
+			t.Errorf("expected priority %d, got %d", g.Priority, got.Priority)
 		}
-		if got.Position != r.Position {
-			t.Errorf("expected position %d, got %d", r.Position, got.Position)
+		if len(got.Patterns) != 1 {
+			t.Fatalf("expected 1 pattern, got %d", len(got.Patterns))
+		}
+		if got.Patterns[0].Pattern != "AMAZON" {
+			t.Errorf("expected pattern %q, got %q", "AMAZON", got.Patterns[0].Pattern)
 		}
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		_, err := store.GetCategoryRule(ctx, 99999)
-		if !errors.Is(err, ErrCategoryRuleNotFound) {
-			t.Fatalf("expected ErrCategoryRuleNotFound, got %v", err)
+		_, err := store.GetCategoryRuleGroup(ctx, 99999)
+		if !errors.Is(err, ErrCategoryRuleGroupNotFound) {
+			t.Fatalf("expected ErrCategoryRuleGroupNotFound, got %v", err)
 		}
 	})
 }
 
-func TestListCategoryRules(t *testing.T) {
+func TestListCategoryRuleGroups(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
 
 	t.Run("empty list", func(t *testing.T) {
-		rules, err := store.ListCategoryRules(ctx)
+		groups, err := store.ListCategoryRuleGroups(ctx)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if len(rules) != 0 {
-			t.Errorf("expected 0 rules, got %d", len(rules))
+		if len(groups) != 0 {
+			t.Errorf("expected 0 groups, got %d", len(groups))
 		}
 	})
 
-	t.Run("ordered by position then id", func(t *testing.T) {
-		r1 := validCategoryRule()
-		r1.Pattern = "RULE_C"
-		r1.Position = 20
-		id1, err := store.CreateCategoryRule(ctx, r1)
+	t.Run("ordered by priority then id", func(t *testing.T) {
+		g1 := validCategoryRuleGroup()
+		g1.Name = "Group C"
+		g1.Priority = 20
+		id1, err := store.CreateCategoryRuleGroup(ctx, g1)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		r2 := validCategoryRule()
-		r2.Pattern = "RULE_A"
-		r2.Position = 5
-		id2, err := store.CreateCategoryRule(ctx, r2)
+		g2 := validCategoryRuleGroup()
+		g2.Name = "Group A"
+		g2.Priority = 5
+		id2, err := store.CreateCategoryRuleGroup(ctx, g2)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		r3 := validCategoryRule()
-		r3.Pattern = "RULE_B"
-		r3.Position = 5
-		id3, err := store.CreateCategoryRule(ctx, r3)
+		g3 := validCategoryRuleGroup()
+		g3.Name = "Group B"
+		g3.Priority = 5
+		id3, err := store.CreateCategoryRuleGroup(ctx, g3)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		rules, err := store.ListCategoryRules(ctx)
+		groups, err := store.ListCategoryRuleGroups(ctx)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if len(rules) != 3 {
-			t.Fatalf("expected 3 rules, got %d", len(rules))
+		if len(groups) != 3 {
+			t.Fatalf("expected 3 groups, got %d", len(groups))
 		}
-		// position 5 (id2) first, then position 5 (id3), then position 20 (id1)
-		if rules[0].ID != id2 {
-			t.Errorf("expected first rule id %d, got %d", id2, rules[0].ID)
+		if groups[0].ID != id2 {
+			t.Errorf("expected first group id %d, got %d", id2, groups[0].ID)
 		}
-		if rules[1].ID != id3 {
-			t.Errorf("expected second rule id %d, got %d", id3, rules[1].ID)
+		if groups[1].ID != id3 {
+			t.Errorf("expected second group id %d, got %d", id3, groups[1].ID)
 		}
-		if rules[2].ID != id1 {
-			t.Errorf("expected third rule id %d, got %d", id1, rules[2].ID)
+		if groups[2].ID != id1 {
+			t.Errorf("expected third group id %d, got %d", id1, groups[2].ID)
+		}
+	})
+
+	t.Run("patterns included", func(t *testing.T) {
+		store2 := newTestStore(t)
+		g := validCategoryRuleGroup()
+		g.Patterns = []CategoryRulePattern{
+			{Pattern: "PAT1", IsRegex: false},
+			{Pattern: "PAT2", IsRegex: true},
+		}
+		_, err := store2.CreateCategoryRuleGroup(ctx, g)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		groups, err := store2.ListCategoryRuleGroups(ctx)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(groups) != 1 {
+			t.Fatalf("expected 1 group, got %d", len(groups))
+		}
+		if len(groups[0].Patterns) != 2 {
+			t.Errorf("expected 2 patterns, got %d", len(groups[0].Patterns))
 		}
 	})
 }
 
-func TestUpdateCategoryRule(t *testing.T) {
+func TestUpdateCategoryRuleGroup(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		assertUpdateCategoryRuleSuccess(t, store, ctx)
+		g := validCategoryRuleGroup()
+		id, err := store.CreateCategoryRuleGroup(ctx, g)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		updated := validCategoryRuleGroup()
+		updated.Name = "Updated Group"
+		updated.CategoryID = 2
+		updated.Priority = 99
+
+		err = store.UpdateCategoryRuleGroup(ctx, id, updated)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		got, err := store.GetCategoryRuleGroup(ctx, id)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.Name != "Updated Group" {
+			t.Errorf("expected name %q, got %q", "Updated Group", got.Name)
+		}
+		if got.CategoryID != 2 {
+			t.Errorf("expected category_id 2, got %d", got.CategoryID)
+		}
+		if got.Priority != 99 {
+			t.Errorf("expected priority 99, got %d", got.Priority)
+		}
 	})
+
 	t.Run("not found", func(t *testing.T) {
-		assertUpdateCategoryRuleNotFound(t, store, ctx)
+		err := store.UpdateCategoryRuleGroup(ctx, 99999, validCategoryRuleGroup())
+		if !errors.Is(err, ErrCategoryRuleGroupNotFound) {
+			t.Fatalf("expected ErrCategoryRuleGroupNotFound, got %v", err)
+		}
 	})
-	t.Run("validation errors", func(t *testing.T) {
-		assertUpdateCategoryRuleValidation(t, store, ctx)
+
+	t.Run("validation error empty name", func(t *testing.T) {
+		g := validCategoryRuleGroup()
+		id, err := store.CreateCategoryRuleGroup(ctx, g)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		u := validCategoryRuleGroup()
+		u.Name = ""
+		err = store.UpdateCategoryRuleGroup(ctx, id, u)
+		if err == nil {
+			t.Fatal("expected validation error, got nil")
+		}
+		var valErr ErrValidation
+		if !errors.As(err, &valErr) {
+			t.Fatalf("expected ErrValidation, got %T: %v", err, err)
+		}
 	})
-	t.Run("invalid regex on update", func(t *testing.T) {
-		assertUpdateCategoryRuleInvalidRegex(t, store, ctx)
+
+	t.Run("validation error zero categoryID", func(t *testing.T) {
+		g := validCategoryRuleGroup()
+		id, err := store.CreateCategoryRuleGroup(ctx, g)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		u := validCategoryRuleGroup()
+		u.CategoryID = 0
+		err = store.UpdateCategoryRuleGroup(ctx, id, u)
+		if err == nil {
+			t.Fatal("expected validation error, got nil")
+		}
+		var valErr ErrValidation
+		if !errors.As(err, &valErr) {
+			t.Fatalf("expected ErrValidation, got %T: %v", err, err)
+		}
 	})
-	t.Run("update IsRegex back to false", func(t *testing.T) {
-		assertUpdateCategoryRuleRegexToFalse(t, store, ctx)
-	})
-	t.Run("update Position to zero", func(t *testing.T) {
-		assertUpdateCategoryRulePositionZero(t, store, ctx)
+
+	t.Run("priority to zero", func(t *testing.T) {
+		g := validCategoryRuleGroup()
+		g.Priority = 50
+		id, err := store.CreateCategoryRuleGroup(ctx, g)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		u := validCategoryRuleGroup()
+		u.Priority = 0
+		err = store.UpdateCategoryRuleGroup(ctx, id, u)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		got, err := store.GetCategoryRuleGroup(ctx, id)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.Priority != 0 {
+			t.Errorf("expected priority 0, got %d", got.Priority)
+		}
 	})
 }
 
-func assertUpdateCategoryRuleSuccess(t *testing.T, store *Store, ctx context.Context) {
-	t.Helper()
-	r := validCategoryRule()
-	id, err := store.CreateCategoryRule(ctx, r)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+func TestDeleteCategoryRuleGroup(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
 
-	updated := validCategoryRule()
-	updated.Pattern = "NETFLIX"
-	updated.CategoryID = 2
-	updated.Position = 99
+	t.Run("success with patterns deleted", func(t *testing.T) {
+		g := validCategoryRuleGroup()
+		g.Patterns = []CategoryRulePattern{
+			{Pattern: "AMAZON", IsRegex: false},
+			{Pattern: "NETFLIX", IsRegex: false},
+		}
+		id, err := store.CreateCategoryRuleGroup(ctx, g)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
-	err = store.UpdateCategoryRule(ctx, id, updated)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+		err = store.DeleteCategoryRuleGroup(ctx, id)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 
-	got, err := store.GetCategoryRule(ctx, id)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got.Pattern != "NETFLIX" {
-		t.Errorf("expected pattern %q, got %q", "NETFLIX", got.Pattern)
-	}
-	if got.CategoryID != 2 {
-		t.Errorf("expected category_id 2, got %d", got.CategoryID)
-	}
-	if got.Position != 99 {
-		t.Errorf("expected position 99, got %d", got.Position)
-	}
+		_, err = store.GetCategoryRuleGroup(ctx, id)
+		if !errors.Is(err, ErrCategoryRuleGroupNotFound) {
+			t.Fatalf("expected ErrCategoryRuleGroupNotFound after delete, got %v", err)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		err := store.DeleteCategoryRuleGroup(ctx, 99999)
+		if !errors.Is(err, ErrCategoryRuleGroupNotFound) {
+			t.Fatalf("expected ErrCategoryRuleGroupNotFound, got %v", err)
+		}
+	})
 }
 
-func assertUpdateCategoryRuleNotFound(t *testing.T, store *Store, ctx context.Context) {
-	t.Helper()
-	err := store.UpdateCategoryRule(ctx, 99999, validCategoryRule())
-	if !errors.Is(err, ErrCategoryRuleNotFound) {
-		t.Fatalf("expected ErrCategoryRuleNotFound, got %v", err)
-	}
-}
+func TestCreateCategoryRulePattern(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
 
-func assertUpdateCategoryRuleValidation(t *testing.T, store *Store, ctx context.Context) {
-	t.Helper()
-	r := validCategoryRule()
-	id, err := store.CreateCategoryRule(ctx, r)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	t.Run("success", func(t *testing.T) {
+		g := validCategoryRuleGroup()
+		gid, err := store.CreateCategoryRuleGroup(ctx, g)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		p := CategoryRulePattern{Pattern: "AMAZON", IsRegex: false}
+		pid, err := store.CreateCategoryRulePattern(ctx, gid, p)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if pid == 0 {
+			t.Fatal("expected non-zero pattern id")
+		}
+
+		got, err := store.GetCategoryRuleGroup(ctx, gid)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(got.Patterns) != 1 {
+			t.Fatalf("expected 1 pattern, got %d", len(got.Patterns))
+		}
+		if got.Patterns[0].Pattern != "AMAZON" {
+			t.Errorf("expected pattern %q, got %q", "AMAZON", got.Patterns[0].Pattern)
+		}
+	})
+
+	t.Run("success regex", func(t *testing.T) {
+		g := validCategoryRuleGroup()
+		gid, err := store.CreateCategoryRuleGroup(ctx, g)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		p := CategoryRulePattern{Pattern: `^AMAZON\s+\d+`, IsRegex: true}
+		pid, err := store.CreateCategoryRulePattern(ctx, gid, p)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if pid == 0 {
+			t.Fatal("expected non-zero pattern id")
+		}
+	})
+
+	t.Run("invalid regex", func(t *testing.T) {
+		g := validCategoryRuleGroup()
+		gid, err := store.CreateCategoryRuleGroup(ctx, g)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		p := CategoryRulePattern{Pattern: `[invalid`, IsRegex: true}
+		_, err = store.CreateCategoryRulePattern(ctx, gid, p)
+		if err == nil {
+			t.Fatal("expected validation error, got nil")
+		}
+		var valErr ErrValidation
+		if !errors.As(err, &valErr) {
+			t.Fatalf("expected ErrValidation, got %T: %v", err, err)
+		}
+	})
 
 	t.Run("empty pattern", func(t *testing.T) {
-		u := validCategoryRule()
-		u.Pattern = ""
-		err := store.UpdateCategoryRule(ctx, id, u)
+		g := validCategoryRuleGroup()
+		gid, err := store.CreateCategoryRuleGroup(ctx, g)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		p := CategoryRulePattern{Pattern: "", IsRegex: false}
+		_, err = store.CreateCategoryRulePattern(ctx, gid, p)
 		if err == nil {
 			t.Fatal("expected validation error, got nil")
 		}
@@ -276,119 +453,203 @@ func assertUpdateCategoryRuleValidation(t *testing.T, store *Store, ctx context.
 		}
 	})
 
-	t.Run("zero category_id", func(t *testing.T) {
-		u := validCategoryRule()
-		u.CategoryID = 0
-		err := store.UpdateCategoryRule(ctx, id, u)
-		if err == nil {
-			t.Fatal("expected validation error, got nil")
-		}
-		var valErr ErrValidation
-		if !errors.As(err, &valErr) {
-			t.Fatalf("expected ErrValidation, got %T: %v", err, err)
+	t.Run("group not found", func(t *testing.T) {
+		p := CategoryRulePattern{Pattern: "TEST", IsRegex: false}
+		_, err := store.CreateCategoryRulePattern(ctx, 99999, p)
+		if !errors.Is(err, ErrCategoryRuleGroupNotFound) {
+			t.Fatalf("expected ErrCategoryRuleGroupNotFound, got %v", err)
 		}
 	})
 }
 
-func assertUpdateCategoryRuleInvalidRegex(t *testing.T, store *Store, ctx context.Context) {
-	t.Helper()
-	r := validCategoryRule()
-	id, err := store.CreateCategoryRule(ctx, r)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	u := validCategoryRule()
-	u.IsRegex = true
-	u.Pattern = `[invalid`
-	err = store.UpdateCategoryRule(ctx, id, u)
-	if err == nil {
-		t.Fatal("expected validation error, got nil")
-	}
-	var valErr ErrValidation
-	if !errors.As(err, &valErr) {
-		t.Fatalf("expected ErrValidation, got %T: %v", err, err)
-	}
-}
-
-func assertUpdateCategoryRuleRegexToFalse(t *testing.T, store *Store, ctx context.Context) {
-	t.Helper()
-	r := validCategoryRule()
-	r.IsRegex = true
-	r.Pattern = `^AMAZON\d+`
-	id, err := store.CreateCategoryRule(ctx, r)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	u := validCategoryRule()
-	u.Pattern = "AMAZON"
-	u.IsRegex = false
-	err = store.UpdateCategoryRule(ctx, id, u)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	got, err := store.GetCategoryRule(ctx, id)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got.IsRegex != false {
-		t.Errorf("expected is_regex false, got %v", got.IsRegex)
-	}
-}
-
-func assertUpdateCategoryRulePositionZero(t *testing.T, store *Store, ctx context.Context) {
-	t.Helper()
-	r := validCategoryRule()
-	r.Position = 50
-	id, err := store.CreateCategoryRule(ctx, r)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	u := validCategoryRule()
-	u.Position = 0
-	err = store.UpdateCategoryRule(ctx, id, u)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	got, err := store.GetCategoryRule(ctx, id)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got.Position != 0 {
-		t.Errorf("expected position 0, got %d", got.Position)
-	}
-}
-
-func TestDeleteCategoryRule(t *testing.T) {
+func TestUpdateCategoryRulePattern(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		r := validCategoryRule()
-		id, err := store.CreateCategoryRule(ctx, r)
+		g := validCategoryRuleGroup()
+		g.Patterns = []CategoryRulePattern{{Pattern: "OLD", IsRegex: false}}
+		gid, err := store.CreateCategoryRuleGroup(ctx, g)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		err = store.DeleteCategoryRule(ctx, id)
+		got, err := store.GetCategoryRuleGroup(ctx, gid)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		pid := got.Patterns[0].ID
+
+		err = store.UpdateCategoryRulePattern(ctx, gid, pid, CategoryRulePattern{Pattern: "NEW", IsRegex: false})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		_, err = store.GetCategoryRule(ctx, id)
-		if !errors.Is(err, ErrCategoryRuleNotFound) {
-			t.Fatalf("expected ErrCategoryRuleNotFound after delete, got %v", err)
+		got, err = store.GetCategoryRuleGroup(ctx, gid)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.Patterns[0].Pattern != "NEW" {
+			t.Errorf("expected pattern %q, got %q", "NEW", got.Patterns[0].Pattern)
 		}
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		err := store.DeleteCategoryRule(ctx, 99999)
-		if !errors.Is(err, ErrCategoryRuleNotFound) {
-			t.Fatalf("expected ErrCategoryRuleNotFound, got %v", err)
+		g := validCategoryRuleGroup()
+		gid, err := store.CreateCategoryRuleGroup(ctx, g)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		err = store.UpdateCategoryRulePattern(ctx, gid, 99999, CategoryRulePattern{Pattern: "X", IsRegex: false})
+		if !errors.Is(err, ErrCategoryRulePatternNotFound) {
+			t.Fatalf("expected ErrCategoryRulePatternNotFound, got %v", err)
+		}
+	})
+
+	t.Run("wrong group", func(t *testing.T) {
+		g1 := validCategoryRuleGroup()
+		g1.Patterns = []CategoryRulePattern{{Pattern: "PAT", IsRegex: false}}
+		gid1, err := store.CreateCategoryRuleGroup(ctx, g1)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		got, err := store.GetCategoryRuleGroup(ctx, gid1)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		pid := got.Patterns[0].ID
+
+		g2 := validCategoryRuleGroup()
+		gid2, err := store.CreateCategoryRuleGroup(ctx, g2)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		err = store.UpdateCategoryRulePattern(ctx, gid2, pid, CategoryRulePattern{Pattern: "X", IsRegex: false})
+		if !errors.Is(err, ErrCategoryRulePatternNotFound) {
+			t.Fatalf("expected ErrCategoryRulePatternNotFound, got %v", err)
+		}
+	})
+
+	t.Run("validation error empty pattern", func(t *testing.T) {
+		g := validCategoryRuleGroup()
+		g.Patterns = []CategoryRulePattern{{Pattern: "PAT", IsRegex: false}}
+		gid, err := store.CreateCategoryRuleGroup(ctx, g)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		got, err := store.GetCategoryRuleGroup(ctx, gid)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		pid := got.Patterns[0].ID
+
+		err = store.UpdateCategoryRulePattern(ctx, gid, pid, CategoryRulePattern{Pattern: "", IsRegex: false})
+		if err == nil {
+			t.Fatal("expected validation error, got nil")
+		}
+		var valErr ErrValidation
+		if !errors.As(err, &valErr) {
+			t.Fatalf("expected ErrValidation, got %T: %v", err, err)
+		}
+	})
+
+	t.Run("validation error invalid regex", func(t *testing.T) {
+		g := validCategoryRuleGroup()
+		g.Patterns = []CategoryRulePattern{{Pattern: "PAT", IsRegex: false}}
+		gid, err := store.CreateCategoryRuleGroup(ctx, g)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		got, err := store.GetCategoryRuleGroup(ctx, gid)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		pid := got.Patterns[0].ID
+
+		err = store.UpdateCategoryRulePattern(ctx, gid, pid, CategoryRulePattern{Pattern: `[invalid`, IsRegex: true})
+		if err == nil {
+			t.Fatal("expected validation error, got nil")
+		}
+		var valErr ErrValidation
+		if !errors.As(err, &valErr) {
+			t.Fatalf("expected ErrValidation, got %T: %v", err, err)
+		}
+	})
+}
+
+func TestDeleteCategoryRulePattern(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	t.Run("success", func(t *testing.T) {
+		g := validCategoryRuleGroup()
+		g.Patterns = []CategoryRulePattern{{Pattern: "DEL_ME", IsRegex: false}}
+		gid, err := store.CreateCategoryRuleGroup(ctx, g)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		got, err := store.GetCategoryRuleGroup(ctx, gid)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		pid := got.Patterns[0].ID
+
+		err = store.DeleteCategoryRulePattern(ctx, gid, pid)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		got, err = store.GetCategoryRuleGroup(ctx, gid)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(got.Patterns) != 0 {
+			t.Errorf("expected 0 patterns after delete, got %d", len(got.Patterns))
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		g := validCategoryRuleGroup()
+		gid, err := store.CreateCategoryRuleGroup(ctx, g)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		err = store.DeleteCategoryRulePattern(ctx, gid, 99999)
+		if !errors.Is(err, ErrCategoryRulePatternNotFound) {
+			t.Fatalf("expected ErrCategoryRulePatternNotFound, got %v", err)
+		}
+	})
+
+	t.Run("wrong group", func(t *testing.T) {
+		g1 := validCategoryRuleGroup()
+		g1.Patterns = []CategoryRulePattern{{Pattern: "PAT", IsRegex: false}}
+		gid1, err := store.CreateCategoryRuleGroup(ctx, g1)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		got, err := store.GetCategoryRuleGroup(ctx, gid1)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		pid := got.Patterns[0].ID
+
+		g2 := validCategoryRuleGroup()
+		gid2, err := store.CreateCategoryRuleGroup(ctx, g2)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		err = store.DeleteCategoryRulePattern(ctx, gid2, pid)
+		if !errors.Is(err, ErrCategoryRulePatternNotFound) {
+			t.Fatalf("expected ErrCategoryRulePatternNotFound, got %v", err)
 		}
 	})
 }

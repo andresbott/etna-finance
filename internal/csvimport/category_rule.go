@@ -9,52 +9,90 @@ import (
 	"gorm.io/gorm"
 )
 
-var ErrCategoryRuleNotFound = errors.New("category rule not found")
+var (
+	ErrCategoryRuleGroupNotFound   = errors.New("category rule group not found")
+	ErrCategoryRulePatternNotFound = errors.New("category rule pattern not found")
+)
 
-// dbCategoryRule is the DB internal representation of a CategoryRule.
-type dbCategoryRule struct {
-	ID         uint   `gorm:"primarykey"`
-	Pattern    string `gorm:"not null"`
-	IsRegex    bool   `gorm:"default:false"`
-	CategoryID uint   `gorm:"not null;index"`
-	Position   int    `gorm:"not null;index"`
+type dbCategoryRuleGroup struct {
+	ID         uint                    `gorm:"primarykey"`
+	Name       string                  `gorm:"not null"`
+	CategoryID uint                    `gorm:"not null;index"`
+	Priority   int                     `gorm:"column:position;not null;index"`
+	Patterns   []dbCategoryRulePattern `gorm:"foreignKey:GroupID"`
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }
 
-// CategoryRule is the public-facing representation of a category rule.
-type CategoryRule struct {
+type dbCategoryRulePattern struct {
+	ID        uint   `gorm:"primarykey"`
+	GroupID   uint   `gorm:"not null;index"`
+	Pattern   string `gorm:"not null"`
+	IsRegex   bool   `gorm:"default:false"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type CategoryRuleGroup struct {
 	ID         uint
-	Pattern    string
-	IsRegex    bool
+	Name       string
 	CategoryID uint
-	Position   int
+	Priority   int
+	Patterns   []CategoryRulePattern
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }
 
-func dbToCategoryRule(in dbCategoryRule) CategoryRule {
-	return CategoryRule(in)
+type CategoryRulePattern struct {
+	ID        uint
+	GroupID   uint
+	Pattern   string
+	IsRegex   bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
-func (s *Store) CreateCategoryRule(ctx context.Context, r CategoryRule) (uint, error) {
-	if r.Pattern == "" {
-		return 0, ErrValidation("pattern cannot be empty")
+func dbToGroup(in dbCategoryRuleGroup) CategoryRuleGroup {
+	g := CategoryRuleGroup{
+		ID:         in.ID,
+		Name:       in.Name,
+		CategoryID: in.CategoryID,
+		Priority:   in.Priority,
+		CreatedAt:  in.CreatedAt,
+		UpdatedAt:  in.UpdatedAt,
 	}
-	if r.CategoryID == 0 {
+	for _, p := range in.Patterns {
+		g.Patterns = append(g.Patterns, CategoryRulePattern(p))
+	}
+	return g
+}
+
+func (s *Store) CreateCategoryRuleGroup(ctx context.Context, g CategoryRuleGroup) (uint, error) {
+	if g.Name == "" {
+		return 0, ErrValidation("name cannot be empty")
+	}
+	if g.CategoryID == 0 {
 		return 0, ErrValidation("category_id cannot be zero")
 	}
-	if r.IsRegex {
-		if _, err := regexp.Compile(r.Pattern); err != nil {
-			return 0, ErrValidation("invalid regex pattern: " + err.Error())
-		}
-	}
 
-	row := dbCategoryRule{
-		Pattern:    r.Pattern,
-		IsRegex:    r.IsRegex,
-		CategoryID: r.CategoryID,
-		Position:   r.Position,
+	row := dbCategoryRuleGroup{
+		Name:       g.Name,
+		CategoryID: g.CategoryID,
+		Priority:   g.Priority,
+	}
+	for _, p := range g.Patterns {
+		if p.Pattern == "" {
+			return 0, ErrValidation("pattern cannot be empty")
+		}
+		if p.IsRegex {
+			if _, err := regexp.Compile(p.Pattern); err != nil {
+				return 0, ErrValidation("invalid regex pattern: " + err.Error())
+			}
+		}
+		row.Patterns = append(row.Patterns, dbCategoryRulePattern{
+			Pattern: p.Pattern,
+			IsRegex: p.IsRegex,
+		})
 	}
 
 	d := s.db.WithContext(ctx).Create(&row)
@@ -64,69 +102,131 @@ func (s *Store) CreateCategoryRule(ctx context.Context, r CategoryRule) (uint, e
 	return row.ID, nil
 }
 
-func (s *Store) GetCategoryRule(ctx context.Context, id uint) (CategoryRule, error) {
-	var row dbCategoryRule
-	d := s.db.WithContext(ctx).Where("id = ?", id).First(&row)
+func (s *Store) GetCategoryRuleGroup(ctx context.Context, id uint) (CategoryRuleGroup, error) {
+	var row dbCategoryRuleGroup
+	d := s.db.WithContext(ctx).Preload("Patterns").Where("id = ?", id).First(&row)
 	if d.Error != nil {
 		if errors.Is(d.Error, gorm.ErrRecordNotFound) {
-			return CategoryRule{}, ErrCategoryRuleNotFound
+			return CategoryRuleGroup{}, ErrCategoryRuleGroupNotFound
 		}
-		return CategoryRule{}, d.Error
+		return CategoryRuleGroup{}, d.Error
 	}
-	return dbToCategoryRule(row), nil
+	return dbToGroup(row), nil
 }
 
-func (s *Store) ListCategoryRules(ctx context.Context) ([]CategoryRule, error) {
-	var rows []dbCategoryRule
-	d := s.db.WithContext(ctx).Order("position ASC, id ASC").Find(&rows)
+func (s *Store) ListCategoryRuleGroups(ctx context.Context) ([]CategoryRuleGroup, error) {
+	var rows []dbCategoryRuleGroup
+	d := s.db.WithContext(ctx).Preload("Patterns").Order("position ASC, id ASC").Find(&rows)
 	if d.Error != nil {
 		return nil, d.Error
 	}
-
-	rules := make([]CategoryRule, 0, len(rows))
+	groups := make([]CategoryRuleGroup, 0, len(rows))
 	for _, row := range rows {
-		rules = append(rules, dbToCategoryRule(row))
+		groups = append(groups, dbToGroup(row))
 	}
-	return rules, nil
+	return groups, nil
 }
 
-func (s *Store) UpdateCategoryRule(ctx context.Context, id uint, r CategoryRule) error {
-	if r.Pattern == "" {
-		return ErrValidation("pattern cannot be empty")
+func (s *Store) UpdateCategoryRuleGroup(ctx context.Context, id uint, g CategoryRuleGroup) error {
+	if g.Name == "" {
+		return ErrValidation("name cannot be empty")
 	}
-	if r.CategoryID == 0 {
+	if g.CategoryID == 0 {
 		return ErrValidation("category_id cannot be zero")
 	}
-	if r.IsRegex {
-		if _, err := regexp.Compile(r.Pattern); err != nil {
-			return ErrValidation("invalid regex pattern: " + err.Error())
-		}
-	}
 
-	d := s.db.WithContext(ctx).Model(&dbCategoryRule{}).Where("id = ?", id).
-		Select("Pattern", "IsRegex", "CategoryID", "Position").
-		Updates(dbCategoryRule{
-			Pattern:    r.Pattern,
-			IsRegex:    r.IsRegex,
-			CategoryID: r.CategoryID,
-			Position:   r.Position,
+	d := s.db.WithContext(ctx).Model(&dbCategoryRuleGroup{}).Where("id = ?", id).
+		Select("Name", "CategoryID", "Priority").
+		Updates(dbCategoryRuleGroup{
+			Name:       g.Name,
+			CategoryID: g.CategoryID,
+			Priority:   g.Priority,
 		})
 	if d.Error != nil {
 		return d.Error
 	}
 	if d.RowsAffected == 0 {
-		return ErrCategoryRuleNotFound
+		return ErrCategoryRuleGroupNotFound
 	}
 	return nil
 }
 
-func (s *Store) DeleteCategoryRule(ctx context.Context, id uint) error {
-	d := s.db.WithContext(ctx).Where("id = ?", id).Delete(&dbCategoryRule{})
+func (s *Store) DeleteCategoryRuleGroup(ctx context.Context, id uint) error {
+	// Delete patterns first
+	if err := s.db.WithContext(ctx).Where("group_id = ?", id).Delete(&dbCategoryRulePattern{}).Error; err != nil {
+		return err
+	}
+	d := s.db.WithContext(ctx).Where("id = ?", id).Delete(&dbCategoryRuleGroup{})
 	if d.Error != nil {
 		return d.Error
 	}
 	if d.RowsAffected == 0 {
-		return ErrCategoryRuleNotFound
+		return ErrCategoryRuleGroupNotFound
+	}
+	return nil
+}
+
+func (s *Store) CreateCategoryRulePattern(ctx context.Context, groupID uint, p CategoryRulePattern) (uint, error) {
+	if p.Pattern == "" {
+		return 0, ErrValidation("pattern cannot be empty")
+	}
+	if p.IsRegex {
+		if _, err := regexp.Compile(p.Pattern); err != nil {
+			return 0, ErrValidation("invalid regex pattern: " + err.Error())
+		}
+	}
+	// Verify group exists
+	var count int64
+	s.db.WithContext(ctx).Model(&dbCategoryRuleGroup{}).Where("id = ?", groupID).Count(&count)
+	if count == 0 {
+		return 0, ErrCategoryRuleGroupNotFound
+	}
+
+	row := dbCategoryRulePattern{
+		GroupID: groupID,
+		Pattern: p.Pattern,
+		IsRegex: p.IsRegex,
+	}
+	d := s.db.WithContext(ctx).Create(&row)
+	if d.Error != nil {
+		return 0, d.Error
+	}
+	return row.ID, nil
+}
+
+func (s *Store) UpdateCategoryRulePattern(ctx context.Context, groupID, patternID uint, p CategoryRulePattern) error {
+	if p.Pattern == "" {
+		return ErrValidation("pattern cannot be empty")
+	}
+	if p.IsRegex {
+		if _, err := regexp.Compile(p.Pattern); err != nil {
+			return ErrValidation("invalid regex pattern: " + err.Error())
+		}
+	}
+
+	d := s.db.WithContext(ctx).Model(&dbCategoryRulePattern{}).
+		Where("id = ? AND group_id = ?", patternID, groupID).
+		Select("Pattern", "IsRegex").
+		Updates(dbCategoryRulePattern{
+			Pattern: p.Pattern,
+			IsRegex: p.IsRegex,
+		})
+	if d.Error != nil {
+		return d.Error
+	}
+	if d.RowsAffected == 0 {
+		return ErrCategoryRulePatternNotFound
+	}
+	return nil
+}
+
+func (s *Store) DeleteCategoryRulePattern(ctx context.Context, groupID, patternID uint) error {
+	d := s.db.WithContext(ctx).Where("id = ? AND group_id = ?", patternID, groupID).Delete(&dbCategoryRulePattern{})
+	if d.Error != nil {
+		return d.Error
+	}
+	if d.RowsAffected == 0 {
+		return ErrCategoryRulePatternNotFound
 	}
 	return nil
 }

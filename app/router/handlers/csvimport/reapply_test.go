@@ -60,14 +60,17 @@ func TestReapplyPreview(t *testing.T) {
 		t.Fatalf("create Transport category: %v", err)
 	}
 
-	// Create a category rule: pattern "GROCERY" -> Food category
-	_, err = csvStore.CreateCategoryRule(ctx, csvimport.CategoryRule{
-		Pattern:    "GROCERY",
+	// Create a category rule group: pattern "GROCERY" -> Food category
+	_, err = csvStore.CreateCategoryRuleGroup(ctx, csvimport.CategoryRuleGroup{
+		Name:       "Grocery",
 		CategoryID: foodCatID,
-		Position:   1,
+		Priority:   1,
+		Patterns: []csvimport.CategoryRulePattern{
+			{Pattern: "GROCERY"},
+		},
 	})
 	if err != nil {
-		t.Fatalf("create category rule: %v", err)
+		t.Fatalf("create category rule group: %v", err)
 	}
 
 	baseDate := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
@@ -96,7 +99,7 @@ func TestReapplyPreview(t *testing.T) {
 		t.Fatalf("create tx2: %v", err)
 	}
 
-	// Transaction 3: Expense "GROCERY DEPOT" with Food category -> should appear, changed=false
+	// Transaction 3: Expense "GROCERY DEPOT" with Food category -> should NOT appear (already correct)
 	_, err = finStore.CreateTransaction(ctx, accounting.Expense{
 		Description: "GROCERY DEPOT",
 		Amount:      20.00,
@@ -140,25 +143,14 @@ func TestReapplyPreview(t *testing.T) {
 		t.Fatalf("unable to unmarshal response: %v", err)
 	}
 
-	if len(rows) != 3 {
-		t.Fatalf("expected 3 rows, got %d", len(rows))
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 rows (only changed), got %d", len(rows))
 	}
 
-	changedCount := 0
-	unchangedCount := 0
 	for _, row := range rows {
-		if row.Changed {
-			changedCount++
-		} else {
-			unchangedCount++
+		if !row.Changed {
+			t.Errorf("expected all rows to have changed=true, but row %d has changed=false", row.TransactionID)
 		}
-	}
-
-	if changedCount != 2 {
-		t.Errorf("expected 2 changed rows, got %d", changedCount)
-	}
-	if unchangedCount != 1 {
-		t.Errorf("expected 1 unchanged row, got %d", unchangedCount)
 	}
 }
 

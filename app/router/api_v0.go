@@ -657,7 +657,7 @@ func (h *MainAppHandler) tasksApi(r *mux.Router) {
 }
 
 const importProfilePath = "/import/profiles"
-const importCategoryRulePath = "/import/category-rules"
+const importCategoryRuleGroupPath = "/import/category-rule-groups"
 const importParsePath = "/import/parse"
 const importSubmitPath = "/import/submit"
 const importPreviewPath = "/import/preview"
@@ -666,76 +666,53 @@ const importReapplySubmitPath = "/import/reapply-submit"
 
 func (h *MainAppHandler) csvImportAPI(r *mux.Router) {
 	profileHndlr := csvimportHandler.ProfileHandler{Store: h.csvImportStore}
-	ruleHndlr := csvimportHandler.CategoryRuleHandler{Store: h.csvImportStore}
+	ruleGroupHndlr := csvimportHandler.CategoryRuleGroupHandler{Store: h.csvImportStore}
 	importHndlr := csvimportHandler.ImportHandler{CsvStore: h.csvImportStore, FinStore: h.finStore}
 
-	// ==========================================================================
-	// Import Profiles
-	// ==========================================================================
+	registerCrudRoutes(r, importProfilePath, crudHandlers{
+		list:   profileHndlr.ListProfiles,
+		create: profileHndlr.CreateProfile,
+		update: profileHndlr.UpdateProfile,
+		delete: profileHndlr.DeleteProfile,
+	})
 
-	r.Path(importProfilePath).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	registerCrudRoutes(r, importCategoryRuleGroupPath, crudHandlers{
+		list:   ruleGroupHndlr.ListCategoryRuleGroups,
+		create: ruleGroupHndlr.CreateCategoryRuleGroup,
+		update: ruleGroupHndlr.UpdateCategoryRuleGroup,
+		delete: ruleGroupHndlr.DeleteCategoryRuleGroup,
+	})
+
+	h.csvImportRulePatternRoutes(r, ruleGroupHndlr)
+	h.csvImportParseRoutes(r, importHndlr)
+	h.csvImportReapplyRoutes(r, importHndlr)
+}
+
+type crudHandlers struct {
+	list   func() http.Handler
+	create func() http.Handler
+	update func(uint) http.Handler
+	delete func(uint) http.Handler
+}
+
+func registerCrudRoutes(r *mux.Router, basePath string, h crudHandlers) {
+	r.Path(basePath).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, err := sessionauth.CtxGetUserData(r); err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
-		profileHndlr.ListProfiles().ServeHTTP(w, r)
+		h.list().ServeHTTP(w, r)
 	})
 
-	r.Path(importProfilePath).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Path(basePath).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, err := sessionauth.CtxGetUserData(r); err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
-		profileHndlr.CreateProfile().ServeHTTP(w, r)
+		h.create().ServeHTTP(w, r)
 	})
 
-	r.Path(fmt.Sprintf("%s/{id}", importProfilePath)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if _, err := sessionauth.CtxGetUserData(r); err != nil {
-			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
-			return
-		}
-		itemId, httpErr := getId(r)
-		if httpErr != nil {
-			http.Error(w, httpErr.Error, httpErr.Code)
-			return
-		}
-		profileHndlr.UpdateProfile(itemId).ServeHTTP(w, r)
-	})
-
-	r.Path(fmt.Sprintf("%s/{id}", importProfilePath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if _, err := sessionauth.CtxGetUserData(r); err != nil {
-			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
-			return
-		}
-		itemId, httpErr := getId(r)
-		if httpErr != nil {
-			http.Error(w, httpErr.Error, httpErr.Code)
-			return
-		}
-		profileHndlr.DeleteProfile(itemId).ServeHTTP(w, r)
-	})
-
-	// ==========================================================================
-	// Category Rules
-	// ==========================================================================
-
-	r.Path(importCategoryRulePath).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if _, err := sessionauth.CtxGetUserData(r); err != nil {
-			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
-			return
-		}
-		ruleHndlr.ListCategoryRules().ServeHTTP(w, r)
-	})
-
-	r.Path(importCategoryRulePath).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if _, err := sessionauth.CtxGetUserData(r); err != nil {
-			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
-			return
-		}
-		ruleHndlr.CreateCategoryRule().ServeHTTP(w, r)
-	})
-
-	r.Path(fmt.Sprintf("%s/{id}", importCategoryRulePath)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Path(fmt.Sprintf("%s/{id}", basePath)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, err := sessionauth.CtxGetUserData(r); err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
@@ -745,10 +722,10 @@ func (h *MainAppHandler) csvImportAPI(r *mux.Router) {
 			http.Error(w, httpErr.Error, httpErr.Code)
 			return
 		}
-		ruleHndlr.UpdateCategoryRule(itemId).ServeHTTP(w, r)
+		h.update(itemId).ServeHTTP(w, r)
 	})
 
-	r.Path(fmt.Sprintf("%s/{id}", importCategoryRulePath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Path(fmt.Sprintf("%s/{id}", basePath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, err := sessionauth.CtxGetUserData(r); err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
@@ -758,13 +735,62 @@ func (h *MainAppHandler) csvImportAPI(r *mux.Router) {
 			http.Error(w, httpErr.Error, httpErr.Code)
 			return
 		}
-		ruleHndlr.DeleteCategoryRule(itemId).ServeHTTP(w, r)
+		h.delete(itemId).ServeHTTP(w, r)
+	})
+}
+
+func (h *MainAppHandler) csvImportRulePatternRoutes(r *mux.Router, ruleGroupHndlr csvimportHandler.CategoryRuleGroupHandler) {
+	r.Path(fmt.Sprintf("%s/{groupId}/patterns", importCategoryRuleGroupPath)).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		groupId, httpErr := getVarId(r, "groupId")
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		ruleGroupHndlr.CreateCategoryRulePattern(groupId).ServeHTTP(w, r)
 	})
 
-	// ==========================================================================
-	// CSV Parse & Submit
-	// ==========================================================================
+	r.Path(fmt.Sprintf("%s/{groupId}/patterns/{id}", importCategoryRuleGroupPath)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		groupId, httpErr := getVarId(r, "groupId")
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		patternId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		ruleGroupHndlr.UpdateCategoryRulePattern(groupId, patternId).ServeHTTP(w, r)
+	})
 
+	r.Path(fmt.Sprintf("%s/{groupId}/patterns/{id}", importCategoryRuleGroupPath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		groupId, httpErr := getVarId(r, "groupId")
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		patternId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		ruleGroupHndlr.DeleteCategoryRulePattern(groupId, patternId).ServeHTTP(w, r)
+	})
+}
+
+func (h *MainAppHandler) csvImportParseRoutes(r *mux.Router, importHndlr csvimportHandler.ImportHandler) {
 	r.Path(importParsePath).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, err := sessionauth.CtxGetUserData(r); err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
@@ -788,11 +814,9 @@ func (h *MainAppHandler) csvImportAPI(r *mux.Router) {
 		}
 		importHndlr.PreviewCSV().ServeHTTP(w, r)
 	})
+}
 
-	// ==========================================================================
-	// Re-apply Category Rules
-	// ==========================================================================
-
+func (h *MainAppHandler) csvImportReapplyRoutes(r *mux.Router, importHndlr csvimportHandler.ImportHandler) {
 	r.Path(importReapplyPreviewPath).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, err := sessionauth.CtxGetUserData(r); err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
@@ -891,6 +915,31 @@ func getId(r *http.Request) (uint, *httpError) {
 	if err != nil {
 		return 0, &httpError{
 			Error: "unable to convert id to number",
+			Code:  http.StatusBadRequest,
+		}
+	}
+	return uint(u64), nil
+}
+
+func getVarId(r *http.Request, name string) (uint, *httpError) {
+	vars := mux.Vars(r)
+	val, ok := vars[name]
+	if !ok {
+		return 0, &httpError{
+			Error: fmt.Sprintf("could not extract %s from request context", name),
+			Code:  http.StatusInternalServerError,
+		}
+	}
+	if val == "" {
+		return 0, &httpError{
+			Error: fmt.Sprintf("no %s provided", name),
+			Code:  http.StatusBadRequest,
+		}
+	}
+	u64, err := strconv.ParseUint(val, 10, 64)
+	if err != nil {
+		return 0, &httpError{
+			Error: fmt.Sprintf("unable to convert %s to number", name),
 			Code:  http.StatusBadRequest,
 		}
 	}

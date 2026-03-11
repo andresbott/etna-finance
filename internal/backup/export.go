@@ -423,18 +423,26 @@ func writeImportProfiles(ctx context.Context, zw *zipWriter, csvStore *csvimport
 }
 
 func writeCategoryRules(ctx context.Context, zw *zipWriter, csvStore *csvimport.Store) error {
-	rules, err := csvStore.ListCategoryRules(ctx)
+	groups, err := csvStore.ListCategoryRuleGroups(ctx)
 	if err != nil {
 		return err
 	}
-	jsonData := make([]categoryRuleV1, len(rules))
-	for i, r := range rules {
-		jsonData[i] = categoryRuleV1{
-			ID:         r.ID,
-			Pattern:    r.Pattern,
-			IsRegex:    r.IsRegex,
-			CategoryID: r.CategoryID,
-			Position:   r.Position,
+	jsonData := make([]categoryRuleGroupV1, len(groups))
+	for i, g := range groups {
+		patterns := make([]categoryRulePatternV1, len(g.Patterns))
+		for j, p := range g.Patterns {
+			patterns[j] = categoryRulePatternV1{
+				ID:      p.ID,
+				Pattern: p.Pattern,
+				IsRegex: p.IsRegex,
+			}
+		}
+		jsonData[i] = categoryRuleGroupV1{
+			ID:         g.ID,
+			Name:       g.Name,
+			CategoryID: g.CategoryID,
+			Priority:   g.Priority,
+			Patterns:   patterns,
 		}
 	}
 	return zw.writeJsonFile(categoryRulesFile, jsonData)

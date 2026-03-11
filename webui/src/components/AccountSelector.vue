@@ -278,6 +278,7 @@ const handleSelectionChange = (val) => {
             selectionMode="single"
             :required="required"
             class="w-full"
+            scrollHeight="400px"
             :loading="isLoading"
             fluid
         >

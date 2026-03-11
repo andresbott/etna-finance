@@ -62,10 +62,10 @@ func (h *ImportHandler) ParseCSV() http.Handler {
 			return
 		}
 
-		// Load category rules
-		rules, err := h.CsvStore.ListCategoryRules(r.Context())
+		// Load category rule groups
+		groups, err := h.CsvStore.ListCategoryRuleGroups(r.Context())
 		if err != nil {
-			http.Error(w, fmt.Sprintf("unable to list category rules: %s", err.Error()), http.StatusInternalServerError)
+			http.Error(w, fmt.Sprintf("unable to list category rule groups: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
 
@@ -77,7 +77,7 @@ func (h *ImportHandler) ParseCSV() http.Handler {
 		}
 
 		// Parse CSV
-		rows, err := csvimport.Parse(file, profile, rules, existing)
+		rows, err := csvimport.Parse(file, profile, groups, existing)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to parse CSV: %s", err.Error()), http.StatusBadRequest)
 			return

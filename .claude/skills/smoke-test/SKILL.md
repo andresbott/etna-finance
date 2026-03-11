@@ -109,7 +109,6 @@ Then visit each of these routes:
 | `/settings` | Settings | Settings form renders |
 | `/market-data/currency-exchange` | Currency Exchange | Currency list loads |
 | `/setup/csv-profiles` | CSV Profiles | Profile list renders |
-| `/setup/category-rules` | Category Rules | Rules list renders |
 | `/tasks` | Tasks | Task list renders |
 | `/tools/portfolio-simulator` | Portfolio Simulator | Simulator form renders |
 | `/tools/real-estate-simulator` | Real Estate Simulator | Simulator form renders |

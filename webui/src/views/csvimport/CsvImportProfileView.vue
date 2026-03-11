@@ -19,15 +19,15 @@ import Tab from 'primevue/tab'
 import TabPanels from 'primevue/tabpanels'
 import TabPanel from 'primevue/tabpanel'
 import FileInput from '@/components/common/FileInput.vue'
+import CategorySelect from '@/components/common/CategorySelect.vue'
 import Checkbox from 'primevue/checkbox'
+import Divider from 'primevue/divider'
 import { useToast } from 'primevue/usetoast'
-import { getProfiles, createProfile, updateProfile, deleteProfile, previewCSV, getCategoryRules, createCategoryRule, updateCategoryRule, deleteCategoryRule } from '@/lib/api/CsvImport'
-import { useCategoryTree } from '@/composables/useCategoryTree'
+import { getProfiles, createProfile, updateProfile, deleteProfile, previewCSV, getCategoryRuleGroups, createCategoryRuleGroup, updateCategoryRuleGroup, deleteCategoryRuleGroup, createCategoryRulePattern, updateCategoryRulePattern, deleteCategoryRulePattern } from '@/lib/api/CsvImport'
 import { useCategoryUtils } from '@/utils/categoryUtils'
 
 const toast = useToast()
 const router = useRouter()
-const { IncomeTreeData, ExpenseTreeData } = useCategoryTree()
 const { getCategoryName } = useCategoryUtils()
 
 // State
@@ -347,42 +347,24 @@ const getSeparatorLabel = (value) => {
     return opt ? opt.label : value
 }
 
-// ============ Category Rules ============
+// ============ Category Rule Groups ============
 
-const categoryRules = ref([])
+const categoryRuleGroups = ref([])
 const isLoadingRules = ref(false)
-const showRuleDialog = ref(false)
-const editingRule = ref(null)
+const showGroupDialog = ref(false)
+const editingGroup = ref(null)
 const isSavingRule = ref(false)
 
-// Rule form state
-const formRulePattern = ref('')
-const formRuleIsRegex = ref(false)
-const formRuleCategoryId = ref(null)
-const formRulePosition = ref(0)
+// Group form state
+const formGroupName = ref('')
+const formGroupCategoryId = ref(null)
+const formGroupPriority = ref(0)
+const formGroupPatterns = ref([])
 
-// Flatten tree nodes into a flat list for the dropdown
-const flattenNodes = (nodes, prefix = '') => {
-    const result = []
-    if (!nodes || !Array.isArray(nodes)) return result
-    for (const node of nodes) {
-        const path = prefix ? `${prefix} > ${node.data?.name || node.label}` : (node.data?.name || node.label)
-        const id = node.data?.id ?? parseInt(node.key, 10)
-        if (id) {
-            result.push({ label: path, value: id })
-        }
-        if (node.children?.length) {
-            result.push(...flattenNodes(node.children, path))
-        }
-    }
-    return result
-}
+// New pattern inline form
+const newPatternValue = ref('')
+const newPatternIsRegex = ref(false)
 
-const categoryOptions = computed(() => {
-    const income = flattenNodes(IncomeTreeData.value).map(c => ({ ...c, label: `[Income] ${c.label}` }))
-    const expense = flattenNodes(ExpenseTreeData.value).map(c => ({ ...c, label: `[Expense] ${c.label}` }))
-    return [...expense, ...income]
-})
 
 const resolveCategoryName = (categoryId) => {
     let name = getCategoryName(categoryId, 'expense')
@@ -395,83 +377,126 @@ const resolveCategoryName = (categoryId) => {
 const loadRules = async () => {
     isLoadingRules.value = true
     try {
-        categoryRules.value = await getCategoryRules()
-        categoryRules.value.sort((a, b) => a.position - b.position)
+        categoryRuleGroups.value = await getCategoryRuleGroups()
+        categoryRuleGroups.value.sort((a, b) => a.priority - b.priority)
     } catch (error) {
-        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to load category rules: ' + error.message, life: 3000 })
+        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to load category rule groups: ' + error.message, life: 3000 })
     } finally {
         isLoadingRules.value = false
     }
 }
 
-const resetRuleForm = () => {
-    formRulePattern.value = ''
-    formRuleIsRegex.value = false
-    formRuleCategoryId.value = null
-    formRulePosition.value = categoryRules.value.length
+const openCreateGroupDialog = () => {
+    editingGroup.value = null
+    formGroupName.value = ''
+    formGroupCategoryId.value = null
+    formGroupPriority.value = categoryRuleGroups.value.length
+    formGroupPatterns.value = []
+    newPatternValue.value = ''
+    newPatternIsRegex.value = false
+    showGroupDialog.value = true
 }
 
-const openCreateRuleDialog = () => {
-    editingRule.value = null
-    resetRuleForm()
-    showRuleDialog.value = true
+const openEditGroupDialog = (group) => {
+    editingGroup.value = group
+    formGroupName.value = group.name
+    formGroupCategoryId.value = group.categoryId
+    formGroupPriority.value = group.priority
+    formGroupPatterns.value = (group.patterns || []).map(p => ({ ...p }))
+    newPatternValue.value = ''
+    newPatternIsRegex.value = false
+    showGroupDialog.value = true
 }
 
-const openEditRuleDialog = (rule) => {
-    editingRule.value = rule
-    formRulePattern.value = rule.pattern
-    formRuleIsRegex.value = rule.isRegex
-    formRuleCategoryId.value = rule.categoryId
-    formRulePosition.value = rule.position
-    showRuleDialog.value = true
+const addPattern = () => {
+    if (!newPatternValue.value.trim()) return
+    formGroupPatterns.value.push({
+        id: null,
+        pattern: newPatternValue.value.trim(),
+        isRegex: newPatternIsRegex.value,
+    })
+    newPatternValue.value = ''
+    newPatternIsRegex.value = false
 }
 
-const handleSaveRule = async () => {
-    if (!formRulePattern.value.trim()) {
-        toast.add({ severity: 'warn', summary: 'Validation Error', detail: 'Pattern is required', life: 3000 })
+const removePattern = (index) => {
+    formGroupPatterns.value.splice(index, 1)
+}
+
+const handleSaveGroup = async () => {
+    if (!formGroupName.value.trim()) {
+        toast.add({ severity: 'warn', summary: 'Validation Error', detail: 'Name is required', life: 3000 })
         return
     }
-    if (!formRuleCategoryId.value) {
+    if (!formGroupCategoryId.value) {
         toast.add({ severity: 'warn', summary: 'Validation Error', detail: 'Category is required', life: 3000 })
         return
     }
 
-    const payload = {
-        pattern: formRulePattern.value.trim(),
-        isRegex: formRuleIsRegex.value,
-        categoryId: formRuleCategoryId.value,
-        position: formRulePosition.value ?? 0
-    }
-
     isSavingRule.value = true
     try {
-        if (editingRule.value) {
-            await updateCategoryRule(editingRule.value.id, payload)
-            toast.add({ severity: 'success', summary: 'Success', detail: 'Rule updated successfully', life: 3000 })
+        if (editingGroup.value) {
+            await updateCategoryRuleGroup(editingGroup.value.id, {
+                name: formGroupName.value.trim(),
+                categoryId: formGroupCategoryId.value,
+                priority: formGroupPriority.value ?? 0,
+                patterns: editingGroup.value.patterns || [],
+            })
+
+            // Sync patterns: delete removed, update changed, create new
+            const oldPatterns = editingGroup.value.patterns || []
+            const newPatterns = formGroupPatterns.value
+            const newIds = new Set(newPatterns.filter(p => p.id).map(p => p.id))
+
+            for (const old of oldPatterns) {
+                if (!newIds.has(old.id)) {
+                    await deleteCategoryRulePattern(editingGroup.value.id, old.id)
+                }
+            }
+            for (const p of newPatterns) {
+                if (p.id) {
+                    const old = oldPatterns.find(o => o.id === p.id)
+                    if (old && (old.pattern !== p.pattern || old.isRegex !== p.isRegex)) {
+                        await updateCategoryRulePattern(editingGroup.value.id, p.id, { pattern: p.pattern, isRegex: p.isRegex })
+                    }
+                } else {
+                    await createCategoryRulePattern(editingGroup.value.id, { pattern: p.pattern, isRegex: p.isRegex })
+                }
+            }
+
+            toast.add({ severity: 'success', summary: 'Success', detail: 'Group updated successfully', life: 3000 })
         } else {
-            await createCategoryRule(payload)
-            toast.add({ severity: 'success', summary: 'Success', detail: 'Rule created successfully', life: 3000 })
+            const created = await createCategoryRuleGroup({
+                name: formGroupName.value.trim(),
+                categoryId: formGroupCategoryId.value,
+                priority: formGroupPriority.value ?? 0,
+                patterns: [],
+            })
+            for (const p of formGroupPatterns.value) {
+                await createCategoryRulePattern(created.id, { pattern: p.pattern, isRegex: p.isRegex })
+            }
+            toast.add({ severity: 'success', summary: 'Success', detail: 'Group created successfully', life: 3000 })
         }
-        showRuleDialog.value = false
+        showGroupDialog.value = false
         await loadRules()
     } catch (error) {
-        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to save rule: ' + error.message, life: 3000 })
+        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to save group: ' + error.message, life: 3000 })
     } finally {
         isSavingRule.value = false
     }
 }
 
-const handleDeleteRule = async (rule) => {
-    if (!confirm(`Are you sure you want to delete the rule "${rule.pattern}"?`)) {
+const handleDeleteGroup = async (group) => {
+    if (!confirm(`Are you sure you want to delete the group "${group.name}" and all its patterns?`)) {
         return
     }
 
     try {
-        await deleteCategoryRule(rule.id)
-        toast.add({ severity: 'success', summary: 'Success', detail: 'Rule deleted successfully', life: 3000 })
+        await deleteCategoryRuleGroup(group.id)
+        toast.add({ severity: 'success', summary: 'Success', detail: 'Group deleted successfully', life: 3000 })
         await loadRules()
     } catch (error) {
-        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete rule: ' + error.message, life: 3000 })
+        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete group: ' + error.message, life: 3000 })
     }
 }
 
@@ -573,15 +598,15 @@ onMounted(() => {
                     </template>
                 </Card>
 
-                <!-- Category Matching Rules Section -->
+                <!-- Category Matching Rule Groups Section -->
                 <div class="flex justify-content-between align-items-start mb-4 mt-5 gap-3">
                     <div>
                         <h2 class="text-xl font-bold mb-2 text-color">Category Matching Rules</h2>
                         <p class="text-color-secondary m-0 text-base">
-                            Define rules to automatically assign categories to imported transactions based on description matching. Rules are evaluated in position order; the first match wins.
+                            Define rule groups to automatically assign categories to imported transactions based on description matching. Groups are evaluated in priority order; the first match wins.
                         </p>
                     </div>
-                    <div class="flex gap-2">
+                    <div class="flex gap-2" style="white-space: nowrap; flex-shrink: 0">
                         <Button
                             label="Re-apply Rules"
                             icon="pi pi-sync"
@@ -589,9 +614,9 @@ onMounted(() => {
                             @click="router.push('/setup/reapply-rules')"
                         />
                         <Button
-                            label="New Rule"
+                            label="New Group"
                             icon="pi pi-plus"
-                            @click="openCreateRuleDialog"
+                            @click="openCreateGroupDialog"
                         />
                     </div>
                 </div>
@@ -599,50 +624,48 @@ onMounted(() => {
                 <Card>
                     <template #content>
                         <DataTable
-                            :value="categoryRules"
+                            :value="categoryRuleGroups"
                             :loading="isLoadingRules"
+                            dataKey="id"
                             stripedRows
-                            :paginator="categoryRules.length > 10"
+                            :paginator="categoryRuleGroups.length > 10"
                             :rows="10"
                             responsiveLayout="scroll"
                         >
                             <template #empty>
                                 <div class="empty-state">
                                     <i class="pi pi-inbox"></i>
-                                    <p>No category matching rules found</p>
+                                    <p>No category matching rule groups found</p>
                                     <Button
-                                        label="Create Your First Rule"
+                                        label="Create Your First Group"
                                         icon="pi pi-plus"
-                                        @click="openCreateRuleDialog"
+                                        @click="openCreateGroupDialog"
                                         outlined
                                     />
                                 </div>
                             </template>
 
-                            <Column field="position" header="Position" :sortable="true" style="width: 100px">
+                            <Column field="priority" header="Priority" :sortable="true" style="width: 100px">
                                 <template #body="{ data }">
-                                    <span class="font-semibold">{{ data.position }}</span>
+                                    <span class="font-semibold">{{ data.priority }}</span>
                                 </template>
                             </Column>
 
-                            <Column field="pattern" header="Pattern">
+                            <Column field="name" header="Name">
                                 <template #body="{ data }">
-                                    <span class="pattern-text">{{ data.pattern }}</span>
-                                </template>
-                            </Column>
-
-                            <Column field="isRegex" header="Type" style="width: 120px">
-                                <template #body="{ data }">
-                                    <Tag
-                                        :value="data.isRegex ? 'Regex' : 'Substring'"
-                                        :severity="data.isRegex ? 'warn' : 'info'"
-                                    />
+                                    <span class="font-semibold">{{ data.name }}</span>
                                 </template>
                             </Column>
 
                             <Column field="categoryId" header="Category">
                                 <template #body="{ data }">
                                     {{ resolveCategoryName(data.categoryId) }}
+                                </template>
+                            </Column>
+
+                            <Column header="Patterns" style="width: 120px">
+                                <template #body="{ data }">
+                                    <Tag :value="String(data.patterns?.length || 0)" severity="info" />
                                 </template>
                             </Column>
 
@@ -654,8 +677,8 @@ onMounted(() => {
                                             text
                                             rounded
                                             class="p-1"
-                                            @click="openEditRuleDialog(data)"
-                                            v-tooltip.top="'Edit rule'"
+                                            @click="openEditGroupDialog(data)"
+                                            v-tooltip.top="'Edit group'"
                                         />
                                         <Button
                                             icon="pi pi-trash"
@@ -663,8 +686,8 @@ onMounted(() => {
                                             text
                                             rounded
                                             class="p-1"
-                                            @click="handleDeleteRule(data)"
-                                            v-tooltip.top="'Delete rule'"
+                                            @click="handleDeleteGroup(data)"
+                                            v-tooltip.top="'Delete group'"
                                         />
                                     </div>
                                 </template>
@@ -673,64 +696,101 @@ onMounted(() => {
                     </template>
                 </Card>
 
-                <!-- Rule Edit/Create Dialog -->
+                <!-- Group Edit/Create Dialog (with inline patterns) -->
                 <Dialog
-                    v-model:visible="showRuleDialog"
-                    :header="editingRule ? 'Edit Category Rule' : 'Create Category Rule'"
+                    v-model:visible="showGroupDialog"
+                    :header="editingGroup ? 'Edit Rule Group' : 'Create Rule Group'"
                     :modal="true"
                     :closable="true"
-                    class="entry-dialog"
+                    class="entry-dialog entry-dialog--wide"
                 >
                     <div class="rule-dialog-content">
                         <div class="field">
-                            <label for="rulePattern">Pattern *</label>
+                            <label for="groupName">Name *</label>
                             <InputText
-                                id="rulePattern"
-                                v-model="formRulePattern"
-                                placeholder="e.g., GROCERY or .*grocery.*"
-                                class="w-full"
-                            />
-                            <small class="text-color-secondary">
-                                Substring match is case-insensitive. Use regex for advanced patterns.
-                            </small>
-                        </div>
-
-                        <div class="field">
-                            <div class="flex align-items-center gap-2">
-                                <Checkbox
-                                    id="ruleIsRegex"
-                                    v-model="formRuleIsRegex"
-                                    :binary="true"
-                                />
-                                <label for="ruleIsRegex">Use Regular Expression</label>
-                            </div>
-                        </div>
-
-                        <div class="field">
-                            <label for="ruleCategory">Category *</label>
-                            <Select
-                                id="ruleCategory"
-                                v-model="formRuleCategoryId"
-                                :options="categoryOptions"
-                                optionLabel="label"
-                                optionValue="value"
-                                placeholder="Select a category"
-                                filter
+                                id="groupName"
+                                v-model="formGroupName"
+                                placeholder="e.g., Amazon, Grocery Stores"
                                 class="w-full"
                             />
                         </div>
 
+                        <CategorySelect
+                            v-model="formGroupCategoryId"
+                            type="all"
+                            label="Category *"
+                        />
+
                         <div class="field">
-                            <label for="rulePosition">Position</label>
+                            <label for="groupPriority">Priority</label>
                             <InputNumber
-                                id="rulePosition"
-                                v-model="formRulePosition"
+                                id="groupPriority"
+                                v-model="formGroupPriority"
                                 :min="0"
                                 class="w-full"
                             />
                             <small class="text-color-secondary">
-                                Lower position = higher priority. First matching rule wins.
+                                Lower value = higher priority. First matching group wins.
                             </small>
+                        </div>
+
+                        <Divider />
+
+                        <!-- Inline pattern management -->
+                        <div class="patterns-section">
+                            <label class="font-semibold text-color">Patterns</label>
+
+                            <div class="patterns-list" v-if="formGroupPatterns.length > 0">
+                                <div
+                                    v-for="(p, index) in formGroupPatterns"
+                                    :key="index"
+                                    class="pattern-row"
+                                >
+                                    <span class="pattern-text">{{ p.pattern }}</span>
+                                    <Tag
+                                        :value="p.isRegex ? 'Regex' : 'Substring'"
+                                        :severity="p.isRegex ? 'warn' : 'info'"
+                                        class="flex-shrink-0"
+                                    />
+                                    <Button
+                                        icon="pi pi-times"
+                                        severity="danger"
+                                        text
+                                        rounded
+                                        size="small"
+                                        @click="removePattern(index)"
+                                        v-tooltip.top="'Remove pattern'"
+                                    />
+                                </div>
+                            </div>
+                            <div v-else class="text-color-secondary text-sm">
+                                No patterns yet. Add one below.
+                            </div>
+
+                            <div class="add-pattern-row">
+                                <InputText
+                                    v-model="newPatternValue"
+                                    placeholder="e.g., AMAZON or .*amazon.*"
+                                    class="flex-grow-1"
+                                    size="small"
+                                    @keydown.enter="addPattern"
+                                />
+                                <div class="flex align-items-center gap-2 flex-shrink-0">
+                                    <Checkbox
+                                        v-model="newPatternIsRegex"
+                                        :binary="true"
+                                        inputId="newPatternRegex"
+                                    />
+                                    <label for="newPatternRegex" class="text-sm white-space-nowrap">Regex</label>
+                                </div>
+                                <Button
+                                    label="Add"
+                                    icon="pi pi-plus"
+                                    outlined
+                                    @click="addPattern"
+                                    :disabled="!newPatternValue.trim()"
+                                />
+                            </div>
                         </div>
 
                         <div class="flex justify-content-end gap-2 mt-3">
@@ -738,13 +798,13 @@ onMounted(() => {
                                 label="Cancel"
                                 severity="secondary"
                                 text
-                                @click="showRuleDialog = false"
+                                @click="showGroupDialog = false"
                             />
                             <Button
-                                :label="editingRule ? 'Update' : 'Create'"
+                                :label="editingGroup ? 'Update' : 'Create'"
                                 icon="pi pi-check"
                                 :loading="isSavingRule"
-                                @click="handleSaveRule"
+                                @click="handleSaveGroup"
                             />
                         </div>
                     </div>
@@ -1115,6 +1175,44 @@ onMounted(() => {
     display: flex;
     flex-direction: column;
     gap: 1rem;
+}
+
+.patterns-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.patterns-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.pattern-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.5rem;
+    border-radius: 6px;
+    background-color: var(--surface-50);
+    border-left: 3px solid var(--primary-color);
+
+    .pattern-text {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-family: monospace;
+        font-size: 0.9rem;
+        color: var(--primary-700, var(--primary-color));
+    }
+}
+
+.add-pattern-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 :deep(.p-card-content) {

@@ -282,7 +282,7 @@ const checkedCount = computed(() => {
                             :rowClass="getRowClass"
                         >
                             <!-- Checkbox column -->
-                            <Column header="" style="width: 50px">
+                            <Column header="" style="width: 2.5rem">
                                 <template #body="{ data }">
                                     <Checkbox
                                         v-if="!data.importError"
@@ -294,14 +294,14 @@ const checkedCount = computed(() => {
                             </Column>
 
                             <!-- Type icon -->
-                            <Column header="" style="width: 40px">
+                            <Column header="" style="width: 2rem">
                                 <template #body="{ data }">
                                     <i :class="getEntryTypeIcon(data.type)" style="font-size: 0.8rem" />
                                 </template>
                             </Column>
 
                             <!-- Description -->
-                            <Column field="description" header="Description">
+                            <Column field="description" header="Description" bodyClass="description-cell">
                                 <template #body="{ data }">
                                     <span v-tooltip.bottom="data.categoryId ? `Category: ${getCategoryPath(data.categoryId, data.type)}` : ''">
                                         {{ data.description }}
@@ -310,14 +310,14 @@ const checkedCount = computed(() => {
                             </Column>
 
                             <!-- Date -->
-                            <Column field="date" header="Date">
+                            <Column field="date" header="Date" style="width: 7rem">
                                 <template #body="{ data }">
                                     {{ formatDate(data.date) }}
                                 </template>
                             </Column>
 
                             <!-- Amount -->
-                            <Column field="Amount" header="Amount" bodyStyle="text-align: right">
+                            <Column field="Amount" header="Amount" bodyStyle="text-align: right" style="width: 6rem">
                                 <template #body="{ data }">
                                     <div class="amount" :class="data.type === 'expense' ? 'expense' : 'income'">
                                         <template v-if="data.type === 'expense'">-</template>
@@ -328,14 +328,14 @@ const checkedCount = computed(() => {
                             </Column>
 
                             <!-- Category -->
-                            <Column header="Category">
+                            <Column header="Category" style="width: 8rem">
                                 <template #body="{ data }">
                                     {{ data.categoryId ? getCategoryPath(data.categoryId, data.type) : '—' }}
                                 </template>
                             </Column>
 
                             <!-- Status -->
-                            <Column header="Status" style="width: 120px">
+                            <Column header="Status" style="width: 5rem">
                                 <template #body="{ data }">
                                     <span v-if="data.importError" class="status-badge status-error" v-tooltip.bottom="data.importError">
                                         Error
@@ -495,6 +495,18 @@ const checkedCount = computed(() => {
 .status-error {
     background-color: var(--red-100);
     color: var(--red-700);
+}
+
+:deep(.datatable-compact .p-datatable-tbody > tr > td) {
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+}
+
+:deep(.description-cell) {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 1px;
 }
 
 /* Row styling for duplicates and errors */

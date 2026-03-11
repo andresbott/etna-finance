@@ -230,14 +230,6 @@ const router = createRouter({
             component: () => import('@/views/csvimport/ImportView.vue')
         },
         {
-            path: '/setup/category-rules',
-            name: 'category-rules',
-            meta: {
-                requiresAuth: true
-            },
-            component: () => import('@/views/csvimport/CategoryRulesView.vue')
-        },
-        {
             path: '/setup/reapply-rules',
             name: 'reapply-rules',
             meta: {
