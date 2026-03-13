@@ -6,8 +6,6 @@ Track items to verify, refactor, or implement later.
 
 ## To implement
 
-- [ ] Log a warning in the task when the client is not configured (e.g. missing API key)
-- [ ] Update the dashboard with currency-corrected data
 - [ ] Add a dashboard view: current balance (quantity of stocks) + value of every owned financial instrument
 
 ---

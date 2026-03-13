@@ -6,6 +6,14 @@ import Card from 'primevue/card'
 import InputNumber from 'primevue/inputnumber'
 import Slider from 'primevue/slider'
 import VChart from 'vue-echarts'
+import Button from 'primevue/button'
+import InputText from 'primevue/inputtext'
+import Textarea from 'primevue/textarea'
+import Dialog from 'primevue/dialog'
+import DataTable from 'primevue/datatable'
+import Column from 'primevue/column'
+import { listCases, createCase, updateCase, deleteCase } from '@/lib/api/ToolsData'
+import { useToast } from 'primevue/usetoast'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart } from 'echarts/charts'
@@ -22,6 +30,114 @@ const monthlyContribution = ref(500)
 const growthRatePct = ref(6)
 const inflationPct = ref(2)
 const capitalGainTaxPct = ref(3)
+
+const TOOL_TYPE = 'portfolio-simulator'
+
+const cases = ref([])
+const showSaveDialog = ref(false)
+const showCasesDialog = ref(false)
+const saveName = ref('')
+const saveDescription = ref('')
+const activeCaseId = ref(null)
+const activeCaseName = ref('')
+const activeCaseDescription = ref('')
+const toast = useToast()
+
+async function loadCases() {
+    try {
+        cases.value = await listCases(TOOL_TYPE)
+    } catch (e) {
+        console.error('Failed to load scenarios:', e)
+    }
+}
+
+function getCurrentParams() {
+    return {
+        durationYears: durationYears.value,
+        initialContribution: initialContribution.value,
+        monthlyContribution: monthlyContribution.value,
+        growthRatePct: growthRatePct.value,
+        inflationPct: inflationPct.value,
+        capitalGainTaxPct: capitalGainTaxPct.value,
+    }
+}
+
+function computeExpectedAnnualReturn() {
+    const growth = growthRatePct.value ?? 0
+    const tax = capitalGainTaxPct.value ?? 0
+    const inflation = inflationPct.value ?? 0
+    return growth - tax - inflation
+}
+
+function openSaveDialog() {
+    saveName.value = ''
+    saveDescription.value = ''
+    showSaveDialog.value = true
+}
+
+async function handleSave() {
+    const payload = {
+        expectedAnnualReturn: computeExpectedAnnualReturn(),
+        params: getCurrentParams(),
+    }
+    try {
+        if (activeCaseId.value) {
+            await updateCase(TOOL_TYPE, activeCaseId.value, {
+                ...payload,
+                name: activeCaseName.value,
+            })
+            toast.add({ severity: 'success', summary: 'Saved', detail: `"${activeCaseName.value}" updated`, life: 3000 })
+        } else {
+            const created = await createCase(TOOL_TYPE, {
+                ...payload,
+                name: saveName.value,
+                description: saveDescription.value,
+            })
+            activeCaseId.value = created.id
+            activeCaseName.value = created.name
+            activeCaseDescription.value = saveDescription.value
+            showSaveDialog.value = false
+            toast.add({ severity: 'success', summary: 'Created', detail: `"${created.name}" saved`, life: 3000 })
+        }
+        await loadCases()
+    } catch (e) {
+        console.error('Failed to save scenario:', e)
+    }
+}
+
+function loadCase(cs) {
+    const p = cs.params
+    durationYears.value = p.durationYears
+    initialContribution.value = p.initialContribution
+    monthlyContribution.value = p.monthlyContribution
+    growthRatePct.value = p.growthRatePct
+    inflationPct.value = p.inflationPct
+    capitalGainTaxPct.value = p.capitalGainTaxPct
+    activeCaseId.value = cs.id
+    activeCaseName.value = cs.name
+    activeCaseDescription.value = cs.description ?? ''
+}
+
+function clearActiveCase() {
+    activeCaseId.value = null
+    activeCaseName.value = ''
+    activeCaseDescription.value = ''
+}
+
+async function removeScenario(id) {
+    try {
+        await deleteCase(TOOL_TYPE, id)
+        if (activeCaseId.value === id) {
+            clearActiveCase()
+        }
+        await loadCases()
+    } catch (e) {
+        console.error('Failed to delete scenario:', e)
+    }
+}
+
+// Load cases on mount
+loadCases()
 
 /**
  * Project portfolio value month by month with compound growth and monthly contributions.
@@ -223,6 +339,28 @@ function formatCurrencyShort(value) {
     <ResponsiveHorizontal :leftSidebarCollapsed="leftSidebarCollapsed">
         <template #default>
             <div class="p-3">
+                <Card class="mb-3">
+                    <template #title>
+                        <div class="flex align-items-center justify-content-between">
+                            <div class="flex align-items-center gap-2">
+                                <span>Portfolio Simulator</span>
+                                <Button v-if="activeCaseId" icon="pi pi-times" size="small" text rounded severity="secondary" @click="clearActiveCase()" title="Detach from scenario" />
+                            </div>
+                            <div class="flex align-items-center gap-2">
+                                <Button label="Scenarios" icon="pi pi-list" size="small" outlined @click="showCasesDialog = true" />
+                                <Button label="Save" icon="pi pi-save" size="small" @click="activeCaseId ? handleSave() : openSaveDialog()" />
+                            </div>
+                        </div>
+                    </template>
+                    <template #content>
+                        <template v-if="activeCaseId">
+                            <p class="mt-0 mb-1 font-semibold">{{ activeCaseName }}</p>
+                            <p v-if="activeCaseDescription" class="m-0 text-color-secondary">{{ activeCaseDescription }}</p>
+                        </template>
+                        <p v-else class="m-0 text-color-secondary font-italic">No scenario loaded.</p>
+                    </template>
+                </Card>
+
                 <div class="grid">
                     <div class="col-12 md:col-4">
                         <Card>
@@ -363,6 +501,40 @@ function formatCurrencyShort(value) {
                             </template>
                         </Card>
                     </div>
+                    <Dialog v-model:visible="showCasesDialog" header="Scenarios" :modal="true" :style="{ width: '50rem' }">
+                        <DataTable :value="cases" size="small" v-if="cases.length > 0">
+                            <Column field="name" header="Name" />
+                            <Column field="description" header="Description" />
+                            <Column field="expectedAnnualReturn" header="Expected Annual Return">
+                                <template #body="{ data }">{{ data.expectedAnnualReturn.toFixed(2) }}%</template>
+                            </Column>
+                            <Column header="Actions" style="width: 7rem">
+                                <template #body="{ data }">
+                                    <div class="flex gap-1">
+                                        <Button icon="pi pi-upload" size="small" text @click="loadCase(data); showCasesDialog = false" title="Load" />
+                                        <Button icon="pi pi-trash" size="small" text severity="danger" @click="removeScenario(data.id)" title="Delete" />
+                                    </div>
+                                </template>
+                            </Column>
+                        </DataTable>
+                        <p v-else class="text-color-secondary">No saved scenarios yet. Use "Save Current" to store your parameters.</p>
+                    </Dialog>
+                    <Dialog v-model:visible="showSaveDialog" header="Save as New Scenario" :modal="true" :style="{ width: '30rem' }">
+                        <div class="flex flex-column gap-3">
+                            <div class="field">
+                                <label for="caseName">Name</label>
+                                <InputText id="caseName" v-model="saveName" class="w-full" />
+                            </div>
+                            <div class="field">
+                                <label for="caseDesc">Description</label>
+                                <Textarea id="caseDesc" v-model="saveDescription" rows="3" class="w-full" />
+                            </div>
+                        </div>
+                        <template #footer>
+                            <Button label="Cancel" text @click="showSaveDialog = false" />
+                            <Button label="Save" @click="handleSave" :disabled="!saveName" />
+                        </template>
+                    </Dialog>
                 </div>
             </div>
         </template>
@@ -445,4 +617,5 @@ function formatCurrencyShort(value) {
 .result-final .result-value {
     font-size: 1.05rem;
 }
+
 </style>

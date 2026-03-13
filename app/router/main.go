@@ -13,6 +13,7 @@ import (
 	"github.com/andresbott/etna/internal/filestore"
 	"github.com/andresbott/etna/internal/marketdata"
 	"github.com/andresbott/etna/internal/taskrunner"
+	"github.com/andresbott/etna/internal/toolsdata"
 	"github.com/go-bumbu/http/middleware"
 	"github.com/go-bumbu/userauth"
 	"github.com/go-bumbu/userauth/handlers/sessionauth"
@@ -41,6 +42,7 @@ type Cfg struct {
 	MarketStore     *marketdata.Store
 	CsvImportStore  *csvimport.Store
 	AttachmentStore *filestore.Store
+	ToolsDataStore  *toolsdata.Store
 }
 
 // MainAppHandler is the entrypoint http handler for the whole application
@@ -63,6 +65,7 @@ type MainAppHandler struct {
 	taskLogGetter     taskrunner.TaskLogGetter
 	csvImportStore    *csvimport.Store
 	attachmentStore   *filestore.Store
+	toolsDataStore    *toolsdata.Store
 }
 
 func (h *MainAppHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -88,6 +91,7 @@ func New(cfg Cfg) (*MainAppHandler, error) {
 		taskLogGetter:     cfg.TaskLogGetter,
 		csvImportStore:    cfg.CsvImportStore,
 		attachmentStore:   cfg.AttachmentStore,
+		toolsDataStore:    cfg.ToolsDataStore,
 	}
 
 	if cfg.MarketStore == nil || cfg.FinStore == nil {
