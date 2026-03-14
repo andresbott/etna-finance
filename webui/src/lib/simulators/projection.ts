@@ -6,16 +6,16 @@ import { computeBuyVsRentNetWorth20Y } from './buyVsRent'
 export function computeNetWorth20Y(caseStudy: CaseStudy, initialAmountOverride?: number, durationYears?: number): number[] {
     switch (caseStudy.toolType) {
         case 'portfolio-simulator': {
-            const params = caseStudy.params as PortfolioSimulatorParams
+            const params = caseStudy.params as unknown as PortfolioSimulatorParams
             const effective = initialAmountOverride != null
                 ? { ...params, initialContribution: initialAmountOverride }
                 : params
             return computePortfolioNetWorth20Y(effective, durationYears)
         }
         case 'real-estate-simulator':
-            return computeRealEstateNetWorth20Y(caseStudy.params as RealEstateSimulatorParams)
+            return computeRealEstateNetWorth20Y(caseStudy.params as unknown as RealEstateSimulatorParams)
         case 'buy-vs-rent-simulator':
-            return computeBuyVsRentNetWorth20Y(caseStudy.params as BuyVsRentSimulatorParams)
+            return computeBuyVsRentNetWorth20Y(caseStudy.params as unknown as BuyVsRentSimulatorParams)
         default:
             return Array((durationYears ?? 20) + 1).fill(0)
     }

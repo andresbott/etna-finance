@@ -207,7 +207,7 @@ function computeCumulativeGrowth(cs: CaseStudy, years: number, inflation: number
 
 const chartOption = computed(() => {
     const cases = chartCases.value
-    if (cases.length === 0) return null
+    if (cases.length === 0) return undefined
 
     const years = Array.from({ length: comparisonYears.value }, (_, i) => i + 1)
 

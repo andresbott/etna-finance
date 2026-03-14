@@ -708,7 +708,7 @@ function formatPct(value: number): string {
                                                     <label>Split (%)</label>
                                                     <div class="field-controls">
                                                         <InputNumber :modelValue="m.splitPct" @update:modelValue="v => updateSplitPct(idx, v ?? 0)" :min="0" :max="100" :step="1" :maxFractionDigits="0" suffix="%" class="field-input" />
-                                                        <Slider :modelValue="m.splitPct" @update:modelValue="v => updateSplitPct(idx, v)" :min="0" :max="100" :step="1" class="field-slider" />
+                                                        <Slider :modelValue="m.splitPct" @update:modelValue="v => updateSplitPct(idx, Array.isArray(v) ? v[0] : v)" :min="0" :max="100" :step="1" class="field-slider" />
                                                     </div>
                                                 </div>
                                                 <div class="field-summary" v-if="mortgages.length === 1">
