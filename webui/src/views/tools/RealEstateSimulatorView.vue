@@ -28,7 +28,7 @@ import {
     computeAmortizationSchedule,
     computeRealEstateProjection,
 } from '@/lib/simulators/realEstate'
-import FileUpload from 'primevue/fileupload'
+import FileInput from '@/components/common/FileInput.vue'
 import { useToast } from 'primevue/usetoast'
 
 const props = defineProps<{ caseId: number }>()
@@ -499,18 +499,20 @@ function loadCaseData(cs: { name: string; description?: string; params: RealEsta
     activeCaseAttachmentId.value = cs.attachmentId ?? null
 }
 
-async function handleAttachmentUpload(event: { files: File | File[] }) {
-    const fileList = Array.isArray(event.files) ? event.files : [event.files]
-    if (!fileList.length) return
+const selectedAttachmentFile = ref<File | null>(null)
+
+watch(selectedAttachmentFile, async (file) => {
+    if (!file) return
     try {
-        const result = await uploadCaseAttachment(TOOL_TYPE, props.caseId, fileList[0])
+        const result = await uploadCaseAttachment(TOOL_TYPE, props.caseId, file)
         activeCaseAttachmentId.value = result.id
         toast.add({ severity: 'success', summary: 'Uploaded', detail: `"${result.originalName}" attached`, life: 3000 })
     } catch (e) {
         console.error('Failed to upload attachment:', e)
         toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to upload attachment', life: 3000 })
     }
-}
+    selectedAttachmentFile.value = null
+})
 
 async function handleAttachmentDelete() {
     try {
@@ -524,6 +526,10 @@ async function handleAttachmentDelete() {
 
 function getAttachmentUrl(): string {
     return getCaseAttachmentUrl(TOOL_TYPE, props.caseId)
+}
+
+function viewAttachment() {
+    window.open(getAttachmentUrl(), '_blank')
 }
 
 onMounted(async () => {
@@ -1094,20 +1100,21 @@ function formatPct(value: number): string {
                         <div class="field">
                             <label>Attachment</label>
                             <div v-if="activeCaseAttachmentId" class="flex align-items-center gap-2">
-                                <a :href="getAttachmentUrl()" target="_blank" class="flex align-items-center gap-1">
-                                    <i class="pi pi-file" /> View attachment
-                                </a>
-                                <Button icon="pi pi-trash" size="small" text severity="danger" @click="handleAttachmentDelete" title="Remove attachment" />
+                                <Button
+                                    icon="pi pi-paperclip"
+                                    label="View attachment"
+                                    text
+                                    size="small"
+                                    @click="viewAttachment"
+                                />
+                                <Button icon="pi pi-trash" text rounded severity="danger" size="small" @click="handleAttachmentDelete" v-tooltip.bottom="'Remove attachment'" />
                             </div>
-                            <FileUpload
+                            <FileInput
                                 v-else
-                                mode="basic"
-                                :auto="true"
-                                :maxFileSize="10000000"
-                                accept="image/*,application/pdf"
-                                chooseLabel="Upload file"
-                                :customUpload="true"
-                                @uploader="handleAttachmentUpload"
+                                v-model="selectedAttachmentFile"
+                                accept=".jpg,.jpeg,.png,.webp,.pdf"
+                                label="Upload file"
+                                icon="pi pi-paperclip"
                             />
                         </div>
                     </div>

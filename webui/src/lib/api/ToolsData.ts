@@ -114,7 +114,7 @@ export async function uploadCaseAttachment(toolType: string, id: number, file: F
 }
 
 export function getCaseAttachmentUrl(toolType: string, id: number): string {
-    return `/api${toolPath(toolType)}/${id}/attachment`
+    return `${apiClient.defaults.baseURL}${toolPath(toolType)}/${id}/attachment`
 }
 
 export async function deleteCaseAttachment(toolType: string, id: number): Promise<void> {

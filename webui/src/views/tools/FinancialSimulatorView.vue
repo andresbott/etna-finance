@@ -17,7 +17,7 @@ import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
-import { listCases, createCase, deleteCase } from '@/lib/api/ToolsData'
+import { listCases, createCase, deleteCase, getCaseAttachmentUrl } from '@/lib/api/ToolsData'
 import type { CaseStudy, RealEstateSimulatorParams } from '@/lib/api/ToolsData'
 import { computeRealEstateAnnualYield } from '@/lib/simulators/realEstate'
 import DeleteDialog from '@/components/common/ConfirmDialog.vue'
@@ -78,14 +78,12 @@ async function loadAll() {
     loading.value = true
     try {
         const [p, r, b] = await Promise.all([
-            listCases('portfolio-simulator'),
-            listCases('real-estate-simulator'),
-            listCases('buy-vs-rent-simulator'),
+            listCases('portfolio-simulator').catch((e) => { console.error('Failed to load portfolio simulations:', e); return [] }),
+            listCases('real-estate-simulator').catch((e) => { console.error('Failed to load real-estate simulations:', e); return [] }),
+            listCases('buy-vs-rent-simulator').catch((e) => { console.error('Failed to load buy-vs-rent simulations:', e); return [] }),
         ])
         portfolioCases.value = p
         realEstateCases.value = [...r, ...b]
-    } catch (e) {
-        console.error('Failed to load simulations:', e)
     } finally {
         loading.value = false
     }
@@ -282,6 +280,10 @@ function typeLabel(toolType: string): string {
     return 'Real Estate'
 }
 
+function openAttachment(cs: CaseStudy) {
+    window.open(getCaseAttachmentUrl(cs.toolType, cs.id), '_blank')
+}
+
 function typeIcon(toolType: string): string {
     if (toolType === 'portfolio-simulator') return 'pi pi-chart-pie'
     if (toolType === 'buy-vs-rent-simulator') return 'pi pi-arrows-h'
@@ -337,7 +339,7 @@ function typeIcon(toolType: string): string {
                             </Column>
                             <Column header="Attachment" style="width: 6rem">
                                 <template #body="{ data }">
-                                    <i v-if="data.attachmentId" class="pi pi-paperclip" title="Has attachment"></i>
+                                    <i v-if="data.attachmentId" class="pi pi-paperclip attachment-icon" @click="openAttachment(data)" v-tooltip.bottom="'View Attachment'" />
                                 </template>
                             </Column>
                             <Column header="Actions" style="width: 120px">
@@ -465,5 +467,15 @@ function typeIcon(toolType: string): string {
 
 .field-slider {
     width: 100%;
+}
+
+.attachment-icon {
+    font-size: 0.85rem;
+    cursor: pointer;
+    opacity: 0.6;
+    font-weight: bold;
+}
+.attachment-icon:hover {
+    opacity: 1;
 }
 </style>

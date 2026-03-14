@@ -131,6 +131,18 @@ const settings = useSettingsStore()
                                             />
                                         </div>
                                     </div>
+                                    <div class="setting-item">
+                                        <div class="setting-label">
+                                            <i class="pi pi-calculator mr-2"></i>
+                                            <span>Financial Tools</span>
+                                        </div>
+                                        <div class="setting-value">
+                                            <Tag
+                                                :value="settings.tools ? 'Enabled' : 'Disabled'"
+                                                :severity="settings.tools ? 'success' : 'secondary'"
+                                            />
+                                        </div>
+                                    </div>
                                     <div v-if="settings.marketDataSymbols && settings.marketDataSymbols.length > 0" class="setting-item">
                                         <div class="setting-label">
                                             <i class="pi pi-list mr-2"></i>
