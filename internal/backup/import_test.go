@@ -7,6 +7,7 @@ import (
 	"github.com/andresbott/etna/internal/accounting"
 	"github.com/andresbott/etna/internal/csvimport"
 	"github.com/andresbott/etna/internal/marketdata"
+	"github.com/andresbott/etna/internal/toolsdata"
 	"github.com/glebarez/sqlite"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -19,6 +20,7 @@ type testStores struct {
 	accounting *accounting.Store
 	marketdata *marketdata.Store
 	csvimport  *csvimport.Store
+	toolsdata  *toolsdata.Store
 }
 
 func setupImportTest(t *testing.T) testStores {
@@ -41,16 +43,20 @@ func setupImportTest(t *testing.T) testStores {
 	if err != nil {
 		t.Fatalf("unable to create csvimport store: %v", err)
 	}
+	tdStore, err := toolsdata.NewStore(db)
+	if err != nil {
+		t.Fatalf("unable to create toolsdata store: %v", err)
+	}
 
 	sampleDataNoise(t, store, mdStore, csvStore)
 
 	backupFile := "testdata/backup-v1.zip"
-	err = Import(t.Context(), store, mdStore, csvStore, backupFile)
+	err = Import(t.Context(), store, mdStore, csvStore, tdStore, backupFile)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	return testStores{accounting: store, marketdata: mdStore, csvimport: csvStore}
+	return testStores{accounting: store, marketdata: mdStore, csvimport: csvStore, toolsdata: tdStore}
 }
 
 func TestImportV1(t *testing.T) {

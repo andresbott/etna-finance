@@ -11,6 +11,7 @@ import (
 	finHandler "github.com/andresbott/etna/app/router/handlers/finance"
 	mktHandler "github.com/andresbott/etna/app/router/handlers/marketdata"
 	taskHandler "github.com/andresbott/etna/app/router/handlers/tasks"
+	toolsDataHandler "github.com/andresbott/etna/app/router/handlers/toolsdata"
 	"github.com/go-bumbu/userauth/authenticator"
 	"github.com/go-bumbu/userauth/handlers/sessionauth"
 	"github.com/gorilla/mux"
@@ -38,6 +39,7 @@ func (h *MainAppHandler) attachApiV0(r *mux.Router) error {
 	if h.csvImportStore != nil {
 		h.csvImportAPI(r)
 	}
+	h.toolsDataAPI(r)
 
 	// send a 400 error on everything else on the API
 	r.PathPrefix("").HandlerFunc(StatusErrText(http.StatusBadRequest, "wrong api call"))
@@ -840,10 +842,11 @@ const restorePath = "/restore"
 func (h *MainAppHandler) backupApi(r *mux.Router) {
 
 	backupHndl := backup.Handler{
-		Destination: h.backupDestination,
-		Store:       h.finStore,
-		MdStore:     h.marketStore,
-		CsvStore:    h.csvImportStore,
+		Destination:    h.backupDestination,
+		Store:          h.finStore,
+		MdStore:        h.marketStore,
+		CsvStore:       h.csvImportStore,
+		ToolsDataStore: h.toolsDataStore,
 	}
 	r.Path(backupPath).Methods(http.MethodGet).Handler(backupHndl.List())
 	r.Path(backupPath).Methods(http.MethodPost).Handler(backupHndl.CreateBackup())
@@ -949,4 +952,118 @@ func getVarId(r *http.Request, name string) (uint, *httpError) {
 type httpError struct {
 	Error string
 	Code  int
+}
+
+const toolsDataPath = "/tools/{toolType:[a-z0-9-]+}/cases"
+
+func (h *MainAppHandler) toolsDataAPI(r *mux.Router) {
+	if h.toolsDataStore == nil {
+		return
+	}
+	tdHandler := toolsDataHandler.Handler{Store: h.toolsDataStore, FileStore: h.attachmentStore}
+
+	r.Path(toolsDataPath).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		toolType := mux.Vars(r)["toolType"]
+		tdHandler.ListCases(toolType).ServeHTTP(w, r)
+	})
+
+	r.Path(fmt.Sprintf("%s/{id}", toolsDataPath)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		toolType := mux.Vars(r)["toolType"]
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		tdHandler.GetCase(toolType, itemId).ServeHTTP(w, r)
+	})
+
+	r.Path(toolsDataPath).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		toolType := mux.Vars(r)["toolType"]
+		tdHandler.CreateCase(toolType).ServeHTTP(w, r)
+	})
+
+	r.Path(fmt.Sprintf("%s/{id}", toolsDataPath)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		toolType := mux.Vars(r)["toolType"]
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		tdHandler.UpdateCase(toolType, itemId).ServeHTTP(w, r)
+	})
+
+	r.Path(fmt.Sprintf("%s/{id}", toolsDataPath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		toolType := mux.Vars(r)["toolType"]
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		tdHandler.DeleteCase(toolType, itemId).ServeHTTP(w, r)
+	})
+
+	// Attachment routes
+	attPath := fmt.Sprintf("%s/{id}/attachment", toolsDataPath)
+
+	r.Path(attPath).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		toolType := mux.Vars(r)["toolType"]
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		tdHandler.UploadAttachment(toolType, itemId).ServeHTTP(w, r)
+	})
+
+	r.Path(attPath).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		toolType := mux.Vars(r)["toolType"]
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		tdHandler.GetAttachment(toolType, itemId).ServeHTTP(w, r)
+	})
+
+	r.Path(attPath).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		toolType := mux.Vars(r)["toolType"]
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		tdHandler.DeleteAttachment(toolType, itemId).ServeHTTP(w, r)
+	})
 }

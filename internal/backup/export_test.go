@@ -13,6 +13,7 @@ import (
 	"github.com/andresbott/etna/internal/accounting"
 	"github.com/andresbott/etna/internal/csvimport"
 	"github.com/andresbott/etna/internal/marketdata"
+	"github.com/andresbott/etna/internal/toolsdata"
 	"github.com/glebarez/sqlite"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -41,14 +42,18 @@ func TestExport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unable to create csvimport store: %v", err)
 	}
-	sampleData(t, store, mdStore, csvStore)
+	tdStore, err := toolsdata.NewStore(db)
+	if err != nil {
+		t.Fatalf("unable to create toolsdata store: %v", err)
+	}
+	sampleData(t, store, mdStore, csvStore, tdStore)
 
 	// set tx list size to 2 to force pagination
 	entriesLimit = 2
 
 	tmpdir := t.TempDir()
 	target := filepath.Join(tmpdir, "backup.zip")
-	err = export(t.Context(), store, mdStore, csvStore, target)
+	err = export(t.Context(), store, mdStore, csvStore, tdStore, target)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -107,6 +112,9 @@ func TestExport(t *testing.T) {
 				{ID: 1, Pattern: "grocery"},
 			}},
 		},
+		CaseStudies: []caseStudyV1{
+			{ID: 1, ToolType: "buy_vs_rent", Name: "test-case", Description: "test desc", ExpectedAnnualReturn: 7.5, Params: json.RawMessage(`{"key":"value"}`)},
+		},
 	}
 
 	sortCategories := func(a, b categoryV1) bool { return a.ID < b.ID }
@@ -118,6 +126,8 @@ func TestExport(t *testing.T) {
 		cmpopts.SortSlices(func(a, b fxRateRecordV1) bool { return a.Main < b.Main }),
 		cmpopts.SortSlices(func(a, b importProfileV1) bool { return a.ID < b.ID }),
 		cmpopts.SortSlices(func(a, b categoryRuleGroupV1) bool { return a.ID < b.ID }),
+		cmpopts.SortSlices(func(a, b caseStudyV1) bool { return a.ID < b.ID }),
+		cmpopts.IgnoreFields(caseStudyV1{}, "Params"),
 	); diff != "" {
 		t.Errorf("unexpected result (-want +got):\n%s", diff)
 	}
@@ -155,6 +165,7 @@ type backupPayload struct {
 	FXRates           []fxRateRecordV1
 	ImportProfiles    []importProfileV1
 	CategoryRules     []categoryRuleGroupV1
+	CaseStudies       []caseStudyV1
 }
 
 func unmarshalJSON[T any](data []byte) (T, error) {
@@ -219,6 +230,8 @@ func readFromZip(zipPath string) (backupPayload, error) {
 			payload.ImportProfiles, err = unmarshalJSON[[]importProfileV1](data)
 		case categoryRulesFile:
 			payload.CategoryRules, err = unmarshalJSON[[]categoryRuleGroupV1](data)
+		case caseStudiesFile:
+			payload.CaseStudies, err = unmarshalJSON[[]caseStudyV1](data)
 		}
 		if err != nil {
 			return payload, err
@@ -227,7 +240,7 @@ func readFromZip(zipPath string) (backupPayload, error) {
 	return payload, nil
 }
 
-func sampleData(t *testing.T, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store) {
+func sampleData(t *testing.T, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, tdStore *toolsdata.Store) {
 
 	// =========================================
 	// create accounts providers
@@ -314,19 +327,19 @@ func sampleData(t *testing.T, store *accounting.Store, mdStore *marketdata.Store
 		t.Fatalf("error creating transaction: %v", err)
 	}
 
-	// =========================================
-	// create instruments
-	// =========================================
-	_, err = mdStore.CreateInstrument(t.Context(), marketdata.Instrument{
+	sampleExtraData(t, mdStore, csvStore, tdStore, ex1)
+}
+
+func sampleExtraData(t *testing.T, mdStore *marketdata.Store, csvStore *csvimport.Store, tdStore *toolsdata.Store, expenseCategoryID uint) {
+	t.Helper()
+
+	_, err := mdStore.CreateInstrument(t.Context(), marketdata.Instrument{
 		Symbol: "AAPL", Name: "Apple Inc", Currency: currency.USD,
 	})
 	if err != nil {
 		t.Fatalf("error creating instrument: %v", err)
 	}
 
-	// =========================================
-	// create price history
-	// =========================================
 	err = mdStore.IngestPrice(t.Context(), "AAPL", getDate("2024-01-15"), 185.50)
 	if err != nil {
 		t.Fatalf("error ingesting price: %v", err)
@@ -336,17 +349,11 @@ func sampleData(t *testing.T, store *accounting.Store, mdStore *marketdata.Store
 		t.Fatalf("error ingesting price: %v", err)
 	}
 
-	// =========================================
-	// create FX rates
-	// =========================================
 	err = mdStore.IngestRate(t.Context(), "USD", "EUR", getDate("2024-01-15"), 0.92)
 	if err != nil {
 		t.Fatalf("error ingesting FX rate: %v", err)
 	}
 
-	// =========================================
-	// create import profiles
-	// =========================================
 	_, err = csvStore.CreateProfile(t.Context(), csvimport.ImportProfile{
 		Name: "bank-csv", CsvSeparator: ",", DateColumn: "Date",
 		DateFormat: "2006-01-02", DescriptionColumn: "Description",
@@ -356,17 +363,24 @@ func sampleData(t *testing.T, store *accounting.Store, mdStore *marketdata.Store
 		t.Fatalf("error creating import profile: %v", err)
 	}
 
-	// =========================================
-	// create category rule groups
-	// =========================================
 	_, err = csvStore.CreateCategoryRuleGroup(t.Context(), csvimport.CategoryRuleGroup{
-		Name: "grocery", CategoryID: ex1, Priority: 0,
+		Name: "grocery", CategoryID: expenseCategoryID, Priority: 0,
 		Patterns: []csvimport.CategoryRulePattern{{Pattern: "grocery"}},
 	})
 	if err != nil {
 		t.Fatalf("error creating category rule group: %v", err)
 	}
 
+	_, err = tdStore.Create(t.Context(), toolsdata.CaseStudy{
+		ToolType:             "buy_vs_rent",
+		Name:                 "test-case",
+		Description:          "test desc",
+		ExpectedAnnualReturn: 7.5,
+		Params:               json.RawMessage(`{"key":"value"}`),
+	})
+	if err != nil {
+		t.Fatalf("error creating case study: %v", err)
+	}
 }
 func TestRoundTrip(t *testing.T) {
 	// Source DB
@@ -386,12 +400,16 @@ func TestRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sampleData(t, store1, mdStore1, csvStore1)
+	tdStore1, err := toolsdata.NewStore(db1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sampleData(t, store1, mdStore1, csvStore1, tdStore1)
 
 	// Export 1
 	tmpdir := t.TempDir()
 	target1 := filepath.Join(tmpdir, "export1.zip")
-	err = export(t.Context(), store1, mdStore1, csvStore1, target1)
+	err = export(t.Context(), store1, mdStore1, csvStore1, tdStore1, target1)
 	if err != nil {
 		t.Fatalf("export1 failed: %v", err)
 	}
@@ -413,16 +431,20 @@ func TestRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	tdStore2, err := toolsdata.NewStore(db2)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Import
-	err = Import(t.Context(), store2, mdStore2, csvStore2, target1)
+	err = Import(t.Context(), store2, mdStore2, csvStore2, tdStore2, target1)
 	if err != nil {
 		t.Fatalf("import failed: %v", err)
 	}
 
 	// Export 2
 	target2 := filepath.Join(tmpdir, "export2.zip")
-	err = export(t.Context(), store2, mdStore2, csvStore2, target2)
+	err = export(t.Context(), store2, mdStore2, csvStore2, tdStore2, target2)
 	if err != nil {
 		t.Fatalf("export2 failed: %v", err)
 	}
@@ -457,6 +479,8 @@ func TestRoundTrip(t *testing.T) {
 		cmpopts.SortSlices(func(a, b fxRateRecordV1) bool { return a.Main < b.Main }),
 		cmpopts.SortSlices(func(a, b importProfileV1) bool { return a.Name < b.Name }),
 		cmpopts.SortSlices(func(a, b categoryRuleGroupV1) bool { return a.Name < b.Name }),
+		cmpopts.IgnoreFields(caseStudyV1{}, "ID"),
+		cmpopts.SortSlices(func(a, b caseStudyV1) bool { return a.Name < b.Name }),
 	); diff != "" {
 		t.Errorf("round-trip mismatch (-first +second):\n%s", diff)
 	}

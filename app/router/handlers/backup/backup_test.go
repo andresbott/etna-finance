@@ -17,6 +17,7 @@ import (
 	"github.com/andresbott/etna/internal/backup"
 	"github.com/andresbott/etna/internal/csvimport"
 	"github.com/andresbott/etna/internal/marketdata"
+	"github.com/andresbott/etna/internal/toolsdata"
 	"github.com/glebarez/sqlite"
 	"github.com/google/go-cmp/cmp"
 	"gorm.io/gorm"
@@ -225,7 +226,7 @@ func TestHandler_CreateBackup(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tempDir := t.TempDir()
 
-			h := &Handler{Destination: tempDir, Store: tc.store(), MdStore: newTestMdStore(t), CsvStore: newTestCsvStore(t)}
+			h := &Handler{Destination: tempDir, Store: tc.store(), MdStore: newTestMdStore(t), CsvStore: newTestCsvStore(t), ToolsDataStore: newTestToolsDataStore(t)}
 
 			recorder := httptest.NewRecorder()
 			req, _ := http.NewRequest("POST", "/backup", nil)
@@ -419,10 +420,11 @@ func TestHandler_RestoreUpload(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tempDir := t.TempDir()
 			h := &Handler{
-				Destination: tempDir,
-				Store:       tc.setupStore(),
-				MdStore:     newTestMdStore(t),
-				CsvStore:    newTestCsvStore(t),
+				Destination:    tempDir,
+				Store:          tc.setupStore(),
+				MdStore:        newTestMdStore(t),
+				CsvStore:       newTestCsvStore(t),
+				ToolsDataStore: newTestToolsDataStore(t),
 			}
 
 			filename, content := tc.setupFile(t)
@@ -562,10 +564,11 @@ func TestHandler_RestoreFromExisting(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tempDir := t.TempDir()
 			h := &Handler{
-				Destination: tempDir,
-				Store:       tc.setupStore(),
-				MdStore:     newTestMdStore(t),
-				CsvStore:    newTestCsvStore(t),
+				Destination:    tempDir,
+				Store:          tc.setupStore(),
+				MdStore:        newTestMdStore(t),
+				CsvStore:       newTestCsvStore(t),
+				ToolsDataStore: newTestToolsDataStore(t),
 			}
 
 			_, id := tc.setupFile(t, tempDir)
@@ -638,10 +641,11 @@ func generateTestBackup(t *testing.T) []byte {
 	store := newTestAccountingStore(t)
 	mdStore := newTestMdStore(t)
 	csvStore := newTestCsvStore(t)
+	tdStore := newTestToolsDataStore(t)
 
 	tmpDir := t.TempDir()
 	backupFile := filepath.Join(tmpDir, "test-backup.zip")
-	if err := backup.ExportToFile(context.Background(), store, mdStore, csvStore, backupFile); err != nil {
+	if err := backup.ExportToFile(context.Background(), store, mdStore, csvStore, tdStore, backupFile); err != nil {
 		t.Fatalf("failed to generate test backup: %v", err)
 	}
 	content, err := os.ReadFile(filepath.Clean(backupFile))
@@ -695,6 +699,22 @@ func newTestCsvStore(t *testing.T) *csvimport.Store {
 	store, err := csvimport.NewStore(db)
 	if err != nil {
 		t.Fatalf("unable to create csvimport store: %v", err)
+	}
+	return store
+}
+
+// newTestToolsDataStore creates an in-memory toolsdata.Store for testing.
+func newTestToolsDataStore(t *testing.T) *toolsdata.Store {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{
+		Logger: logger.Discard,
+	})
+	if err != nil {
+		t.Fatalf("unable to connect to sqlite for toolsdata: %v", err)
+	}
+	store, err := toolsdata.NewStore(db)
+	if err != nil {
+		t.Fatalf("unable to create toolsdata store: %v", err)
 	}
 	return store
 }

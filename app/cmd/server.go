@@ -24,6 +24,7 @@ import (
 	"github.com/andresbott/etna/internal/marketdata"
 	"github.com/andresbott/etna/internal/marketdata/importer"
 	"github.com/andresbott/etna/internal/taskrunner"
+	"github.com/andresbott/etna/internal/toolsdata"
 	"github.com/glebarez/sqlite"
 	"github.com/go-bumbu/userauth"
 	"github.com/go-bumbu/userauth/handlers/sessionauth"
@@ -103,7 +104,7 @@ func runServer(configFile string) error {
 	}
 
 	// ——— Application stores (shared by router and task runner) ———
-	marketStore, finStore, csvImportStore, attachmentStore, err := initStores(db, cfg)
+	marketStore, finStore, csvImportStore, attachmentStore, toolsDataStore, err := initStores(db, cfg)
 	if err != nil {
 		return err
 	}
@@ -115,7 +116,7 @@ func runServer(configFile string) error {
 
 	// ——— Task runner and cron scheduler (started inside GroupRunner task) ———
 	backupDest := filepath.Join(cfg.DataDir, backupsDir)
-	taskRunner, scheduleStore, scheduler, err := initTaskRunnerAndScheduler(cfg, db, l, marketStore, finStore, csvImportStore, backupDest)
+	taskRunner, scheduleStore, scheduler, err := initTaskRunnerAndScheduler(cfg, db, l, marketStore, finStore, csvImportStore, toolsDataStore, backupDest)
 	if err != nil {
 		return err
 	}
@@ -152,6 +153,7 @@ func runServer(configFile string) error {
 		MarketStore:     marketStore,
 		CsvImportStore:  csvImportStore,
 		AttachmentStore: attachmentStore,
+		ToolsDataStore:  toolsDataStore,
 	}
 	mainAppHandler, err := router.New(routerCfg)
 	if err != nil {
@@ -199,18 +201,18 @@ func runServer(configFile string) error {
 }
 
 // initStores creates the application-level data stores shared by router and task runner.
-func initStores(db *gorm.DB, cfg AppCfg) (*marketdata.Store, *accounting.Store, *csvimport.Store, *filestore.Store, error) {
+func initStores(db *gorm.DB, cfg AppCfg) (*marketdata.Store, *accounting.Store, *csvimport.Store, *filestore.Store, *toolsdata.Store, error) {
 	marketStore, err := marketdata.NewStore(db)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("market data store: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("market data store: %w", err)
 	}
 	finStore, err := accounting.NewStore(db, marketStore)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("accounting store: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("accounting store: %w", err)
 	}
 	csvImportStore, err := csvimport.NewStore(db)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("csv import store: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("csv import store: %w", err)
 	}
 	maxAttachmentBytes := int64(10 * 1024 * 1024) // default 10MB
 	if cfg.Settings.MaxAttachmentSizeMB > 0 {
@@ -218,9 +220,13 @@ func initStores(db *gorm.DB, cfg AppCfg) (*marketdata.Store, *accounting.Store, 
 	}
 	attachmentStore, err := filestore.New(db, filepath.Join(cfg.DataDir, attachmentsDir), maxAttachmentBytes)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("attachment store: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("attachment store: %w", err)
 	}
-	return marketStore, finStore, csvImportStore, attachmentStore, nil
+	toolsDataStore, err := toolsdata.NewStore(db)
+	if err != nil {
+		return nil, nil, nil, nil, nil, fmt.Errorf("tools data store: %w", err)
+	}
+	return marketStore, finStore, csvImportStore, attachmentStore, toolsDataStore, nil
 }
 
 // reconcileInstrumentsSetting enables Instruments if the DB contains investment/unvested accounts.
@@ -274,6 +280,7 @@ func initTaskRunnerAndScheduler(
 	marketStore *marketdata.Store,
 	finStore *accounting.Store,
 	csvImportStore *csvimport.Store,
+	toolsDataStore *toolsdata.Store,
 	backupDest string,
 ) (*taskrunner.Runner, *taskrunner.ScheduleStore, *taskrunner.Scheduler, error) {
 	runner, err := taskrunner.NewRunner(taskrunner.Cfg{
@@ -310,7 +317,7 @@ func initTaskRunnerAndScheduler(
 	}
 
 	// Register tasks once; enqueue later via runner.AddRun(name) (scheduler and API).
-	runner.RegisterTask(tasks.NewBackupTaskFn(finStore, marketStore, csvImportStore, backupDest, l), tasks.BackupTaskName, 0)
+	runner.RegisterTask(tasks.NewBackupTaskFn(finStore, marketStore, csvImportStore, toolsDataStore, backupDest, l), tasks.BackupTaskName, 0)
 	runner.RegisterTask(tasks.NewFinancialImportTaskFn(marketStore, marketDataClient), tasks.FinancialImportTaskName, 0)
 	runner.RegisterTask(tasks.NewFinancialBackfillTaskFn(marketStore, l, marketDataClient), tasks.FinancialBackfillTaskName, 0)
 	runner.RegisterTask(tasks.NewFXImportTaskFn(marketStore, cfg.Settings.MainCurrency, cfg.Settings.AllCurrencies(), fxClient), tasks.FXImportTaskName, 0)

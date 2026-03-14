@@ -108,24 +108,24 @@ const router = createRouter({
             component: () => import('@/views/backup/BackupRestoreView.vue')
         },
         {
+            path: '/financial-simulator',
+            name: 'financial-simulator',
+            meta: {
+                requiresAuth: true
+            },
+            component: () => import('@/views/tools/FinancialSimulatorView.vue')
+        },
+        {
             path: '/tools',
-            redirect: '/tools/portfolio-simulator'
+            redirect: '/financial-simulator'
         },
         {
-            path: '/tools/portfolio-simulator',
-            name: 'portfolio-simulator',
+            path: '/financial-simulator/:toolType/:id',
+            name: 'simulation-editor',
             meta: {
                 requiresAuth: true
             },
-            component: () => import('@/views/tools/PortfolioSimulatorView.vue')
-        },
-        {
-            path: '/tools/real-estate-simulator',
-            name: 'real-estate-simulator',
-            meta: {
-                requiresAuth: true
-            },
-            component: () => import('@/views/tools/RealEstateSimulatorView.vue')
+            component: () => import('@/views/tools/SimulationEditorView.vue')
         },
         {
             path: '/tasks',
