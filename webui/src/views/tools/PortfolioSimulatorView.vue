@@ -1,7 +1,7 @@
 <script setup>
 import { ResponsiveHorizontal } from '@go-bumbu/vue-layouts'
 import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Card from 'primevue/card'
 import InputNumber from 'primevue/inputnumber'
@@ -12,8 +12,9 @@ import SelectButton from 'primevue/selectbutton'
 import InputText from 'primevue/inputtext'
 import Textarea from 'primevue/textarea'
 import Dialog from 'primevue/dialog'
-import { getCase, createCase, updateCase } from '@/lib/api/ToolsData'
+import { getCase, createCase, updateCase, uploadCaseAttachment, getCaseAttachmentUrl, deleteCaseAttachment } from '@/lib/api/ToolsData'
 import { computePortfolioProjection, computePortfolioExpectedReturn } from '@/lib/simulators/portfolio'
+import FileInput from '@/components/common/FileInput.vue'
 import { useToast } from 'primevue/usetoast'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -38,6 +39,8 @@ const TOOL_TYPE = 'portfolio-simulator'
 
 const activeCaseName = ref('')
 const activeCaseDescription = ref('')
+const activeCaseAttachmentId = ref(null)
+const selectedAttachmentFile = ref(null)
 const toast = useToast()
 
 function getCurrentParams() {
@@ -112,6 +115,7 @@ function loadCaseData(cs) {
     }
     activeCaseName.value = cs.name
     activeCaseDescription.value = cs.description ?? ''
+    activeCaseAttachmentId.value = cs.attachmentId ?? null
 }
 
 onMounted(async () => {
@@ -122,6 +126,37 @@ onMounted(async () => {
         console.error('Failed to load case:', e)
     }
 })
+
+watch(selectedAttachmentFile, async (file) => {
+    if (!file) return
+    try {
+        const result = await uploadCaseAttachment(TOOL_TYPE, props.caseId, file)
+        activeCaseAttachmentId.value = result.id
+        toast.add({ severity: 'success', summary: 'Uploaded', detail: `"${result.originalName}" attached`, life: 3000 })
+    } catch (e) {
+        console.error('Failed to upload attachment:', e)
+        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to upload attachment', life: 3000 })
+    }
+    selectedAttachmentFile.value = null
+})
+
+async function handleAttachmentDelete() {
+    try {
+        await deleteCaseAttachment(TOOL_TYPE, props.caseId)
+        activeCaseAttachmentId.value = null
+        toast.add({ severity: 'success', summary: 'Removed', detail: 'Attachment removed', life: 3000 })
+    } catch (e) {
+        console.error('Failed to delete attachment:', e)
+    }
+}
+
+function getAttachmentUrl() {
+    return getCaseAttachmentUrl(TOOL_TYPE, props.caseId)
+}
+
+function viewAttachment() {
+    window.open(getAttachmentUrl(), '_blank')
+}
 
 const projection = computed(() => computePortfolioProjection(getCurrentParams()))
 
@@ -356,6 +391,26 @@ function formatCurrencyShort(value) {
                         <div class="field">
                             <label for="editDesc">Description</label>
                             <Textarea id="editDesc" v-model="activeCaseDescription" rows="3" class="w-full" />
+                        </div>
+                        <div class="field">
+                            <label>Attachment</label>
+                            <div v-if="activeCaseAttachmentId" class="flex align-items-center gap-2">
+                                <Button
+                                    icon="pi pi-paperclip"
+                                    label="View attachment"
+                                    text
+                                    size="small"
+                                    @click="viewAttachment"
+                                />
+                                <Button icon="pi pi-trash" text rounded severity="danger" size="small" @click="handleAttachmentDelete" v-tooltip.bottom="'Remove attachment'" />
+                            </div>
+                            <FileInput
+                                v-else
+                                v-model="selectedAttachmentFile"
+                                accept=".jpg,.jpeg,.png,.webp,.pdf"
+                                label="Upload file"
+                                icon="pi pi-paperclip"
+                            />
                         </div>
                     </div>
                     <template #footer>

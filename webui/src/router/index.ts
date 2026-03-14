@@ -111,7 +111,8 @@ const router = createRouter({
             path: '/financial-simulator',
             name: 'financial-simulator',
             meta: {
-                requiresAuth: true
+                requiresAuth: true,
+                requiresTools: true
             },
             component: () => import('@/views/tools/FinancialSimulatorView.vue')
         },
@@ -123,7 +124,8 @@ const router = createRouter({
             path: '/financial-simulator/:toolType/:id',
             name: 'simulation-editor',
             meta: {
-                requiresAuth: true
+                requiresAuth: true,
+                requiresTools: true
             },
             component: () => import('@/views/tools/SimulationEditorView.vue')
         },
@@ -261,6 +263,8 @@ router.beforeEach((to, from, next) => {
                 next({ name: 'login' })
             } else if (to.matched.some((record) => record.meta.requiresInstruments) && !settings.instruments) {
                 next({ name: 'reports-overview' })
+            } else if (to.matched.some((record) => record.meta.requiresTools) && !settings.tools) {
+                next({ name: 'reports-overview' })
             } else {
                 next() // go to wherever I'm going
             }
@@ -277,9 +281,9 @@ router.beforeEach((to, from, next) => {
 
     // When the route needs the instruments flag, ensure settings are loaded first (avoids
     // redirect on F5 when settings were not yet fetched).
-    const needsInstrumentsCheck = to.matched.some((record) => record.meta.requiresInstruments)
+    const needsSettingsCheck = to.matched.some((record) => record.meta.requiresInstruments || record.meta.requiresTools)
     const ensureSettingsThenNavigate = () => {
-        if (needsInstrumentsCheck && !settings.isLoaded) {
+        if (needsSettingsCheck && !settings.isLoaded) {
             settings.fetchSettings().then(() => navigate(to, next)).catch(() => navigate(to, next))
         } else {
             navigate(to, next)

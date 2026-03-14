@@ -14,6 +14,7 @@ export const useSettingsStore = defineStore('settings', () => {
     const mainCurrency = ref<string>('')
     const currencies = ref<string[]>([])
     const instruments = ref<boolean>(false)
+    const tools = ref<boolean>(false)
     const marketDataSymbols = ref<string[]>([])
     const version = ref<string>('')
 
@@ -28,6 +29,7 @@ export const useSettingsStore = defineStore('settings', () => {
             mainCurrency.value = res.data.mainCurrency
             currencies.value = res.data.currencies ?? []
             instruments.value = res.data.instruments
+            tools.value = res.data.tools
             marketDataSymbols.value = res.data.marketDataSymbols ?? []
             version.value = res.data.version ?? ''
             isLoaded.value = true
@@ -47,6 +49,7 @@ export const useSettingsStore = defineStore('settings', () => {
         mainCurrency.value = ''
         currencies.value = []
         instruments.value = false
+        tools.value = false
         marketDataSymbols.value = []
         version.value = ''
     }
@@ -60,6 +63,7 @@ export const useSettingsStore = defineStore('settings', () => {
         mainCurrency,
         currencies,
         instruments,
+        tools,
         marketDataSymbols,
         version,
         hasMultipleCurrencies,

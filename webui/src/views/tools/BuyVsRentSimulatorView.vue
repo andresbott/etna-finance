@@ -20,9 +20,10 @@ import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
-import { getCase, createCase, updateCase, listCases } from '@/lib/api/ToolsData'
+import { getCase, createCase, updateCase, listCases, uploadCaseAttachment, getCaseAttachmentUrl, deleteCaseAttachment } from '@/lib/api/ToolsData'
 import type { BuyVsRentSimulatorParams, RealEstateSimulatorParams, CaseStudy } from '@/lib/api/ToolsData'
 import { computeBuyVsRentProjection } from '@/lib/simulators/buyVsRent'
+import FileInput from '@/components/common/FileInput.vue'
 import { useToast } from 'primevue/usetoast'
 
 const props = defineProps<{ caseId: number }>()
@@ -67,6 +68,8 @@ const showSaveDialog = ref(false)
 const saveName = ref('')
 const saveDescription = ref('')
 const showEditDialog = ref(false)
+const activeCaseAttachmentId = ref<number | null>(null)
+const selectedAttachmentFile = ref<File | null>(null)
 const showHelpDialog = ref(false)
 const helpDialogTitle = ref('')
 const helpDialogContent = ref('')
@@ -260,6 +263,7 @@ const chartOption = computed(() => {
         xAxis: {
             type: 'value',
             name: 'Year',
+            min: 1,
             nameLocation: 'middle',
             nameGap: 25,
             axisLabel: { formatter: (v: number) => v + 'y' },
@@ -412,11 +416,43 @@ onMounted(async () => {
             }
             activeCaseName.value = cs.name
             activeCaseDescription.value = cs.description ?? ''
+            activeCaseAttachmentId.value = cs.attachmentId ?? null
         } catch (e) {
             console.error('Failed to load case:', e)
         }
     }
 })
+
+watch(selectedAttachmentFile, async (file) => {
+    if (!file) return
+    try {
+        const result = await uploadCaseAttachment(TOOL_TYPE, props.caseId, file)
+        activeCaseAttachmentId.value = result.id
+        toast.add({ severity: 'success', summary: 'Uploaded', detail: `"${result.originalName}" attached`, life: 3000 })
+    } catch (e) {
+        console.error('Failed to upload attachment:', e)
+        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to upload attachment', life: 3000 })
+    }
+    selectedAttachmentFile.value = null
+})
+
+async function handleAttachmentDelete() {
+    try {
+        await deleteCaseAttachment(TOOL_TYPE, props.caseId)
+        activeCaseAttachmentId.value = null
+        toast.add({ severity: 'success', summary: 'Removed', detail: 'Attachment removed', life: 3000 })
+    } catch (e) {
+        console.error('Failed to delete attachment:', e)
+    }
+}
+
+function getAttachmentUrl(): string {
+    return getCaseAttachmentUrl(TOOL_TYPE, props.caseId)
+}
+
+function viewAttachment() {
+    window.open(getAttachmentUrl(), '_blank')
+}
 </script>
 
 <template>
@@ -721,10 +757,29 @@ onMounted(async () => {
                             <label for="editDesc">Description</label>
                             <Textarea id="editDesc" v-model="activeCaseDescription" rows="3" class="w-full" />
                         </div>
+                        <div class="field">
+                            <label>Attachment</label>
+                            <div v-if="activeCaseAttachmentId" class="flex align-items-center gap-2">
+                                <Button
+                                    icon="pi pi-paperclip"
+                                    label="View attachment"
+                                    text
+                                    size="small"
+                                    @click="viewAttachment"
+                                />
+                                <Button icon="pi pi-trash" text rounded severity="danger" size="small" @click="handleAttachmentDelete" v-tooltip.bottom="'Remove attachment'" />
+                            </div>
+                            <FileInput
+                                v-else
+                                v-model="selectedAttachmentFile"
+                                accept=".jpg,.jpeg,.png,.webp,.pdf"
+                                label="Upload file"
+                                icon="pi pi-paperclip"
+                            />
+                        </div>
                     </div>
                     <template #footer>
-                        <Button label="Save" @click="handleEditSave" />
-                        <Button label="Cancel" text @click="showEditDialog = false" />
+                        <Button label="Close" text @click="showEditDialog = false" />
                     </template>
                 </Dialog>
 

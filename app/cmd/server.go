@@ -142,6 +142,7 @@ func runServer(configFile string) error {
 			MainCurrency:        cfg.Settings.MainCurrency,
 			Currencies:          cfg.Settings.AllCurrencies(),
 			Instruments:         cfg.Settings.Instruments,
+			Tools:               cfg.Settings.Tools,
 			MaxAttachmentSizeMB: cfg.Settings.MaxAttachmentSizeMB,
 			Version:             metainfo.Version,
 		},

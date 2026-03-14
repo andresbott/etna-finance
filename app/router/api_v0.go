@@ -957,7 +957,9 @@ type httpError struct {
 const toolsDataPath = "/tools/{toolType:[a-z0-9-]+}/cases"
 
 func (h *MainAppHandler) toolsDataAPI(r *mux.Router) {
-	if h.toolsDataStore == nil {
+	if h.toolsDataStore == nil || !h.appSettings.Tools {
+		toolsDisabled := StatusErrText(http.StatusForbidden, "financial tools are disabled")
+		r.PathPrefix("/tools/").HandlerFunc(toolsDisabled)
 		return
 	}
 	tdHandler := toolsDataHandler.Handler{Store: h.toolsDataStore, FileStore: h.attachmentStore}

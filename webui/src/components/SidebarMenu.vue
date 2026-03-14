@@ -135,15 +135,17 @@
                     <li class="menu-spacer"></li>
 
                     <!-- TOOLS SECTION -->
-                    <li class="menu-section">
-                        <div class="menu-section-label">Tools</div>
-                    </li>
-                    <li>
-                        <router-link to="/financial-simulator" class="menu-item">
-                            <i class="pi pi-calculator menu-icon"></i>
-                            <span class="menu-label">Financial Simulator</span>
-                        </router-link>
-                    </li>
+                    <template v-if="settings.tools">
+                        <li class="menu-section">
+                            <div class="menu-section-label">Tools</div>
+                        </li>
+                        <li>
+                            <router-link to="/financial-simulator" class="menu-item">
+                                <i class="pi pi-calculator menu-icon"></i>
+                                <span class="menu-label">Financial Simulator</span>
+                            </router-link>
+                        </li>
+                    </template>
                 </ul>
             </div>
         </Transition>

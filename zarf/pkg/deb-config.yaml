@@ -41,11 +41,13 @@ Settings:
   MainCurrency:         "CHF"         # main currency is implicit; do not repeat in AdditionalCurrencies
   AdditionalCurrencies: []             # extra currencies to track, e.g. ["USD", "EUR"]
   Instruments:          false
+  Tools:                false
   # MaxAttachmentSizeMB: 10   # max file upload size in MB; 0 or omitted = default (10 MB)
   # Alternatives:
   # DateFormat: "DD/MM/YYYY"
   # AdditionalCurrencies: ["USD", "EUR"]
   # Instruments: true
+  # Tools: true
 
 # Market data importers (e.g. Massive). Prefer API keys via .env: ETNA_MARKETDATAIMPORTERS_MASSIVE_APIKEYS_0=key
 # MarketDataImporters:

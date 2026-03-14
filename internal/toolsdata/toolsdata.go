@@ -46,13 +46,17 @@ type CaseStudy struct {
 }
 
 func dbToCaseStudy(in dbToolsData) CaseStudy {
+	params := json.RawMessage(in.Params)
+	if len(params) == 0 {
+		params = json.RawMessage("{}")
+	}
 	return CaseStudy{
 		ID:                   in.ID,
 		ToolType:             in.ToolType,
 		Name:                 in.Name,
 		Description:          in.Description,
 		ExpectedAnnualReturn: in.ExpectedAnnualReturn,
-		Params:               json.RawMessage(in.Params),
+		Params:               params,
 		AttachmentID:         in.AttachmentID,
 		CreatedAt:            in.CreatedAt,
 		UpdatedAt:            in.UpdatedAt,
