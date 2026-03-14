@@ -464,7 +464,7 @@ async function handleSaveAs() {
         })
         showSaveDialog.value = false
         toast.add({ severity: 'success', summary: 'Created', detail: `"${created.name}" saved`, life: 3000 })
-        router.push(`/tools/${TOOL_TYPE}/${created.id}`)
+        router.push(`/financial-simulator/${TOOL_TYPE}/${created.id}`)
     } catch (e) {
         console.error('Failed to save scenario:', e)
     }

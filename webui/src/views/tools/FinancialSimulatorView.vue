@@ -6,6 +6,8 @@ import { useRouter } from 'vue-router'
 import Card from 'primevue/card'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
+import InputNumber from 'primevue/inputnumber'
+import Slider from 'primevue/slider'
 import Select from 'primevue/select'
 import Dialog from 'primevue/dialog'
 import DataTable from 'primevue/datatable'
@@ -17,7 +19,6 @@ import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import { listCases, createCase, deleteCase } from '@/lib/api/ToolsData'
 import type { CaseStudy } from '@/lib/api/ToolsData'
-import { computeNetWorth20Y } from '@/lib/simulators/projection'
 import DeleteDialog from '@/components/common/ConfirmDialog.vue'
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent])
@@ -65,7 +66,7 @@ async function handleCreate() {
             params: {},
         })
         showAddDialog.value = false
-        router.push(`/tools/${cs.toolType}/${cs.id}`)
+        router.push(`/financial-simulator/${cs.toolType}/${cs.id}`)
     } catch (e) {
         console.error('Failed to create simulation:', e)
     }
@@ -155,22 +156,41 @@ async function handleConfirmDuplicate() {
 
 // --- Edit ---
 function handleEdit(cs: CaseStudy) {
-    router.push(`/tools/${cs.toolType}/${cs.id}`)
+    router.push(`/financial-simulator/${cs.toolType}/${cs.id}`)
 }
 
 // --- Chart ---
-const YEARS = Array.from({ length: 21 }, (_, i) => i)
+const comparisonAmount = ref(100000)
+const comparisonYears = ref(20)
+const showChartSettingsDialog = ref(false)
+const settingsAmount = ref(100000)
+const settingsYears = ref(20)
+
+function openChartSettings() {
+    settingsAmount.value = comparisonAmount.value
+    settingsYears.value = comparisonYears.value
+    showChartSettingsDialog.value = true
+}
+
+function applyChartSettings() {
+    comparisonAmount.value = settingsAmount.value
+    comparisonYears.value = settingsYears.value
+    showChartSettingsDialog.value = false
+}
 
 const chartOption = computed(() => {
     const cases = chartCases.value
     if (cases.length === 0) return null
 
+    const years = Array.from({ length: comparisonYears.value + 1 }, (_, i) => i)
+
+    const amount = comparisonAmount.value
     const seriesList = cases.map((cs) => {
-        const netWorths = computeNetWorth20Y(cs)
+        const rate = cs.expectedAnnualReturn / 100
         return {
             type: 'line' as const,
             name: cs.name,
-            data: YEARS.map((y, i) => [y, netWorths[i] ?? 0]),
+            data: years.map((y) => [y, amount + amount * rate * y]),
             smooth: 0.2,
             showSymbol: false,
             lineStyle: { width: 2 },
@@ -245,7 +265,10 @@ function typeIcon(toolType: string): string {
                 <!-- Comparison Chart -->
                 <Card class="mb-3">
                     <template #title>
-                        <span>20-Year Net Worth Comparison</span>
+                        <div class="flex align-items-center justify-content-between">
+                            <span>{{ comparisonYears }}-Year Net Worth Comparison ({{ formatCurrencyShort(comparisonAmount) }})</span>
+                            <Button icon="pi pi-cog" text rounded @click="openChartSettings" v-tooltip.bottom="'Chart settings'" />
+                        </div>
                     </template>
                     <template #content>
                         <div v-if="chartCases.length > 0" class="chart-wrap">
@@ -276,7 +299,7 @@ function typeIcon(toolType: string): string {
                                     </span>
                                 </template>
                             </Column>
-                            <Column header="Expected Return">
+                            <Column header="ROI">
                                 <template #body="{ data }">
                                     {{ data.toolType === 'buy-vs-rent-simulator' ? '-' : data.expectedAnnualReturn.toFixed(2) + '%' }}
                                 </template>
@@ -345,6 +368,24 @@ function typeIcon(toolType: string): string {
                     <template #footer>
                         <Button label="Cancel" text @click="showDuplicateDialog = false" />
                         <Button label="Duplicate" @click="handleConfirmDuplicate" :disabled="!duplicateName" />
+                    </template>
+                </Dialog>
+
+                <!-- Chart Settings Dialog -->
+                <Dialog v-model:visible="showChartSettingsDialog" header="Chart Settings" :modal="true" :style="{ width: '26rem' }">
+                    <div class="flex flex-column gap-3">
+                        <div class="field">
+                            <label for="settingsAmount">Investment Amount</label>
+                            <InputNumber id="settingsAmount" v-model="settingsAmount" :min="0" :max="100000000" mode="decimal" :minFractionDigits="0" :maxFractionDigits="0" class="w-full" />
+                        </div>
+                        <div class="field">
+                            <label for="settingsYears">Years: {{ settingsYears }}</label>
+                            <Slider id="settingsYears" v-model="settingsYears" :min="1" :max="50" class="w-full" />
+                        </div>
+                    </div>
+                    <template #footer>
+                        <Button label="Cancel" text @click="showChartSettingsDialog = false" />
+                        <Button label="Apply" @click="applyChartSettings" />
                     </template>
                 </Dialog>
             </div>

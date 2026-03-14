@@ -343,7 +343,7 @@ async function handleSaveAs() {
             params: getCurrentParams(),
         })
         showSaveDialog.value = false
-        router.push(`/tools/${TOOL_TYPE}/${cs.id}`)
+        router.push(`/financial-simulator/${TOOL_TYPE}/${cs.id}`)
     } catch (e) {
         console.error('Save failed:', e)
     }

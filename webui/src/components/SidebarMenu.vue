@@ -139,7 +139,7 @@
                         <div class="menu-section-label">Tools</div>
                     </li>
                     <li>
-                        <router-link to="/tools" class="menu-item">
+                        <router-link to="/financial-simulator" class="menu-item">
                             <i class="pi pi-calculator menu-icon"></i>
                             <span class="menu-label">Financial Simulator</span>
                         </router-link>

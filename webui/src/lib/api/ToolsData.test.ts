@@ -14,7 +14,7 @@ const mockCase: CaseStudy = {
     name: 'Conservative',
     description: 'Low risk',
     expectedAnnualReturn: 4.5,
-    params: { durationYears: 20, growthRatePct: 6 },
+    params: { initialContribution: 10000, growthRatePct: 7, expenseRatioPct: 0.2, capitalGainTaxPct: 19, taxModel: 'exit' },
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
 }

@@ -13,12 +13,15 @@ export interface CaseStudy<T = Record<string, unknown>> {
 }
 
 export interface PortfolioSimulatorParams {
-    durationYears: number
     initialContribution: number
-    monthlyContribution: number
     growthRatePct: number
-    inflationPct: number
+    expenseRatioPct: number
     capitalGainTaxPct: number
+    taxModel: 'exit' | 'annual'
+    // Deprecated — ignored if present in saved data
+    monthlyContribution?: number
+    durationYears?: number
+    inflationPct?: number
 }
 
 export interface RealEstateSimulatorParams {

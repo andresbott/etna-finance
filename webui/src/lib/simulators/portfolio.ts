@@ -1,154 +1,138 @@
 import type { PortfolioSimulatorParams } from '@/lib/api/ToolsData'
 
+const DEFAULT_DURATION_YEARS = 20
+const MAX_DURATION_YEARS = 50
+
 export interface PortfolioProjectionSeries {
     totalInvested: number[]
     netWorth: number[]
-    inflationAdjustedNetWorth: number[]
     totalGains: number[]
     taxImpact: number[]
-    inflationAdjustedGains: number[]
 }
 
 export interface PortfolioProjection {
     years: number[]
-    values: number[]
     totalContributions: number
-    finalValue: number
+    finalValueBeforeTax: number
     finalValueAfterTax: number
-    realFinalValue: number
     totalGain: number
     taxPaid: number
-    inflationImpact: number
-    inflationAdjustedGains: number
     series: PortfolioProjectionSeries
 }
 
-/**
- * Compute the expected annual return after tax and inflation.
- */
 export function computePortfolioExpectedReturn(params: PortfolioSimulatorParams): number {
-    const growth = params.growthRatePct ?? 0
-    const tax = params.capitalGainTaxPct ?? 0
-    const inflation = params.inflationPct ?? 0
-    return growth - tax - inflation
+    const effectiveReturn = (params.growthRatePct ?? 0) - (params.expenseRatioPct ?? 0)
+    const taxRate = (params.capitalGainTaxPct ?? 0) / 100
+    const taxModel = params.taxModel ?? 'exit'
+
+    const estimatedTaxDrag = taxModel === 'exit'
+        ? taxRate * effectiveReturn / DEFAULT_DURATION_YEARS
+        : taxRate * effectiveReturn
+
+    return effectiveReturn - estimatedTaxDrag
 }
 
-/**
- * Project portfolio value year by year with compound growth and monthly contributions.
- * Pure function — no Vue reactivity.
- */
-export function computePortfolioProjection(params: PortfolioSimulatorParams): PortfolioProjection {
-    const years = params.durationYears
+export function computePortfolioProjection(params: PortfolioSimulatorParams, durationYears: number = DEFAULT_DURATION_YEARS): PortfolioProjection {
+    const duration = Math.min(Math.max(1, durationYears), MAX_DURATION_YEARS)
     const initial = params.initialContribution ?? 0
-    const monthly = params.monthlyContribution ?? 0
     const growthPct = params.growthRatePct ?? 0
+    const expensePct = params.expenseRatioPct ?? 0
     const taxPct = params.capitalGainTaxPct ?? 0
+    const taxModel = params.taxModel ?? 'exit'
 
-    if (years <= 0) {
+    const effectiveReturn = growthPct - expensePct
+    const taxRate = taxPct / 100
+
+    if (initial === 0) {
+        const zeros = Array(duration + 1).fill(0)
         return {
-            years: [0],
-            values: [initial],
-            totalContributions: initial,
-            finalValue: initial,
-            finalValueAfterTax: initial,
-            realFinalValue: initial,
+            years: Array.from({ length: duration + 1 }, (_, i) => i),
+            totalContributions: 0,
+            finalValueBeforeTax: 0,
+            finalValueAfterTax: 0,
             totalGain: 0,
             taxPaid: 0,
-            inflationImpact: 0,
-            inflationAdjustedGains: 0,
             series: {
-                totalInvested: [initial],
-                netWorth: [initial],
-                inflationAdjustedNetWorth: [initial],
-                totalGains: [0],
-                taxImpact: [0],
-                inflationAdjustedGains: [0],
+                totalInvested: zeros,
+                netWorth: zeros,
+                totalGains: zeros,
+                taxImpact: zeros,
             },
         }
     }
 
-    const monthlyRate = Math.pow(1 + growthPct / 100, 1 / 12) - 1
-    const totalContributions = initial + monthly * 12 * years
-    const taxRate = taxPct / 100
+    const monthlyRate = Math.pow(1 + effectiveReturn / 100, 1 / 12) - 1
 
-    const yearLabels = [0]
-    const yearValues = [initial]
-    const taxPerYear = [0]
+    const yearLabels: number[] = [0]
+    const balances: number[] = [initial]
+    const cumulativeTaxes: number[] = [0]
+
     let balance = initial
     let cumulativeTax = 0
 
-    for (let y = 1; y <= years; y++) {
+    for (let y = 1; y <= duration; y++) {
+        const balanceStartOfYear = balance
+
         for (let m = 0; m < 12; m++) {
-            balance = (balance + monthly) * (1 + monthlyRate)
+            balance = balance * (1 + monthlyRate)
         }
-        const netWorthBeforeTax = balance
-        const taxThisYear = netWorthBeforeTax * taxRate
-        cumulativeTax += taxThisYear
-        balance = netWorthBeforeTax - taxThisYear
+
+        if (taxModel === 'annual') {
+            const yearGain = balance - balanceStartOfYear
+            if (yearGain > 0) {
+                const tax = yearGain * taxRate
+                cumulativeTax += tax
+                balance -= tax
+            }
+        }
 
         yearLabels.push(y)
-        yearValues.push(balance)
-        taxPerYear.push(taxThisYear)
+        balances.push(balance)
+        cumulativeTaxes.push(cumulativeTax)
     }
 
-    const finalValueAfterTax = balance
-    const taxPaid = cumulativeTax
-    const gain = finalValueAfterTax + taxPaid - totalContributions
-    const inflationPctVal = params.inflationPct ?? 0
-    const inflationFactor = 1 + inflationPctVal / 100
-    const realFinalValue =
-        inflationPctVal > 0 ? finalValueAfterTax / Math.pow(inflationFactor, years) : finalValueAfterTax
-    const inflationImpactTotal = finalValueAfterTax - realFinalValue
-    const realCostBasis =
-        inflationPctVal > 0 ? totalContributions / Math.pow(inflationFactor, years) : totalContributions
-    const inflationAdjustedGainsFinal = realFinalValue - realCostBasis
+    let finalValueBeforeTax = balance
+    let finalValueAfterTax = balance
+    if (taxModel === 'exit') {
+        const totalGains = balance - initial
+        if (totalGains > 0) {
+            const exitTax = totalGains * taxRate
+            cumulativeTax = exitTax
+            finalValueAfterTax = balance - exitTax
+            balances[duration] = finalValueAfterTax
+            cumulativeTaxes[duration] = exitTax
+        }
+    } else {
+        finalValueBeforeTax = balance + cumulativeTax
+        finalValueAfterTax = balance
+    }
 
-    // Per-year series for the chart
-    const totalInvestedSeries = yearLabels.map((yr) => initial + monthly * 12 * yr)
-    const netWorthSeries = yearValues
-    const cumulativeTaxByYear = taxPerYear.map((_, i) =>
-        taxPerYear.slice(0, i + 1).reduce((a, b) => a + b, 0),
-    )
-    const totalGainsSeries = yearLabels.map(
-        (_, i) => netWorthSeries[i] + cumulativeTaxByYear[i] - totalInvestedSeries[i],
-    )
-    const taxImpactSeries = cumulativeTaxByYear
-    const inflationAdjustedNetWorthSeries = yearLabels.map((y, i) =>
-        inflationPctVal > 0 ? netWorthSeries[i] / Math.pow(inflationFactor, y) : netWorthSeries[i],
-    )
-    const realCostBasisSeries = yearLabels.map((y, i) =>
-        inflationPctVal > 0 ? totalInvestedSeries[i] / Math.pow(inflationFactor, y) : totalInvestedSeries[i],
-    )
-    const inflationAdjustedGainsSeries = yearLabels.map(
-        (_, i) => inflationAdjustedNetWorthSeries[i] - realCostBasisSeries[i],
+    const totalTaxPaid = cumulativeTax
+
+    const totalInvestedSeries = Array(duration + 1).fill(initial)
+    const netWorthSeries = balances
+    const taxImpactSeries = cumulativeTaxes
+    const totalGainsSeries = yearLabels.map((_, i) =>
+        netWorthSeries[i] + cumulativeTaxes[i] - initial
     )
 
     return {
         years: yearLabels,
-        values: yearValues,
-        totalContributions,
-        finalValue: finalValueAfterTax,
+        totalContributions: initial,
+        finalValueBeforeTax,
         finalValueAfterTax,
-        realFinalValue,
-        totalGain: gain,
-        taxPaid,
-        inflationImpact: inflationImpactTotal,
-        inflationAdjustedGains: inflationAdjustedGainsFinal,
+        totalGain: finalValueAfterTax + totalTaxPaid - initial,
+        taxPaid: totalTaxPaid,
         series: {
             totalInvested: totalInvestedSeries,
             netWorth: netWorthSeries,
-            inflationAdjustedNetWorth: inflationAdjustedNetWorthSeries,
             totalGains: totalGainsSeries,
             taxImpact: taxImpactSeries,
-            inflationAdjustedGains: inflationAdjustedGainsSeries,
         },
     }
 }
 
-/**
- * Convenience: always project 20 years and return the inflation-adjusted net worth series.
- */
-export function computePortfolioNetWorth20Y(params: PortfolioSimulatorParams): number[] {
-    const result = computePortfolioProjection({ ...params, durationYears: 20 })
-    return result.series.inflationAdjustedNetWorth
+export function computePortfolioNetWorth20Y(params: PortfolioSimulatorParams, durationYears?: number): number[] {
+    const result = computePortfolioProjection(params, durationYears)
+    return result.series.netWorth
 }

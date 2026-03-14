@@ -8,7 +8,11 @@ import InputNumber from 'primevue/inputnumber'
 import Slider from 'primevue/slider'
 import VChart from 'vue-echarts'
 import Button from 'primevue/button'
-import { getCase, updateCase } from '@/lib/api/ToolsData'
+import SelectButton from 'primevue/selectbutton'
+import InputText from 'primevue/inputtext'
+import Textarea from 'primevue/textarea'
+import Dialog from 'primevue/dialog'
+import { getCase, createCase, updateCase } from '@/lib/api/ToolsData'
 import { computePortfolioProjection, computePortfolioExpectedReturn } from '@/lib/simulators/portfolio'
 import { useToast } from 'primevue/usetoast'
 import { use } from 'echarts/core'
@@ -24,12 +28,11 @@ const router = useRouter()
 const leftSidebarCollapsed = ref(true)
 
 // Form inputs (defaults)
-const durationYears = ref(20)
 const initialContribution = ref(10000)
-const monthlyContribution = ref(500)
-const growthRatePct = ref(6)
-const inflationPct = ref(2)
-const capitalGainTaxPct = ref(3)
+const growthRatePct = ref(7)
+const expenseRatioPct = ref(0.2)
+const capitalGainTaxPct = ref(19)
+const taxModel = ref('exit')
 
 const TOOL_TYPE = 'portfolio-simulator'
 
@@ -39,12 +42,41 @@ const toast = useToast()
 
 function getCurrentParams() {
     return {
-        durationYears: durationYears.value,
         initialContribution: initialContribution.value,
-        monthlyContribution: monthlyContribution.value,
         growthRatePct: growthRatePct.value,
-        inflationPct: inflationPct.value,
+        expenseRatioPct: expenseRatioPct.value,
         capitalGainTaxPct: capitalGainTaxPct.value,
+        taxModel: taxModel.value,
+    }
+}
+
+const showSaveDialog = ref(false)
+const saveName = ref('')
+const saveDescription = ref('')
+const showEditDialog = ref(false)
+
+function openSaveAsDialog() {
+    saveName.value = activeCaseName.value ? activeCaseName.value + ' (copy)' : ''
+    saveDescription.value = activeCaseDescription.value
+    showSaveDialog.value = true
+}
+
+async function handleSaveAs() {
+    const payload = {
+        expectedAnnualReturn: computeExpectedAnnualReturn(),
+        params: getCurrentParams(),
+    }
+    try {
+        const created = await createCase(TOOL_TYPE, {
+            ...payload,
+            name: saveName.value,
+            description: saveDescription.value,
+        })
+        showSaveDialog.value = false
+        toast.add({ severity: 'success', summary: 'Created', detail: `"${created.name}" saved`, life: 3000 })
+        router.push(`/financial-simulator/${TOOL_TYPE}/${created.id}`)
+    } catch (e) {
+        console.error('Failed to save scenario:', e)
     }
 }
 
@@ -61,6 +93,7 @@ async function handleSave() {
         await updateCase(TOOL_TYPE, props.caseId, {
             ...payload,
             name: activeCaseName.value,
+            description: activeCaseDescription.value,
         })
         toast.add({ severity: 'success', summary: 'Saved', detail: `"${activeCaseName.value}" updated`, life: 3000 })
     } catch (e) {
@@ -71,12 +104,11 @@ async function handleSave() {
 function loadCaseData(cs) {
     const p = cs.params
     if (p) {
-        durationYears.value = p.durationYears ?? durationYears.value
         initialContribution.value = p.initialContribution ?? initialContribution.value
-        monthlyContribution.value = p.monthlyContribution ?? monthlyContribution.value
         growthRatePct.value = p.growthRatePct ?? growthRatePct.value
-        inflationPct.value = p.inflationPct ?? inflationPct.value
+        expenseRatioPct.value = p.expenseRatioPct ?? 0
         capitalGainTaxPct.value = p.capitalGainTaxPct ?? capitalGainTaxPct.value
+        taxModel.value = p.taxModel ?? 'exit'
     }
     activeCaseName.value = cs.name
     activeCaseDescription.value = cs.description ?? ''
@@ -91,19 +123,13 @@ onMounted(async () => {
     }
 })
 
-/**
- * Project portfolio value year by year with compound growth and monthly contributions.
- * Delegates to the shared pure function.
- */
 const projection = computed(() => computePortfolioProjection(getCurrentParams()))
 
 const chartColors = {
     totalInvested: '#64748b',
     netWorth: '#22c55e',
-    inflationAdjustedNetWorth: '#0d9488',
     totalGains: '#3b82f6',
     taxImpact: '#ef4444',
-    inflationAdjustedGains: '#8b5cf6'
 }
 
 const chartOption = computed(() => {
@@ -115,7 +141,7 @@ const chartOption = computed(() => {
         legend: {
             type: 'scroll',
             bottom: 0,
-            data: ['Total Invested', 'Net Worth', 'Inflation Adjusted Net Worth', 'Total Gains', 'Inflation Adjusted Gains', 'Tax Impact']
+            data: ['Total Invested', 'Net Worth', 'Total Gains', 'Tax Impact']
         },
         grid: { left: '3%', right: '4%', bottom: '18%', top: '6%', containLabel: true },
         tooltip: {
@@ -124,12 +150,10 @@ const chartOption = computed(() => {
                 const idx = params[0].dataIndex
                 const y = years[idx]
                 const lines = [
-                    `Year <strong>${y.toFixed(1)}</strong>`,
+                    `Year <strong>${y}</strong>`,
                     `Total Invested: ${formatCurrency(s.totalInvested[idx])}`,
                     `Net Worth: ${formatCurrency(s.netWorth[idx])}`,
-                    `Inflation Adjusted Net Worth: ${formatCurrency(s.inflationAdjustedNetWorth[idx])}`,
                     `Total Gains: ${formatCurrency(s.totalGains[idx])}`,
-                    `Inflation Adjusted Gains: ${formatCurrency(s.inflationAdjustedGains[idx])}`,
                     `Tax Impact: −${formatCurrency(s.taxImpact[idx])}`
                 ]
                 return lines.join('<br/>')
@@ -152,9 +176,7 @@ const chartOption = computed(() => {
         series: [
             { type: 'line', data: years.map((y, i) => [y, s.totalInvested[i]]), smooth: 0.2, showSymbol: false, lineStyle: { color: chartColors.totalInvested, width: 2 }, itemStyle: { color: chartColors.totalInvested }, name: 'Total Invested' },
             { type: 'line', data: years.map((y, i) => [y, s.netWorth[i]]), smooth: 0.2, showSymbol: false, lineStyle: { color: chartColors.netWorth, width: 2.5 }, itemStyle: { color: chartColors.netWorth }, name: 'Net Worth' },
-            { type: 'line', data: years.map((y, i) => [y, s.inflationAdjustedNetWorth[i]]), smooth: 0.2, showSymbol: false, lineStyle: { color: chartColors.inflationAdjustedNetWorth, width: 2 }, itemStyle: { color: chartColors.inflationAdjustedNetWorth }, name: 'Inflation Adjusted Net Worth' },
             { type: 'line', data: years.map((y, i) => [y, s.totalGains[i]]), smooth: 0.2, showSymbol: false, lineStyle: { color: chartColors.totalGains, width: 2 }, itemStyle: { color: chartColors.totalGains }, name: 'Total Gains' },
-            { type: 'line', data: years.map((y, i) => [y, s.inflationAdjustedGains[i]]), smooth: 0.2, showSymbol: false, lineStyle: { color: chartColors.inflationAdjustedGains, width: 2 }, itemStyle: { color: chartColors.inflationAdjustedGains }, name: 'Inflation Adjusted Gains' },
             { type: 'line', data: years.map((y, i) => [y, s.taxImpact[i]]), smooth: 0.2, showSymbol: false, lineStyle: { color: chartColors.taxImpact, width: 2 }, itemStyle: { color: chartColors.taxImpact }, name: 'Tax Impact' }
         ]
     }
@@ -183,11 +205,13 @@ function formatCurrencyShort(value) {
             <div class="p-3">
                 <div class="flex align-items-center justify-content-between mb-3">
                     <div class="flex align-items-center gap-2">
-                        <Button icon="pi pi-arrow-left" label="Back" text @click="router.push('/tools')" />
+                        <Button icon="pi pi-arrow-left" label="Back" text @click="router.push('/financial-simulator')" />
                         <span class="text-xl font-bold">Portfolio Simulator : {{ activeCaseName }}</span>
                     </div>
                     <div class="flex align-items-center gap-2">
+                        <Button label="Edit" icon="pi pi-pencil" size="small" outlined @click="showEditDialog = true" />
                         <Button label="Save" icon="pi pi-save" size="small" @click="handleSave()" />
+                        <Button label="Save As" icon="pi pi-copy" size="small" outlined @click="openSaveAsDialog()" />
                     </div>
                 </div>
 
@@ -198,48 +222,19 @@ function formatCurrencyShort(value) {
                             <template #content>
                                 <div class="form-grid">
                                     <div class="field">
-                                        <label for="duration">Duration (years)</label>
-                                        <div class="field-controls">
-                                            <InputNumber
-                                                id="duration"
-                                                v-model="durationYears"
-                                                :min="1"
-                                                :max="50"
-                                                class="field-input"
-                                            />
-                                            <Slider v-model="durationYears" :min="1" :max="50" :step="1" class="field-slider" />
-                                        </div>
-                                    </div>
-                                    <div class="field">
                                         <label for="initial">Initial contribution</label>
                                         <div class="field-controls">
                                             <InputNumber
                                                 id="initial"
                                                 v-model="initialContribution"
                                                 :min="0"
-                                                :max="200000"
+                                                :max="1000000"
                                                 mode="decimal"
                                                 :minFractionDigits="0"
                                                 :maxFractionDigits="0"
                                                 class="field-input"
                                             />
-                                            <Slider v-model="initialContribution" :min="0" :max="200000" :step="1000" class="field-slider" />
-                                        </div>
-                                    </div>
-                                    <div class="field">
-                                        <label for="monthly">Monthly contribution</label>
-                                        <div class="field-controls">
-                                            <InputNumber
-                                                id="monthly"
-                                                v-model="monthlyContribution"
-                                                :min="0"
-                                                :max="5000"
-                                                mode="decimal"
-                                                :minFractionDigits="0"
-                                                :maxFractionDigits="0"
-                                                class="field-input"
-                                            />
-                                            <Slider v-model="monthlyContribution" :min="0" :max="5000" :step="50" class="field-slider" />
+                                            <Slider v-model="initialContribution" :min="0" :max="1000000" :step="5000" class="field-slider" />
                                         </div>
                                     </div>
                                     <div class="field">
@@ -254,22 +249,22 @@ function formatCurrencyShort(value) {
                                                 :maxFractionDigits="2"
                                                 class="field-input"
                                             />
-                                            <Slider v-model="growthRatePct" :min="0" :max="20" :step="0.5" class="field-slider" />
+                                            <Slider v-model="growthRatePct" :min="0" :max="30" :step="0.5" class="field-slider" />
                                         </div>
                                     </div>
                                     <div class="field">
-                                        <label for="inflation">Inflation (%)</label>
+                                        <label for="expense">Expense ratio / TER (%)</label>
                                         <div class="field-controls">
                                             <InputNumber
-                                                id="inflation"
-                                                v-model="inflationPct"
+                                                id="expense"
+                                                v-model="expenseRatioPct"
                                                 :min="0"
-                                                :max="50"
-                                                :minFractionDigits="1"
+                                                :max="5"
+                                                :minFractionDigits="2"
                                                 :maxFractionDigits="2"
                                                 class="field-input"
                                             />
-                                            <Slider v-model="inflationPct" :min="0" :max="10" :step="0.5" class="field-slider" />
+                                            <Slider v-model="expenseRatioPct" :min="0" :max="5" :step="0.05" class="field-slider" />
                                         </div>
                                     </div>
                                     <div class="field">
@@ -286,6 +281,18 @@ function formatCurrencyShort(value) {
                                             />
                                             <Slider v-model="capitalGainTaxPct" :min="0" :max="50" :step="1" class="field-slider" />
                                         </div>
+                                    </div>
+                                    <div class="field">
+                                        <label>Tax model</label>
+                                        <SelectButton
+                                            v-model="taxModel"
+                                            :options="[
+                                                { label: 'Exit Tax', value: 'exit' },
+                                                { label: 'Annual Tax', value: 'annual' },
+                                            ]"
+                                            optionLabel="label"
+                                            optionValue="value"
+                                        />
                                     </div>
                                 </div>
                             </template>
@@ -308,20 +315,8 @@ function formatCurrencyShort(value) {
                                         <span class="result-value font-bold">{{ formatCurrency(projection.finalValueAfterTax) }}</span>
                                     </div>
                                     <div class="result-row">
-                                        <span class="result-label">Inflation adjusted net worth</span>
-                                        <span class="result-value">{{ formatCurrency(projection.realFinalValue) }}</span>
-                                    </div>
-                                    <div class="result-row">
                                         <span class="result-label">Total Gains</span>
                                         <span class="result-value">{{ formatCurrency(projection.totalGain) }}</span>
-                                    </div>
-                                    <div class="result-row">
-                                        <span class="result-label">Inflation adjusted gains</span>
-                                        <span class="result-value">{{ formatCurrency(projection.inflationAdjustedGains) }}</span>
-                                    </div>
-                                    <div class="result-row">
-                                        <span class="result-label">Inflation Impact</span>
-                                        <span class="result-value">−{{ formatCurrency(projection.inflationImpact) }}</span>
                                     </div>
                                     <div class="result-row">
                                         <span class="result-label">Tax Impact</span>
@@ -332,6 +327,41 @@ function formatCurrencyShort(value) {
                         </Card>
                     </div>
                 </div>
+
+                <!-- Save As Dialog -->
+                <Dialog v-model:visible="showSaveDialog" header="Save as New Scenario" :modal="true" :style="{ width: '30rem' }">
+                    <div class="flex flex-column gap-3">
+                        <div class="field">
+                            <label for="caseName">Name</label>
+                            <InputText id="caseName" v-model="saveName" class="w-full" />
+                        </div>
+                        <div class="field">
+                            <label for="caseDesc">Description</label>
+                            <Textarea id="caseDesc" v-model="saveDescription" rows="3" class="w-full" />
+                        </div>
+                    </div>
+                    <template #footer>
+                        <Button label="Cancel" text @click="showSaveDialog = false" />
+                        <Button label="Save" @click="handleSaveAs" :disabled="!saveName" />
+                    </template>
+                </Dialog>
+
+                <!-- Edit Name & Description Dialog -->
+                <Dialog v-model:visible="showEditDialog" header="Edit Scenario" :modal="true" :style="{ width: '35rem' }">
+                    <div class="flex flex-column gap-3">
+                        <div class="field">
+                            <label for="editName">Name</label>
+                            <InputText id="editName" v-model="activeCaseName" class="w-full" />
+                        </div>
+                        <div class="field">
+                            <label for="editDesc">Description</label>
+                            <Textarea id="editDesc" v-model="activeCaseDescription" rows="3" class="w-full" />
+                        </div>
+                    </div>
+                    <template #footer>
+                        <Button label="Close" text @click="showEditDialog = false" />
+                    </template>
+                </Dialog>
             </div>
         </template>
     </ResponsiveHorizontal>

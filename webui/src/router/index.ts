@@ -108,7 +108,7 @@ const router = createRouter({
             component: () => import('@/views/backup/BackupRestoreView.vue')
         },
         {
-            path: '/tools',
+            path: '/financial-simulator',
             name: 'financial-simulator',
             meta: {
                 requiresAuth: true
@@ -116,7 +116,11 @@ const router = createRouter({
             component: () => import('@/views/tools/FinancialSimulatorView.vue')
         },
         {
-            path: '/tools/:toolType/:id',
+            path: '/tools',
+            redirect: '/financial-simulator'
+        },
+        {
+            path: '/financial-simulator/:toolType/:id',
             name: 'simulation-editor',
             meta: {
                 requiresAuth: true
