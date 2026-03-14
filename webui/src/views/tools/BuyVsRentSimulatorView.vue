@@ -705,8 +705,8 @@ onMounted(async () => {
                         </div>
                     </div>
                     <template #footer>
-                        <Button label="Cancel" text @click="showSaveDialog = false" />
                         <Button label="Save" @click="handleSaveAs" :disabled="!saveName" />
+                        <Button label="Cancel" text @click="showSaveDialog = false" />
                     </template>
                 </Dialog>
 
@@ -723,8 +723,8 @@ onMounted(async () => {
                         </div>
                     </div>
                     <template #footer>
-                        <Button label="Cancel" text @click="showEditDialog = false" />
                         <Button label="Save" @click="handleEditSave" />
+                        <Button label="Cancel" text @click="showEditDialog = false" />
                     </template>
                 </Dialog>
 
@@ -746,8 +746,8 @@ onMounted(async () => {
                         class="w-full"
                     />
                     <template #footer>
-                        <Button label="Cancel" text @click="showImportDialog = false" />
                         <Button label="Import" icon="pi pi-download" @click="handleImportConfirm" :disabled="!selectedImportCase" />
+                        <Button label="Cancel" text @click="showImportDialog = false" />
                     </template>
                 </Dialog>
 

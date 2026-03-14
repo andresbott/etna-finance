@@ -341,8 +341,8 @@ function formatCurrencyShort(value) {
                         </div>
                     </div>
                     <template #footer>
-                        <Button label="Cancel" text @click="showSaveDialog = false" />
                         <Button label="Save" @click="handleSaveAs" :disabled="!saveName" />
+                        <Button label="Cancel" text @click="showSaveDialog = false" />
                     </template>
                 </Dialog>
 

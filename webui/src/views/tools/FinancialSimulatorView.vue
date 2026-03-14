@@ -18,7 +18,8 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import { listCases, createCase, deleteCase } from '@/lib/api/ToolsData'
-import type { CaseStudy } from '@/lib/api/ToolsData'
+import type { CaseStudy, RealEstateSimulatorParams } from '@/lib/api/ToolsData'
+import { computeRealEstateAnnualYield } from '@/lib/simulators/realEstate'
 import DeleteDialog from '@/components/common/ConfirmDialog.vue'
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent])
@@ -160,37 +161,67 @@ function handleEdit(cs: CaseStudy) {
 }
 
 // --- Chart ---
-const comparisonAmount = ref(100000)
 const comparisonYears = ref(20)
+const baseInvestment = ref(0)
+const inflationRate = ref(0)
 const showChartSettingsDialog = ref(false)
-const settingsAmount = ref(100000)
 const settingsYears = ref(20)
+const settingsBaseInvestment = ref(0)
+const settingsInflation = ref(0)
+
+const isMoneyMode = computed(() => (baseInvestment.value ?? 0) > 0)
 
 function openChartSettings() {
-    settingsAmount.value = comparisonAmount.value
     settingsYears.value = comparisonYears.value
+    settingsBaseInvestment.value = baseInvestment.value
+    settingsInflation.value = inflationRate.value
     showChartSettingsDialog.value = true
 }
 
 function applyChartSettings() {
-    comparisonAmount.value = settingsAmount.value
     comparisonYears.value = settingsYears.value
+    baseInvestment.value = settingsBaseInvestment.value ?? 0
+    inflationRate.value = settingsInflation.value ?? 0
     showChartSettingsDialog.value = false
+}
+
+function computeCumulativeGrowth(cs: CaseStudy, years: number, inflation: number): number[] {
+    let annualYields: number[]
+    if (cs.toolType === 'real-estate-simulator') {
+        annualYields = computeRealEstateAnnualYield(cs.params as unknown as RealEstateSimulatorParams, years)
+    } else {
+        // Portfolio: flat annual return
+        annualYields = Array(years).fill(cs.expectedAnnualReturn)
+    }
+    // Compound into cumulative growth %, adjusted for inflation
+    const result: number[] = []
+    let cumulative = 1
+    const inflationFactor = 1 + inflation / 100
+    for (let i = 0; i < years; i++) {
+        cumulative *= 1 + (annualYields[i] ?? 0) / 100
+        const realValue = cumulative / Math.pow(inflationFactor, i + 1)
+        result.push((realValue - 1) * 100)
+    }
+    return result
 }
 
 const chartOption = computed(() => {
     const cases = chartCases.value
     if (cases.length === 0) return null
 
-    const years = Array.from({ length: comparisonYears.value + 1 }, (_, i) => i)
+    const years = Array.from({ length: comparisonYears.value }, (_, i) => i + 1)
 
-    const amount = comparisonAmount.value
+    const money = isMoneyMode.value
+    const base = baseInvestment.value
+    const inflation = inflationRate.value ?? 0
+
     const seriesList = cases.map((cs) => {
-        const rate = cs.expectedAnnualReturn / 100
+        const growthData = computeCumulativeGrowth(cs, comparisonYears.value, inflation)
+        const startVal = money ? base : 0
         return {
             type: 'line' as const,
             name: cs.name,
-            data: years.map((y) => [y, amount + amount * rate * y]),
+            data: [[0, startVal], ...years.map((y, i) => [y, money ? base * (1 + growthData[i] / 100) : growthData[i]])],
             smooth: 0.2,
             showSymbol: false,
             lineStyle: { width: 2 },
@@ -212,8 +243,12 @@ const chartOption = computed(() => {
                 const year = params[0].data[0]
                 const lines = [`<strong>Year ${year}</strong>`]
                 for (const p of params) {
+                    const val = p.data[1]
+                    const formatted = money
+                        ? val.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                        : (Math.abs(val) >= 100 ? Math.round(val) + '%' : val.toFixed(2) + '%')
                     lines.push(
-                        `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${p.color};margin-right:4px"></span>${p.seriesName}: ${formatCurrencyShort(p.data[1])}`
+                        `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${p.color};margin-right:4px"></span>${p.seriesName}: ${formatted}`
                     )
                 }
                 return lines.join('<br/>')
@@ -229,21 +264,17 @@ const chartOption = computed(() => {
         },
         yAxis: {
             type: 'value',
-            name: 'Net Worth',
-            axisLabel: { formatter: (v: number) => formatCurrencyShort(v) },
+            name: money ? 'Value' : 'Cumulative Growth (%)',
+            axisLabel: {
+                formatter: money
+                    ? (v: number) => v.toLocaleString()
+                    : (v: number) => (Math.abs(v) >= 100 ? Math.round(v) + '%' : v.toFixed(1) + '%'),
+            },
             splitLine: { lineStyle: { type: 'dashed', opacity: 0.4 } },
         },
         series: seriesList,
     }
 })
-
-function formatCurrencyShort(value: number): string {
-    if (value >= 1_000_000) return (value / 1_000_000).toFixed(1) + 'M'
-    if (value >= 1_000) return (value / 1_000).toFixed(0) + 'k'
-    if (value <= -1_000_000) return (value / 1_000_000).toFixed(1) + 'M'
-    if (value <= -1_000) return (value / 1_000).toFixed(0) + 'k'
-    return value.toFixed(0)
-}
 
 function typeLabel(toolType: string): string {
     if (toolType === 'portfolio-simulator') return 'Portfolio'
@@ -266,7 +297,7 @@ function typeIcon(toolType: string): string {
                 <Card class="mb-3">
                     <template #title>
                         <div class="flex align-items-center justify-content-between">
-                            <span>{{ comparisonYears }}-Year Net Worth Comparison ({{ formatCurrencyShort(comparisonAmount) }})</span>
+                            <span>{{ comparisonYears }}-Year {{ isMoneyMode ? 'Investment Value' : 'Cumulative Growth' }} Comparison{{ inflationRate > 0 ? ` (${inflationRate}% inflation adj.)` : '' }}</span>
                             <Button icon="pi pi-cog" text rounded @click="openChartSettings" v-tooltip.bottom="'Chart settings'" />
                         </div>
                     </template>
@@ -348,8 +379,8 @@ function typeIcon(toolType: string): string {
                         </div>
                     </div>
                     <template #footer>
-                        <Button label="Cancel" text @click="showAddDialog = false" />
                         <Button label="Create" @click="handleCreate" :disabled="!newName" />
+                        <Button label="Cancel" text @click="showAddDialog = false" />
                     </template>
                 </Dialog>
 
@@ -366,8 +397,8 @@ function typeIcon(toolType: string): string {
                         </div>
                     </div>
                     <template #footer>
-                        <Button label="Cancel" text @click="showDuplicateDialog = false" />
                         <Button label="Duplicate" @click="handleConfirmDuplicate" :disabled="!duplicateName" />
+                        <Button label="Cancel" text @click="showDuplicateDialog = false" />
                     </template>
                 </Dialog>
 
@@ -375,17 +406,24 @@ function typeIcon(toolType: string): string {
                 <Dialog v-model:visible="showChartSettingsDialog" header="Chart Settings" :modal="true" :style="{ width: '26rem' }">
                     <div class="flex flex-column gap-3">
                         <div class="field">
-                            <label for="settingsAmount">Investment Amount</label>
-                            <InputNumber id="settingsAmount" v-model="settingsAmount" :min="0" :max="100000000" mode="decimal" :minFractionDigits="0" :maxFractionDigits="0" class="w-full" />
-                        </div>
-                        <div class="field">
                             <label for="settingsYears">Years: {{ settingsYears }}</label>
                             <Slider id="settingsYears" v-model="settingsYears" :min="1" :max="50" class="w-full" />
                         </div>
+                        <div class="field">
+                            <label for="settingsBase">Base Investment (0 = show %)</label>
+                            <InputNumber id="settingsBase" v-model="settingsBaseInvestment" :min="0" mode="decimal" :minFractionDigits="0" :maxFractionDigits="0" class="w-full" />
+                        </div>
+                        <div class="field">
+                            <label for="settingsInflation">Inflation % (0 = nominal)</label>
+                            <div class="field-controls">
+                                <InputNumber id="settingsInflation" v-model="settingsInflation" :min="0" :max="30" :minFractionDigits="0" :maxFractionDigits="1" suffix="%" class="field-input" />
+                                <Slider v-model="settingsInflation" :min="0" :max="15" :step="0.5" class="field-slider" />
+                            </div>
+                        </div>
                     </div>
                     <template #footer>
-                        <Button label="Cancel" text @click="showChartSettingsDialog = false" />
                         <Button label="Apply" @click="applyChartSettings" />
+                        <Button label="Cancel" text @click="showChartSettingsDialog = false" />
                     </template>
                 </Dialog>
             </div>
@@ -408,5 +446,24 @@ function typeIcon(toolType: string): string {
     font-weight: 600;
     margin-bottom: 0.35rem;
     font-size: 0.9rem;
+}
+
+.field-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    width: 100%;
+}
+
+.field-input {
+    width: 100%;
+}
+
+.field-input :deep(.p-inputnumber) {
+    width: 100%;
+}
+
+.field-slider {
+    width: 100%;
 }
 </style>

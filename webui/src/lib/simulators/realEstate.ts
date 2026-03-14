@@ -103,9 +103,17 @@ function deriveMaxTerm(params: RealEstateSimulatorParams): number {
 
 // ── Main computation functions ───────────────────────────────────────
 
+function computeAmortizationScheduleForYears(params: RealEstateSimulatorParams, minYears: number): AmortizationYear[] {
+    const maxTerm = Math.max(deriveMaxTerm(params), minYears)
+    return computeAmortizationScheduleInternal(params, maxTerm)
+}
+
 export function computeAmortizationSchedule(params: RealEstateSimulatorParams): AmortizationYear[] {
+    return computeAmortizationScheduleInternal(params, deriveMaxTerm(params))
+}
+
+function computeAmortizationScheduleInternal(params: RealEstateSimulatorParams, maxTerm: number): AmortizationYear[] {
     const mortgages = params.mortgages ?? []
-    const maxTerm = deriveMaxTerm(params)
     const years: AmortizationYear[] = []
 
     const balances = mortgages.map(m => deriveMortgagePrincipal(params, m))
@@ -257,4 +265,25 @@ export function computeRealEstateExpectedReturn(params: RealEstateSimulatorParam
     const noi = annualRent - totalRecurringCosts
     const mv = params.marketValue ?? 0
     return mv > 0 ? (noi / mv) * 100 : 0
+}
+
+export function computeRealEstateAnnualYield(params: RealEstateSimulatorParams, years: number): number[] {
+    const schedule = computeAmortizationScheduleForYears(params, years)
+    const totalEquity = deriveTotalEquity(params)
+    if (totalEquity <= 0) return Array(years).fill(0)
+
+    const annualRent = deriveAnnualRent(params)
+    const totalRecurringCosts = deriveTotalRecurringCosts(params)
+    const noi = annualRent - totalRecurringCosts
+    const annualAppreciation = (params.marketValue ?? 0) * (params.housingPriceIncreasePct ?? 0) / 100
+
+    const result: number[] = []
+    for (let y = 1; y <= years; y++) {
+        const yr = schedule[y - 1]
+        const yearMortgagePayments = yr.totalInterest + yr.totalPrincipal
+        const leveragedCashFlow = noi - yearMortgagePayments
+        const equityBuildup = yr.totalPrincipal
+        result.push(((leveragedCashFlow + equityBuildup + annualAppreciation) / totalEquity) * 100)
+    }
+    return result
 }
