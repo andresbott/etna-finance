@@ -959,7 +959,7 @@ func (h *MainAppHandler) toolsDataAPI(r *mux.Router) {
 	if h.toolsDataStore == nil {
 		return
 	}
-	tdHandler := toolsDataHandler.Handler{Store: h.toolsDataStore}
+	tdHandler := toolsDataHandler.Handler{Store: h.toolsDataStore, FileStore: h.attachmentStore}
 
 	r.Path(toolsDataPath).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, err := sessionauth.CtxGetUserData(r); err != nil {
@@ -1019,5 +1019,50 @@ func (h *MainAppHandler) toolsDataAPI(r *mux.Router) {
 			return
 		}
 		tdHandler.DeleteCase(toolType, itemId).ServeHTTP(w, r)
+	})
+
+	// Attachment routes
+	attPath := fmt.Sprintf("%s/{id}/attachment", toolsDataPath)
+
+	r.Path(attPath).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		toolType := mux.Vars(r)["toolType"]
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		tdHandler.UploadAttachment(toolType, itemId).ServeHTTP(w, r)
+	})
+
+	r.Path(attPath).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		toolType := mux.Vars(r)["toolType"]
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		tdHandler.GetAttachment(toolType, itemId).ServeHTTP(w, r)
+	})
+
+	r.Path(attPath).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		toolType := mux.Vars(r)["toolType"]
+		itemId, httpErr := getId(r)
+		if httpErr != nil {
+			http.Error(w, httpErr.Error, httpErr.Code)
+			return
+		}
+		tdHandler.DeleteAttachment(toolType, itemId).ServeHTTP(w, r)
 	})
 }

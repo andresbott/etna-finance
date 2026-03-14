@@ -7,6 +7,7 @@ export interface CaseStudy<T = Record<string, unknown>> {
     description: string
     expectedAnnualReturn: number
     params: T
+    attachmentId?: number
     createdAt: string
     updatedAt: string
 }
@@ -29,16 +30,18 @@ export interface RealEstateSimulatorParams {
     insurance: number
     maintenance: number
     otherCosts: number
+    incidentalPct?: number
     cashEquity: number
     additionalEquity: Array<{ name: string; amount: number }>
     mortgages: Array<{
         name: string
-        principal: number
+        splitPct: number
         interestRate: number
         termYears: number
         amortize: boolean
     }>
-    grossMonthlyIncome: number
+    grossAnnualIncome: number
+    housingPriceIncreasePct?: number
 }
 
 function toolPath(toolType: string): string {
@@ -74,4 +77,21 @@ export async function updateCase<T = Record<string, unknown>>(
 
 export async function deleteCase(toolType: string, id: number): Promise<void> {
     await apiClient.delete(`${toolPath(toolType)}/${id}`)
+}
+
+export async function uploadCaseAttachment(toolType: string, id: number, file: File): Promise<{ id: number; originalName: string; mimeType: string; fileSize: number }> {
+    const formData = new FormData()
+    formData.append('file', file)
+    const { data } = await apiClient.post(`${toolPath(toolType)}/${id}/attachment`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return data
+}
+
+export function getCaseAttachmentUrl(toolType: string, id: number): string {
+    return `/api${toolPath(toolType)}/${id}/attachment`
+}
+
+export async function deleteCaseAttachment(toolType: string, id: number): Promise<void> {
+    await apiClient.delete(`${toolPath(toolType)}/${id}/attachment`)
 }

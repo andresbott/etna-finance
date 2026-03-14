@@ -27,6 +27,7 @@ type dbToolsData struct {
 	Description          string
 	ExpectedAnnualReturn float64
 	Params               string // JSON string stored as TEXT in SQLite
+	AttachmentID         *uint
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 }
@@ -39,6 +40,7 @@ type CaseStudy struct {
 	Description          string
 	ExpectedAnnualReturn float64
 	Params               json.RawMessage
+	AttachmentID         *uint
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 }
@@ -51,6 +53,7 @@ func dbToCaseStudy(in dbToolsData) CaseStudy {
 		Description:          in.Description,
 		ExpectedAnnualReturn: in.ExpectedAnnualReturn,
 		Params:               json.RawMessage(in.Params),
+		AttachmentID:         in.AttachmentID,
 		CreatedAt:            in.CreatedAt,
 		UpdatedAt:            in.UpdatedAt,
 	}
@@ -138,6 +141,18 @@ func (s *Store) Update(ctx context.Context, toolType string, id uint, cs CaseStu
 		return CaseStudy{}, ErrCaseStudyNotFound
 	}
 	return s.Get(ctx, toolType, id)
+}
+
+func (s *Store) SetAttachmentID(ctx context.Context, toolType string, id uint, attID *uint) error {
+	d := s.db.WithContext(ctx).Model(&dbToolsData{}).Where("id = ? AND tool_type = ?", id, toolType).
+		Update("attachment_id", attID)
+	if d.Error != nil {
+		return d.Error
+	}
+	if d.RowsAffected == 0 {
+		return ErrCaseStudyNotFound
+	}
+	return nil
 }
 
 func (s *Store) Delete(ctx context.Context, toolType string, id uint) error {
