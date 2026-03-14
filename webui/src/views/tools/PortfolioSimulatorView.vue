@@ -1,18 +1,15 @@
 <script setup>
 import { ResponsiveHorizontal } from '@go-bumbu/vue-layouts'
 import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import Card from 'primevue/card'
 import InputNumber from 'primevue/inputnumber'
 import Slider from 'primevue/slider'
 import VChart from 'vue-echarts'
 import Button from 'primevue/button'
-import InputText from 'primevue/inputtext'
-import Textarea from 'primevue/textarea'
-import Dialog from 'primevue/dialog'
-import DataTable from 'primevue/datatable'
-import Column from 'primevue/column'
-import { listCases, createCase, updateCase, deleteCase } from '@/lib/api/ToolsData'
+import { getCase, updateCase } from '@/lib/api/ToolsData'
+import { computePortfolioProjection, computePortfolioExpectedReturn } from '@/lib/simulators/portfolio'
 import { useToast } from 'primevue/usetoast'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -21,6 +18,9 @@ import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/compon
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent])
 
+const props = defineProps({ caseId: { type: Number, required: true } })
+
+const router = useRouter()
 const leftSidebarCollapsed = ref(true)
 
 // Form inputs (defaults)
@@ -33,23 +33,9 @@ const capitalGainTaxPct = ref(3)
 
 const TOOL_TYPE = 'portfolio-simulator'
 
-const cases = ref([])
-const showSaveDialog = ref(false)
-const showCasesDialog = ref(false)
-const saveName = ref('')
-const saveDescription = ref('')
-const activeCaseId = ref(null)
 const activeCaseName = ref('')
 const activeCaseDescription = ref('')
 const toast = useToast()
-
-async function loadCases() {
-    try {
-        cases.value = await listCases(TOOL_TYPE)
-    } catch (e) {
-        console.error('Failed to load scenarios:', e)
-    }
-}
 
 function getCurrentParams() {
     return {
@@ -63,16 +49,7 @@ function getCurrentParams() {
 }
 
 function computeExpectedAnnualReturn() {
-    const growth = growthRatePct.value ?? 0
-    const tax = capitalGainTaxPct.value ?? 0
-    const inflation = inflationPct.value ?? 0
-    return growth - tax - inflation
-}
-
-function openSaveDialog() {
-    saveName.value = ''
-    saveDescription.value = ''
-    showSaveDialog.value = true
+    return computePortfolioExpectedReturn(getCurrentParams())
 }
 
 async function handleSave() {
@@ -81,179 +58,44 @@ async function handleSave() {
         params: getCurrentParams(),
     }
     try {
-        if (activeCaseId.value) {
-            await updateCase(TOOL_TYPE, activeCaseId.value, {
-                ...payload,
-                name: activeCaseName.value,
-            })
-            toast.add({ severity: 'success', summary: 'Saved', detail: `"${activeCaseName.value}" updated`, life: 3000 })
-        } else {
-            const created = await createCase(TOOL_TYPE, {
-                ...payload,
-                name: saveName.value,
-                description: saveDescription.value,
-            })
-            activeCaseId.value = created.id
-            activeCaseName.value = created.name
-            activeCaseDescription.value = saveDescription.value
-            showSaveDialog.value = false
-            toast.add({ severity: 'success', summary: 'Created', detail: `"${created.name}" saved`, life: 3000 })
-        }
-        await loadCases()
+        await updateCase(TOOL_TYPE, props.caseId, {
+            ...payload,
+            name: activeCaseName.value,
+        })
+        toast.add({ severity: 'success', summary: 'Saved', detail: `"${activeCaseName.value}" updated`, life: 3000 })
     } catch (e) {
         console.error('Failed to save scenario:', e)
     }
 }
 
-function loadCase(cs) {
+function loadCaseData(cs) {
     const p = cs.params
-    durationYears.value = p.durationYears
-    initialContribution.value = p.initialContribution
-    monthlyContribution.value = p.monthlyContribution
-    growthRatePct.value = p.growthRatePct
-    inflationPct.value = p.inflationPct
-    capitalGainTaxPct.value = p.capitalGainTaxPct
-    activeCaseId.value = cs.id
+    if (p) {
+        durationYears.value = p.durationYears ?? durationYears.value
+        initialContribution.value = p.initialContribution ?? initialContribution.value
+        monthlyContribution.value = p.monthlyContribution ?? monthlyContribution.value
+        growthRatePct.value = p.growthRatePct ?? growthRatePct.value
+        inflationPct.value = p.inflationPct ?? inflationPct.value
+        capitalGainTaxPct.value = p.capitalGainTaxPct ?? capitalGainTaxPct.value
+    }
     activeCaseName.value = cs.name
     activeCaseDescription.value = cs.description ?? ''
 }
 
-function clearActiveCase() {
-    activeCaseId.value = null
-    activeCaseName.value = ''
-    activeCaseDescription.value = ''
-}
-
-async function removeScenario(id) {
+onMounted(async () => {
     try {
-        await deleteCase(TOOL_TYPE, id)
-        if (activeCaseId.value === id) {
-            clearActiveCase()
-        }
-        await loadCases()
+        const cs = await getCase(TOOL_TYPE, props.caseId)
+        loadCaseData(cs)
     } catch (e) {
-        console.error('Failed to delete scenario:', e)
-    }
-}
-
-// Load cases on mount
-loadCases()
-
-/**
- * Project portfolio value month by month with compound growth and monthly contributions.
- * Returns { years: number[], values: number[], totalContributions, finalValue, finalValueAfterTax }.
- */
-const projection = computed(() => {
-    const years = durationYears.value
-    const initial = initialContribution.value ?? 0
-    const monthly = monthlyContribution.value ?? 0
-    const growthPct = growthRatePct.value ?? 0
-    const taxPct = capitalGainTaxPct.value ?? 0
-
-    if (years <= 0) {
-        return {
-            years: [0],
-            values: [initial],
-            totalContributions: initial,
-            finalValue: initial,
-            finalValueAfterTax: initial,
-            realFinalValue: initial,
-            totalGain: 0,
-            taxPaid: 0,
-            inflationImpact: 0,
-            inflationAdjustedGains: 0,
-            series: {
-                totalInvested: [initial],
-                netWorth: [initial],
-                inflationAdjustedNetWorth: [initial],
-                totalGains: [0],
-                taxImpact: [0],
-                inflationAdjustedGains: [0]
-            }
-        }
-    }
-
-    const monthlyRate = Math.pow(1 + growthPct / 100, 1 / 12) - 1
-    const totalContributions = initial + monthly * 12 * years
-    const taxRate = taxPct / 100
-
-    // Year-over-year tax: each year pay (tax rate)% of end-of-year net worth (before tax).
-    // Next year starts with (end-of-year after tax). E.g. 100/mo, 0% growth, 1% tax:
-    //   Year 1: net worth 1200, tax 12, after tax 1188.
-    //   Year 2: 1188 + 12*100 = 2388, tax 23.88, after tax 2364.12.
-    const yearLabels = [0]
-    const yearValues = [initial]
-    const taxPerYear = [0] // tax paid in that year only (chart series)
-    let balance = initial
-    let cumulativeTax = 0
-
-    for (let y = 1; y <= years; y++) {
-        // 12 months: add monthly contribution then apply growth each month
-        for (let m = 0; m < 12; m++) {
-            balance = (balance + monthly) * (1 + monthlyRate)
-        }
-        const netWorthBeforeTax = balance
-        const taxThisYear = netWorthBeforeTax * taxRate // e.g. 1% of 1200 = 12, 1% of 2388 = 23.88
-        cumulativeTax += taxThisYear
-        balance = netWorthBeforeTax - taxThisYear // carry after-tax balance into next year
-
-        yearLabels.push(y)
-        yearValues.push(balance)
-        taxPerYear.push(taxThisYear)
-    }
-
-    const finalValueAfterTax = balance
-    const taxPaid = cumulativeTax
-    const gain = finalValueAfterTax + taxPaid - totalContributions // pre-tax total gain
-    const inflationPctVal = inflationPct.value ?? 0
-    const inflationFactor = 1 + inflationPctVal / 100
-    const realFinalValue = inflationPctVal > 0
-        ? finalValueAfterTax / Math.pow(inflationFactor, years)
-        : finalValueAfterTax
-    const inflationImpactTotal = finalValueAfterTax - realFinalValue
-    const realCostBasis = inflationPctVal > 0
-        ? totalContributions / Math.pow(inflationFactor, years)
-        : totalContributions
-    const inflationAdjustedGainsFinal = realFinalValue - realCostBasis
-
-    // Per-year series for the chart
-    const totalInvestedSeries = yearLabels.map((yr) => initial + monthly * 12 * yr)
-    const netWorthSeries = yearValues
-    const cumulativeTaxByYear = taxPerYear.map((_, i) => taxPerYear.slice(0, i + 1).reduce((a, b) => a + b, 0))
-    const totalGainsSeries = yearLabels.map((_, i) => netWorthSeries[i] + cumulativeTaxByYear[i] - totalInvestedSeries[i])
-    const taxImpactSeries = cumulativeTaxByYear // cumulative tax so chart last value matches table (e.g. 0, 12, 35.88)
-    // After-tax value at each year, in year-0 purchasing power (so final point = realFinalValue)
-    const inflationAdjustedNetWorthSeries = yearLabels.map((y, i) =>
-        inflationPctVal > 0 ? netWorthSeries[i] / Math.pow(inflationFactor, y) : netWorthSeries[i]
-    )
-    const realCostBasisSeries = yearLabels.map((y, i) =>
-        inflationPctVal > 0 ? totalInvestedSeries[i] / Math.pow(inflationFactor, y) : totalInvestedSeries[i]
-    )
-    const inflationAdjustedGainsSeries = yearLabels.map((_, i) =>
-        inflationAdjustedNetWorthSeries[i] - realCostBasisSeries[i]
-    )
-
-    return {
-        years: yearLabels,
-        values: yearValues,
-        totalContributions,
-        finalValue: finalValueAfterTax,
-        finalValueAfterTax,
-        realFinalValue,
-        totalGain: gain,
-        taxPaid,
-        inflationImpact: inflationImpactTotal,
-        inflationAdjustedGains: inflationAdjustedGainsFinal,
-        series: {
-            totalInvested: totalInvestedSeries,
-            netWorth: netWorthSeries,
-            inflationAdjustedNetWorth: inflationAdjustedNetWorthSeries,
-            totalGains: totalGainsSeries,
-            taxImpact: taxImpactSeries,
-            inflationAdjustedGains: inflationAdjustedGainsSeries
-        }
+        console.error('Failed to load case:', e)
     }
 })
+
+/**
+ * Project portfolio value year by year with compound growth and monthly contributions.
+ * Delegates to the shared pure function.
+ */
+const projection = computed(() => computePortfolioProjection(getCurrentParams()))
 
 const chartColors = {
     totalInvested: '#64748b',
@@ -339,27 +181,15 @@ function formatCurrencyShort(value) {
     <ResponsiveHorizontal :leftSidebarCollapsed="leftSidebarCollapsed">
         <template #default>
             <div class="p-3">
-                <Card class="mb-3">
-                    <template #title>
-                        <div class="flex align-items-center justify-content-between">
-                            <div class="flex align-items-center gap-2">
-                                <span>Portfolio Simulator</span>
-                                <Button v-if="activeCaseId" icon="pi pi-times" size="small" text rounded severity="secondary" @click="clearActiveCase()" title="Detach from scenario" />
-                            </div>
-                            <div class="flex align-items-center gap-2">
-                                <Button label="Scenarios" icon="pi pi-list" size="small" outlined @click="showCasesDialog = true" />
-                                <Button label="Save" icon="pi pi-save" size="small" @click="activeCaseId ? handleSave() : openSaveDialog()" />
-                            </div>
-                        </div>
-                    </template>
-                    <template #content>
-                        <template v-if="activeCaseId">
-                            <p class="mt-0 mb-1 font-semibold">{{ activeCaseName }}</p>
-                            <p v-if="activeCaseDescription" class="m-0 text-color-secondary">{{ activeCaseDescription }}</p>
-                        </template>
-                        <p v-else class="m-0 text-color-secondary font-italic">No scenario loaded.</p>
-                    </template>
-                </Card>
+                <div class="flex align-items-center justify-content-between mb-3">
+                    <div class="flex align-items-center gap-2">
+                        <Button icon="pi pi-arrow-left" label="Back" text @click="router.push('/tools')" />
+                        <span class="text-xl font-bold">Portfolio Simulator : {{ activeCaseName }}</span>
+                    </div>
+                    <div class="flex align-items-center gap-2">
+                        <Button label="Save" icon="pi pi-save" size="small" @click="handleSave()" />
+                    </div>
+                </div>
 
                 <div class="grid">
                     <div class="col-12 md:col-4">
@@ -501,40 +331,6 @@ function formatCurrencyShort(value) {
                             </template>
                         </Card>
                     </div>
-                    <Dialog v-model:visible="showCasesDialog" header="Scenarios" :modal="true" :style="{ width: '50rem' }">
-                        <DataTable :value="cases" size="small" v-if="cases.length > 0">
-                            <Column field="name" header="Name" />
-                            <Column field="description" header="Description" />
-                            <Column field="expectedAnnualReturn" header="Expected Annual Return">
-                                <template #body="{ data }">{{ data.expectedAnnualReturn.toFixed(2) }}%</template>
-                            </Column>
-                            <Column header="Actions" style="width: 7rem">
-                                <template #body="{ data }">
-                                    <div class="flex gap-1">
-                                        <Button icon="pi pi-upload" size="small" text @click="loadCase(data); showCasesDialog = false" title="Load" />
-                                        <Button icon="pi pi-trash" size="small" text severity="danger" @click="removeScenario(data.id)" title="Delete" />
-                                    </div>
-                                </template>
-                            </Column>
-                        </DataTable>
-                        <p v-else class="text-color-secondary">No saved scenarios yet. Use "Save Current" to store your parameters.</p>
-                    </Dialog>
-                    <Dialog v-model:visible="showSaveDialog" header="Save as New Scenario" :modal="true" :style="{ width: '30rem' }">
-                        <div class="flex flex-column gap-3">
-                            <div class="field">
-                                <label for="caseName">Name</label>
-                                <InputText id="caseName" v-model="saveName" class="w-full" />
-                            </div>
-                            <div class="field">
-                                <label for="caseDesc">Description</label>
-                                <Textarea id="caseDesc" v-model="saveDescription" rows="3" class="w-full" />
-                            </div>
-                        </div>
-                        <template #footer>
-                            <Button label="Cancel" text @click="showSaveDialog = false" />
-                            <Button label="Save" @click="handleSave" :disabled="!saveName" />
-                        </template>
-                    </Dialog>
                 </div>
             </div>
         </template>

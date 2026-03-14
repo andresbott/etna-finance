@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ResponsiveHorizontal } from '@go-bumbu/vue-layouts'
 import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import Card from 'primevue/card'
 import InputNumber from 'primevue/inputnumber'
 import Slider from 'primevue/slider'
@@ -9,8 +10,6 @@ import InputText from 'primevue/inputtext'
 import Textarea from 'primevue/textarea'
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
-import DataTable from 'primevue/datatable'
-import Column from 'primevue/column'
 import TabView from 'primevue/tabview'
 import TabPanel from 'primevue/tabpanel'
 import ToggleSwitch from 'primevue/toggleswitch'
@@ -21,11 +20,20 @@ import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart, BarChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
-import { listCases, createCase, updateCase, deleteCase, uploadCaseAttachment, getCaseAttachmentUrl, deleteCaseAttachment } from '@/lib/api/ToolsData'
+import { getCase, createCase, updateCase, uploadCaseAttachment, getCaseAttachmentUrl, deleteCaseAttachment } from '@/lib/api/ToolsData'
 import type { RealEstateSimulatorParams } from '@/lib/api/ToolsData'
+import {
+    calcMonthlyPayment,
+    calcTotalInterest,
+    computeAmortizationSchedule,
+    computeRealEstateProjection,
+} from '@/lib/simulators/realEstate'
 import FileUpload from 'primevue/fileupload'
 import { useToast } from 'primevue/usetoast'
-import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+
+const props = defineProps<{ caseId: number }>()
+
+const router = useRouter()
 
 use([CanvasRenderer, LineChart, BarChart, GridComponent, TooltipComponent, LegendComponent])
 
@@ -33,7 +41,7 @@ const leftSidebarCollapsed = ref(true)
 
 // ── Form inputs (defaults) ──────────────────────────────────────────
 const purchasePrice = ref(1000000)
-const marketValue = ref(500000)
+const marketValue = ref(1000000)
 const squareMeters = ref(80)
 const monthlyRent = ref(1500)
 const propertyTax = ref(1000)
@@ -134,29 +142,7 @@ const financingGap = computed(() => {
     return (purchasePrice.value ?? 0) - totalEquity.value - totalMortgagePrincipal.value
 })
 
-// ── Mortgage payment calculation ────────────────────────────────────
-function calcMonthlyPayment(principal: number, annualRate: number, termYears: number, amortize: boolean): number {
-    if (principal <= 0 || annualRate < 0 || termYears <= 0) return 0
-    if (!amortize) {
-        return principal * (annualRate / 100) / 12
-    }
-    const monthlyRate = annualRate / 100 / 12
-    if (monthlyRate === 0) {
-        return principal / (termYears * 12)
-    }
-    const months = termYears * 12
-    const factor = Math.pow(1 + monthlyRate, months)
-    return principal * (monthlyRate * factor) / (factor - 1)
-}
-
-function calcTotalInterest(principal: number, annualRate: number, termYears: number, amortize: boolean): number {
-    const monthly = calcMonthlyPayment(principal, annualRate, termYears, amortize)
-    if (amortize) {
-        return monthly * termYears * 12 - principal
-    }
-    // Interest-only: return annual interest (term is irrelevant)
-    return monthly * 12
-}
+// ── Mortgage payment calculation (delegated to shared utility) ───────
 
 const mortgageDetails = computed(() => {
     return mortgages.value.map((m) => {
@@ -210,12 +196,12 @@ const capRate = computed(() => {
     return mv > 0 ? (noi.value / mv) * 100 : 0
 })
 
-const leveragedCapRate = computed(() => {
-    const mv = marketValue.value ?? 0
-    return mv > 0 ? ((noi.value - totalAnnualMortgagePayments.value) / mv) * 100 : 0
-})
-
 const leveragedCashFlow = computed(() => noi.value - totalAnnualMortgagePayments.value)
+
+const year1EquityBuildup = computed(() => {
+    const schedule = amortizationSchedule.value
+    return schedule.length > 0 ? schedule[0].totalPrincipal : 0
+})
 
 const breakevenMonthlyRent = computed(() => {
     return (totalRecurringCosts.value + totalAnnualMortgagePayments.value) / 12
@@ -223,7 +209,32 @@ const breakevenMonthlyRent = computed(() => {
 
 const leveredYield = computed(() => {
     const eq = totalEquity.value
-    return eq > 0 ? (leveragedCashFlow.value / eq) * 100 : 0
+    return eq > 0 ? ((leveragedCashFlow.value + year1EquityBuildup.value) / eq) * 100 : 0
+})
+
+const avgLeveredYield = computed(() => {
+    const eq = totalEquity.value
+    const linearEquityBuildup = mortgageDetails.value.reduce((sum, m) => {
+        return sum + (m.amortize && m.termYears > 0 ? m.principal / m.termYears : 0)
+    }, 0)
+    return eq > 0 ? ((leveragedCashFlow.value + linearEquityBuildup) / eq) * 100 : 0
+})
+
+const annualPropertyAppreciation = computed(() => {
+    return (marketValue.value ?? 0) * (housingPriceIncreasePct.value ?? 0) / 100
+})
+
+const totalLeveredYield = computed(() => {
+    const eq = totalEquity.value
+    return eq > 0 ? ((leveragedCashFlow.value + year1EquityBuildup.value + annualPropertyAppreciation.value) / eq) * 100 : 0
+})
+
+const avgTotalLeveredYield = computed(() => {
+    const eq = totalEquity.value
+    const linearEquityBuildup = mortgageDetails.value.reduce((sum, m) => {
+        return sum + (m.amortize && m.termYears > 0 ? m.principal / m.termYears : 0)
+    }, 0)
+    return eq > 0 ? ((leveragedCashFlow.value + linearEquityBuildup + annualPropertyAppreciation.value) / eq) * 100 : 0
 })
 
 // ── Affordability metrics ───────────────────────────────────────────
@@ -253,137 +264,16 @@ function equityColor(pct: number): string {
     return 'var(--c-red-500)'
 }
 
-// ── Amortization schedule (year-by-year, per mortgage) ──────────────
-const hasNonAmortizing = computed(() => mortgages.value.some(m => !m.amortize))
+// ── Amortization schedule (delegated to shared utility) ──────────────
 
-const maxTerm = computed(() => {
-    if (mortgages.value.length === 0) return 1
-    const amortizing = mortgages.value.filter(m => m.amortize)
-    const baseTerm = amortizing.length > 0
-        ? Math.max(...amortizing.map(m => m.termYears), 1)
-        : Math.max(...mortgages.value.map(m => m.termYears), 1)
-    return hasNonAmortizing.value ? baseTerm + 5 : baseTerm
-})
+const amortizationSchedule = computed(() => computeAmortizationSchedule(getCurrentParams()))
 
-const amortizationSchedule = computed(() => {
-    const years: Array<{
-        year: number
-        mortgages: Array<{
-            name: string
-            beginningBalance: number
-            interestPaid: number
-            principalPaid: number
-            endingBalance: number
-        }>
-        totalBeginning: number
-        totalInterest: number
-        totalPrincipal: number
-        totalEnding: number
-    }> = []
-
-    const balances = mortgages.value.map(m => mortgagePrincipal(m))
-
-    for (let y = 1; y <= maxTerm.value; y++) {
-        const yearData = mortgages.value.map((m, i) => {
-            const principal = mortgagePrincipal(m)
-            const bal = balances[i]
-            if (bal <= 0 || (m.amortize && y > m.termYears)) {
-                return {
-                    name: m.name,
-                    beginningBalance: Math.max(0, bal),
-                    interestPaid: 0,
-                    principalPaid: 0,
-                    endingBalance: Math.max(0, bal)
-                }
-            }
-
-            const monthlyRate = m.interestRate / 100 / 12
-            let yearInterest = 0
-            let yearPrincipal = 0
-            let currentBal = bal
-
-            const monthlyPayment = calcMonthlyPayment(principal, m.interestRate, m.termYears, m.amortize)
-
-            for (let month = 0; month < 12; month++) {
-                if (currentBal <= 0) break
-                const interestThisMonth = currentBal * monthlyRate
-                let principalThisMonth: number
-                if (m.amortize) {
-                    principalThisMonth = Math.min(monthlyPayment - interestThisMonth, currentBal)
-                } else {
-                    principalThisMonth = 0
-                }
-                yearInterest += interestThisMonth
-                yearPrincipal += principalThisMonth
-                currentBal -= principalThisMonth
-            }
-
-            balances[i] = currentBal
-
-            return {
-                name: m.name,
-                beginningBalance: bal,
-                interestPaid: yearInterest,
-                principalPaid: yearPrincipal,
-                endingBalance: currentBal
-            }
-        })
-
-        years.push({
-            year: y,
-            mortgages: yearData,
-            totalBeginning: yearData.reduce((s, m) => s + m.beginningBalance, 0),
-            totalInterest: yearData.reduce((s, m) => s + m.interestPaid, 0),
-            totalPrincipal: yearData.reduce((s, m) => s + m.principalPaid, 0),
-            totalEnding: yearData.reduce((s, m) => s + m.endingBalance, 0)
-        })
-    }
-
-    return years
-})
-
-// ── Chart projection ────────────────────────────────────────────────
-const chartProjection = computed(() => {
-    const schedule = amortizationSchedule.value
-    const yearLabels = [0, ...schedule.map(s => s.year)]
-
-    const initialMortgageBalance = totalMortgagePrincipal.value
-    const remainingMortgage = [initialMortgageBalance, ...schedule.map(s => s.totalEnding)]
-    const mv = marketValue.value ?? 0
-    const annualGrowth = (housingPriceIncreasePct.value ?? 0) / 100
-    const propertyEquity = yearLabels.map((_, i) => {
-        const projectedValue = mv * Math.pow(1 + annualGrowth, yearLabels[i])
-        return projectedValue - remainingMortgage[i]
-    })
-
-    let cumulativeInterest = 0
-    const cumulativeInterestSeries = [0]
-    for (const yr of schedule) {
-        cumulativeInterest += yr.totalInterest
-        cumulativeInterestSeries.push(cumulativeInterest)
-    }
-
-    let cumCashFlow = 0
-    const cumulativeCashFlow = [0]
-    for (const yr of schedule) {
-        const yearMortgagePayments = yr.totalInterest + yr.totalPrincipal
-        cumCashFlow += annualRent.value - totalRecurringCosts.value - yearMortgagePayments
-        cumulativeCashFlow.push(cumCashFlow)
-    }
-
-    return {
-        yearLabels,
-        propertyEquity,
-        remainingMortgage,
-        cumulativeInterest: cumulativeInterestSeries,
-        cumulativeCashFlow
-    }
-})
+// ── Chart projection (delegated to shared utility) ──────────────────
+const chartProjection = computed(() => computeRealEstateProjection(getCurrentParams()))
 
 const chartColors = {
-    propertyEquity: '#22c55e',
-    remainingMortgage: '#64748b',
-    cumulativeInterest: '#ef4444',
+    netWorth: '#22c55e',
+    propertyEquity: '#64748b',
     cumulativeCashFlow: '#3b82f6'
 }
 
@@ -394,7 +284,7 @@ const chartOption = computed(() => {
         legend: {
             type: 'scroll',
             bottom: 0,
-            data: ['Property Equity', 'Remaining Mortgage', 'Cumulative Interest', 'Cumulative Cash Flow']
+            data: ['Real Estate Net Worth', 'Property Equity', 'Cumulative Cash Flow']
         },
         grid: { left: '3%', right: '4%', bottom: '18%', top: '6%', containLabel: true },
         tooltip: {
@@ -404,9 +294,8 @@ const chartOption = computed(() => {
                 const y = p.yearLabels[idx]
                 return [
                     `Year <strong>${y}</strong>`,
+                    `Real Estate Net Worth: ${formatCurrency(p.netWorth[idx])}`,
                     `Property Equity: ${formatCurrency(p.propertyEquity[idx])}`,
-                    `Remaining Mortgage: ${formatCurrency(p.remainingMortgage[idx])}`,
-                    `Cumulative Interest: ${formatCurrency(p.cumulativeInterest[idx])}`,
                     `Cumulative Cash Flow: ${formatCurrency(p.cumulativeCashFlow[idx])}`
                 ].join('<br/>')
             }
@@ -426,9 +315,8 @@ const chartOption = computed(() => {
             splitLine: { lineStyle: { type: 'dashed', opacity: 0.4 } }
         },
         series: [
-            { type: 'line', data: p.yearLabels.map((y, i) => [y, p.propertyEquity[i]]), smooth: 0.2, showSymbol: false, lineStyle: { color: chartColors.propertyEquity, width: 2.5 }, itemStyle: { color: chartColors.propertyEquity }, name: 'Property Equity' },
-            { type: 'line', data: p.yearLabels.map((y, i) => [y, p.remainingMortgage[i]]), smooth: 0.2, showSymbol: false, lineStyle: { color: chartColors.remainingMortgage, width: 2 }, itemStyle: { color: chartColors.remainingMortgage }, name: 'Remaining Mortgage' },
-            { type: 'line', data: p.yearLabels.map((y, i) => [y, p.cumulativeInterest[i]]), smooth: 0.2, showSymbol: false, lineStyle: { color: chartColors.cumulativeInterest, width: 2 }, itemStyle: { color: chartColors.cumulativeInterest }, name: 'Cumulative Interest' },
+            { type: 'line', data: p.yearLabels.map((y, i) => [y, p.netWorth[i]]), smooth: 0.2, showSymbol: false, lineStyle: { color: chartColors.netWorth, width: 2.5 }, itemStyle: { color: chartColors.netWorth }, name: 'Real Estate Net Worth' },
+            { type: 'line', data: p.yearLabels.map((y, i) => [y, p.propertyEquity[i]]), smooth: 0.2, showSymbol: false, lineStyle: { color: chartColors.propertyEquity, width: 2 }, itemStyle: { color: chartColors.propertyEquity }, name: 'Property Equity' },
             { type: 'line', data: p.yearLabels.map((y, i) => [y, p.cumulativeCashFlow[i]]), smooth: 0.2, showSymbol: false, lineStyle: { color: chartColors.cumulativeCashFlow, width: 2 }, itemStyle: { color: chartColors.cumulativeCashFlow }, name: 'Cumulative Cash Flow' }
         ]
     }
@@ -502,9 +390,7 @@ const amortizationChartOption = computed(() => {
 
 // ── Scenario management ─────────────────────────────────────────────
 const TOOL_TYPE = 'real-estate-simulator'
-const cases = ref<Array<{ id: number; name: string; description: string; expectedAnnualReturn: number; params: RealEstateSimulatorParams }>>([])
 const showSaveDialog = ref(false)
-const showCasesDialog = ref(false)
 const showHelpDialog = ref(false)
 const helpDialogTitle = ref('')
 const helpDialogContent = ref('')
@@ -516,19 +402,10 @@ function openHelp(title: string, content: string) {
 }
 const saveName = ref('')
 const saveDescription = ref('')
-const activeCaseId = ref<number | null>(null)
 const activeCaseName = ref('')
 const activeCaseDescription = ref('')
 const activeCaseAttachmentId = ref<number | null>(null)
 const toast = useToast()
-
-async function loadCases() {
-    try {
-        cases.value = await listCases<RealEstateSimulatorParams>(TOOL_TYPE)
-    } catch (e) {
-        console.error('Failed to load scenarios:', e)
-    }
-}
 
 function getCurrentParams(): RealEstateSimulatorParams {
     return {
@@ -551,12 +428,6 @@ function getCurrentParams(): RealEstateSimulatorParams {
 
 const showEditDialog = ref(false)
 
-function openSaveDialog() {
-    saveName.value = ''
-    saveDescription.value = ''
-    showSaveDialog.value = true
-}
-
 function openSaveAsDialog() {
     saveName.value = activeCaseName.value ? activeCaseName.value + ' (copy)' : ''
     saveDescription.value = activeCaseDescription.value
@@ -564,19 +435,17 @@ function openSaveAsDialog() {
 }
 
 async function handleSave() {
-    if (!activeCaseId.value) return
     const payload = {
-        expectedAnnualReturn: leveredYield.value,
+        expectedAnnualReturn: totalLeveredYield.value,
         params: getCurrentParams(),
     }
     try {
-        await updateCase<RealEstateSimulatorParams>(TOOL_TYPE, activeCaseId.value, {
+        await updateCase<RealEstateSimulatorParams>(TOOL_TYPE, props.caseId, {
             ...payload,
             name: activeCaseName.value,
             description: activeCaseDescription.value,
         })
         toast.add({ severity: 'success', summary: 'Saved', detail: `"${activeCaseName.value}" updated`, life: 3000 })
-        await loadCases()
     } catch (e) {
         console.error('Failed to save scenario:', e)
     }
@@ -584,7 +453,7 @@ async function handleSave() {
 
 async function handleSaveAs() {
     const payload = {
-        expectedAnnualReturn: leveredYield.value,
+        expectedAnnualReturn: totalLeveredYield.value,
         params: getCurrentParams(),
     }
     try {
@@ -593,85 +462,50 @@ async function handleSaveAs() {
             name: saveName.value,
             description: saveDescription.value,
         })
-        activeCaseId.value = created.id
-        activeCaseName.value = created.name
-        activeCaseDescription.value = saveDescription.value
         showSaveDialog.value = false
         toast.add({ severity: 'success', summary: 'Created', detail: `"${created.name}" saved`, life: 3000 })
-        await loadCases()
+        router.push(`/tools/${TOOL_TYPE}/${created.id}`)
     } catch (e) {
         console.error('Failed to save scenario:', e)
     }
 }
 
-function loadCase(cs: { id: number; name: string; description?: string; params: RealEstateSimulatorParams }) {
+function loadCaseData(cs: { name: string; description?: string; params: RealEstateSimulatorParams; attachmentId?: number }) {
     const p = cs.params
-    purchasePrice.value = p.purchasePrice
-    marketValue.value = p.marketValue
-    squareMeters.value = p.squareMeters
-    monthlyRent.value = p.monthlyRent
-    propertyTax.value = p.propertyTax
-    insurance.value = p.insurance
-    maintenanceCost.value = p.maintenance
-    otherCosts.value = p.otherCosts
-    incidentalPct.value = p.incidentalPct ?? 1
-    cashEquity.value = p.cashEquity
-    additionalEquity.value = (p.additionalEquity ?? []).map(e => ({ ...e }))
-    mortgages.value = (p.mortgages ?? []).map((m: any) => ({
-        name: m.name,
-        splitPct: m.splitPct ?? (m.principal && p.purchasePrice ? (m.principal / (p.purchasePrice - (p.cashEquity ?? 0))) * 100 : 100),
-        interestRate: m.interestRate,
-        termYears: m.termYears,
-        amortize: m.amortize,
-    }))
-    grossAnnualIncome.value = p.grossAnnualIncome ?? ((p as any).grossMonthlyIncome ? (p as any).grossMonthlyIncome * 12 : 96000)
-    housingPriceIncreasePct.value = p.housingPriceIncreasePct ?? 2
-    activeCaseId.value = cs.id
+    if (p) {
+        purchasePrice.value = p.purchasePrice ?? purchasePrice.value
+        marketValue.value = p.marketValue ?? marketValue.value
+        squareMeters.value = p.squareMeters ?? squareMeters.value
+        monthlyRent.value = p.monthlyRent ?? monthlyRent.value
+        propertyTax.value = p.propertyTax ?? propertyTax.value
+        insurance.value = p.insurance ?? insurance.value
+        maintenanceCost.value = p.maintenance ?? maintenanceCost.value
+        otherCosts.value = p.otherCosts ?? otherCosts.value
+        incidentalPct.value = p.incidentalPct ?? 1
+        cashEquity.value = p.cashEquity ?? cashEquity.value
+        additionalEquity.value = (p.additionalEquity ?? []).map(e => ({ ...e }))
+        mortgages.value = (p.mortgages ?? []).map((m: any) => ({
+            name: m.name,
+            splitPct: m.splitPct ?? (m.principal && p.purchasePrice ? (m.principal / (p.purchasePrice - (p.cashEquity ?? 0))) * 100 : 100),
+            interestRate: m.interestRate,
+            termYears: m.termYears,
+            amortize: m.amortize,
+        }))
+        grossAnnualIncome.value = p.grossAnnualIncome ?? ((p as any).grossMonthlyIncome ? (p as any).grossMonthlyIncome * 12 : 96000)
+        housingPriceIncreasePct.value = p.housingPriceIncreasePct ?? 2
+    }
     activeCaseName.value = cs.name
     activeCaseDescription.value = cs.description ?? ''
-    activeCaseAttachmentId.value = (cs as any).attachmentId ?? null
-}
-
-function clearActiveCase() {
-    activeCaseId.value = null
-    activeCaseName.value = ''
-    activeCaseDescription.value = ''
-    activeCaseAttachmentId.value = null
-}
-
-const showDeleteConfirm = ref(false)
-const pendingDeleteId = ref<number | null>(null)
-const pendingDeleteName = ref('')
-
-function confirmDeleteScenario(id: number, name: string) {
-    pendingDeleteId.value = id
-    pendingDeleteName.value = name
-    showDeleteConfirm.value = true
-}
-
-async function removeScenario() {
-    const id = pendingDeleteId.value
-    if (id === null) return
-    showDeleteConfirm.value = false
-    try {
-        await deleteCase(TOOL_TYPE, id)
-        if (activeCaseId.value === id) {
-            clearActiveCase()
-        }
-        await loadCases()
-    } catch (e) {
-        console.error('Failed to delete scenario:', e)
-    }
+    activeCaseAttachmentId.value = cs.attachmentId ?? null
 }
 
 async function handleAttachmentUpload(event: { files: File | File[] }) {
     const fileList = Array.isArray(event.files) ? event.files : [event.files]
-    if (!activeCaseId.value || !fileList.length) return
+    if (!fileList.length) return
     try {
-        const result = await uploadCaseAttachment(TOOL_TYPE, activeCaseId.value, fileList[0])
+        const result = await uploadCaseAttachment(TOOL_TYPE, props.caseId, fileList[0])
         activeCaseAttachmentId.value = result.id
         toast.add({ severity: 'success', summary: 'Uploaded', detail: `"${result.originalName}" attached`, life: 3000 })
-        await loadCases()
     } catch (e) {
         console.error('Failed to upload attachment:', e)
         toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to upload attachment', life: 3000 })
@@ -679,22 +513,27 @@ async function handleAttachmentUpload(event: { files: File | File[] }) {
 }
 
 async function handleAttachmentDelete() {
-    if (!activeCaseId.value) return
     try {
-        await deleteCaseAttachment(TOOL_TYPE, activeCaseId.value)
+        await deleteCaseAttachment(TOOL_TYPE, props.caseId)
         activeCaseAttachmentId.value = null
         toast.add({ severity: 'success', summary: 'Removed', detail: 'Attachment removed', life: 3000 })
-        await loadCases()
     } catch (e) {
         console.error('Failed to delete attachment:', e)
     }
 }
 
-function getAttachmentUrl(caseId: number): string {
-    return getCaseAttachmentUrl(TOOL_TYPE, caseId)
+function getAttachmentUrl(): string {
+    return getCaseAttachmentUrl(TOOL_TYPE, props.caseId)
 }
 
-loadCases()
+onMounted(async () => {
+    try {
+        const cs = await getCase<RealEstateSimulatorParams>(TOOL_TYPE, props.caseId)
+        loadCaseData(cs)
+    } catch (e) {
+        console.error('Failed to load case:', e)
+    }
+})
 
 
 // ── Formatters ──────────────────────────────────────────────────────
@@ -723,25 +562,17 @@ function formatPct(value: number): string {
     <ResponsiveHorizontal :leftSidebarCollapsed="leftSidebarCollapsed">
         <template #default>
             <div class="p-3">
-                <Card class="mb-3">
-                    <template #title>
-                        <div class="flex align-items-center justify-content-between">
-                            <span>Real Estate Simulator<template v-if="activeCaseId"> : {{ activeCaseName }}</template></span>
-                            <div class="flex align-items-center gap-2">
-                                <Button label="Scenarios" icon="pi pi-list" size="small" outlined @click="showCasesDialog = true" />
-                                <template v-if="activeCaseId">
-                                    <Button label="Edit" icon="pi pi-pencil" size="small" outlined @click="showEditDialog = true" />
-                                    <Button label="Save" icon="pi pi-save" size="small" @click="handleSave()" />
-                                    <Button label="Save As" icon="pi pi-copy" size="small" outlined @click="openSaveAsDialog()" />
-                                    <Button label="Close" icon="pi pi-times" size="small" outlined severity="secondary" @click="clearActiveCase()" />
-                                </template>
-                                <template v-else>
-                                    <Button label="Save As" icon="pi pi-save" size="small" @click="openSaveDialog()" />
-                                </template>
-                            </div>
-                        </div>
-                    </template>
-                </Card>
+                <div class="flex align-items-center justify-content-between mb-3">
+                    <div class="flex align-items-center gap-2">
+                        <Button icon="pi pi-arrow-left" label="Back" text @click="router.push('/tools')" />
+                        <span class="text-xl font-bold">Real Estate Simulator : {{ activeCaseName }}</span>
+                    </div>
+                    <div class="flex align-items-center gap-2">
+                        <Button label="Edit" icon="pi pi-pencil" size="small" outlined @click="showEditDialog = true" />
+                        <Button label="Save" icon="pi pi-save" size="small" @click="handleSave()" />
+                        <Button label="Save As" icon="pi pi-copy" size="small" outlined @click="openSaveAsDialog()" />
+                    </div>
+                </div>
 
                 <div class="grid">
                     <!-- Left panel: Inputs -->
@@ -962,25 +793,17 @@ function formatPct(value: number): string {
                                                 <span class="result-value">{{ formatPct(equityContributionPct) }}</span>
                                             </div>
                                             <div class="result-row">
-                                                <span class="result-label">Annual Mortgage Payments</span>
-                                                <span class="result-value">{{ formatCurrency(totalAnnualMortgagePayments) }} / yr</span>
-                                            </div>
-                                            <h4>Investment</h4>
-                                            <div class="result-row">
                                                 <span class="result-label">Total Invested (Equity)</span>
                                                 <span class="result-value">{{ formatCurrency(totalEquity) }}</span>
                                             </div>
                                             <div class="result-row">
+                                                <span class="result-label">Total Housing Cost</span>
+                                                <span class="result-value">{{ formatCurrency(totalMonthlyHousingCost * 12) }} / yr</span>
+                                            </div>
+                                            <h4>Property Reference</h4>
+                                            <div class="result-row">
                                                 <span class="result-label">Price / m²</span>
                                                 <span class="result-value">{{ squareMeters > 0 ? formatCurrency(purchasePrice / squareMeters) : '—' }}</span>
-                                            </div>
-                                            <div class="result-row">
-                                                <span class="result-label">Levered Yield (ROI)</span>
-                                                <span class="result-value font-bold">{{ formatPct(leveredYield) }}</span>
-                                            </div>
-                                            <div class="result-row">
-                                                <span class="result-label">Monthly Cash Flow</span>
-                                                <span class="result-value">{{ formatCurrency(leveragedCashFlow / 12) }} / mo</span>
                                             </div>
                                             <div class="result-row">
                                                 <span class="result-label">Breakeven Rent
@@ -988,6 +811,18 @@ function formatPct(value: number): string {
                                                        @click="openHelp('Breakeven Rent', '<p>The minimum monthly rent needed to cover all costs (recurring costs + mortgage payments) and achieve a net cash flow of zero.</p>')" />
                                                 </span>
                                                 <span class="result-value">{{ formatCurrency(breakevenMonthlyRent) }} / mo</span>
+                                            </div>
+                                            <h4>Investment Returns</h4>
+                                            <div class="result-row">
+                                                <span class="result-label">Monthly Cash Flow</span>
+                                                <span class="result-value">{{ formatCurrency(leveragedCashFlow / 12) }} / mo</span>
+                                            </div>
+                                            <div class="result-row">
+                                                <span class="result-label font-bold">Total Levered Yield (ROI)
+                                                    <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                       @click="openHelp('Total Levered Yield (ROI)', '<p>The total year-1 return on your cash invested, including net cash flow, equity buildup, and property appreciation.</p><p><strong>Formula:</strong> (Net Cash Flow + Year-1 Equity Buildup + Annual Appreciation) / Total Equity</p><p>This is the most complete metric for comparing against alternative investments (e.g. putting the same equity into an ETF).</p>')" />
+                                                </span>
+                                                <span class="result-value font-bold">{{ formatPct(totalLeveredYield) }}</span>
                                             </div>
                                         </div>
                                     </TabPanel>
@@ -1059,6 +894,14 @@ function formatPct(value: number): string {
                                             <div class="chart-wrap">
                                                 <VChart :option="amortizationChartOption" autoresize class="chart" />
                                             </div>
+                                        </div>
+
+                                        <div class="report-section">
+                                            <h4>
+                                                Swiss Mortgage Rules
+                                                <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer ml-2"
+                                                   @click="openHelp('Swiss Mortgage Rules', '<p>In Switzerland, when a mortgage covers more than <strong>2/3</strong> of the property value, it is split into two tranches:</p><h4>First Mortgage (up to 2/3)</h4><ul><li>Covers up to 66.7% of the property value.</li><li>Can be amortized, but the borrower is <strong>under no obligation</strong> to do so — you can just pay interest.</li></ul><h4>Second Mortgage (above 2/3)</h4><ul><li>Covers the portion between your equity and the 2/3 mark.</li><li>Banks often charge <strong>higher interest rates</strong> on this tranche.</li><li>Must be <strong>fully amortized within 15 years</strong>.</li><li>Must be paid off before the borrower turns <strong>65</strong> (retirement age).</li></ul><h4>Equity Requirements</h4><ul><li>Minimum <strong>20%</strong> equity required (some banks accept 10% in specific cases).</li><li>At least <strong>10%</strong> must be a direct cash contribution (not from pension funds).</li><li>2nd pillar (pension) funds can be used for the remaining equity.</li></ul>')" />
+                                            </h4>
                                         </div>
 
                                         <div class="report-section">
@@ -1153,7 +996,7 @@ function formatPct(value: number): string {
                                         </div>
 
                                         <div class="report-section">
-                                            <h4>Investment Metrics</h4>
+                                            <h4>Property Metrics (unlevered)</h4>
                                             <div class="result-row">
                                                 <span class="result-label">Gross Annual Return
                                                     <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
@@ -1175,19 +1018,41 @@ function formatPct(value: number): string {
                                                 </span>
                                                 <span class="result-value">{{ formatPct(capRate) }}</span>
                                             </div>
+                                        </div>
+
+                                        <div class="report-section">
+                                            <h4>Levered Yield (cash flow + equity buildup)</h4>
                                             <div class="result-row">
-                                                <span class="result-label">Leveraged Cap Rate
+                                                <span class="result-label">Year-1
                                                     <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
-                                                       @click="openHelp('Leveraged Cap Rate', '<p>Cap rate adjusted for mortgage payments, showing the return after debt service relative to market value.</p><p><strong>Formula:</strong> (NOI − Annual Mortgage Payments) / Market Value</p>')" />
-                                                </span>
-                                                <span class="result-value">{{ formatPct(leveragedCapRate) }}</span>
-                                            </div>
-                                            <div class="result-row font-bold">
-                                                <span class="result-label">Levered Yield (ROI)
-                                                    <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
-                                                       @click="openHelp('Levered Yield (ROI)', '<p>The return on your actual cash invested (equity), after all costs and mortgage payments.</p><p><strong>Formula:</strong> Net Cash Flow / Total Equity</p><p>This is the most relevant metric for evaluating your personal return, as it reflects the effect of leverage.</p>')" />
+                                                       @click="openHelp('Levered Yield (Year-1)', '<p>The return on your actual cash invested (equity), including net cash flow and equity buildup from mortgage principal repayment.</p><p><strong>Formula:</strong> (Net Cash Flow + Annual Equity Buildup) / Total Equity</p><p><strong>Note:</strong> Equity buildup uses the actual year-1 principal repayment from the amortization schedule. In early years, most of the mortgage payment goes to interest, so this value will be lower than a simple average over the loan term.</p><p>This metric is useful for comparing against alternative investments (e.g. putting the same equity into an ETF).</p>')" />
                                                 </span>
                                                 <span class="result-value">{{ formatPct(leveredYield) }}</span>
+                                            </div>
+                                            <div class="result-row">
+                                                <span class="result-label">Average
+                                                    <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                       @click="openHelp('Levered Yield (Average)', '<p>Same as year-1 Levered Yield but using a linear average of equity buildup over the full mortgage term, instead of the year-1 value.</p><p><strong>Formula:</strong> (Net Cash Flow + Principal / Term Years) / Total Equity</p><p>This gives a sense of the average annual return over the life of the mortgage. Compare with the year-1 value to see how returns improve as more principal is repaid each year.</p>')" />
+                                                </span>
+                                                <span class="result-value">{{ formatPct(avgLeveredYield) }}</span>
+                                            </div>
+                                        </div>
+
+                                        <div class="report-section">
+                                            <h4>Total Levered Yield (+ appreciation)</h4>
+                                            <div class="result-row font-bold">
+                                                <span class="result-label">Year-1
+                                                    <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                       @click="openHelp('Total Levered Yield (Year-1)', '<p>Levered Yield plus property appreciation, using year-1 equity buildup.</p><p><strong>Formula:</strong> (Net Cash Flow + Year-1 Equity Buildup + Annual Appreciation) / Total Equity</p><p>Annual appreciation is calculated as Market Value × Housing Price Increase %. This is the most complete year-1 return metric for comparing against an ETF.</p>')" />
+                                                </span>
+                                                <span class="result-value">{{ formatPct(totalLeveredYield) }}</span>
+                                            </div>
+                                            <div class="result-row font-bold">
+                                                <span class="result-label">Average
+                                                    <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                       @click="openHelp('Total Levered Yield (Average)', '<p>Same as year-1 Total Levered Yield but using a linear average of equity buildup over the full mortgage term.</p><p><strong>Formula:</strong> (Net Cash Flow + Principal / Term Years + Annual Appreciation) / Total Equity</p><p>This represents the average total annual return over the life of the mortgage, including property appreciation.</p>')" />
+                                                </span>
+                                                <span class="result-value">{{ formatPct(avgTotalLeveredYield) }}</span>
                                             </div>
                                         </div>
                                     </TabPanel>
@@ -1196,33 +1061,6 @@ function formatPct(value: number): string {
                         </Card>
                     </div>
                 </div>
-
-                <!-- Scenarios Dialog -->
-                <Dialog v-model:visible="showCasesDialog" header="Scenarios" :modal="true" :style="{ width: '50rem' }">
-                    <DataTable :value="cases" size="small" v-if="cases.length > 0">
-                        <Column field="name" header="Name" />
-                        <Column field="description" header="Description" />
-                        <Column header="" style="width: 3rem">
-                            <template #body="{ data }">
-                                <a v-if="data.attachmentId" :href="getAttachmentUrl(data.id)" target="_blank" title="View attachment">
-                                    <i class="pi pi-file" />
-                                </a>
-                            </template>
-                        </Column>
-                        <Column field="expectedAnnualReturn" header="Expected Annual Return">
-                            <template #body="{ data }">{{ data.expectedAnnualReturn.toFixed(2) }}%</template>
-                        </Column>
-                        <Column header="Actions" style="width: 7rem">
-                            <template #body="{ data }">
-                                <div class="flex gap-1">
-                                    <Button icon="pi pi-upload" size="small" text @click="loadCase(data); showCasesDialog = false" title="Load" />
-                                    <Button icon="pi pi-trash" size="small" text severity="danger" @click="confirmDeleteScenario(data.id, data.name)" title="Delete" />
-                                </div>
-                            </template>
-                        </Column>
-                    </DataTable>
-                    <p v-else class="text-color-secondary">No saved scenarios yet.</p>
-                </Dialog>
 
                 <!-- Save As Dialog -->
                 <Dialog v-model:visible="showSaveDialog" header="Save as New Scenario" :modal="true" :style="{ width: '30rem' }">
@@ -1256,7 +1094,7 @@ function formatPct(value: number): string {
                         <div class="field">
                             <label>Attachment</label>
                             <div v-if="activeCaseAttachmentId" class="flex align-items-center gap-2">
-                                <a :href="getAttachmentUrl(activeCaseId!)" target="_blank" class="flex align-items-center gap-1">
+                                <a :href="getAttachmentUrl()" target="_blank" class="flex align-items-center gap-1">
                                     <i class="pi pi-file" /> View attachment
                                 </a>
                                 <Button icon="pi pi-trash" size="small" text severity="danger" @click="handleAttachmentDelete" title="Remove attachment" />
@@ -1282,14 +1120,6 @@ function formatPct(value: number): string {
                     <div v-html="helpDialogContent"></div>
                 </Dialog>
 
-                <!-- Delete Confirmation -->
-                <ConfirmDialog
-                    v-model:visible="showDeleteConfirm"
-                    :name="pendingDeleteName"
-                    title="Delete Scenario"
-                    message="Are you sure you want to delete scenario"
-                    @confirm="removeScenario"
-                />
             </div>
         </template>
     </ResponsiveHorizontal>

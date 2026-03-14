@@ -44,6 +44,28 @@ export interface RealEstateSimulatorParams {
     housingPriceIncreasePct?: number
 }
 
+export interface BuyVsRentSimulatorParams {
+    purchasePrice: number
+    cashEquity: number
+    additionalEquity: Array<{ name: string; amount: number }>
+    mortgages: Array<{
+        name: string
+        splitPct: number
+        interestRate: number
+        termYears: number
+        amortize: boolean
+    }>
+    propertyTax: number
+    insurance: number
+    maintenance: number
+    otherCosts: number
+    incidentalPct?: number
+    housingPriceIncreasePct?: number
+    currentMonthlyRent: number
+    rentIncreasePct?: number
+    etfReturnPct?: number
+}
+
 function toolPath(toolType: string): string {
     return `/tools/${toolType}/cases`
 }
