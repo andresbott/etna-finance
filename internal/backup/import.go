@@ -8,15 +8,17 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/andresbott/etna/internal/accounting"
 	"github.com/andresbott/etna/internal/csvimport"
 	"github.com/andresbott/etna/internal/marketdata"
+	"github.com/andresbott/etna/internal/toolsdata"
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/text/currency"
 )
 
-func Import(ctx context.Context, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, file string) error {
+func Import(ctx context.Context, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, tdStore *toolsdata.Store, file string) error {
 	zipPath, err := checkZip(file)
 	if err != nil {
 		return err
@@ -50,6 +52,12 @@ func Import(ctx context.Context, store *accounting.Store, mdStore *marketdata.St
 	err = csvStore.WipeData(ctx)
 	if err != nil {
 		return err
+	}
+	if tdStore != nil {
+		err = tdStore.WipeData(ctx)
+		if err != nil {
+			return err
+		}
 	}
 
 	profilesMap, err := importProfiles(ctx, csvStore, r)
@@ -87,6 +95,11 @@ func Import(ctx context.Context, store *accounting.Store, mdStore *marketdata.St
 	}
 
 	err = importCategoryRules(ctx, csvStore, r, inMap, exMap)
+	if err != nil {
+		return err
+	}
+
+	err = importCaseStudies(ctx, tdStore, r)
 	if err != nil {
 		return err
 	}
@@ -303,7 +316,7 @@ func importTransactions(ctx context.Context, store *accounting.Store, r *zip.Rea
 }
 
 // Load V1 data from json files
-func loadV1Json[T metaInfoV1 | []accountProviderV1 | []accountV1 | []categoryV1 | []TransactionV1 | []instrumentV1 | []priceRecordV1 | []fxRateRecordV1 | []importProfileV1 | []categoryRuleGroupV1](r *zip.ReadCloser, fileName string) (T, error) {
+func loadV1Json[T metaInfoV1 | []accountProviderV1 | []accountV1 | []categoryV1 | []TransactionV1 | []instrumentV1 | []priceRecordV1 | []fxRateRecordV1 | []importProfileV1 | []categoryRuleGroupV1 | []caseStudyV1](r *zip.ReadCloser, fileName string) (T, error) {
 	var result T
 
 	for _, f := range r.File {
@@ -462,6 +475,33 @@ func importProfiles(ctx context.Context, csvStore *csvimport.Store, r *zip.ReadC
 		profilesMap[p.ID] = newID
 	}
 	return profilesMap, nil
+}
+
+func importCaseStudies(ctx context.Context, tdStore *toolsdata.Store, r *zip.ReadCloser) error {
+	if tdStore == nil {
+		return nil
+	}
+	studies, err := loadV1Json[[]caseStudyV1](r, caseStudiesFile)
+	if err != nil {
+		// Old backups may not have this file; skip gracefully.
+		if strings.Contains(err.Error(), "not found in zip") {
+			return nil
+		}
+		return err
+	}
+	for _, s := range studies {
+		_, err := tdStore.Create(ctx, toolsdata.CaseStudy{
+			ToolType:             s.ToolType,
+			Name:                 s.Name,
+			Description:          s.Description,
+			ExpectedAnnualReturn: s.ExpectedAnnualReturn,
+			Params:               s.Params,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create case study: %w", err)
+		}
+	}
+	return nil
 }
 
 func importCategoryRules(ctx context.Context, csvStore *csvimport.Store, r *zip.ReadCloser, incomeMap, expenseMap map[uint]uint) error {

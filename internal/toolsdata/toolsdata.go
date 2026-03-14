@@ -165,3 +165,20 @@ func (s *Store) Delete(ctx context.Context, toolType string, id uint) error {
 	}
 	return nil
 }
+
+func (s *Store) ListAll(ctx context.Context) ([]CaseStudy, error) {
+	var rows []dbToolsData
+	d := s.db.WithContext(ctx).Order("id ASC").Find(&rows)
+	if d.Error != nil {
+		return nil, d.Error
+	}
+	result := make([]CaseStudy, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, dbToCaseStudy(row))
+	}
+	return result, nil
+}
+
+func (s *Store) WipeData(ctx context.Context) error {
+	return s.db.WithContext(ctx).Where("1 = 1").Delete(&dbToolsData{}).Error
+}

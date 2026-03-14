@@ -842,10 +842,11 @@ const restorePath = "/restore"
 func (h *MainAppHandler) backupApi(r *mux.Router) {
 
 	backupHndl := backup.Handler{
-		Destination: h.backupDestination,
-		Store:       h.finStore,
-		MdStore:     h.marketStore,
-		CsvStore:    h.csvImportStore,
+		Destination:    h.backupDestination,
+		Store:          h.finStore,
+		MdStore:        h.marketStore,
+		CsvStore:       h.csvImportStore,
+		ToolsDataStore: h.toolsDataStore,
 	}
 	r.Path(backupPath).Methods(http.MethodGet).Handler(backupHndl.List())
 	r.Path(backupPath).Methods(http.MethodPost).Handler(backupHndl.CreateBackup())

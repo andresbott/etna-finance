@@ -12,6 +12,7 @@ import (
 	"github.com/andresbott/etna/internal/accounting"
 	"github.com/andresbott/etna/internal/csvimport"
 	"github.com/andresbott/etna/internal/marketdata"
+	"github.com/andresbott/etna/internal/toolsdata"
 )
 
 const timeFormat = "2006-01-02_15-04-05"
@@ -35,15 +36,15 @@ func verifyZipPath(zipFile string) error {
 	return nil
 }
 
-func ExportToFile(ctx context.Context, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, zipFile string) error {
+func ExportToFile(ctx context.Context, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, tdStore *toolsdata.Store, zipFile string) error {
 	err := verifyZipPath(zipFile)
 	if err != nil {
 		return err
 	}
-	return export(ctx, store, mdStore, csvStore, zipFile)
+	return export(ctx, store, mdStore, csvStore, tdStore, zipFile)
 }
 
-func export(ctx context.Context, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, fullPath string) error {
+func export(ctx context.Context, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, tdStore *toolsdata.Store, fullPath string) error {
 	if store == nil {
 		return errors.New("finance store was not initialized")
 	}
@@ -105,6 +106,11 @@ func export(ctx context.Context, store *accounting.Store, mdStore *marketdata.St
 	}
 
 	err = writeCategoryRules(ctx, zw, csvStore)
+	if err != nil {
+		return err
+	}
+
+	err = writeCaseStudies(ctx, zw, tdStore)
 	if err != nil {
 		return err
 	}
@@ -446,4 +452,26 @@ func writeCategoryRules(ctx context.Context, zw *zipWriter, csvStore *csvimport.
 		}
 	}
 	return zw.writeJsonFile(categoryRulesFile, jsonData)
+}
+
+func writeCaseStudies(ctx context.Context, zw *zipWriter, tdStore *toolsdata.Store) error {
+	if tdStore == nil {
+		return zw.writeJsonFile(caseStudiesFile, []caseStudyV1{})
+	}
+	studies, err := tdStore.ListAll(ctx)
+	if err != nil {
+		return err
+	}
+	jsonData := make([]caseStudyV1, len(studies))
+	for i, cs := range studies {
+		jsonData[i] = caseStudyV1{
+			ID:                   cs.ID,
+			ToolType:             cs.ToolType,
+			Name:                 cs.Name,
+			Description:          cs.Description,
+			ExpectedAnnualReturn: cs.ExpectedAnnualReturn,
+			Params:               cs.Params,
+		}
+	}
+	return zw.writeJsonFile(caseStudiesFile, jsonData)
 }

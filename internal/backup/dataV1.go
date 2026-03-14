@@ -1,6 +1,9 @@
 package backup
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 const (
 	SchemaV1 = "1.0.0"
@@ -142,4 +145,15 @@ type categoryRulePatternV1 struct {
 	ID      uint   `json:"id"`
 	Pattern string `json:"pattern"`
 	IsRegex bool   `json:"isRegex"`
+}
+
+const caseStudiesFile = "case_studies.json"
+
+type caseStudyV1 struct {
+	ID                   uint            `json:"id"`
+	ToolType             string          `json:"toolType"`
+	Name                 string          `json:"name"`
+	Description          string          `json:"description"`
+	ExpectedAnnualReturn float64         `json:"expectedAnnualReturn"`
+	Params               json.RawMessage `json:"params"`
 }
