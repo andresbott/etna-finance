@@ -51,8 +51,12 @@ const mortgages = ref<Array<{
 ])
 const propertyTax = ref(0)
 const insurance = ref(0)
-const maintenanceCost = ref(0)
+const maintenancePct = ref(0.7)
 const otherCosts = ref(0)
+const useSimpleCosts = ref(true)
+const vacancyPct = ref(3)
+const managementPct = ref(5)
+const renovationFund = ref(2500)
 const incidentalPct = ref(1)
 const housingPriceIncreasePct = ref(2)
 
@@ -113,10 +117,15 @@ function importFromRealEstate(cs: CaseStudy<RealEstateSimulatorParams>) {
     }))
     propertyTax.value = p.propertyTax ?? propertyTax.value
     insurance.value = p.insurance ?? insurance.value
-    maintenanceCost.value = p.maintenance ?? maintenanceCost.value
+    maintenancePct.value = p.maintenancePct ?? 0.7
     otherCosts.value = p.otherCosts ?? otherCosts.value
+    useSimpleCosts.value = p.useSimpleCosts ?? true
+    vacancyPct.value = p.vacancyPct ?? 3
+    managementPct.value = p.managementPct ?? 5
+    renovationFund.value = p.renovationFund ?? 2500
     incidentalPct.value = p.incidentalPct ?? 1
     housingPriceIncreasePct.value = p.housingPriceIncreasePct ?? 2
+    if (p.monthlyRent) currentMonthlyRent.value = p.monthlyRent
     showImportDialog.value = false
     toast.add({ severity: 'success', summary: `Imported from "${cs.name}"`, life: 2000 })
 }
@@ -185,10 +194,21 @@ function mortgagePrincipal(m: { splitPct: number }): number {
 
 const totalSplitPct = computed(() => mortgages.value.reduce((sum, m) => sum + (m.splitPct ?? 0), 0))
 
+const maintenanceCost = computed(() => (purchasePrice.value ?? 0) * (maintenancePct.value ?? 0) / 100)
 const incidentalCost = computed(() => (purchasePrice.value ?? 0) * (incidentalPct.value ?? 0) / 100)
+const vacancyCost = computed(() => (currentMonthlyRent.value ?? 0) * 12 * (vacancyPct.value ?? 0) / 100)
+const managementCost = computed(() => (currentMonthlyRent.value ?? 0) * 12 * (managementPct.value ?? 0) / 100)
+
+const detailedRecurringCosts = computed(() => {
+    return (propertyTax.value ?? 0) + (insurance.value ?? 0) + maintenanceCost.value + (renovationFund.value ?? 0) + vacancyCost.value + managementCost.value
+})
+
+const simpleRecurringCosts = computed(() => {
+    return incidentalCost.value + (otherCosts.value ?? 0)
+})
 
 const totalRecurringCosts = computed(() => {
-    return (propertyTax.value ?? 0) + (insurance.value ?? 0) + (maintenanceCost.value ?? 0) + (otherCosts.value ?? 0) + incidentalCost.value
+    return useSimpleCosts.value ? simpleRecurringCosts.value : detailedRecurringCosts.value
 })
 
 const totalMonthlyMortgagePayments = computed(() => {
@@ -223,8 +243,12 @@ function getCurrentParams(): BuyVsRentSimulatorParams {
         mortgages: mortgages.value.map(m => ({ ...m })),
         propertyTax: propertyTax.value,
         insurance: insurance.value,
-        maintenance: maintenanceCost.value,
+        maintenancePct: maintenancePct.value,
         otherCosts: otherCosts.value,
+        useSimpleCosts: useSimpleCosts.value,
+        vacancyPct: vacancyPct.value,
+        managementPct: managementPct.value,
+        renovationFund: renovationFund.value,
         incidentalPct: incidentalPct.value,
         housingPriceIncreasePct: housingPriceIncreasePct.value,
         currentMonthlyRent: currentMonthlyRent.value,
@@ -317,7 +341,8 @@ const TOOL_TYPE = 'buy-vs-rent-simulator'
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
 
 watch(
-    [purchasePrice, cashEquity, additionalEquity, mortgages, propertyTax, insurance, maintenanceCost,
+    [purchasePrice, cashEquity, additionalEquity, mortgages, propertyTax, insurance, maintenancePct,
+     useSimpleCosts, vacancyPct, managementPct, renovationFund,
      otherCosts, incidentalPct, housingPriceIncreasePct, currentMonthlyRent, rentIncreasePct, etfReturnPct],
     () => {
         if (autoSaveTimer) clearTimeout(autoSaveTimer)
@@ -406,8 +431,12 @@ onMounted(async () => {
                 }))
                 propertyTax.value = p.propertyTax ?? propertyTax.value
                 insurance.value = p.insurance ?? insurance.value
-                maintenanceCost.value = p.maintenance ?? maintenanceCost.value
+                maintenancePct.value = p.maintenancePct ?? 0.7
                 otherCosts.value = p.otherCosts ?? otherCosts.value
+                useSimpleCosts.value = p.useSimpleCosts ?? true
+                vacancyPct.value = p.vacancyPct ?? 3
+                managementPct.value = p.managementPct ?? 5
+                renovationFund.value = p.renovationFund ?? 2500
                 incidentalPct.value = p.incidentalPct ?? 1
                 housingPriceIncreasePct.value = p.housingPriceIncreasePct ?? 2
                 currentMonthlyRent.value = p.currentMonthlyRent ?? currentMonthlyRent.value
@@ -499,43 +528,81 @@ function viewAttachment() {
                                             </div>
 
                                             <Divider />
-                                            <div class="section-header">Recurring Costs (yearly)</div>
-                                            <div class="field">
-                                                <label>Property Tax</label>
-                                                <div class="field-controls">
-                                                    <InputNumber v-model="propertyTax" :min="0" :max="50000" :step="100" mode="decimal" :maxFractionDigits="0" class="field-input" />
-                                                    <Slider v-model="propertyTax" :min="0" :max="10000" :step="100" class="field-slider" />
+                                            <div class="section-header" style="display: flex; align-items: center; justify-content: space-between;">
+                                                <span>Recurring Costs (yearly)</span>
+                                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                                    <span class="text-sm">Simplified</span>
+                                                    <ToggleSwitch v-model="useSimpleCosts" />
                                                 </div>
                                             </div>
-                                            <div class="field">
-                                                <label>Insurance</label>
-                                                <div class="field-controls">
-                                                    <InputNumber v-model="insurance" :min="0" :max="20000" :step="100" mode="decimal" :maxFractionDigits="0" class="field-input" />
-                                                    <Slider v-model="insurance" :min="0" :max="5000" :step="100" class="field-slider" />
+
+                                            <!-- Simplified mode -->
+                                            <template v-if="useSimpleCosts">
+                                                <div class="field">
+                                                    <label>Incidental (%)</label>
+                                                    <div class="field-controls">
+                                                        <InputNumber v-model="incidentalPct" :min="0" :max="5" :step="0.1" :minFractionDigits="1" :maxFractionDigits="1" suffix="%" class="field-input" />
+                                                        <Slider v-model="incidentalPct" :min="0" :max="5" :step="0.1" class="field-slider" />
+                                                    </div>
+                                                    <span class="text-color-secondary text-sm">= {{ formatCurrency(incidentalCost) }} / yr</span>
                                                 </div>
-                                            </div>
-                                            <div class="field">
-                                                <label>Maintenance</label>
-                                                <div class="field-controls">
-                                                    <InputNumber v-model="maintenanceCost" :min="0" :max="20000" :step="100" mode="decimal" :maxFractionDigits="0" class="field-input" />
-                                                    <Slider v-model="maintenanceCost" :min="0" :max="5000" :step="100" class="field-slider" />
+                                                <div class="field">
+                                                    <label>Other Costs</label>
+                                                    <div class="field-controls">
+                                                        <InputNumber v-model="otherCosts" :min="0" :max="20000" :step="100" mode="decimal" :maxFractionDigits="0" class="field-input" />
+                                                        <Slider v-model="otherCosts" :min="0" :max="5000" :step="100" class="field-slider" />
+                                                    </div>
                                                 </div>
-                                            </div>
-                                            <div class="field">
-                                                <label>Incidental (%)</label>
-                                                <div class="field-controls">
-                                                    <InputNumber v-model="incidentalPct" :min="0" :max="5" :step="0.1" :minFractionDigits="1" :maxFractionDigits="1" suffix="%" class="field-input" />
-                                                    <Slider v-model="incidentalPct" :min="0" :max="5" :step="0.1" class="field-slider" />
+                                            </template>
+
+                                            <!-- Detailed mode -->
+                                            <template v-else>
+                                                <div class="field">
+                                                    <label>Property Tax</label>
+                                                    <div class="field-controls">
+                                                        <InputNumber v-model="propertyTax" :min="0" :max="50000" :step="100" mode="decimal" :maxFractionDigits="0" class="field-input" />
+                                                        <Slider v-model="propertyTax" :min="0" :max="10000" :step="100" class="field-slider" />
+                                                    </div>
                                                 </div>
-                                                <span class="text-color-secondary text-sm">= {{ formatCurrency(incidentalCost) }} / yr</span>
-                                            </div>
-                                            <div class="field">
-                                                <label>Other Costs</label>
-                                                <div class="field-controls">
-                                                    <InputNumber v-model="otherCosts" :min="0" :max="20000" :step="100" mode="decimal" :maxFractionDigits="0" class="field-input" />
-                                                    <Slider v-model="otherCosts" :min="0" :max="5000" :step="100" class="field-slider" />
+                                                <div class="field">
+                                                    <label>Insurance</label>
+                                                    <div class="field-controls">
+                                                        <InputNumber v-model="insurance" :min="0" :max="20000" :step="100" mode="decimal" :maxFractionDigits="0" class="field-input" />
+                                                        <Slider v-model="insurance" :min="0" :max="5000" :step="100" class="field-slider" />
+                                                    </div>
                                                 </div>
-                                            </div>
+                                                <div class="field">
+                                                    <label>Maintenance Reserve (%)</label>
+                                                    <div class="field-controls">
+                                                        <InputNumber v-model="maintenancePct" :min="0" :max="5" :step="0.01" :minFractionDigits="1" :maxFractionDigits="2" suffix="%" class="field-input" />
+                                                        <Slider v-model="maintenancePct" :min="0" :max="3" :step="0.1" class="field-slider" />
+                                                    </div>
+                                                    <span class="text-color-secondary text-sm">= {{ formatCurrency(maintenanceCost) }} / yr</span>
+                                                </div>
+                                                <div class="field">
+                                                    <label>Renovation Fund</label>
+                                                    <div class="field-controls">
+                                                        <InputNumber v-model="renovationFund" :min="0" :max="20000" :step="100" mode="decimal" :maxFractionDigits="0" class="field-input" />
+                                                        <Slider v-model="renovationFund" :min="0" :max="10000" :step="100" class="field-slider" />
+                                                    </div>
+                                                </div>
+                                                <div class="field">
+                                                    <label>Vacancy Allowance (%)</label>
+                                                    <div class="field-controls">
+                                                        <InputNumber v-model="vacancyPct" :min="0" :max="100" :step="0.1" :minFractionDigits="1" :maxFractionDigits="1" suffix="%" class="field-input" />
+                                                        <Slider v-model="vacancyPct" :min="0" :max="25" :step="0.1" class="field-slider" />
+                                                    </div>
+                                                    <span class="text-color-secondary text-sm">= {{ formatCurrency(vacancyCost) }} / yr</span>
+                                                </div>
+                                                <div class="field">
+                                                    <label>Property Management (%)</label>
+                                                    <div class="field-controls">
+                                                        <InputNumber v-model="managementPct" :min="0" :max="30" :step="0.1" :minFractionDigits="1" :maxFractionDigits="1" suffix="%" class="field-input" />
+                                                        <Slider v-model="managementPct" :min="0" :max="15" :step="0.1" class="field-slider" />
+                                                    </div>
+                                                    <span class="text-color-secondary text-sm">= {{ formatCurrency(managementCost) }} / yr</span>
+                                                </div>
+                                            </template>
                                         </div>
                                     </TabPanel>
 

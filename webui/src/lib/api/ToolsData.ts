@@ -31,9 +31,17 @@ export interface RealEstateSimulatorParams {
     monthlyRent: number
     propertyTax: number
     insurance: number
-    maintenance: number
+    maintenancePct?: number
     otherCosts: number
+    useSimpleCosts?: boolean
+    vacancyPct?: number
+    managementPct?: number
+    renovationFund?: number
     incidentalPct?: number
+    transferTaxPct?: number
+    notaryFeePct?: number
+    landRegistryPct?: number
+    mortgageDeedCost?: number
     cashEquity: number
     additionalEquity: Array<{ name: string; amount: number }>
     mortgages: Array<{
@@ -60,8 +68,12 @@ export interface BuyVsRentSimulatorParams {
     }>
     propertyTax: number
     insurance: number
-    maintenance: number
+    maintenancePct?: number
     otherCosts: number
+    useSimpleCosts?: boolean
+    vacancyPct?: number
+    managementPct?: number
+    renovationFund?: number
     incidentalPct?: number
     housingPriceIncreasePct?: number
     currentMonthlyRent: number

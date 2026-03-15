@@ -40,9 +40,17 @@ export function computeBuyVsRentProjection(params: BuyVsRentSimulatorParams): Bu
     const etfReturn = (params.etfReturnPct ?? 0) / 100
 
     // Property recurring costs (annual)
-    const annualRecurringCosts = (params.propertyTax ?? 0) + (params.insurance ?? 0)
-        + (params.maintenance ?? 0) + (params.otherCosts ?? 0)
-        + purchasePrice * (params.incidentalPct ?? 0) / 100
+    const incidentalCost = purchasePrice * (params.incidentalPct ?? 0) / 100
+    const maintenanceCost = purchasePrice * (params.maintenancePct ?? 0) / 100
+    const annualRent = currentRent * 12
+    const vacancyCost = annualRent * (params.vacancyPct ?? 0) / 100
+    const managementCost = annualRent * (params.managementPct ?? 0) / 100
+
+    const detailedCosts = (params.propertyTax ?? 0) + (params.insurance ?? 0)
+        + maintenanceCost + (params.renovationFund ?? 0)
+        + vacancyCost + managementCost
+    const simpleCosts = incidentalCost + (params.otherCosts ?? 0)
+    const annualRecurringCosts = (params.useSimpleCosts ?? true) ? simpleCosts : detailedCosts
 
     // Mortgage details
     const mortgages = params.mortgages ?? []
