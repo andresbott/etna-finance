@@ -8,6 +8,7 @@ import { z } from 'zod'
 import Message from 'primevue/message'
 import Divider from 'primevue/divider'
 import InputText from 'primevue/inputtext'
+import Textarea from 'primevue/textarea'
 import InputNumber from 'primevue/inputnumber'
 import DatePicker from 'primevue/datepicker'
 import Select from 'primevue/select'
@@ -75,7 +76,8 @@ const props = defineProps({
     cashAccountId: { type: Number, default: null },
     cashAmount: { type: Number, default: null },
     fees: { type: Number, default: 0 },
-    autofocusAmount: { type: Boolean, default: false }
+    autofocusAmount: { type: Boolean, default: false },
+    notes: { type: String, default: '' }
 })
 
 const emit = defineEmits(['update:visible'])
@@ -135,6 +137,7 @@ const initialTargetAmount = () => {
 const formValues = ref({
     instrumentId: props.instrumentId,
     description: props.description,
+    notes: props.notes,
     quantity: props.quantity,
     pricePerShare: props.pricePerShare,
     date: getDateOnly(props.date),
@@ -154,6 +157,7 @@ watch(
             formValues.value = {
                 instrumentId: props.instrumentId,
                 description: props.description,
+                notes: props.notes,
                 quantity: props.quantity,
                 pricePerShare: props.pricePerShare,
                 date: getDateOnly(props.date),
@@ -335,6 +339,7 @@ function getLotGainLoss(lot) {
 const doSave = async () => {
     const v = formValues.value
     const description = (v.description ?? '').toString().trim()
+    const notes = (v.notes ?? '').toString()
     const instrumentId = Number(v.instrumentId)
     const quantity = Number(v.quantity)
     const date = v.date
@@ -365,6 +370,7 @@ const doSave = async () => {
             const updatePayload = {
                 id: String(props.entryId),
                 description,
+                notes,
                 date: toDateString(date),
                 instrumentId,
                 quantity,
@@ -379,6 +385,7 @@ const doSave = async () => {
             const payload = {
                 type: props.operationType === 'sell' ? 'stocksell' : 'stockbuy',
                 description,
+                notes,
                 date: toDateString(date),
                 instrumentId,
                 quantity,
@@ -508,6 +515,18 @@ const handleSellSave = async () => {
                         <Message v-if="$form.pricePerShare?.invalid" severity="error" size="small">
                             {{ $form.pricePerShare?.error?.message }}
                         </Message>
+                    </div>
+                    <!-- Notes Field -->
+                    <div>
+                        <label for="notes" class="form-label">Notes</label>
+                        <Textarea
+                            id="notes"
+                            v-model="formValues.notes"
+                            name="notes"
+                            rows="3"
+                            autoResize
+                            fluid
+                        />
                     </div>
                 </div>
 

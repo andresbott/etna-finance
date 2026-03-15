@@ -32,6 +32,7 @@ type dbTransaction struct {
 	Id          uint      `gorm:"primaryKey"`
 	Date        time.Time `gorm:"not null"`
 	Description string    `gorm:"size:255"`
+	Notes       string    `gorm:"size:1024"`
 	Type        TxType
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
@@ -55,6 +56,7 @@ type EmptyTransaction struct {
 type Income struct {
 	Id           uint
 	Description  string
+	Notes        string
 	Amount       float64
 	AccountID    uint
 	CategoryID   uint
@@ -67,6 +69,7 @@ type Income struct {
 type Expense struct {
 	Id           uint
 	Description  string
+	Notes        string
 	Amount       float64
 	AccountID    uint
 	CategoryID   uint
@@ -79,6 +82,7 @@ type Expense struct {
 type Transfer struct {
 	Id              uint
 	Description     string
+	Notes           string
 	OriginAmount    float64
 	OriginAccountID uint
 	TargetAmount    float64
@@ -95,6 +99,7 @@ type Transfer struct {
 type StockBuy struct {
 	Id                  uint
 	Description         string
+	Notes               string
 	Date                time.Time
 	InvestmentAccountID uint // account of type Investment (position entry)
 	CashAccountID       uint // account of type Cash/Checkin/Savings (money in that account's currency)
@@ -112,6 +117,7 @@ type StockBuy struct {
 type StockSell struct {
 	Id                  uint
 	Description         string
+	Notes               string
 	Date                time.Time
 	InvestmentAccountID uint
 	CashAccountID       uint
@@ -132,6 +138,7 @@ type StockSell struct {
 type StockGrant struct {
 	Id              uint
 	Description     string
+	Notes           string
 	Date            time.Time
 	AccountID       uint // Investment or Unvested account that receives the shares
 	InstrumentID    uint
@@ -145,6 +152,7 @@ type StockGrant struct {
 type StockTransfer struct {
 	Id              uint
 	Description     string
+	Notes           string
 	Date            time.Time
 	SourceAccountID uint // Investment or Unvested
 	TargetAccountID uint // Investment or Unvested
@@ -159,6 +167,7 @@ type StockTransfer struct {
 type BalanceStatus struct {
 	Id           uint
 	Description  string
+	Notes        string
 	Amount       float64
 	AccountID    uint
 	Date         time.Time
@@ -216,6 +225,7 @@ func (store *Store) CreateIncome(ctx context.Context, item Income) (uint, error)
 
 	tx := dbTransaction{
 		Description: item.Description,
+		Notes:       item.Notes,
 		Date:        item.Date,
 		Type:        IncomeTransaction,
 		Entries: []dbEntry{
@@ -262,6 +272,7 @@ func (store *Store) CreateExpense(ctx context.Context, item Expense) (uint, erro
 
 	tx := dbTransaction{
 		Description: item.Description,
+		Notes:       item.Notes,
 		Date:        item.Date,
 		Type:        ExpenseTransaction,
 		Entries: []dbEntry{
@@ -299,6 +310,7 @@ func (store *Store) CreateBalanceStatus(ctx context.Context, item BalanceStatus)
 
 	tx := dbTransaction{
 		Description: item.Description,
+		Notes:       item.Notes,
 		Date:        item.Date,
 		Type:        BalanceStatusTransaction,
 		Entries: []dbEntry{
@@ -344,6 +356,7 @@ func (store *Store) CreateTransfer(ctx context.Context, item Transfer) (uint, er
 
 	tx := dbTransaction{
 		Description: item.Description,
+		Notes:       item.Notes,
 		Date:        item.Date,
 		Type:        TransferTransaction,
 		Entries: []dbEntry{
@@ -526,6 +539,7 @@ func (store *Store) CreateStockBuy(ctx context.Context, item StockBuy) (uint, er
 	// Cash entry only — position is tracked via trades/lots
 	tx := dbTransaction{
 		Description: item.Description,
+		Notes:       item.Notes,
 		Date:        item.Date,
 		Type:        StockBuyTransaction,
 		Entries: []dbEntry{
@@ -720,6 +734,7 @@ func (store *Store) CreateStockSell(ctx context.Context, item StockSell) (uint, 
 
 		tx := dbTransaction{
 			Description: item.Description,
+			Notes:       item.Notes,
 			Date:        item.Date,
 			Type:        StockSellTransaction,
 			Entries:     entries,
@@ -787,6 +802,7 @@ func (store *Store) CreateStockGrant(ctx context.Context, item StockGrant) (uint
 	// Grant: no cash movement, so no entries in db_entries. Only trade + lot + position.
 	tx := dbTransaction{
 		Description: item.Description,
+		Notes:       item.Notes,
 		Date:        item.Date,
 		Type:        StockGrantTransaction,
 	}
@@ -891,6 +907,7 @@ func (store *Store) CreateStockTransfer(ctx context.Context, item StockTransfer)
 	// Transfer: no cash movement, lot transfer logic + trade records for metadata.
 	tx := dbTransaction{
 		Description: item.Description,
+		Notes:       item.Notes,
 		Date:        item.Date,
 		Type:        StockTransferTransaction,
 	}
@@ -1007,6 +1024,7 @@ func publicTransactions(in dbTransaction) (Transaction, error) {
 func incomeFromDb(in dbTransaction) (Transaction, error) {
 	return Income{
 		Description:  in.Description,
+		Notes:        in.Notes,
 		Date:         in.Date,
 		Amount:       in.Entries[0].Amount,
 		AccountID:    in.Entries[0].AccountID,
@@ -1019,6 +1037,7 @@ func balanceStatusFromDb(in dbTransaction) (Transaction, error) {
 	return BalanceStatus{
 		Id:           in.Id,
 		Description:  in.Description,
+		Notes:        in.Notes,
 		Date:         in.Date,
 		Amount:       in.Entries[0].Amount,
 		AccountID:    in.Entries[0].AccountID,
@@ -1029,6 +1048,7 @@ func balanceStatusFromDb(in dbTransaction) (Transaction, error) {
 func expenseFromDb(in dbTransaction) (Transaction, error) {
 	return Expense{
 		Description:  in.Description,
+		Notes:        in.Notes,
 		Date:         in.Date,
 		Amount:       -in.Entries[0].Amount,
 		AccountID:    in.Entries[0].AccountID,
@@ -1051,6 +1071,7 @@ func transferFromDb(in dbTransaction) (Transaction, error) {
 	}
 	return Transfer{
 		Description:     in.Description,
+		Notes:           in.Notes,
 		OriginAmount:    -outEntry.Amount,
 		OriginAccountID: outEntry.AccountID,
 		TargetAmount:    inEntity.Amount,
@@ -1085,6 +1106,7 @@ func stockBuyFromDb(in dbTransaction) (Transaction, error) {
 	return StockBuy{
 		Id:                  in.Id,
 		Description:         in.Description,
+		Notes:               in.Notes,
 		Date:                in.Date,
 		InvestmentAccountID: trade.AccountID,
 		CashAccountID:       cashEntry.AccountID,
@@ -1159,6 +1181,7 @@ func stockSellFromDb(in dbTransaction) (Transaction, error) {
 	return StockSell{
 		Id:                  in.Id,
 		Description:         in.Description,
+		Notes:               in.Notes,
 		Date:                in.Date,
 		InvestmentAccountID: trade.AccountID,
 		CashAccountID:       cashAccountID,
@@ -1186,6 +1209,7 @@ func stockGrantFromDb(in dbTransaction) (Transaction, error) {
 	return StockGrant{
 		Id:              in.Id,
 		Description:     in.Description,
+		Notes:           in.Notes,
 		Date:            in.Date,
 		AccountID:       trade.AccountID,
 		InstrumentID:    trade.InstrumentID,
@@ -1212,6 +1236,7 @@ func stockTransferFromDb(in dbTransaction) (Transaction, error) {
 	return StockTransfer{
 		Id:              in.Id,
 		Description:     in.Description,
+		Notes:           in.Notes,
 		Date:            in.Date,
 		SourceAccountID: outTrade.AccountID,
 		TargetAccountID: inTrade.AccountID,
@@ -1279,6 +1304,7 @@ type EmptyTransactionUpdate struct {
 
 type IncomeUpdate struct {
 	Description *string
+	Notes       *string
 	Amount      *float64
 	AccountID   *uint
 	CategoryID  *uint
@@ -1289,6 +1315,7 @@ type IncomeUpdate struct {
 
 type ExpenseUpdate struct {
 	Description *string
+	Notes       *string
 	Amount      *float64
 	AccountID   *uint
 	CategoryID  *uint
@@ -1299,6 +1326,7 @@ type ExpenseUpdate struct {
 
 type TransferUpdate struct {
 	Description     *string
+	Notes           *string
 	OriginAmount    *float64
 	OriginAccountID *uint
 	TargetAmount    *float64
@@ -1310,6 +1338,7 @@ type TransferUpdate struct {
 
 type StockBuyUpdate struct {
 	Description         *string
+	Notes               *string
 	Date                *time.Time
 	InstrumentID        *uint
 	Quantity            *float64
@@ -1323,6 +1352,7 @@ type StockBuyUpdate struct {
 
 type StockSellUpdate struct {
 	Description         *string
+	Notes               *string
 	Date                *time.Time
 	InstrumentID        *uint
 	Quantity            *float64
@@ -1337,6 +1367,7 @@ type StockSellUpdate struct {
 
 type StockGrantUpdate struct {
 	Description     *string
+	Notes           *string
 	Date            *time.Time
 	InstrumentID    *uint
 	Quantity        *float64
@@ -1348,6 +1379,7 @@ type StockGrantUpdate struct {
 
 type StockTransferUpdate struct {
 	Description     *string
+	Notes           *string
 	Date            *time.Time
 	InstrumentID    *uint
 	Quantity        *float64
@@ -1359,6 +1391,7 @@ type StockTransferUpdate struct {
 
 type BalanceStatusUpdate struct {
 	Description *string
+	Notes       *string
 	Date        *time.Time
 	Amount      *float64
 	AccountID   *uint
@@ -1394,6 +1427,7 @@ func (store *Store) UpdateTransaction(ctx context.Context, input TransactionUpda
 func (store *Store) UpdateIncome(ctx context.Context, input IncomeUpdate, id uint) error {
 	params := updateIncomeExpenseParams{
 		description:          input.Description,
+		notes:                input.Notes,
 		date:                 input.Date,
 		amount:               input.Amount,
 		accountID:            input.AccountID,
@@ -1409,6 +1443,7 @@ func (store *Store) UpdateIncome(ctx context.Context, input IncomeUpdate, id uin
 func (store *Store) UpdateExpense(ctx context.Context, input ExpenseUpdate, id uint) error {
 	params := updateIncomeExpenseParams{
 		description:          input.Description,
+		notes:                input.Notes,
 		date:                 input.Date,
 		amount:               input.Amount,
 		accountID:            input.AccountID,
@@ -1424,6 +1459,7 @@ func (store *Store) UpdateExpense(ctx context.Context, input ExpenseUpdate, id u
 func (store *Store) UpdateBalanceStatus(ctx context.Context, input BalanceStatusUpdate, id uint) error {
 	params := updateIncomeExpenseParams{
 		description:      input.Description,
+		notes:            input.Notes,
 		date:             input.Date,
 		amount:           input.Amount,
 		accountID:        input.AccountID,
@@ -1436,6 +1472,7 @@ func (store *Store) UpdateBalanceStatus(ctx context.Context, input BalanceStatus
 
 type updateIncomeExpenseParams struct {
 	description          *string
+	notes                *string
 	date                 *time.Time
 	amount               *float64
 	accountID            *uint
@@ -1462,6 +1499,12 @@ func (store *Store) updateIncomeExpense(ctx context.Context, params updateIncome
 		}
 		updateStruct.Description = *params.description
 		selectedFields = append(selectedFields, "Description")
+	}
+
+	// Notes (allow setting to empty string to clear notes)
+	if params.notes != nil {
+		updateStruct.Notes = *params.notes
+		selectedFields = append(selectedFields, "Notes")
 	}
 
 	// Date
@@ -1609,6 +1652,11 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 		selectedFields = append(selectedFields, "Description")
 	}
 
+	if input.Notes != nil {
+		updateStruct.Notes = *input.Notes
+		selectedFields = append(selectedFields, "Notes")
+	}
+
 	if input.Date != nil {
 		if input.Date.IsZero() {
 			return NewValidationErr("date cannot be zero")
@@ -1701,6 +1749,9 @@ func (store *Store) mergeStockBuyFields(ctx context.Context, buy *StockBuy, inpu
 			return NewValidationErr("description cannot be empty")
 		}
 		buy.Description = *input.Description
+	}
+	if input.Notes != nil {
+		buy.Notes = *input.Notes
 	}
 	if input.Date != nil {
 		if input.Date.IsZero() {
@@ -1810,6 +1861,7 @@ func (store *Store) UpdateStockBuy(ctx context.Context, input StockBuyUpdate, id
 		// Update transaction fields
 		if err := dbTx.Model(&dbTransaction{}).Where("id = ?", id).Updates(map[string]interface{}{
 			"description": buy.Description,
+			"notes":       buy.Notes,
 			"date":        buy.Date,
 		}).Error; err != nil {
 			return err
@@ -1853,6 +1905,9 @@ func (store *Store) mergeStockSellFields(ctx context.Context, sell *StockSell, i
 			return NewValidationErr("description cannot be empty")
 		}
 		sell.Description = *input.Description
+	}
+	if input.Notes != nil {
+		sell.Notes = *input.Notes
 	}
 	if input.Date != nil {
 		if input.Date.IsZero() {
@@ -1957,6 +2012,7 @@ func (store *Store) recreateStockSell(ctx context.Context, id uint, sell StockSe
 		// Update transaction fields
 		if err := dbTx.Model(&dbTransaction{}).Where("id = ?", id).Updates(map[string]interface{}{
 			"description": sell.Description,
+			"notes":       sell.Notes,
 			"date":        sell.Date,
 		}).Error; err != nil {
 			return err
@@ -2028,6 +2084,9 @@ func (store *Store) mergeStockGrantFields(ctx context.Context, grant *StockGrant
 		}
 		grant.Description = *input.Description
 	}
+	if input.Notes != nil {
+		grant.Notes = *input.Notes
+	}
 	if input.Date != nil {
 		if input.Date.IsZero() {
 			return NewValidationErr("date cannot be zero")
@@ -2097,6 +2156,7 @@ func (store *Store) UpdateStockGrant(ctx context.Context, input StockGrantUpdate
 		// Update transaction fields
 		if err := dbTx.Model(&dbTransaction{}).Where("id = ?", id).Updates(map[string]interface{}{
 			"description": grant.Description,
+			"notes":       grant.Notes,
 			"date":        grant.Date,
 		}).Error; err != nil {
 			return err
@@ -2125,6 +2185,9 @@ func (store *Store) mergeStockTransferFields(ctx context.Context, transfer *Stoc
 			return NewValidationErr("description cannot be empty")
 		}
 		transfer.Description = *input.Description
+	}
+	if input.Notes != nil {
+		transfer.Notes = *input.Notes
 	}
 	if input.Date != nil {
 		if input.Date.IsZero() {
@@ -2202,6 +2265,7 @@ func (store *Store) UpdateStockTransfer(ctx context.Context, input StockTransfer
 		// Update transaction fields
 		if err := dbTx.Model(&dbTransaction{}).Where("id = ?", id).Updates(map[string]interface{}{
 			"description": transfer.Description,
+			"notes":       transfer.Notes,
 			"date":        transfer.Date,
 		}).Error; err != nil {
 			return err
@@ -2269,6 +2333,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
         db_transactions.id AS transaction_id,
         db_transactions.date,
         db_transactions.description,
+        db_transactions.notes,
         db_transactions.type,
         db_transactions.attachment_id,
 		COALESCE(MAX(db_entries.category_id), 0) AS category_id,
@@ -2333,7 +2398,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 			opts.AccountId, opts.AccountId)
 	}
 
-	db = db.Group("db_transactions.id, db_transactions.date, db_transactions.description, db_transactions.type")
+	db = db.Group("db_transactions.id, db_transactions.date, db_transactions.description, db_transactions.notes, db_transactions.type")
 
 	// Count total matching transactions before applying pagination.
 	// We wrap the grouped query as a subquery so COUNT works correctly.
@@ -2365,6 +2430,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 	type intermediate struct {
 		Date          time.Time
 		Description   string
+		Notes         string
 		Type          TxType
 		TransactionId uint
 		AttachmentID  *uint
@@ -2425,6 +2491,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 			tx := Income{
 				Id:           item.TransactionId,
 				Description:  item.Description,
+				Notes:        item.Notes,
 				Amount:       item.IncomeAmount,
 				AccountID:    item.IncomeAccountId,
 				CategoryID:   item.CategoryId,
@@ -2436,6 +2503,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 			tx := Expense{
 				Id:           item.TransactionId,
 				Description:  item.Description,
+				Notes:        item.Notes,
 				Amount:       -item.ExpenseAmount,
 				AccountID:    item.ExpenseAccountId,
 				CategoryID:   item.CategoryId,
@@ -2447,6 +2515,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 			tx := Transfer{
 				Id:              item.TransactionId,
 				Description:     item.Description,
+				Notes:           item.Notes,
 				Date:            item.Date,
 				OriginAmount:    -item.OriginAmount,
 				OriginAccountID: item.OriginAccountId,
@@ -2463,6 +2532,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 			txs = append(txs, StockBuy{
 				Id:                  item.TransactionId,
 				Description:         item.Description,
+				Notes:               item.Notes,
 				Date:                item.Date,
 				InvestmentAccountID: item.TradeBuyAccountId,
 				CashAccountID:       item.StockCashAccountId,
@@ -2479,6 +2549,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 			txs = append(txs, StockSell{
 				Id:                  item.TransactionId,
 				Description:         item.Description,
+				Notes:               item.Notes,
 				Date:                item.Date,
 				InvestmentAccountID: item.TradeSellAccountId,
 				CashAccountID:       item.StockCashAccountId,
@@ -2493,6 +2564,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 			txs = append(txs, StockGrant{
 				Id:              item.TransactionId,
 				Description:     item.Description,
+				Notes:           item.Notes,
 				Date:            item.Date,
 				AccountID:       item.TradeGrantAccountId,
 				InstrumentID:    item.TradeGrantInstrumentId,
@@ -2504,6 +2576,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 			txs = append(txs, StockTransfer{
 				Id:              item.TransactionId,
 				Description:     item.Description,
+				Notes:           item.Notes,
 				Date:            item.Date,
 				SourceAccountID: item.TradeTransferSourceId,
 				TargetAccountID: item.TradeTransferTargetId,
@@ -2515,6 +2588,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 			txs = append(txs, BalanceStatus{
 				Id:           item.TransactionId,
 				Description:  item.Description,
+				Notes:        item.Notes,
 				Date:         item.Date,
 				Amount:       item.BalanceStatusAmount,
 				AccountID:    item.AccountId,

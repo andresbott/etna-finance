@@ -24,6 +24,7 @@ const convertTree = (nodes, parentPath = '') => {
         const converted = {
             key: String(node.data.id),
             label: node.data.name,
+            icon: `pi ${node.data.icon || 'pi-tag'}`,
             data: { ...node.data, path }
         }
 
@@ -100,12 +101,20 @@ const onSelectionChange = (val) => {
     }
 }
 
+const selectedNode = computed(() => {
+    if (props.modelValue === 0 || !props.modelValue) return null
+    return findNodeById(categoryTreeData.value, props.modelValue)
+})
+
 const selectedCategoryDisplay = computed(() => {
     if (props.modelValue === 0 || !props.modelValue) {
         return props.showRoot ? 'Root Category' : ''
     }
-    const selectedNode = findNodeById(categoryTreeData.value, props.modelValue)
-    return selectedNode ? selectedNode.data.path : ''
+    return selectedNode.value ? selectedNode.value.data.path : ''
+})
+
+const selectedCategoryIcon = computed(() => {
+    return selectedNode.value?.data?.icon || 'pi-tag'
 })
 </script>
 
@@ -125,7 +134,10 @@ const selectedCategoryDisplay = computed(() => {
             @update:modelValue="onSelectionChange"
         >
             <template #value>
-                <span v-if="selectedCategoryDisplay">{{ selectedCategoryDisplay }}</span>
+                <span v-if="selectedCategoryDisplay" class="flex items-center gap-2">
+                    <i :class="['pi', selectedCategoryIcon]"></i>
+                    {{ selectedCategoryDisplay }}
+                </span>
                 <span v-else>{{ placeholder }}</span>
             </template>
         </TreeSelect>
