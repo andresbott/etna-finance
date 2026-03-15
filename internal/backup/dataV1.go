@@ -62,6 +62,7 @@ const txTypeStockTransfer = "stocktransfer"
 type TransactionV1 struct {
 	Id          uint   `json:"id"`
 	Description string `json:"description"`
+	Notes       string `json:"notes,omitempty"`
 	// for income/expense
 	Amount     float64 `json:"amount"`
 	AccountID  uint    `json:"accountId"`

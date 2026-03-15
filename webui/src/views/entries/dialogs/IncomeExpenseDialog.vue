@@ -20,6 +20,7 @@ import {
 import AccountSelector from '@/components/AccountSelector.vue'
 import Message from 'primevue/message'
 import InputText from 'primevue/inputtext'
+import Textarea from 'primevue/textarea'
 import InputNumber from 'primevue/inputnumber'
 import DatePicker from 'primevue/datepicker'
 import CategorySelect from '@/components/common/CategorySelect.vue'
@@ -48,7 +49,8 @@ const props = defineProps({
     visible: { type: Boolean, default: false },
     categoryId: { type: Number, default: 0 },
     autofocusAmount: { type: Boolean, default: false },
-    attachmentId: { type: Number, default: null }
+    attachmentId: { type: Number, default: null },
+    notes: { type: String, default: '' }
 })
 const categoryId = ref(props.categoryId)
 
@@ -75,6 +77,7 @@ watch(() => [props.visible, props.autofocusAmount], ([visible, autofocus]) => {
 
 const formValues = ref({
     description: props.description,
+    notes: props.notes,
     amount: props.amount,
     AccountId: getFormattedAccountId(props.accountId),
     stockAmount: props.stockAmount,
@@ -87,6 +90,7 @@ watch(() => props.visible, (visible) => {
     if (!visible) return
     formValues.value = {
         description: props.description,
+        notes: props.notes,
         amount: props.amount,
         AccountId: getFormattedAccountId(props.accountId),
         stockAmount: props.stockAmount,
@@ -178,6 +182,7 @@ const handleSubmit = async (e) => {
 
     const entryData = {
         description,
+        notes: (formValues.value.notes ?? '').toString(),
         amount,
         date: toDateString(date),
         accountId,
@@ -335,6 +340,19 @@ const emit = defineEmits(['update:visible'])
                 </div>
 
                 <CategorySelect v-model="categoryId" :type="entryType" />
+
+                <!-- Notes Field -->
+                <div>
+                    <label for="notes" class="form-label">Notes</label>
+                    <Textarea
+                        id="notes"
+                        v-model="formValues.notes"
+                        name="notes"
+                        rows="3"
+                        autoResize
+                        fluid
+                    />
+                </div>
 
                 <div>
                     <label class="form-label">Attachment</label>

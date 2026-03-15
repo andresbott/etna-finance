@@ -33,6 +33,7 @@ const emit = defineEmits(['update:deleteDialogVisible', 'confirmDelete'])
         :category-id="selectedEntry?.categoryId"
         :autofocus-amount="isDuplicateMode"
         :attachment-id="selectedEntry?.attachmentId"
+        :notes="selectedEntry?.notes ?? ''"
     />
 
     <TransferDialog
@@ -49,6 +50,7 @@ const emit = defineEmits(['update:deleteDialogVisible', 'confirmDelete'])
         :origin-account-id="selectedEntry?.originAccountId"
         :autofocus-amount="isDuplicateMode"
         :attachment-id="selectedEntry?.attachmentId"
+        :notes="selectedEntry?.notes ?? ''"
     />
 
     <BuySellInstrumentDialog
@@ -64,6 +66,7 @@ const emit = defineEmits(['update:deleteDialogVisible', 'confirmDelete'])
         :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
         :investment-account-id="selectedEntry?.investmentAccountId"
         :cash-account-id="selectedEntry?.cashAccountId"
+        :notes="selectedEntry?.notes ?? ''"
         @update:visible="dialogs.buyStock.value = $event"
     />
     <BuySellInstrumentDialog
@@ -80,6 +83,7 @@ const emit = defineEmits(['update:deleteDialogVisible', 'confirmDelete'])
         :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
         :investment-account-id="selectedEntry?.investmentAccountId"
         :cash-account-id="selectedEntry?.cashAccountId"
+        :notes="selectedEntry?.notes ?? ''"
         @update:visible="dialogs.sellStock.value = $event"
     />
 
@@ -93,6 +97,7 @@ const emit = defineEmits(['update:deleteDialogVisible', 'confirmDelete'])
         :fair-market-value="selectedEntry?.fairMarketValue ?? 0"
         :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
         :account-id="selectedEntry?.accountId"
+        :notes="selectedEntry?.notes ?? ''"
         @update:visible="dialogs.grantStock.value = $event"
     />
     <TransferInstrumentDialog
@@ -105,6 +110,7 @@ const emit = defineEmits(['update:deleteDialogVisible', 'confirmDelete'])
         :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
         :origin-account-id="selectedEntry?.originAccountId"
         :target-account-id="selectedEntry?.targetAccountId"
+        :notes="selectedEntry?.notes ?? ''"
         @update:visible="dialogs.transferInstrument.value = $event"
     />
 
@@ -117,6 +123,7 @@ const emit = defineEmits(['update:deleteDialogVisible', 'confirmDelete'])
         :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
         :account-id="selectedEntry?.accountId"
         :attachment-id="selectedEntry?.attachmentId"
+        :notes="selectedEntry?.notes ?? ''"
     />
 
     <DeleteDialog

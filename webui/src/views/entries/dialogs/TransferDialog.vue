@@ -20,6 +20,7 @@ import {
 import AccountSelector from '@/components/AccountSelector.vue'
 import Message from 'primevue/message'
 import InputText from 'primevue/inputtext'
+import Textarea from 'primevue/textarea'
 import InputNumber from 'primevue/inputnumber'
 import DatePicker from 'primevue/datepicker'
 import Divider from 'primevue/divider'
@@ -46,7 +47,8 @@ const props = defineProps({
     originAccountId: { type: Number, default: null },
     visible: { type: Boolean, default: false },
     autofocusAmount: { type: Boolean, default: false },
-    attachmentId: { type: Number, default: null }
+    attachmentId: { type: Number, default: null },
+    notes: { type: String, default: '' }
 })
 
 const selectedFile = ref(null)
@@ -72,6 +74,7 @@ watch(() => [props.visible, props.autofocusAmount], ([visible, autofocus]) => {
 
 const formValues = ref({
     description: props.description,
+    notes: props.notes,
     date: getDateOnly(props.date),
     targetAmount: props.targetAmount,
     originAmount: props.originAmount,
@@ -85,6 +88,7 @@ watch(() => props.visible, (visible) => {
     if (!visible) return
     formValues.value = {
         description: props.description,
+        notes: props.notes,
         date: getDateOnly(props.date),
         targetAmount: props.targetAmount,
         originAmount: props.originAmount,
@@ -196,6 +200,7 @@ const handleSubmit = async (e) => {
 
     const entryData = {
         description,
+        notes: (formValues.value.notes ?? '').toString(),
         date: toDateString(date),
         targetAmount,
         originAmount,
@@ -304,6 +309,19 @@ const emit = defineEmits(['update:visible'])
                             {{ $form.date.error?.message }}
                         </Message>
                     </div>
+                </div>
+
+                <!-- Notes Field -->
+                <div>
+                    <label for="notes" class="form-label">Notes</label>
+                    <Textarea
+                        id="notes"
+                        v-model="formValues.notes"
+                        name="notes"
+                        rows="3"
+                        autoResize
+                        fluid
+                    />
                 </div>
 
                 <!-- Separator -->

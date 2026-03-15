@@ -7,6 +7,7 @@ import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
 import Message from 'primevue/message'
 import InputText from 'primevue/inputtext'
+import Textarea from 'primevue/textarea'
 import InputNumber from 'primevue/inputnumber'
 import DatePicker from 'primevue/datepicker'
 import Select from 'primevue/select'
@@ -61,7 +62,8 @@ const props = defineProps({
     quantity: { type: Number, default: 0 },
     date: { type: Date, default: () => new Date() },
     originAccountId: { type: Number, default: null },
-    targetAccountId: { type: Number, default: null }
+    targetAccountId: { type: Number, default: null },
+    notes: { type: String, default: '' }
 })
 
 const emit = defineEmits(['update:visible'])
@@ -71,6 +73,7 @@ watch(() => props.visible, (v) => { if (!v) backendError.value = '' })
 const formValues = ref({
     instrumentId: props.instrumentId,
     description: props.description,
+    notes: props.notes,
     quantity: props.quantity,
     date: getDateOnly(props.date),
     OriginAccountId: getFormattedAccountId(props.originAccountId),
@@ -92,6 +95,7 @@ watch(
             formValues.value = {
                 instrumentId: props.instrumentId,
                 description: props.description,
+                notes: props.notes,
                 quantity: props.quantity,
                 date: getDateOnly(props.date),
                 OriginAccountId: getFormattedAccountId(props.originAccountId),
@@ -148,10 +152,12 @@ const handleSubmit = async (e) => {
 
     backendError.value = ''
     try {
+        const notes = (formValues.value.notes ?? '').toString()
         if (props.isEdit && props.entryId != null) {
             await updateEntry({
                 id: String(props.entryId),
                 description,
+                notes,
                 date: toDateString(date),
                 instrumentId,
                 quantity,
@@ -162,6 +168,7 @@ const handleSubmit = async (e) => {
             const payload = {
                 type: 'stocktransfer',
                 description,
+                notes,
                 date: toDateString(date),
                 instrumentId,
                 quantity,
@@ -252,6 +259,19 @@ const handleSubmit = async (e) => {
                     <Message v-if="$form.quantity?.invalid" severity="error" size="small">
                         {{ $form.quantity?.error?.message }}
                     </Message>
+                </div>
+
+                <!-- Notes Field -->
+                <div>
+                    <label for="notes" class="form-label">Notes</label>
+                    <Textarea
+                        id="notes"
+                        v-model="formValues.notes"
+                        name="notes"
+                        rows="3"
+                        autoResize
+                        fluid
+                    />
                 </div>
 
                 <div class="transfer-instrument-accounts flex flex-row gap-3 align-items-start">

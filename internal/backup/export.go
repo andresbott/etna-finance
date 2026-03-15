@@ -245,6 +245,7 @@ func writeTransactions(ctx context.Context, zw *zipWriter, store *accounting.Sto
 				jsonData = append(jsonData, TransactionV1{
 					Id:              item.Id,
 					Description:     item.Description,
+					Notes:           item.Notes,
 					OriginAmount:    item.OriginAmount,
 					OriginAccountID: item.OriginAccountID,
 					TargetAmount:    item.TargetAmount,
@@ -256,6 +257,7 @@ func writeTransactions(ctx context.Context, zw *zipWriter, store *accounting.Sto
 				jsonData = append(jsonData, TransactionV1{
 					Id:          item.Id,
 					Description: item.Description,
+					Notes:       item.Notes,
 					Amount:      item.Amount,
 					AccountID:   item.AccountID,
 					CategoryID:  item.CategoryID,
@@ -266,6 +268,7 @@ func writeTransactions(ctx context.Context, zw *zipWriter, store *accounting.Sto
 				jsonData = append(jsonData, TransactionV1{
 					Id:          item.Id,
 					Description: item.Description,
+					Notes:       item.Notes,
 					Amount:      item.Amount,
 					AccountID:   item.AccountID,
 					CategoryID:  item.CategoryID,
@@ -276,6 +279,7 @@ func writeTransactions(ctx context.Context, zw *zipWriter, store *accounting.Sto
 				jsonData = append(jsonData, TransactionV1{
 					Id:                  item.Id,
 					Description:         item.Description,
+					Notes:               item.Notes,
 					InstrumentID:        item.InstrumentID,
 					Quantity:            item.Quantity,
 					TotalAmount:         item.TotalAmount,
@@ -289,6 +293,7 @@ func writeTransactions(ctx context.Context, zw *zipWriter, store *accounting.Sto
 				jsonData = append(jsonData, TransactionV1{
 					Id:                  item.Id,
 					Description:         item.Description,
+					Notes:               item.Notes,
 					InstrumentID:        item.InstrumentID,
 					Quantity:            item.Quantity,
 					TotalAmount:         item.TotalAmount,
@@ -302,6 +307,7 @@ func writeTransactions(ctx context.Context, zw *zipWriter, store *accounting.Sto
 				jsonData = append(jsonData, TransactionV1{
 					Id:              item.Id,
 					Description:     item.Description,
+					Notes:           item.Notes,
 					AccountID:       item.AccountID,
 					InstrumentID:    item.InstrumentID,
 					Quantity:        item.Quantity,
@@ -313,6 +319,7 @@ func writeTransactions(ctx context.Context, zw *zipWriter, store *accounting.Sto
 				jsonData = append(jsonData, TransactionV1{
 					Id:              item.Id,
 					Description:     item.Description,
+					Notes:           item.Notes,
 					SourceAccountID: item.SourceAccountID,
 					TargetAccountID: item.TargetAccountID,
 					InstrumentID:    item.InstrumentID,

@@ -18,6 +18,7 @@ import {
 import AccountSelector from '@/components/AccountSelector.vue'
 import Message from 'primevue/message'
 import InputText from 'primevue/inputtext'
+import Textarea from 'primevue/textarea'
 import InputNumber from 'primevue/inputnumber'
 import DatePicker from 'primevue/datepicker'
 import { useDateFormat } from '@/composables/useDateFormat'
@@ -39,7 +40,8 @@ const props = defineProps({
     date: { type: Date, default: () => new Date() },
     accountId: { type: Number, default: null },
     visible: { type: Boolean, default: false },
-    attachmentId: { type: Number, default: null }
+    attachmentId: { type: Number, default: null },
+    notes: { type: String, default: '' }
 })
 
 const selectedFile = ref(null)
@@ -48,6 +50,7 @@ const attachmentPendingDelete = ref(false)
 
 const formValues = ref({
     description: props.description,
+    notes: props.notes,
     amount: props.amount,
     AccountId: getFormattedAccountId(props.accountId),
     date: getDateOnly(props.date)
@@ -59,6 +62,7 @@ watch(() => props.visible, (visible) => {
     if (!visible) return
     formValues.value = {
         description: props.description,
+        notes: props.notes,
         amount: props.amount,
         AccountId: getFormattedAccountId(props.accountId),
         date: getDateOnly(props.date)
@@ -97,6 +101,7 @@ const handleSubmit = async (e) => {
 
     const entryData = {
         description,
+        notes: (formValues.value.notes ?? '').toString(),
         Amount: amount,
         date: toDateString(date),
         accountId,
@@ -219,6 +224,19 @@ const emit = defineEmits(['update:visible'])
                     <Message v-if="$form.AccountId?.invalid" severity="error" size="small">
                         {{ $form.AccountId.error?.message }}
                     </Message>
+                </div>
+
+                <!-- Notes Field -->
+                <div>
+                    <label for="notes" class="form-label">Notes</label>
+                    <Textarea
+                        id="notes"
+                        v-model="formValues.notes"
+                        name="notes"
+                        rows="3"
+                        autoResize
+                        fluid
+                    />
                 </div>
 
                 <div>

@@ -37,6 +37,7 @@ func (t *dateOnlyTime) UnmarshalJSON(b []byte) error {
 type transactionPayload struct {
 	Id          uint         `json:"id"`
 	Description string       `json:"description"`
+	Notes       string       `json:"notes"`
 	Date        dateOnlyTime `json:"date"`
 	Type        string       `json:"type"`
 
@@ -94,6 +95,7 @@ func (h *Handler) CreateTx() http.Handler {
 		case accounting.IncomeTransaction:
 			entry = accounting.Income{
 				Description: payload.Description,
+				Notes:       payload.Notes,
 				Date:        payload.Date.Time,
 				Amount:      payload.Amount,
 				AccountID:   payload.AccountId,
@@ -102,6 +104,7 @@ func (h *Handler) CreateTx() http.Handler {
 		case accounting.ExpenseTransaction:
 			entry = accounting.Expense{
 				Description: payload.Description,
+				Notes:       payload.Notes,
 				Date:        payload.Date.Time,
 				Amount:      payload.Amount,
 				AccountID:   payload.AccountId,
@@ -110,6 +113,7 @@ func (h *Handler) CreateTx() http.Handler {
 		case accounting.TransferTransaction:
 			entry = accounting.Transfer{
 				Description:     payload.Description,
+				Notes:           payload.Notes,
 				Date:            payload.Date.Time,
 				OriginAmount:    payload.OriginAmount,
 				OriginAccountID: payload.OriginAccountID,
@@ -119,6 +123,7 @@ func (h *Handler) CreateTx() http.Handler {
 		case accounting.StockBuyTransaction:
 			entry = accounting.StockBuy{
 				Description:         payload.Description,
+				Notes:               payload.Notes,
 				Date:                payload.Date.Time,
 				InvestmentAccountID: payload.InvestmentAccountID,
 				CashAccountID:       payload.CashAccountID,
@@ -134,6 +139,7 @@ func (h *Handler) CreateTx() http.Handler {
 			}
 			entry = accounting.StockSell{
 				Description:         payload.Description,
+				Notes:               payload.Notes,
 				Date:                payload.Date.Time,
 				InvestmentAccountID: payload.InvestmentAccountID,
 				CashAccountID:       payload.CashAccountID,
@@ -146,6 +152,7 @@ func (h *Handler) CreateTx() http.Handler {
 		case accounting.StockGrantTransaction:
 			entry = accounting.StockGrant{
 				Description:     payload.Description,
+				Notes:           payload.Notes,
 				Date:            payload.Date.Time,
 				AccountID:       payload.AccountId,
 				InstrumentID:    payload.InstrumentID,
@@ -155,6 +162,7 @@ func (h *Handler) CreateTx() http.Handler {
 		case accounting.StockTransferTransaction:
 			entry = accounting.StockTransfer{
 				Description:     payload.Description,
+				Notes:           payload.Notes,
 				Date:            payload.Date.Time,
 				SourceAccountID: payload.OriginAccountID,
 				TargetAccountID: payload.TargetAccountID,
@@ -164,6 +172,7 @@ func (h *Handler) CreateTx() http.Handler {
 		case accounting.BalanceStatusTransaction:
 			entry = accounting.BalanceStatus{
 				Description: payload.Description,
+				Notes:       payload.Notes,
 				Date:        payload.Date.Time,
 				Amount:      payload.Amount,
 				AccountID:   payload.AccountId,
@@ -237,6 +246,7 @@ type entryUpdatePayload struct {
 	Type string `json:"type"`
 
 	Description *string          `json:"description"`
+	Notes       *string          `json:"notes"`
 	Date        *dateOnlyTimePtr `json:"date"`
 
 	StockAmount *float64 `json:"stockAmount"`
@@ -293,6 +303,7 @@ func (h *Handler) UpdateTx(Id uint) http.Handler {
 		case accounting.Income:
 			entry = accounting.IncomeUpdate{
 				Description: payload.Description,
+				Notes:       payload.Notes,
 				Date:        datePtr,
 				Amount:      payload.Amount,
 				AccountID:   payload.AccountId,
@@ -301,6 +312,7 @@ func (h *Handler) UpdateTx(Id uint) http.Handler {
 		case accounting.Expense:
 			entry = accounting.ExpenseUpdate{
 				Description: payload.Description,
+				Notes:       payload.Notes,
 				Date:        datePtr,
 				Amount:      payload.Amount,
 				AccountID:   payload.AccountId,
@@ -309,6 +321,7 @@ func (h *Handler) UpdateTx(Id uint) http.Handler {
 		case accounting.Transfer:
 			entry = accounting.TransferUpdate{
 				Description:     payload.Description,
+				Notes:           payload.Notes,
 				Date:            datePtr,
 				OriginAmount:    payload.OriginAmount,
 				OriginAccountID: payload.OriginAccountID,
@@ -318,6 +331,7 @@ func (h *Handler) UpdateTx(Id uint) http.Handler {
 		case accounting.StockBuy:
 			entry = accounting.StockBuyUpdate{
 				Description:         payload.Description,
+				Notes:               payload.Notes,
 				Date:                datePtr,
 				InstrumentID:        payload.InstrumentID,
 				Quantity:            payload.Quantity,
@@ -333,6 +347,7 @@ func (h *Handler) UpdateTx(Id uint) http.Handler {
 			}
 			entry = accounting.StockSellUpdate{
 				Description:         payload.Description,
+				Notes:               payload.Notes,
 				Date:                datePtr,
 				InstrumentID:        payload.InstrumentID,
 				Quantity:            payload.Quantity,
@@ -345,6 +360,7 @@ func (h *Handler) UpdateTx(Id uint) http.Handler {
 		case accounting.StockGrant:
 			entry = accounting.StockGrantUpdate{
 				Description:     payload.Description,
+				Notes:           payload.Notes,
 				Date:            datePtr,
 				InstrumentID:    payload.InstrumentID,
 				Quantity:        payload.Quantity,
@@ -354,6 +370,7 @@ func (h *Handler) UpdateTx(Id uint) http.Handler {
 		case accounting.StockTransfer:
 			entry = accounting.StockTransferUpdate{
 				Description:     payload.Description,
+				Notes:           payload.Notes,
 				Date:            datePtr,
 				InstrumentID:    payload.InstrumentID,
 				Quantity:        payload.Quantity,
@@ -363,6 +380,7 @@ func (h *Handler) UpdateTx(Id uint) http.Handler {
 		case accounting.BalanceStatus:
 			entry = accounting.BalanceStatusUpdate{
 				Description: payload.Description,
+				Notes:       payload.Notes,
 				Date:        datePtr,
 				Amount:      payload.Amount,
 				AccountID:   payload.AccountId,
@@ -422,6 +440,7 @@ func transactionToPayload(entry accounting.Transaction) transactionPayload {
 		return transactionPayload{
 			Id:           entry.Id,
 			Description:  entry.Description,
+			Notes:        entry.Notes,
 			Date:         dateOnlyTime{Time: entry.Date},
 			Type:         incomeTxStr,
 			Amount:       entry.Amount,
@@ -433,6 +452,7 @@ func transactionToPayload(entry accounting.Transaction) transactionPayload {
 		return transactionPayload{
 			Id:           entry.Id,
 			Description:  entry.Description,
+			Notes:        entry.Notes,
 			Date:         dateOnlyTime{Time: entry.Date},
 			Type:         expenseTxStr,
 			Amount:       entry.Amount,
@@ -444,6 +464,7 @@ func transactionToPayload(entry accounting.Transaction) transactionPayload {
 		return transactionPayload{
 			Id:              entry.Id,
 			Description:     entry.Description,
+			Notes:           entry.Notes,
 			Date:            dateOnlyTime{Time: entry.Date},
 			Type:            transferTxStr,
 			TargetAmount:    entry.TargetAmount,
@@ -456,6 +477,7 @@ func transactionToPayload(entry accounting.Transaction) transactionPayload {
 		return transactionPayload{
 			Id:                  entry.Id,
 			Description:         entry.Description,
+			Notes:               entry.Notes,
 			Date:                dateOnlyTime{Time: entry.Date},
 			Type:                stockBuyTxStr,
 			StockAmount:         entry.StockAmount,
@@ -470,6 +492,7 @@ func transactionToPayload(entry accounting.Transaction) transactionPayload {
 		return transactionPayload{
 			Id:                  entry.Id,
 			Description:         entry.Description,
+			Notes:               entry.Notes,
 			Date:                dateOnlyTime{Time: entry.Date},
 			Type:                stockSellTxStr,
 			InstrumentID:        entry.InstrumentID,
@@ -486,6 +509,7 @@ func transactionToPayload(entry accounting.Transaction) transactionPayload {
 		return transactionPayload{
 			Id:              entry.Id,
 			Description:     entry.Description,
+			Notes:           entry.Notes,
 			Date:            dateOnlyTime{Time: entry.Date},
 			Type:            stockGrantTxStr,
 			AccountId:       entry.AccountID,
@@ -498,6 +522,7 @@ func transactionToPayload(entry accounting.Transaction) transactionPayload {
 		return transactionPayload{
 			Id:              entry.Id,
 			Description:     entry.Description,
+			Notes:           entry.Notes,
 			Date:            dateOnlyTime{Time: entry.Date},
 			Type:            stockTransferTxStr,
 			OriginAccountID: entry.SourceAccountID,
@@ -510,6 +535,7 @@ func transactionToPayload(entry accounting.Transaction) transactionPayload {
 		return transactionPayload{
 			Id:           entry.Id,
 			Description:  entry.Description,
+			Notes:        entry.Notes,
 			Date:         dateOnlyTime{Time: entry.Date},
 			Type:         balanceStatusTxStr,
 			Amount:       entry.Amount,

@@ -241,7 +241,7 @@ func importTransactions(ctx context.Context, store *accounting.Store, r *zip.Rea
 		switch tx.Type {
 		case txTypeIncome:
 			in := accounting.Income{
-				Description: tx.Description, Amount: tx.Amount, CategoryID: tx.CategoryID, Date: tx.Date,
+				Description: tx.Description, Notes: tx.Notes, Amount: tx.Amount, CategoryID: tx.CategoryID, Date: tx.Date,
 			}
 			in.AccountID = accountsMap[tx.AccountID]
 			in.CategoryID = incomeMap[tx.CategoryID]
@@ -249,14 +249,14 @@ func importTransactions(ctx context.Context, store *accounting.Store, r *zip.Rea
 
 		case txTypeExpense:
 			ex := accounting.Expense{
-				Description: tx.Description, Amount: tx.Amount, CategoryID: tx.CategoryID, Date: tx.Date,
+				Description: tx.Description, Notes: tx.Notes, Amount: tx.Amount, CategoryID: tx.CategoryID, Date: tx.Date,
 			}
 			ex.AccountID = accountsMap[tx.AccountID]
 			ex.CategoryID = expenseMap[tx.CategoryID]
 			item = ex
 		case txTypeTransfer:
 			tr := accounting.Transfer{
-				Description: tx.Description, OriginAmount: tx.OriginAmount, TargetAmount: tx.TargetAmount, Date: tx.Date,
+				Description: tx.Description, Notes: tx.Notes, OriginAmount: tx.OriginAmount, TargetAmount: tx.TargetAmount, Date: tx.Date,
 			}
 			tr.OriginAccountID = accountsMap[tx.OriginAccountID]
 			tr.TargetAccountID = accountsMap[tx.TargetAccountID]
@@ -265,6 +265,7 @@ func importTransactions(ctx context.Context, store *accounting.Store, r *zip.Rea
 		case txTypeStockBuy:
 			item = accounting.StockBuy{
 				Description:         tx.Description,
+				Notes:               tx.Notes,
 				Date:                tx.Date,
 				InvestmentAccountID: accountsMap[tx.InvestmentAccountID],
 				CashAccountID:       accountsMap[tx.CashAccountID],
@@ -276,6 +277,7 @@ func importTransactions(ctx context.Context, store *accounting.Store, r *zip.Rea
 		case txTypeStockSell:
 			item = accounting.StockSell{
 				Description:         tx.Description,
+				Notes:               tx.Notes,
 				Date:                tx.Date,
 				InvestmentAccountID: accountsMap[tx.InvestmentAccountID],
 				CashAccountID:       accountsMap[tx.CashAccountID],
@@ -287,6 +289,7 @@ func importTransactions(ctx context.Context, store *accounting.Store, r *zip.Rea
 		case txTypeStockGrant:
 			item = accounting.StockGrant{
 				Description:     tx.Description,
+				Notes:           tx.Notes,
 				Date:            tx.Date,
 				AccountID:       accountsMap[tx.AccountID],
 				InstrumentID:    instrumentsMap[tx.InstrumentID],
@@ -296,6 +299,7 @@ func importTransactions(ctx context.Context, store *accounting.Store, r *zip.Rea
 		case txTypeStockTransfer:
 			item = accounting.StockTransfer{
 				Description:     tx.Description,
+				Notes:           tx.Notes,
 				Date:            tx.Date,
 				SourceAccountID: accountsMap[tx.SourceAccountID],
 				TargetAccountID: accountsMap[tx.TargetAccountID],
