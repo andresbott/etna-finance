@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ResponsiveHorizontal } from '@go-bumbu/vue-layouts'
 import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import Card from 'primevue/card'
 import InputNumber from 'primevue/inputnumber'
@@ -46,9 +46,17 @@ const squareMeters = ref(80)
 const monthlyRent = ref(1500)
 const propertyTax = ref(1000)
 const insurance = ref(500)
-const maintenanceCost = ref(1000)
+const maintenancePct = ref(0.7)
 const otherCosts = ref(0)
+const vacancyPct = ref(3)
+const managementPct = ref(5)
+const useSimpleCosts = ref(true)
+const renovationFund = ref(2500)
 const incidentalPct = ref(1)
+const transferTaxPct = ref(3)
+const notaryFeePct = ref(0.2)
+const landRegistryPct = ref(0.1)
+const mortgageDeedCost = ref(1500)
 const cashEquity = ref(100000)
 const additionalEquity = ref<Array<{ name: string; amount: number }>>([])
 const mortgages = ref<Array<{
@@ -114,17 +122,30 @@ const totalEquity = computed(() => {
     return (cashEquity.value ?? 0) + additional
 })
 
+const maintenanceCost = computed(() => (marketValue.value ?? 0) * (maintenancePct.value ?? 0) / 100)
 const incidentalCost = computed(() => (purchasePrice.value ?? 0) * (incidentalPct.value ?? 0) / 100)
+const transferTaxCost = computed(() => (purchasePrice.value ?? 0) * (transferTaxPct.value ?? 0) / 100)
+const notaryFeeCost = computed(() => (purchasePrice.value ?? 0) * (notaryFeePct.value ?? 0) / 100)
+const landRegistryCost = computed(() => (purchasePrice.value ?? 0) * (landRegistryPct.value ?? 0) / 100)
+const totalOneTimeCosts = computed(() => transferTaxCost.value + notaryFeeCost.value + landRegistryCost.value + (mortgageDeedCost.value ?? 0))
+const totalPurchaseCost = computed(() => (purchasePrice.value ?? 0) + totalOneTimeCosts.value)
 
-const recurringCostsWithoutIncidental = computed(() => {
-    return (propertyTax.value ?? 0) + (insurance.value ?? 0) + (maintenanceCost.value ?? 0) + (otherCosts.value ?? 0)
+const detailedRecurringCosts = computed(() => {
+    return (propertyTax.value ?? 0) + (insurance.value ?? 0) + maintenanceCost.value + (renovationFund.value ?? 0) + vacancyCost.value + managementCost.value
+})
+
+const simpleRecurringCosts = computed(() => {
+    return incidentalCost.value + (otherCosts.value ?? 0)
 })
 
 const totalRecurringCosts = computed(() => {
-    return recurringCostsWithoutIncidental.value + incidentalCost.value
+    return useSimpleCosts.value ? simpleRecurringCosts.value : detailedRecurringCosts.value
 })
 
-const annualRent = computed(() => (monthlyRent.value ?? 0) * 12)
+const grossAnnualRent = computed(() => (monthlyRent.value ?? 0) * 12)
+const vacancyCost = computed(() => grossAnnualRent.value * (vacancyPct.value ?? 0) / 100)
+const managementCost = computed(() => grossAnnualRent.value * (managementPct.value ?? 0) / 100)
+const annualRent = computed(() => grossAnnualRent.value)
 
 const totalMortgageNeeded = computed(() => Math.max(0, (purchasePrice.value ?? 0) - totalEquity.value))
 
@@ -415,9 +436,17 @@ function getCurrentParams(): RealEstateSimulatorParams {
         monthlyRent: monthlyRent.value,
         propertyTax: propertyTax.value,
         insurance: insurance.value,
-        maintenance: maintenanceCost.value,
+        maintenancePct: maintenancePct.value,
         otherCosts: otherCosts.value,
+        useSimpleCosts: useSimpleCosts.value,
+        vacancyPct: vacancyPct.value,
+        managementPct: managementPct.value,
+        renovationFund: renovationFund.value,
         incidentalPct: incidentalPct.value,
+        transferTaxPct: transferTaxPct.value,
+        notaryFeePct: notaryFeePct.value,
+        landRegistryPct: landRegistryPct.value,
+        mortgageDeedCost: mortgageDeedCost.value,
         cashEquity: cashEquity.value,
         additionalEquity: additionalEquity.value.map(e => ({ ...e })),
         mortgages: mortgages.value.map(m => ({ ...m })),
@@ -427,6 +456,15 @@ function getCurrentParams(): RealEstateSimulatorParams {
 }
 
 const showEditDialog = ref(false)
+const showPrintView = ref(false)
+
+function handlePrint() {
+    showPrintView.value = true
+    setTimeout(() => {
+        window.print()
+        showPrintView.value = false
+    }, 500)
+}
 
 function openSaveAsDialog() {
     saveName.value = activeCaseName.value ? activeCaseName.value + ' (copy)' : ''
@@ -479,9 +517,17 @@ function loadCaseData(cs: { name: string; description?: string; params: RealEsta
         monthlyRent.value = p.monthlyRent ?? monthlyRent.value
         propertyTax.value = p.propertyTax ?? propertyTax.value
         insurance.value = p.insurance ?? insurance.value
-        maintenanceCost.value = p.maintenance ?? maintenanceCost.value
+        maintenancePct.value = p.maintenancePct ?? 0.7
         otherCosts.value = p.otherCosts ?? otherCosts.value
+        useSimpleCosts.value = p.useSimpleCosts ?? true
+        vacancyPct.value = p.vacancyPct ?? 3
+        managementPct.value = p.managementPct ?? 5
+        renovationFund.value = p.renovationFund ?? 2500
         incidentalPct.value = p.incidentalPct ?? 1
+        transferTaxPct.value = p.transferTaxPct ?? 3
+        notaryFeePct.value = p.notaryFeePct ?? 0.2
+        landRegistryPct.value = p.landRegistryPct ?? 0.1
+        mortgageDeedCost.value = p.mortgageDeedCost ?? 1500
         cashEquity.value = p.cashEquity ?? cashEquity.value
         additionalEquity.value = (p.additionalEquity ?? []).map(e => ({ ...e }))
         mortgages.value = (p.mortgages ?? []).map((m: any) => ({
@@ -577,6 +623,7 @@ function formatPct(value: number): string {
                         <Button label="Edit" icon="pi pi-pencil" size="small" outlined @click="showEditDialog = true" />
                         <Button label="Save" icon="pi pi-save" size="small" @click="handleSave()" />
                         <Button label="Save As" icon="pi pi-copy" size="small" outlined @click="openSaveAsDialog()" />
+                        <Button label="Print" icon="pi pi-print" size="small" outlined @click="handlePrint()" />
                     </div>
                 </div>
 
@@ -613,42 +660,52 @@ function formatPct(value: number): string {
                                             </div>
 
                                             <Divider />
-                                            <div class="section-header">Recurring Costs (yearly)</div>
+                                            <div class="section-header">One-time Purchase Costs</div>
                                             <div class="field">
-                                                <label>Property Tax</label>
+                                                <label>Transfer Tax (%)
+                                                    <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                       @click="openHelp('Transfer Tax', '<p>Typically a percentage of the purchase price, often split between buyer and seller by custom.</p><p><strong>Note:</strong> the split is negotiable — the seller could push more to you.</p>')" />
+                                                </label>
                                                 <div class="field-controls">
-                                                    <InputNumber v-model="propertyTax" :min="0" :max="50000" :step="100" mode="decimal" :minFractionDigits="0" :maxFractionDigits="2" class="field-input" />
-                                                    <Slider v-model="propertyTax" :min="0" :max="10000" :step="100" class="field-slider" />
+                                                    <InputNumber v-model="transferTaxPct" :min="0" :max="20" :step="0.1" :minFractionDigits="1" :maxFractionDigits="1" suffix="%" class="field-input" />
+                                                    <Slider v-model="transferTaxPct" :min="0" :max="15" :step="0.1" class="field-slider" />
+                                                </div>
+                                                <span class="text-color-secondary text-sm">= {{ formatCurrency(transferTaxCost) }}</span>
+                                            </div>
+                                            <div class="field">
+                                                <label>Notary / Land Registry Office (%)
+                                                    <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                       @click="openHelp('Notary / Land Registry Office', '<p>Notary fees typically follow a degressive tariff — the percentage decreases as the purchase price increases. Usually around 0.1–0.3% of the purchase price.</p>')" />
+                                                </label>
+                                                <div class="field-controls">
+                                                    <InputNumber v-model="notaryFeePct" :min="0" :max="2" :step="0.05" :minFractionDigits="1" :maxFractionDigits="2" suffix="%" class="field-input" />
+                                                    <Slider v-model="notaryFeePct" :min="0" :max="1" :step="0.05" class="field-slider" />
+                                                </div>
+                                                <span class="text-color-secondary text-sm">= {{ formatCurrency(notaryFeeCost) }}</span>
+                                            </div>
+                                            <div class="field">
+                                                <label>Land Registry Entry (%)
+                                                    <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                       @click="openHelp('Land Registry Entry', '<p>~0.1% of purchase price for the land registry entry.</p>')" />
+                                                </label>
+                                                <div class="field-controls">
+                                                    <InputNumber v-model="landRegistryPct" :min="0" :max="1" :step="0.05" :minFractionDigits="1" :maxFractionDigits="2" suffix="%" class="field-input" />
+                                                    <Slider v-model="landRegistryPct" :min="0" :max="0.5" :step="0.05" class="field-slider" />
+                                                </div>
+                                                <span class="text-color-secondary text-sm">= {{ formatCurrency(landRegistryCost) }}</span>
+                                            </div>
+                                            <div class="field">
+                                                <label>Mortgage Deed
+                                                    <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                       @click="openHelp('Mortgage Deed', '<p>Cost if a new mortgage deed needs to be issued. If an existing deed transfers with the property, this can be zero.</p><p><strong>Important unknown:</strong> Ask the seller if there is an existing mortgage deed on the property. If it covers your mortgage amount, you save on issuance fees.</p>')" />
+                                                </label>
+                                                <div class="field-controls">
+                                                    <InputNumber v-model="mortgageDeedCost" :min="0" :max="10000" :step="100" mode="decimal" :maxFractionDigits="0" class="field-input" />
+                                                    <Slider v-model="mortgageDeedCost" :min="0" :max="5000" :step="100" class="field-slider" />
                                                 </div>
                                             </div>
                                             <div class="field">
-                                                <label>Insurance</label>
-                                                <div class="field-controls">
-                                                    <InputNumber v-model="insurance" :min="0" :max="20000" :step="100" mode="decimal" :maxFractionDigits="0" class="field-input" />
-                                                    <Slider v-model="insurance" :min="0" :max="5000" :step="100" class="field-slider" />
-                                                </div>
-                                            </div>
-                                            <div class="field">
-                                                <label>Maintenance</label>
-                                                <div class="field-controls">
-                                                    <InputNumber v-model="maintenanceCost" :min="0" :max="20000" :step="100" mode="decimal" :maxFractionDigits="0" class="field-input" />
-                                                    <Slider v-model="maintenanceCost" :min="0" :max="5000" :step="100" class="field-slider" />
-                                                </div>
-                                            </div>
-                                            <div class="field">
-                                                <label>Incidental (%)</label>
-                                                <div class="field-controls">
-                                                    <InputNumber v-model="incidentalPct" :min="0" :max="5" :step="0.1" :minFractionDigits="1" :maxFractionDigits="1" suffix="%" class="field-input" />
-                                                    <Slider v-model="incidentalPct" :min="0" :max="5" :step="0.1" class="field-slider" />
-                                                </div>
-                                                <span class="text-color-secondary text-sm">= {{ formatCurrency(incidentalCost) }} / yr</span>
-                                            </div>
-                                            <div class="field">
-                                                <label>Other Costs</label>
-                                                <div class="field-controls">
-                                                    <InputNumber v-model="otherCosts" :min="0" :max="20000" :step="100" mode="decimal" :maxFractionDigits="0" class="field-input" />
-                                                    <Slider v-model="otherCosts" :min="0" :max="5000" :step="100" class="field-slider" />
-                                                </div>
+                                                <span class="text-color-secondary text-sm font-semibold">Total Purchase Cost: {{ formatCurrency(totalPurchaseCost) }}</span>
                                             </div>
                                         </div>
                                     </TabPanel>
@@ -743,9 +800,96 @@ function formatPct(value: number): string {
                                         </div>
                                     </TabPanel>
 
-                                    <!-- Tab: Returns -->
-                                    <TabPanel header="Returns" value="returns">
+                                    <!-- Tab: Cash Flow -->
+                                    <TabPanel header="Cash Flow" value="cashflow">
                                         <div class="form-grid">
+                                            <div class="section-header" style="display: flex; align-items: center; justify-content: space-between;">
+                                                <span>Recurring Costs (yearly)</span>
+                                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                                    <span class="text-sm">Simplified</span>
+                                                    <ToggleSwitch v-model="useSimpleCosts" />
+                                                </div>
+                                            </div>
+
+                                            <!-- Simplified mode: Incidental + Other Costs -->
+                                            <template v-if="useSimpleCosts">
+                                                <div class="field">
+                                                    <label>Incidental (%)</label>
+                                                    <div class="field-controls">
+                                                        <InputNumber v-model="incidentalPct" :min="0" :max="5" :step="0.1" :minFractionDigits="1" :maxFractionDigits="1" suffix="%" class="field-input" />
+                                                        <Slider v-model="incidentalPct" :min="0" :max="5" :step="0.1" class="field-slider" />
+                                                    </div>
+                                                    <span class="text-color-secondary text-sm">= {{ formatCurrency(incidentalCost) }} / yr</span>
+                                                </div>
+                                                <div class="field">
+                                                    <label>Other Costs</label>
+                                                    <div class="field-controls">
+                                                        <InputNumber v-model="otherCosts" :min="0" :max="20000" :step="100" mode="decimal" :maxFractionDigits="0" class="field-input" />
+                                                        <Slider v-model="otherCosts" :min="0" :max="5000" :step="100" class="field-slider" />
+                                                    </div>
+                                                </div>
+                                            </template>
+
+                                            <!-- Detailed mode: all individual costs -->
+                                            <template v-else>
+                                                <div class="field">
+                                                    <label>Property Tax</label>
+                                                    <div class="field-controls">
+                                                        <InputNumber v-model="propertyTax" :min="0" :max="50000" :step="100" mode="decimal" :minFractionDigits="0" :maxFractionDigits="2" class="field-input" />
+                                                        <Slider v-model="propertyTax" :min="0" :max="10000" :step="100" class="field-slider" />
+                                                    </div>
+                                                </div>
+                                                <div class="field">
+                                                    <label>Insurance</label>
+                                                    <div class="field-controls">
+                                                        <InputNumber v-model="insurance" :min="0" :max="20000" :step="100" mode="decimal" :maxFractionDigits="0" class="field-input" />
+                                                        <Slider v-model="insurance" :min="0" :max="5000" :step="100" class="field-slider" />
+                                                    </div>
+                                                </div>
+                                                <div class="field">
+                                                    <label>Maintenance Reserve (%)
+                                                        <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                           @click="openHelp('Maintenance Reserve', '<p>Industry rule: 0.5–1.5% of property value/year. Lower for new buildings, higher for old.</p><p>Covers in-unit items only (not building-level, which is the renovation fund):</p><ul><li>Kitchen appliances (12–15 yr lifespan)</li><li>Kitchen cabinetry (20–25 yr)</li><li>Bathroom fixtures (20–25 yr)</li><li>Flooring (15–25 yr)</li><li>Interior paint (every tenant change)</li><li>Washing machine/dryer (10–15 yr)</li></ul><p><strong>Special assessments:</strong> The owners\' association can charge one-off levies for major unplanned repairs (e.g. roof, façade, plumbing). These are unpredictable but can be significant. Consider increasing this percentage to absorb them.</p>')" />
+                                                    </label>
+                                                    <div class="field-controls">
+                                                        <InputNumber v-model="maintenancePct" :min="0" :max="5" :step="0.01" :minFractionDigits="1" :maxFractionDigits="2" suffix="%" class="field-input" />
+                                                        <Slider v-model="maintenancePct" :min="0" :max="3" :step="0.1" class="field-slider" />
+                                                    </div>
+                                                    <span class="text-color-secondary text-sm">= {{ formatCurrency(maintenanceCost) }} / yr</span>
+                                                </div>
+                                                <div class="field">
+                                                    <label>Renovation Fund
+                                                        <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                           @click="openHelp('Renovation Fund', '<p>Owner-only cost that cannot be passed to tenants. Covers building-level repairs and upgrades (roof, façade, common areas).</p><p>Typical rate: 1.50–3.00/m²/month, depending on building age, condition, and planned works.</p><p>Older buildings (50+ years) tend to have higher contributions.</p>')" />
+                                                    </label>
+                                                    <div class="field-controls">
+                                                        <InputNumber v-model="renovationFund" :min="0" :max="20000" :step="100" mode="decimal" :maxFractionDigits="0" class="field-input" />
+                                                        <Slider v-model="renovationFund" :min="0" :max="10000" :step="100" class="field-slider" />
+                                                    </div>
+                                                </div>
+                                                <div class="field">
+                                                    <label>Vacancy Allowance (%)
+                                                        <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                           @click="openHelp('Vacancy Allowance', '<p>Percentage of gross annual rent deducted to account for periods without a tenant (turnover, renovations between tenants, market slowdowns).</p><p><strong>Typical values:</strong></p><ul><li>1–2% — prime urban locations with high demand</li><li>3–5% — standard urban apartments</li><li>5–10% — suburban or less desirable locations</li><li>10%+ — rural, niche, or oversupplied markets</li></ul>')" />
+                                                    </label>
+                                                    <div class="field-controls">
+                                                        <InputNumber v-model="vacancyPct" :min="0" :max="100" :step="0.1" :minFractionDigits="1" :maxFractionDigits="1" suffix="%" class="field-input" />
+                                                        <Slider v-model="vacancyPct" :min="0" :max="25" :step="0.1" class="field-slider" />
+                                                    </div>
+                                                    <span class="text-color-secondary text-sm">= {{ formatCurrency(vacancyCost) }} / yr</span>
+                                                </div>
+                                                <div class="field">
+                                                    <label>Property Management (%)</label>
+                                                    <div class="field-controls">
+                                                        <InputNumber v-model="managementPct" :min="0" :max="30" :step="0.1" :minFractionDigits="1" :maxFractionDigits="1" suffix="%" class="field-input" />
+                                                        <Slider v-model="managementPct" :min="0" :max="15" :step="0.1" class="field-slider" />
+                                                    </div>
+                                                    <span class="text-color-secondary text-sm">= {{ formatCurrency(managementCost) }} / yr</span>
+                                                </div>
+                                            </template>
+
+                                            <Divider />
+                                            <div class="section-header">Income</div>
                                             <div class="field">
                                                 <label>Monthly Rent</label>
                                                 <div class="field-controls">
@@ -754,7 +898,7 @@ function formatPct(value: number): string {
                                                 </div>
                                             </div>
                                             <div class="field">
-                                                <label>Housing Price Increase (%/yr)</label>
+                                                <label>Property Appreciation (%/yr)</label>
                                                 <div class="field-controls">
                                                     <InputNumber v-model="housingPriceIncreasePct" :min="-10" :max="20" :step="0.1" mode="decimal" :maxFractionDigits="1" suffix="%" class="field-input" />
                                                     <Slider v-model="housingPriceIncreasePct" :min="-5" :max="10" :step="0.1" class="field-slider" />
@@ -799,8 +943,8 @@ function formatPct(value: number): string {
                                                 <span class="result-value">{{ formatPct(equityContributionPct) }}</span>
                                             </div>
                                             <div class="result-row">
-                                                <span class="result-label">Total Invested (Equity)</span>
-                                                <span class="result-value">{{ formatCurrency(totalEquity) }}</span>
+                                                <span class="result-label">Total Invested (Equity + Costs)</span>
+                                                <span class="result-value">{{ formatCurrency(totalEquity + totalOneTimeCosts) }}</span>
                                             </div>
                                             <div class="result-row">
                                                 <span class="result-label">Total Housing Cost</span>
@@ -810,6 +954,13 @@ function formatPct(value: number): string {
                                             <div class="result-row">
                                                 <span class="result-label">Price / m²</span>
                                                 <span class="result-value">{{ squareMeters > 0 ? formatCurrency(purchasePrice / squareMeters) : '—' }}</span>
+                                            </div>
+                                            <div class="result-row">
+                                                <span class="result-label">Simplified Taxable Income
+                                                    <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                       @click="openHelp('Simplified Taxable Income', '<p>Rough estimate of additional taxable income from rental revenue, assuming 20% of gross annual rent is taxable after deductions.</p>')" />
+                                                </span>
+                                                <span class="result-value">{{ formatCurrency(grossAnnualRent * 0.2) }} / yr</span>
                                             </div>
                                             <div class="result-row">
                                                 <span class="result-label">Breakeven Rent
@@ -850,16 +1001,8 @@ function formatPct(value: number): string {
                                                 </div>
                                                 <div class="cost-table-row">
                                                     <span class="cost-table-label">Recurring Costs</span>
-                                                    <span class="cost-table-value">{{ formatCurrency(recurringCostsWithoutIncidental / 12) }}</span>
-                                                    <span class="cost-table-value">{{ formatCurrency(recurringCostsWithoutIncidental) }}</span>
-                                                </div>
-                                                <div class="cost-table-row">
-                                                    <span class="cost-table-label">Incidental
-                                                        <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
-                                                           @click="openHelp('Incidental Expenses', '<p>In general, you can assume that maintenance and ancillary costs will amount to <strong>1%</strong> of the real estate value.</p><p>The cost includes water, electric, garbage disposal, heating and upkeep. The maintenance costs are expenses for maintaining your property, for example, for small repairs and taking care of the surrounding area and garden.</p>')" />
-                                                    </span>
-                                                    <span class="cost-table-value">{{ formatCurrency(incidentalCost / 12) }}</span>
-                                                    <span class="cost-table-value">{{ formatCurrency(incidentalCost) }}</span>
+                                                    <span class="cost-table-value">{{ formatCurrency(totalRecurringCosts / 12) }}</span>
+                                                    <span class="cost-table-value">{{ formatCurrency(totalRecurringCosts) }}</span>
                                                 </div>
                                                 <div class="cost-table-row font-bold">
                                                     <span class="cost-table-label">Total</span>
@@ -1049,7 +1192,7 @@ function formatPct(value: number): string {
                                             <div class="result-row font-bold">
                                                 <span class="result-label">Year-1
                                                     <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
-                                                       @click="openHelp('Total Levered Yield (Year-1)', '<p>Levered Yield plus property appreciation, using year-1 equity buildup.</p><p><strong>Formula:</strong> (Net Cash Flow + Year-1 Equity Buildup + Annual Appreciation) / Total Equity</p><p>Annual appreciation is calculated as Market Value × Housing Price Increase %. This is the most complete year-1 return metric for comparing against an ETF.</p>')" />
+                                                       @click="openHelp('Total Levered Yield (Year-1)', '<p>Levered Yield plus property appreciation, using year-1 equity buildup.</p><p><strong>Formula:</strong> (Net Cash Flow + Year-1 Equity Buildup + Annual Appreciation) / Total Equity</p><p>Annual appreciation is calculated as Market Value × Property Appreciation %. This is the most complete year-1 return metric for comparing against an ETF.</p>')" />
                                                 </span>
                                                 <span class="result-value">{{ formatPct(totalLeveredYield) }}</span>
                                             </div>
@@ -1130,6 +1273,161 @@ function formatPct(value: number): string {
             </div>
         </template>
     </ResponsiveHorizontal>
+
+    <!-- Print View -->
+    <div v-show="showPrintView" class="print-view">
+        <h1>{{ activeCaseName }}</h1>
+        <p v-if="activeCaseDescription" class="print-description">{{ activeCaseDescription }}</p>
+
+        <!-- Section: Overview -->
+        <div class="print-section print-overview">
+            <h2>Overview</h2>
+            <table class="print-table">
+                <tr><td>Affordability Ratio</td><td>{{ formatPct(affordabilityRatio) }}</td><td class="print-note">Housing cost as % of gross income — should be below 33%</td></tr>
+                <tr><td>Equity Contribution</td><td>{{ formatPct(equityContributionPct) }}</td><td class="print-note">Equity as % of purchase price — typically 20% minimum</td></tr>
+                <tr><td>Total Invested (Equity + Costs)</td><td>{{ formatCurrency(totalEquity + totalOneTimeCosts) }}</td><td class="print-note">Total cash outlay at closing</td></tr>
+                <tr><td>Total Housing Cost</td><td>{{ formatCurrency(totalMonthlyHousingCost * 12) }} / yr</td><td class="print-note">Mortgage payments + recurring costs</td></tr>
+                <tr><td>Price / m²</td><td>{{ squareMeters > 0 ? formatCurrency(purchasePrice / squareMeters) : '—' }}</td><td class="print-note">Useful for comparing with local market averages</td></tr>
+                <tr><td>Simplified Taxable Income</td><td>{{ formatCurrency(grossAnnualRent * 0.2) }} / yr</td><td class="print-note">Rough estimate — 20% of gross rent after deductions</td></tr>
+                <tr><td>Breakeven Rent</td><td>{{ formatCurrency(breakevenMonthlyRent) }} / mo</td><td class="print-note">Minimum rent to cover all costs with zero cash flow</td></tr>
+                <tr><td>Monthly Cash Flow</td><td>{{ formatCurrency(leveragedCashFlow / 12) }} / mo</td><td class="print-note">Net income after all expenses and mortgage payments</td></tr>
+                <tr class="print-total"><td>Total Levered Yield (ROI)</td><td>{{ formatPct(totalLeveredYield) }}</td><td class="print-note">Year-1 return on equity: cash flow + equity buildup + appreciation</td></tr>
+            </table>
+        </div>
+
+        <!-- Section: Property & Purchase Costs -->
+        <div class="print-section">
+            <h2>Property</h2>
+            <table class="print-table">
+                <tr><td>Purchase Price</td><td>{{ formatCurrency(purchasePrice) }}</td><td class="print-note">Agreed transaction price</td></tr>
+                <tr><td>Market Value</td><td>{{ formatCurrency(marketValue) }}</td><td class="print-note">Appraised or estimated current value — used for cap rate and maintenance calculations</td></tr>
+                <tr><td>Square Meters</td><td>{{ squareMeters }} m²</td><td class="print-note"></td></tr>
+                <tr><td>Price / m²</td><td>{{ squareMeters > 0 ? formatCurrency(purchasePrice / squareMeters) : '—' }}</td><td class="print-note">Useful for comparing with local market averages</td></tr>
+            </table>
+        </div>
+
+        <div class="print-section">
+            <h2>One-time Purchase Costs</h2>
+            <p class="print-hint">Fees paid once at closing, on top of the purchase price.</p>
+            <table class="print-table">
+                <tr><td>Transfer Tax ({{ transferTaxPct }}%)</td><td>{{ formatCurrency(transferTaxCost) }}</td><td class="print-note">Tax on the property transfer, often split between buyer and seller</td></tr>
+                <tr><td>Notary ({{ notaryFeePct }}%)</td><td>{{ formatCurrency(notaryFeeCost) }}</td><td class="print-note">Land registry office fees for the deed</td></tr>
+                <tr><td>Land Registry ({{ landRegistryPct }}%)</td><td>{{ formatCurrency(landRegistryCost) }}</td><td class="print-note">Fee for registering the ownership change</td></tr>
+                <tr><td>Mortgage Deed</td><td>{{ formatCurrency(mortgageDeedCost) }}</td><td class="print-note">Issuance of a new mortgage deed, if needed</td></tr>
+                <tr class="print-total"><td>Total One-time Costs</td><td>{{ formatCurrency(totalOneTimeCosts) }}</td><td></td></tr>
+                <tr class="print-total"><td>Total Purchase Cost (Price + Fees)</td><td>{{ formatCurrency(totalPurchaseCost) }}</td><td></td></tr>
+            </table>
+        </div>
+
+        <!-- Section: Financing -->
+        <div class="print-section">
+            <h2>Financing</h2>
+            <p class="print-hint">How the purchase is funded — equity contribution and mortgage structure.</p>
+            <table class="print-table">
+                <tr><td>Gross Annual Income</td><td>{{ formatCurrency(grossAnnualIncome) }}</td><td class="print-note">Used for affordability ratio calculation</td></tr>
+                <tr><td>Cash Equity</td><td>{{ formatCurrency(cashEquity) }}</td><td class="print-note">Direct cash contribution</td></tr>
+                <tr v-for="eq in additionalEquity" :key="'print-eq-' + eq.name"><td>{{ eq.name }}</td><td>{{ formatCurrency(eq.amount) }}</td><td class="print-note"></td></tr>
+                <tr class="print-total"><td>Total Equity</td><td>{{ formatCurrency(totalEquity) }}</td><td class="print-note">{{ formatPct(equityContributionPct) }} of purchase price</td></tr>
+                <tr class="print-total"><td>Total Invested (Equity + Costs)</td><td>{{ formatCurrency(totalEquity + totalOneTimeCosts) }}</td><td class="print-note">Total cash outlay at closing</td></tr>
+            </table>
+        </div>
+
+        <div class="print-section">
+            <h3>Mortgages</h3>
+            <div v-for="md in mortgageDetails" :key="'print-m-' + md.name" class="print-mortgage">
+                <h4>{{ md.name }}</h4>
+                <table class="print-table">
+                    <tr><td>Principal</td><td>{{ formatCurrency(md.principal) }}</td><td class="print-note">{{ md.splitPct.toFixed(0) }}% of total mortgage needed</td></tr>
+                    <tr><td>Interest Rate</td><td>{{ md.interestRate }}%</td><td class="print-note"></td></tr>
+                    <tr><td>Term</td><td>{{ md.termYears }} years</td><td class="print-note"></td></tr>
+                    <tr><td>Type</td><td>{{ md.amortize ? 'Amortizing' : 'Interest-only' }}</td><td class="print-note">{{ md.amortize ? 'Principal repaid over the term' : 'Only interest paid — principal due at maturity or refinance' }}</td></tr>
+                    <tr><td>Monthly Payment</td><td>{{ formatCurrency(md.monthlyPayment) }}</td><td class="print-note"></td></tr>
+                    <tr><td>Annual Payment</td><td>{{ formatCurrency(md.annualPayment) }}</td><td class="print-note"></td></tr>
+                    <tr v-if="md.amortize"><td>Total Interest Paid</td><td>{{ formatCurrency(md.totalInterest) }}</td><td class="print-note">Over the full {{ md.termYears }}-year term</td></tr>
+                    <tr v-if="md.amortize"><td>Interest / Principal Ratio</td><td>{{ md.interestToPrincipalRatio.toFixed(1) }}%</td><td class="print-note">How much interest you pay per unit borrowed — lower is better</td></tr>
+                </table>
+            </div>
+            <table class="print-table">
+                <tr class="print-total"><td>Total Monthly Payments</td><td>{{ formatCurrency(totalMonthlyMortgagePayments) }}</td><td></td></tr>
+                <tr class="print-total"><td>Total Annual Payments</td><td>{{ formatCurrency(totalAnnualMortgagePayments) }}</td><td></td></tr>
+            </table>
+        </div>
+
+        <!-- Section: Recurring Costs -->
+        <div class="print-section">
+            <h2>Recurring Costs (yearly)</h2>
+            <p class="print-hint">Ongoing annual expenses for owning and operating the property.</p>
+            <table class="print-table" v-if="useSimpleCosts">
+                <tr><td>Incidental ({{ incidentalPct }}%)</td><td>{{ formatCurrency(incidentalCost) }}</td><td class="print-note">Simplified estimate — {{ incidentalPct }}% of purchase price covers maintenance, insurance, taxes, etc.</td></tr>
+                <tr><td>Other Costs</td><td>{{ formatCurrency(otherCosts) }}</td><td class="print-note">Any additional recurring expenses not captured above</td></tr>
+                <tr class="print-total"><td>Total Recurring Costs</td><td>{{ formatCurrency(totalRecurringCosts) }}</td><td></td></tr>
+            </table>
+            <table class="print-table" v-else>
+                <tr><td>Property Tax</td><td>{{ formatCurrency(propertyTax) }}</td><td class="print-note">Annual property / real estate tax</td></tr>
+                <tr><td>Insurance</td><td>{{ formatCurrency(insurance) }}</td><td class="print-note">Building and liability insurance</td></tr>
+                <tr><td>Maintenance Reserve ({{ maintenancePct }}%)</td><td>{{ formatCurrency(maintenanceCost) }}</td><td class="print-note">{{ maintenancePct }}% of market value — covers in-unit repairs (appliances, fixtures, paint)</td></tr>
+                <tr><td>Renovation Fund</td><td>{{ formatCurrency(renovationFund) }}</td><td class="print-note">Building-level reserve for major works (roof, façade, common areas)</td></tr>
+                <tr><td>Vacancy Allowance ({{ vacancyPct }}%)</td><td>{{ formatCurrency(vacancyCost) }}</td><td class="print-note">{{ vacancyPct }}% of gross rent — reserve for tenant turnover periods</td></tr>
+                <tr><td>Property Management ({{ managementPct }}%)</td><td>{{ formatCurrency(managementCost) }}</td><td class="print-note">{{ managementPct }}% of gross rent — professional management fees</td></tr>
+                <tr class="print-total"><td>Total Recurring Costs</td><td>{{ formatCurrency(totalRecurringCosts) }}</td><td></td></tr>
+            </table>
+        </div>
+
+        <!-- Section: Affordability -->
+        <div class="print-section">
+            <h2>Affordability</h2>
+            <p class="print-hint">Can you comfortably carry this property? Total housing cost vs. income, and equity position.</p>
+            <table class="print-table">
+                <tr><td>Monthly Housing Cost</td><td>{{ formatCurrency(totalMonthlyHousingCost) }} / mo</td><td class="print-note">Mortgage payments + recurring costs</td></tr>
+                <tr><td>Annual Housing Cost</td><td>{{ formatCurrency(totalMonthlyHousingCost * 12) }} / yr</td><td class="print-note"></td></tr>
+                <tr><td>Affordability Ratio</td><td>{{ formatPct(affordabilityRatio) }}</td><td class="print-note">Housing cost as % of gross income — should be below 33%</td></tr>
+                <tr><td>Equity Contribution</td><td>{{ formatPct(equityContributionPct) }}</td><td class="print-note">Equity as % of purchase price — typically 20% minimum required</td></tr>
+            </table>
+        </div>
+
+        <!-- Section: Income vs Expenses -->
+        <div class="print-section">
+            <h2>Income vs Expenses</h2>
+            <p class="print-hint">Annual cash flow from the rental property — what comes in vs. what goes out.</p>
+            <table class="print-table">
+                <tr><td>Gross Rent Income</td><td>{{ formatCurrency(annualRent) }} / yr</td><td class="print-note">{{ formatCurrency(monthlyRent) }} / mo</td></tr>
+                <tr><td>Recurring Costs</td><td>−{{ formatCurrency(totalRecurringCosts) }} / yr</td><td class="print-note">All operating expenses</td></tr>
+                <tr><td>Mortgage Payments</td><td>−{{ formatCurrency(totalAnnualMortgagePayments) }} / yr</td><td class="print-note">Interest + principal repayment</td></tr>
+                <tr class="print-total"><td>Net Cash Flow</td><td>{{ formatCurrency(leveragedCashFlow) }} / yr</td><td class="print-note">{{ formatCurrency(leveragedCashFlow / 12) }} / mo — money left after all costs</td></tr>
+            </table>
+        </div>
+
+        <!-- Section: Property Metrics -->
+        <div class="print-section">
+            <h2>Property Metrics (unlevered)</h2>
+            <p class="print-hint">Performance indicators independent of financing — useful for comparing properties.</p>
+            <table class="print-table">
+                <tr><td>Gross Annual Return</td><td>{{ formatPct(grossAnnualReturn) }}</td><td class="print-note">Annual Rent / Purchase Price — before any expenses</td></tr>
+                <tr><td>Net Operating Income (NOI)</td><td>{{ formatCurrency(noi) }} / yr</td><td class="print-note">Rent − Recurring Costs — before mortgage payments</td></tr>
+                <tr><td>Cap Rate</td><td>{{ formatPct(capRate) }}</td><td class="print-note">NOI / Market Value — the property's return regardless of how it's financed</td></tr>
+                <tr><td>Breakeven Rent</td><td>{{ formatCurrency(breakevenMonthlyRent) }} / mo</td><td class="print-note">Minimum rent to cover all costs and achieve zero cash flow</td></tr>
+                <tr><td>Simplified Taxable Income (20%)</td><td>{{ formatCurrency(grossAnnualRent * 0.2) }} / yr</td><td class="print-note">Rough estimate — 20% of gross rent after deductions</td></tr>
+            </table>
+        </div>
+
+        <!-- Section: Investment Returns -->
+        <div class="print-section">
+            <h2>Investment Returns (levered)</h2>
+            <p class="print-hint">Return on your actual cash invested (equity), factoring in leverage, equity buildup, and appreciation.</p>
+
+            <h3>Levered Yield (cash flow + equity buildup)</h3>
+            <table class="print-table">
+                <tr><td>Year-1</td><td>{{ formatPct(leveredYield) }}</td><td class="print-note">(Net Cash Flow + Year-1 Equity Buildup) / Total Equity</td></tr>
+                <tr><td>Average</td><td>{{ formatPct(avgLeveredYield) }}</td><td class="print-note">Using linear average of equity buildup over the mortgage term</td></tr>
+            </table>
+
+            <h3>Total Levered Yield (+ property appreciation at {{ housingPriceIncreasePct }}%/yr)</h3>
+            <table class="print-table">
+                <tr class="print-total"><td>Year-1</td><td>{{ formatPct(totalLeveredYield) }}</td><td class="print-note">(Net Cash Flow + Equity Buildup + Appreciation) / Total Equity — best single metric for ROI comparison</td></tr>
+                <tr class="print-total"><td>Average</td><td>{{ formatPct(avgTotalLeveredYield) }}</td><td class="print-note">Average annual total return over the mortgage term</td></tr>
+            </table>
+        </div>
+    </div>
 </template>
 
 <style scoped>
@@ -1296,5 +1594,129 @@ function formatPct(value: number): string {
 .cost-table-value {
     text-align: right;
     font-weight: 600;
+}
+
+/* ── Print view (screen) ──────────────────────────────────────────── */
+.print-view {
+    display: none;
+}
+</style>
+
+<style>
+@media print {
+    body * {
+        visibility: hidden;
+    }
+
+    .print-view,
+    .print-view * {
+        visibility: visible !important;
+    }
+
+    .print-view {
+        display: block !important;
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        padding: 16px;
+        font-size: 11px;
+        color: #000;
+        background: #fff;
+    }
+
+    .print-view h1 {
+        font-size: 18px;
+        margin: 0 0 4px 0;
+        border-bottom: 2px solid #000;
+        padding-bottom: 4px;
+    }
+
+    .print-view h2 {
+        font-size: 14px;
+        margin: 12px 0 4px 0;
+        border-bottom: 1px solid #999;
+        padding-bottom: 2px;
+    }
+
+    .print-view h3 {
+        font-size: 12px;
+        margin: 10px 0 4px 0;
+    }
+
+    .print-view h4 {
+        font-size: 11px;
+        margin: 6px 0 2px 0;
+    }
+
+    .print-view .print-description {
+        color: #666;
+        margin: 0 0 8px 0;
+    }
+
+    .print-view .print-section {
+        margin-bottom: 12px;
+        break-inside: avoid;
+    }
+
+    .print-view .print-hint {
+        color: #555;
+        font-style: italic;
+        margin: 0 0 4px 0;
+        font-size: 10px;
+    }
+
+    .print-view .print-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 4px;
+        table-layout: fixed;
+    }
+
+    .print-view .print-table td:first-child {
+        width: 35%;
+    }
+
+    .print-view .print-table td:nth-child(2) {
+        width: 18%;
+    }
+
+    .print-view .print-table td:nth-child(3) {
+        width: 47%;
+    }
+
+    .print-view .print-table td {
+        padding: 2px 4px;
+        border-bottom: 1px solid #eee;
+        vertical-align: top;
+    }
+
+    .print-view .print-table td:nth-child(2) {
+        text-align: right;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .print-view .print-table td.print-note {
+        text-align: left;
+        font-weight: 400;
+        color: #666;
+        font-size: 10px;
+        padding-left: 8px;
+    }
+
+    .print-view .print-total td {
+        font-weight: 700 !important;
+        border-top: 1px solid #999;
+    }
+
+    .print-view .print-total td.print-note {
+        font-weight: 400 !important;
+    }
+
+    .print-view .print-mortgage {
+        margin-bottom: 8px;
+    }
+
 }
 </style>

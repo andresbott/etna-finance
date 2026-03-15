@@ -82,8 +82,23 @@ function deriveIncidentalCost(params: RealEstateSimulatorParams): number {
     return (params.purchasePrice ?? 0) * (params.incidentalPct ?? 0) / 100
 }
 
+function deriveMaintenanceCost(params: RealEstateSimulatorParams): number {
+    return (params.purchasePrice ?? 0) * (params.maintenancePct ?? 0) / 100
+}
+
+function deriveAnnualRentGross(params: RealEstateSimulatorParams): number {
+    return (params.monthlyRent ?? 0) * 12
+}
+
 function deriveTotalRecurringCosts(params: RealEstateSimulatorParams): number {
-    return (params.propertyTax ?? 0) + (params.insurance ?? 0) + (params.maintenance ?? 0) + (params.otherCosts ?? 0) + deriveIncidentalCost(params)
+    if (params.useSimpleCosts ?? true) {
+        return deriveIncidentalCost(params) + (params.otherCosts ?? 0)
+    }
+    const grossRent = deriveAnnualRentGross(params)
+    const vacancyCost = grossRent * (params.vacancyPct ?? 0) / 100
+    const managementCost = grossRent * (params.managementPct ?? 0) / 100
+    return (params.propertyTax ?? 0) + (params.insurance ?? 0) + deriveMaintenanceCost(params)
+        + (params.renovationFund ?? 0) + vacancyCost + managementCost
 }
 
 function deriveAnnualRent(params: RealEstateSimulatorParams): number {
