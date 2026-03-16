@@ -114,6 +114,81 @@ func TestStore_CategorySmoke(t *testing.T) {
 	}
 }
 
+// TestStore_MoveCategoryBetweenParents reproduces the bug where moving a child
+// category from one parent to another causes it to appear duplicated in listings.
+func TestStore_MoveCategoryBetweenParents(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			dbCon := db.ConnDbName("TestMoveCategoryBetweenParents")
+			store, err := NewStore(dbCon, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			ctx := t.Context()
+
+			// Create tree:
+			//   ParentA (root)
+			//     └── Child (under A)
+			//   ParentB (root)
+			parentA, err := store.CreateCategory(ctx, CategoryData{Name: "ParentA", Type: ExpenseCategory}, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			child, err := store.CreateCategory(ctx, CategoryData{Name: "Child", Type: ExpenseCategory}, parentA)
+			if err != nil {
+				t.Fatal(err)
+			}
+			parentB, err := store.CreateCategory(ctx, CategoryData{Name: "ParentB", Type: ExpenseCategory}, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Verify initial state
+			got, err := store.ListDescendantCategories(ctx, 0, -1, ExpenseCategory)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got) != 3 {
+				t.Fatalf("expected 3 categories before move, got %d: %+v", len(got), got)
+			}
+
+			// Move Child from ParentA to ParentB
+			err = store.MoveCategory(ctx, child, parentB)
+			if err != nil {
+				t.Fatalf("MoveCategory failed: %v", err)
+			}
+
+			// List all categories and check for duplicates
+			got, err = store.ListDescendantCategories(ctx, 0, -1, ExpenseCategory)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(got) != 3 {
+				t.Errorf("expected 3 categories after move, got %d", len(got))
+				for _, c := range got {
+					t.Logf("  id=%d name=%s parentId=%d", c.Id, c.Name, c.ParentId)
+				}
+			}
+
+			// Verify Child is now under ParentB
+			want := []Category{
+				{Id: parentA, ParentId: 0, CategoryData: CategoryData{Name: "ParentA", Type: ExpenseCategory}},
+				{Id: parentB, ParentId: 0, CategoryData: CategoryData{Name: "ParentB", Type: ExpenseCategory}},
+				{Id: child, ParentId: parentB, CategoryData: CategoryData{Name: "Child", Type: ExpenseCategory}},
+			}
+
+			sort.Slice(got, func(i, j int) bool { return got[i].Id < got[j].Id })
+			sort.Slice(want, func(i, j int) bool { return want[i].Id < want[j].Id })
+
+			if diff := cmp.Diff(got, want); diff != "" {
+				t.Errorf("unexpected result (-got +want):\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestStore_CreateCategoryErrors(t *testing.T) {
 	for _, db := range testdbs.DBs() {
 		// test on all DBs
