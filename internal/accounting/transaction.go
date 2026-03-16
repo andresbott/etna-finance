@@ -2401,11 +2401,14 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 				" OR EXISTS (SELECT 1 FROM db_trades AS t WHERE t.transaction_id = db_transactions.id AND t.account_id IN (?)))",
 			opts.AccountId, opts.AccountId)
 	}
-	// filter by category
+	// filter by category — also restrict to income/expense if no explicit type filter is set
 	if len(opts.CategoryIds) > 0 {
 		db = db.Where(
 			"EXISTS (SELECT 1 FROM db_entries AS ce WHERE ce.transaction_id = db_transactions.id AND ce.category_id IN (?))",
 			opts.CategoryIds)
+		if len(opts.Types) == 0 {
+			db = db.Where("db_transactions.type IN (?)", []TxType{IncomeTransaction, ExpenseTransaction})
+		}
 	}
 	// filter by attachment
 	if opts.HasAttachment != nil && *opts.HasAttachment {

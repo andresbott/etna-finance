@@ -17,7 +17,7 @@ function parseDate(s: string): Date | null {
 
 function parseIds(s: string): number[] {
     if (!s) return []
-    return s.split(',').map(Number).filter((n) => !isNaN(n) && n > 0)
+    return s.split(',').map(Number).filter((n) => !isNaN(n) && n >= 0)
 }
 
 function parseStrings(s: string): string[] {

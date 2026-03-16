@@ -43,3 +43,4 @@ config.yaml
 
 # Playwright MCP logs
 .playwright-mcp/
+docs/superpowers

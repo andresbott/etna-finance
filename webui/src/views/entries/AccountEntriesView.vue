@@ -156,11 +156,9 @@ const filtersExpanded = ref(
     <div class="main-app-content">
         <div class="entries-content">
             <div class="toolbar">
-                <div class="toolbar-left">
-                    <h2 class="account-title">
-                        {{ accountTitle }}
-                    </h2>
-                </div>
+                <h2 class="account-title">
+                    {{ accountTitle }}
+                </h2>
                 <div class="date-filters">
                     <DateRangePicker
                         v-model:startDate="startDate"
@@ -170,8 +168,8 @@ const filtersExpanded = ref(
                     <Button
                         :icon="filtersExpanded ? 'pi pi-filter-slash' : 'pi pi-filter'"
                         :severity="filtersExpanded ? 'primary' : 'secondary'"
-                        text
-                        rounded
+                        :outlined="!filtersExpanded"
+                        class="filter-btn"
                         @click="filtersExpanded = !filtersExpanded"
                         v-tooltip.bottom="'Filters'"
                     />
@@ -242,17 +240,12 @@ const filtersExpanded = ref(
 }
 
 .toolbar {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    align-items: center;
-    padding: 1rem;
-    background-color: var(--surface-ground);
-    border-bottom: 1px solid var(--surface-border);
-}
-
-.toolbar-left {
     display: flex;
     align-items: center;
+    padding: 1rem;
+    gap: 1rem;
+    background-color: var(--surface-ground);
+    border-bottom: 1px solid var(--surface-border);
 }
 
 .account-title {
@@ -266,14 +259,17 @@ const filtersExpanded = ref(
     display: flex;
     gap: 1rem;
     align-items: center;
-    justify-content: center;
 }
 
 .add-entry-menu {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
+    margin-left: auto;
     gap: 0.5rem;
+}
+
+.filter-btn {
+    align-self: stretch;
 }
 
 .filter-bar {
