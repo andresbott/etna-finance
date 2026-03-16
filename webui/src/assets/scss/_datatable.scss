@@ -19,8 +19,6 @@
     margin-left: auto;
 }
 
-// Prevent amount column from wrapping (fits "−1,234.56 EUR" and transfer "X → Y").
 .amount-column {
-    min-width: 12rem;
     white-space: nowrap;
 }

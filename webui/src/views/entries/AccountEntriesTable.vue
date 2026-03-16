@@ -58,7 +58,7 @@ const isInstrumentAccount = computed(
 const emit = defineEmits(['edit', 'duplicate', 'delete', 'page'])
 
 /* --- Utils --- */
-const { getCategoryName, getCategoryPath } = useCategoryUtils()
+const { getCategoryName, getCategoryPath, getCategoryIcon } = useCategoryUtils()
 const { getAccountCurrency, getAccountName } = useAccountUtils()
 const { instruments: instrumentsData } = useInstruments()
 const { formatDate } = useDateFormat()
@@ -166,13 +166,27 @@ const tableEntries = computed(() =>
                             {{ data.description }}
                         </span>
                         <span v-else>{{ data.description }}</span>
-                        <i v-if="data.attachmentId" class="pi pi-paperclip attachment-icon" @click="openAttachment(data)" v-tooltip.bottom="'View Attachment'" />
+                    </template>
+                </Column>
+
+                <Column style="width: 2rem; padding: 0" bodyStyle="text-align: center">
+                    <template #body="{ data }">
+                        <Button
+                            v-if="data.attachmentId"
+                            icon="pi pi-paperclip"
+                            text
+                            rounded
+                            size="small"
+                            @click="openAttachment(data)"
+                            v-tooltip.bottom="'View Attachment'"
+                        />
                     </template>
                 </Column>
 
                 <Column field="categoryId" header="Category">
                     <template #body="{ data }">
-                        <span v-if="data.type === 'expense' || data.type === 'income'">
+                        <span v-if="data.type === 'expense' || data.type === 'income'" :class="{ 'unclassified': !data.categoryId }" class="category-cell">
+                            <i :class="['pi', getCategoryIcon(data.categoryId, data.type)]"></i>
                             {{ getCategoryName(data.categoryId, data.type) }}
                         </span>
                     </template>
@@ -389,5 +403,14 @@ const tableEntries = computed(() =>
 }
 .attachment-icon:hover {
     opacity: 1;
+}
+.unclassified {
+    font-style: italic;
+    opacity: 0.6;
+}
+.category-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
 }
 </style>

@@ -194,6 +194,10 @@ watch(selectedQuickOption, (newValue) => {
     gap: 0.5rem;
 }
 
+.date-field :deep(.p-datepicker .p-inputtext) {
+    width: 8.5rem;
+}
+
 .date-field label {
     font-weight: 500;
     white-space: nowrap;

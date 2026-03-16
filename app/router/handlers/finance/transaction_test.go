@@ -9,6 +9,9 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/andresbott/etna/internal/accounting"
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestFinanceHandler_CreateTx(t *testing.T) {
@@ -268,6 +271,48 @@ func TestFinanceHandler_ListTx(t *testing.T) {
 			expectCode:       http.StatusOK,
 			expectItemsCount: 5,
 		},
+		{
+			name:             "filter by types expense",
+			userId:           tenant1,
+			query:            "?startDate=2025-01-01&endDate=2025-01-05&types=expense",
+			expectCode:       http.StatusOK,
+			expectItemsCount: 5,
+		},
+		{
+			name:             "filter by types income",
+			userId:           tenant1,
+			query:            "?startDate=2025-01-01&endDate=2025-01-31&types=income",
+			expectCode:       http.StatusOK,
+			expectItemsCount: 1,
+		},
+		{
+			name:             "filter by types investment group",
+			userId:           tenant1,
+			query:            "?startDate=2025-01-01&endDate=2025-01-05&types=investment",
+			expectCode:       http.StatusOK,
+			expectItemsCount: 0,
+		},
+		{
+			name:             "filter by search text",
+			userId:           tenant1,
+			query:            "?startDate=2025-01-01&endDate=2025-01-05&search=e1",
+			expectCode:       http.StatusOK,
+			expectItemsCount: 1,
+		},
+		{
+			name:             "filter by hasAttachment",
+			userId:           tenant1,
+			query:            "?startDate=2025-01-01&endDate=2025-01-05&hasAttachment=true",
+			expectCode:       http.StatusOK,
+			expectItemsCount: 0,
+		},
+		{
+			name:             "search too long truncated to 100",
+			userId:           tenant1,
+			query:            "?startDate=2025-01-01&endDate=2025-01-05&search=" + strings.Repeat("a", 150),
+			expectCode:       http.StatusOK,
+			expectItemsCount: 0,
+		},
 	}
 
 	for _, tc := range tcs {
@@ -307,6 +352,41 @@ func TestFinanceHandler_ListTx(t *testing.T) {
 				if len(response.Items) != tc.expectItemsCount {
 					t.Errorf("unexpected items count: got %d, want %d", len(response.Items), tc.expectItemsCount)
 				}
+			}
+		})
+	}
+}
+
+func TestExpandTypeGroups(t *testing.T) {
+	tcs := []struct {
+		name  string
+		input []string
+		want  []accounting.TxType
+	}{
+		{"single type", []string{"income"}, []accounting.TxType{accounting.IncomeTransaction}},
+		{"investment expands to 4", []string{"investment"}, []accounting.TxType{
+			accounting.StockBuyTransaction, accounting.StockSellTransaction,
+			accounting.StockGrantTransaction, accounting.StockTransferTransaction,
+		}},
+		{"mixed groups", []string{"income", "investment"}, []accounting.TxType{
+			accounting.IncomeTransaction,
+			accounting.StockBuyTransaction, accounting.StockSellTransaction,
+			accounting.StockGrantTransaction, accounting.StockTransferTransaction,
+		}},
+		{"unknown ignored", []string{"bogus"}, nil},
+		{"empty input", []string{}, nil},
+		{"case insensitive", []string{"INCOME", "Investment"}, []accounting.TxType{
+			accounting.IncomeTransaction,
+			accounting.StockBuyTransaction, accounting.StockSellTransaction,
+			accounting.StockGrantTransaction, accounting.StockTransferTransaction,
+		}},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			got := expandTypeGroups(tc.input)
+			if diff := cmp.Diff(got, tc.want); diff != "" {
+				t.Errorf("unexpected result (-got +want):\n%s", diff)
 			}
 		})
 	}

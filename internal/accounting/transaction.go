@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/andresbott/etna/internal/marketdata"
@@ -2309,12 +2310,15 @@ func (store *Store) UpdateStockTransfer(ctx context.Context, input StockTransfer
 }
 
 type ListOpts struct {
-	StartDate time.Time
-	EndDate   time.Time
-	AccountId []int
-	Types     []TxType
-	Limit     int
-	Page      int
+	StartDate     time.Time
+	EndDate       time.Time
+	AccountId     []int
+	Types         []TxType
+	CategoryIds   []uint
+	HasAttachment *bool
+	Search        string
+	Limit         int
+	Page          int
 }
 
 const MaxSearchResults = 300
@@ -2322,6 +2326,51 @@ const DefaultSearchResults = 30
 
 // ListTransactions returns a paginated list of transactions matching the filter criteria,
 // along with the total count of matching transactions (before pagination).
+// intermediate is the raw row shape returned by the ListTransactions query
+// before it is converted into typed Transaction values.
+type intermediate struct {
+	Date          time.Time
+	Description   string
+	Notes         string
+	Type          TxType
+	TransactionId uint
+	AttachmentID  *uint
+
+	CategoryId       uint
+	AccountId        uint
+	IncomeAccountId  uint
+	IncomeAmount     float64
+	ExpenseAccountId uint
+	ExpenseAmount    float64
+	OriginAccountId  uint
+	OriginAmount     float64
+	TargetAccountId  uint
+	TargetAmount     float64
+
+	StockCashAccountId uint
+	StockCashAmount    float64
+
+	TradeBuyAccountId      uint
+	TradeBuyInstrumentId   uint
+	TradeBuyQuantity       float64
+	TradeBuyAmount         float64
+	TradeSellAccountId     uint
+	TradeSellInstrumentId  uint
+	TradeSellQuantity      float64
+	TradeSellAmount        float64
+	TradeGrantAccountId    uint
+	TradeGrantInstrumentId uint
+	TradeGrantQuantity     float64
+	TradeGrantFmv          float64
+
+	TradeTransferSourceId     uint
+	TradeTransferTargetId     uint
+	TradeTransferInstrumentId uint
+	TradeTransferQuantity     float64
+
+	BalanceStatusAmount float64
+}
+
 func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Transaction, int64, error) {
 
 	db := store.db.WithContext(ctx).Table("db_transactions")
@@ -2383,20 +2432,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 		Joins("LEFT JOIN db_entries ON db_entries.transaction_id = db_transactions.id").
 		Joins("LEFT JOIN db_trades ON db_trades.transaction_id = db_transactions.id")
 
-	// ensure proper owner
-	// Filter by date range
-	db = db.Where("db_transactions.date BETWEEN ? AND ?", startDate, endDate)
-	// filter by type
-	if len(opts.Types) > 0 {
-		db = db.Where("db_transactions.type IN (?)", opts.Types)
-	}
-	// filter by accounts (check both entries and trades)
-	if len(opts.AccountId) > 0 {
-		db = db.Where(
-			"(EXISTS (SELECT 1 FROM db_entries AS e WHERE e.transaction_id = db_transactions.id AND e.account_id IN (?))"+
-				" OR EXISTS (SELECT 1 FROM db_trades AS t WHERE t.transaction_id = db_transactions.id AND t.account_id IN (?)))",
-			opts.AccountId, opts.AccountId)
-	}
+	db = applyListFilters(db, startDate, endDate, opts)
 
 	db = db.Group("db_transactions.id, db_transactions.date, db_transactions.description, db_transactions.notes, db_transactions.type")
 
@@ -2426,51 +2462,6 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 	db = db.Order("db_transactions.date DESC, CASE WHEN db_transactions.type = 9 THEN 0 ELSE 1 END, db_transactions.id DESC").
 		Limit(opts.Limit).Offset(offset)
 
-	//debugtarget := []map[string]any{} // left for debugging
-	type intermediate struct {
-		Date          time.Time
-		Description   string
-		Notes         string
-		Type          TxType
-		TransactionId uint
-		AttachmentID  *uint
-
-		CategoryId       uint
-		AccountId        uint
-		IncomeAccountId  uint
-		IncomeAmount     float64
-		ExpenseAccountId uint
-		ExpenseAmount    float64
-		OriginAccountId  uint
-		OriginAmount     float64
-		TargetAccountId  uint
-		TargetAmount     float64
-
-		StockCashAccountId uint
-		StockCashAmount    float64
-
-		// From trades
-		TradeBuyAccountId      uint
-		TradeBuyInstrumentId   uint
-		TradeBuyQuantity       float64
-		TradeBuyAmount         float64
-		TradeSellAccountId     uint
-		TradeSellInstrumentId  uint
-		TradeSellQuantity      float64
-		TradeSellAmount        float64
-		TradeGrantAccountId    uint
-		TradeGrantInstrumentId uint
-		TradeGrantQuantity     float64
-		TradeGrantFmv          float64
-
-		TradeTransferSourceId     uint
-		TradeTransferTargetId     uint
-		TradeTransferInstrumentId uint
-		TradeTransferQuantity     float64
-
-		BalanceStatusAmount float64
-	}
-
 	var target []intermediate
 	q := db.Scan(&target)
 	//q := db.Scan(&debugtarget)
@@ -2486,120 +2477,108 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 
 	var txs []Transaction
 	for _, item := range target {
-		switch item.Type {
-		case IncomeTransaction:
-			tx := Income{
-				Id:           item.TransactionId,
-				Description:  item.Description,
-				Notes:        item.Notes,
-				Amount:       item.IncomeAmount,
-				AccountID:    item.IncomeAccountId,
-				CategoryID:   item.CategoryId,
-				Date:         item.Date,
-				AttachmentID: item.AttachmentID,
-			}
-			txs = append(txs, tx)
-		case ExpenseTransaction:
-			tx := Expense{
-				Id:           item.TransactionId,
-				Description:  item.Description,
-				Notes:        item.Notes,
-				Amount:       -item.ExpenseAmount,
-				AccountID:    item.ExpenseAccountId,
-				CategoryID:   item.CategoryId,
-				Date:         item.Date,
-				AttachmentID: item.AttachmentID,
-			}
-			txs = append(txs, tx)
-		case TransferTransaction:
-			tx := Transfer{
-				Id:              item.TransactionId,
-				Description:     item.Description,
-				Notes:           item.Notes,
-				Date:            item.Date,
-				OriginAmount:    -item.OriginAmount,
-				OriginAccountID: item.OriginAccountId,
-				TargetAmount:    item.TargetAmount,
-				TargetAccountID: item.TargetAccountId,
-				AttachmentID:    item.AttachmentID,
-			}
-			txs = append(txs, tx)
-		case StockBuyTransaction:
-			totalAmount := item.StockCashAmount
-			if totalAmount < 0 {
-				totalAmount = -totalAmount
-			}
-			txs = append(txs, StockBuy{
-				Id:                  item.TransactionId,
-				Description:         item.Description,
-				Notes:               item.Notes,
-				Date:                item.Date,
-				InvestmentAccountID: item.TradeBuyAccountId,
-				CashAccountID:       item.StockCashAccountId,
-				InstrumentID:        item.TradeBuyInstrumentId,
-				Quantity:            item.TradeBuyQuantity,
-				TotalAmount:         totalAmount,
-				StockAmount:         item.TradeBuyAmount,
-				AttachmentID:        item.AttachmentID,
-			})
-		case StockSellTransaction:
-			realizedGainLoss := item.IncomeAmount - item.ExpenseAmount
-			costBasis := roundMoney(item.TradeSellAmount - roundMoney(item.IncomeAmount-item.ExpenseAmount))
-			// Infer fees: expense entries can include both loss and fees
-			txs = append(txs, StockSell{
-				Id:                  item.TransactionId,
-				Description:         item.Description,
-				Notes:               item.Notes,
-				Date:                item.Date,
-				InvestmentAccountID: item.TradeSellAccountId,
-				CashAccountID:       item.StockCashAccountId,
-				InstrumentID:        item.TradeSellInstrumentId,
-				Quantity:            item.TradeSellQuantity,
-				TotalAmount:         item.TradeSellAmount,
-				CostBasis:           costBasis,
-				RealizedGainLoss:    realizedGainLoss,
-				AttachmentID:        item.AttachmentID,
-			})
-		case StockGrantTransaction:
-			txs = append(txs, StockGrant{
-				Id:              item.TransactionId,
-				Description:     item.Description,
-				Notes:           item.Notes,
-				Date:            item.Date,
-				AccountID:       item.TradeGrantAccountId,
-				InstrumentID:    item.TradeGrantInstrumentId,
-				Quantity:        item.TradeGrantQuantity,
-				FairMarketValue: item.TradeGrantFmv,
-				AttachmentID:    item.AttachmentID,
-			})
-		case StockTransferTransaction:
-			txs = append(txs, StockTransfer{
-				Id:              item.TransactionId,
-				Description:     item.Description,
-				Notes:           item.Notes,
-				Date:            item.Date,
-				SourceAccountID: item.TradeTransferSourceId,
-				TargetAccountID: item.TradeTransferTargetId,
-				InstrumentID:    item.TradeTransferInstrumentId,
-				Quantity:        item.TradeTransferQuantity,
-				AttachmentID:    item.AttachmentID,
-			})
-		case BalanceStatusTransaction:
-			txs = append(txs, BalanceStatus{
-				Id:           item.TransactionId,
-				Description:  item.Description,
-				Notes:        item.Notes,
-				Date:         item.Date,
-				Amount:       item.BalanceStatusAmount,
-				AccountID:    item.AccountId,
-				AttachmentID: item.AttachmentID,
-			})
-		default:
-			tx := EmptyTransaction{}
-			txs = append(txs, tx)
-		}
+		txs = append(txs, intermediateToTransaction(item))
 	}
 	return txs, totalCount, nil
+}
+
+func applyListFilters(db *gorm.DB, startDate, endDate time.Time, opts ListOpts) *gorm.DB {
+	db = db.Where("db_transactions.date BETWEEN ? AND ?", startDate, endDate)
+	if len(opts.Types) > 0 {
+		db = db.Where("db_transactions.type IN (?)", opts.Types)
+	}
+	if len(opts.AccountId) > 0 {
+		db = db.Where(
+			"(EXISTS (SELECT 1 FROM db_entries AS e WHERE e.transaction_id = db_transactions.id AND e.account_id IN (?))"+
+				" OR EXISTS (SELECT 1 FROM db_trades AS t WHERE t.transaction_id = db_transactions.id AND t.account_id IN (?)))",
+			opts.AccountId, opts.AccountId)
+	}
+	if len(opts.CategoryIds) > 0 {
+		db = db.Where(
+			"EXISTS (SELECT 1 FROM db_entries AS ce WHERE ce.transaction_id = db_transactions.id AND ce.category_id IN (?))",
+			opts.CategoryIds)
+		if len(opts.Types) == 0 {
+			db = db.Where("db_transactions.type IN (?)", []TxType{IncomeTransaction, ExpenseTransaction})
+		}
+	}
+	if opts.HasAttachment != nil && *opts.HasAttachment {
+		db = db.Where("db_transactions.attachment_id IS NOT NULL")
+	}
+	if opts.Search != "" {
+		pattern := "%" + strings.ToLower(opts.Search) + "%"
+		db = db.Where("(LOWER(db_transactions.description) LIKE ? OR LOWER(db_transactions.notes) LIKE ?)", pattern, pattern)
+	}
+	return db
+}
+
+func intermediateToTransaction(item intermediate) Transaction {
+	switch item.Type {
+	case IncomeTransaction:
+		return Income{
+			Id: item.TransactionId, Description: item.Description, Notes: item.Notes,
+			Amount: item.IncomeAmount, AccountID: item.IncomeAccountId,
+			CategoryID: item.CategoryId, Date: item.Date, AttachmentID: item.AttachmentID,
+		}
+	case ExpenseTransaction:
+		return Expense{
+			Id: item.TransactionId, Description: item.Description, Notes: item.Notes,
+			Amount: -item.ExpenseAmount, AccountID: item.ExpenseAccountId,
+			CategoryID: item.CategoryId, Date: item.Date, AttachmentID: item.AttachmentID,
+		}
+	case TransferTransaction:
+		return Transfer{
+			Id: item.TransactionId, Description: item.Description, Notes: item.Notes,
+			Date: item.Date, OriginAmount: -item.OriginAmount, OriginAccountID: item.OriginAccountId,
+			TargetAmount: item.TargetAmount, TargetAccountID: item.TargetAccountId,
+			AttachmentID: item.AttachmentID,
+		}
+	case StockBuyTransaction:
+		totalAmount := item.StockCashAmount
+		if totalAmount < 0 {
+			totalAmount = -totalAmount
+		}
+		return StockBuy{
+			Id: item.TransactionId, Description: item.Description, Notes: item.Notes,
+			Date: item.Date, InvestmentAccountID: item.TradeBuyAccountId,
+			CashAccountID: item.StockCashAccountId, InstrumentID: item.TradeBuyInstrumentId,
+			Quantity: item.TradeBuyQuantity, TotalAmount: totalAmount,
+			StockAmount: item.TradeBuyAmount, AttachmentID: item.AttachmentID,
+		}
+	case StockSellTransaction:
+		realizedGainLoss := item.IncomeAmount - item.ExpenseAmount
+		costBasis := roundMoney(item.TradeSellAmount - roundMoney(item.IncomeAmount-item.ExpenseAmount))
+		return StockSell{
+			Id: item.TransactionId, Description: item.Description, Notes: item.Notes,
+			Date: item.Date, InvestmentAccountID: item.TradeSellAccountId,
+			CashAccountID: item.StockCashAccountId, InstrumentID: item.TradeSellInstrumentId,
+			Quantity: item.TradeSellQuantity, TotalAmount: item.TradeSellAmount,
+			CostBasis: costBasis, RealizedGainLoss: realizedGainLoss,
+			AttachmentID: item.AttachmentID,
+		}
+	case StockGrantTransaction:
+		return StockGrant{
+			Id: item.TransactionId, Description: item.Description, Notes: item.Notes,
+			Date: item.Date, AccountID: item.TradeGrantAccountId,
+			InstrumentID: item.TradeGrantInstrumentId, Quantity: item.TradeGrantQuantity,
+			FairMarketValue: item.TradeGrantFmv, AttachmentID: item.AttachmentID,
+		}
+	case StockTransferTransaction:
+		return StockTransfer{
+			Id: item.TransactionId, Description: item.Description, Notes: item.Notes,
+			Date: item.Date, SourceAccountID: item.TradeTransferSourceId,
+			TargetAccountID: item.TradeTransferTargetId,
+			InstrumentID: item.TradeTransferInstrumentId,
+			Quantity: item.TradeTransferQuantity, AttachmentID: item.AttachmentID,
+		}
+	case BalanceStatusTransaction:
+		return BalanceStatus{
+			Id: item.TransactionId, Description: item.Description, Notes: item.Notes,
+			Date: item.Date, Amount: item.BalanceStatusAmount,
+			AccountID: item.AccountId, AttachmentID: item.AttachmentID,
+		}
+	default:
+		return EmptyTransaction{}
+	}
 }
 
 // PriorPageBalance computes the net cash-balance effect on a single account of all

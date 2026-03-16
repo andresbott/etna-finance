@@ -5,7 +5,7 @@ go 1.25.4
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/glebarez/sqlite v1.11.0
-	github.com/go-bumbu/closure-tree v0.8.2
+	github.com/go-bumbu/closure-tree v0.8.3
 	github.com/go-bumbu/config v0.4.0
 	github.com/go-bumbu/http v0.3.1
 	github.com/go-bumbu/tempo v0.2.0
@@ -27,6 +27,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/sync v0.20.0
 	golang.org/x/text v0.34.0
+	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.1
 )
 
@@ -120,7 +121,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/mysql v1.5.7 // indirect
 	gorm.io/driver/postgres v1.5.11 // indirect
-	gorm.io/driver/sqlite v1.6.0 // indirect
 	modernc.org/libc v1.69.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect

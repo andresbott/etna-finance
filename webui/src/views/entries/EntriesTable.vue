@@ -160,7 +160,19 @@ const openAttachment = (data) => {
                     <Column field="description" header="Description" class="description-column">
                         <template #body="{ data }">
                             {{ data.description || '—' }}
-                            <i v-if="data.attachmentId" class="pi pi-paperclip attachment-icon" @click="openAttachment(data)" v-tooltip.bottom="'View Attachment'" />
+                        </template>
+                    </Column>
+                    <Column style="width: 2rem; padding: 0" bodyStyle="text-align: center">
+                        <template #body="{ data }">
+                            <Button
+                                v-if="data.attachmentId"
+                                icon="pi pi-paperclip"
+                                text
+                                rounded
+                                size="small"
+                                @click="openAttachment(data)"
+                                v-tooltip.bottom="'View Attachment'"
+                            />
                         </template>
                     </Column>
                     <Column header="Account">
@@ -255,11 +267,24 @@ const openAttachment = (data) => {
                                 {{ data.description }}
                             </span>
                             <span v-else>{{ data.description }}</span>
-                            <i v-if="data.attachmentId" class="pi pi-paperclip attachment-icon" @click="openAttachment(data)" v-tooltip.bottom="'View Attachment'" />
                         </template>
                     </Column>
 
-                    <Column header="Account">
+                    <Column style="width: 2rem; padding: 0" bodyStyle="text-align: center">
+                        <template #body="{ data }">
+                            <Button
+                                v-if="data.attachmentId"
+                                icon="pi pi-paperclip"
+                                text
+                                rounded
+                                size="small"
+                                @click="openAttachment(data)"
+                                v-tooltip.bottom="'View Attachment'"
+                            />
+                        </template>
+                    </Column>
+
+                    <Column header="Account" style="white-space: nowrap">
                         <template #body="{ data }">
                             <span v-if="data.type === 'transfer'">
                                 {{ getAccountName(data.originAccountId)
@@ -291,13 +316,13 @@ const openAttachment = (data) => {
                         </template>
                     </Column>
 
-                    <Column field="date" header="Date">
+                    <Column field="date" header="Date" style="width: 6rem; white-space: nowrap">
                         <template #body="{ data }">
                             {{ formatDate(data.date) }}
                         </template>
                     </Column>
 
-                    <Column field="Amount" header="Amount" bodyStyle="text-align: right" class="amount-column">
+                    <Column field="Amount" header="Amount" bodyStyle="text-align: right; white-space: nowrap" class="amount-column">
                     <template #body="{ data }">
                         <div v-if="data.type === 'expense'" class="amount expense">
                             -{{ formatAmount(data.Amount) }}

@@ -1,10 +1,13 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
 
 import { fetchIncomeExpense } from '@/composables/useIncomeExpense'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import { Button, Card, Column, TreeTable } from 'primevue'
+
+const router = useRouter()
 
 const today = new Date()
 const startDate = ref(new Date(today.setDate(today.getDate() - 35)))
@@ -108,13 +111,17 @@ const getTotalValue = (node) => {
 
 const sortNodesByValue = (nodes) => {
     if (!nodes || nodes.length === 0) return []
-    
+
     return [...nodes]
         .map((node) => ({
             ...node,
             children: sortNodesByValue(node.children || [])
         }))
-        .sort((a, b) => getTotalValue(b) - getTotalValue(a))
+        .sort((a, b) => {
+            if (a.key === '0') return 1
+            if (b.key === '0') return -1
+            return getTotalValue(b) - getTotalValue(a)
+        })
 }
 
 const incomeNodes = computed(() =>
@@ -215,6 +222,34 @@ const isExpenseFullyExpanded = computed(() => {
     return Object.keys(expandedExpenseKeys.value).length === Object.keys(allKeys).length
 })
 
+const collectNodeIds = (node) => {
+    const ids = []
+    if (node.key && node.key !== 'total') {
+        ids.push(Number(node.key))
+    }
+    if (node.children) {
+        for (const child of node.children) {
+            ids.push(...collectNodeIds(child))
+        }
+    }
+    return ids
+}
+
+const viewEntries = (node) => {
+    const ids = collectNodeIds(node)
+    if (ids.length === 0) return
+    router.push({
+        path: '/entries',
+        query: {
+            from: formatDateForAPI(startDate.value),
+            to: formatDateForAPI(endDate.value),
+            page: '1',
+            limit: '25',
+            categoryIds: ids.join(',')
+        }
+    })
+}
+
 watch([startDate, endDate], () => {
     if (startDate.value && endDate.value) fetchReportData()
 })
@@ -263,6 +298,16 @@ onMounted(() => fetchReportData())
                                     <span class="category-name">
                                         <i :class="['pi', slotProps.node.data.icon || 'pi-tag']"></i>
                                         {{ slotProps.node.data.name }}
+                                        <Button
+                                            v-if="slotProps.node.key !== 'total'"
+                                            icon="pi pi-list"
+                                            class="view-entries-btn"
+                                            text
+                                            rounded
+                                            size="small"
+                                            @click.stop="viewEntries(slotProps.node)"
+                                            v-tooltip.top="'View entries'"
+                                        />
                                     </span>
                                 </template>
                             </Column>
@@ -311,6 +356,16 @@ onMounted(() => fetchReportData())
                                     <span class="category-name">
                                         <i :class="['pi', slotProps.node.data.icon || 'pi-tag']"></i>
                                         {{ slotProps.node.data.name }}
+                                        <Button
+                                            v-if="slotProps.node.key !== 'total'"
+                                            icon="pi pi-list"
+                                            class="view-entries-btn"
+                                            text
+                                            rounded
+                                            size="small"
+                                            @click.stop="viewEntries(slotProps.node)"
+                                            v-tooltip.top="'View entries'"
+                                        />
                                     </span>
                                 </template>
                             </Column>
@@ -376,5 +431,17 @@ onMounted(() => fetchReportData())
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
+}
+
+.view-entries-btn {
+    opacity: 0.4;
+    transition: opacity 0.2s;
+    width: 1.75rem !important;
+    height: 1.75rem !important;
+    padding: 0 !important;
+}
+
+.category-name:hover .view-entries-btn {
+    opacity: 1;
 }
 </style>

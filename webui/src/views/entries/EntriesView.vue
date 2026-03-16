@@ -1,7 +1,9 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import Button from 'primevue/button'
 
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
+import EntryFilters from '@/components/entries/EntryFilters.vue'
 import EntriesTable from './EntriesTable.vue'
 import EntryDialogs from './EntryDialogs.vue'
 
@@ -19,7 +21,7 @@ const FINANCIAL_ENTRY_TYPES = ['transfer', 'stockbuy', 'stocksell', 'stockgrant'
 
 /* --- Reactive State (synced with URL query params) --- */
 const today = new Date()
-const { startDate, endDate, page, limit } = useRouteState({
+const { startDate, endDate, page, limit, categoryIds, types, hasAttachment, search } = useRouteState({
     startDate: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 35),
     endDate: new Date(),
     limit: props.financialOnly ? 500 : 25
@@ -30,7 +32,11 @@ const { entries, totalRecords, isLoading, isFetching, deleteEntry, isDeleting, r
     startDate,
     endDate,
     page,
-    limit
+    limit,
+    categoryIds,
+    types,
+    hasAttachment,
+    search
 })
 
 const filteredEntries = computed(() => {
@@ -60,7 +66,7 @@ const handlePage = (event) => {
 }
 
 /* --- Reset pagination when date range changes --- */
-watch([startDate, endDate], () => {
+watch([startDate, endDate, categoryIds, types, hasAttachment, search], () => {
     page.value = 1
 })
 
@@ -78,23 +84,47 @@ const {
     deleteDialogVisible, entryToDelete,
     openEditEntryDialog, openDuplicateEntryDialog, openDeleteDialog, handleDeleteEntry
 } = useEntryDialogs(deleteEntry)
+
+const filtersExpanded = ref(
+    categoryIds.value.length > 0 ||
+    types.value.length > 0 ||
+    hasAttachment.value ||
+    search.value !== ''
+)
 </script>
 
 <template>
     <div class="main-app-content">
         <div class="entries-content">
             <div class="toolbar">
-                <div class="toolbar-spacer"></div>
                 <div class="date-filters">
                     <DateRangePicker
                         v-model:startDate="startDate"
                         v-model:endDate="endDate"
                         @change="refetch"
                     />
+                    <Button
+                        :icon="filtersExpanded ? 'pi pi-filter-slash' : 'pi pi-filter'"
+                        :severity="filtersExpanded ? 'primary' : 'secondary'"
+                        :outlined="!filtersExpanded"
+                        class="filter-btn"
+                        @click="filtersExpanded = !filtersExpanded"
+                        v-tooltip.bottom="'Filters'"
+                    />
                 </div>
                 <div class="add-entry-menu">
                     <AddEntryMenu />
                 </div>
+            </div>
+
+            <div class="filter-bar">
+                <EntryFilters
+                    v-model:categoryIds="categoryIds"
+                    v-model:types="types"
+                    v-model:hasAttachment="hasAttachment"
+                    v-model:search="search"
+                    v-model:expanded="filtersExpanded"
+                />
             </div>
 
             <div class="entries-view">
@@ -142,10 +172,10 @@ const {
 }
 
 .toolbar {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    display: flex;
     align-items: center;
     padding: 1rem;
+    gap: 1rem;
     background-color: var(--surface-ground);
     border-bottom: 1px solid var(--surface-border);
 }
@@ -154,18 +184,27 @@ const {
     display: flex;
     gap: 1rem;
     align-items: center;
-    justify-content: center;
 }
 
 .add-entry-menu {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
+    margin-left: auto;
+}
+
+.filter-bar {
+    padding: 0 1rem;
+    background-color: var(--surface-ground);
+    border-bottom: 1px solid var(--surface-border);
 }
 
 .entries-view {
     flex: 1;
     overflow: auto;
     padding: 1rem;
+}
+
+.filter-btn {
+    align-self: stretch;
 }
 </style>

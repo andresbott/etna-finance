@@ -98,7 +98,7 @@ github.com/glebarez/go-sqlite
 # github.com/glebarez/sqlite v1.11.0
 ## explicit; go 1.18
 github.com/glebarez/sqlite
-# github.com/go-bumbu/closure-tree v0.8.2
+# github.com/go-bumbu/closure-tree v0.8.3
 ## explicit; go 1.23.4
 github.com/go-bumbu/closure-tree
 # github.com/go-bumbu/config v0.4.0

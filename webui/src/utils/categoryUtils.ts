@@ -8,6 +8,7 @@ export interface CategoryNode {
         parentId?: number
         name: string
         description?: string
+        icon?: string
         path: string
     }
     checked?: boolean
@@ -57,7 +58,7 @@ export function useCategoryUtils() {
     const { IncomeTreeData, ExpenseTreeData } = useCategoryTree()
 
     const getCategoryName = (id: number | string, type: 'expense' | 'income') => {
-        if (id === 0) return 'Root'
+        if (id === 0) return 'Unclassified'
         if (!id) return '-'
 
 
@@ -68,11 +69,18 @@ export function useCategoryUtils() {
     }
 
     const getCategoryPath = (id: number | string, type: 'expense' | 'income') => {
-        if (!id || id === 0) return 'Root'
+        if (!id || id === 0) return 'Unclassified'
 
         const nodes = type === 'expense' ? ExpenseTreeData.value : IncomeTreeData.value
         return buildCategoryPath(nodes, id)
     }
 
-    return { getCategoryName, getCategoryPath }
+    const getCategoryIcon = (id: number | string, type: 'expense' | 'income') => {
+        if (!id || id === 0) return 'pi-question-circle'
+        const nodes = type === 'expense' ? ExpenseTreeData.value : IncomeTreeData.value
+        const node = findNodeById(nodes, id)
+        return node?.data?.icon || 'pi-tag'
+    }
+
+    return { getCategoryName, getCategoryPath, getCategoryIcon }
 }

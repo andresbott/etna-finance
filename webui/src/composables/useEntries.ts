@@ -10,6 +10,10 @@ export interface UseEntriesOptions {
     accountIds?: Ref<string[] | null>
     page?: Ref<number>
     limit?: Ref<number>
+    categoryIds?: Ref<number[]>
+    types?: Ref<string[]>
+    hasAttachment?: Ref<boolean>
+    search?: Ref<string>
 }
 
 const DEFAULT_PAGE_SIZE = 25
@@ -20,7 +24,11 @@ export function useEntries(options: UseEntriesOptions = {}) {
         endDate: endDateRef = ref(null),
         accountIds: accountIdsRef = ref(null),
         page: pageRef = ref(1),
-        limit: limitRef = ref(DEFAULT_PAGE_SIZE)
+        limit: limitRef = ref(DEFAULT_PAGE_SIZE),
+        categoryIds: categoryIdsRef = ref([]),
+        types: typesRef = ref([]),
+        hasAttachment: hasAttachmentRef = ref(false),
+        search: searchRef = ref('')
     } = options
 
     const queryKey = computed(() => {
@@ -44,6 +52,22 @@ export function useEntries(options: UseEntriesOptions = {}) {
         // Add account IDs to query key if provided
         if (accountIds && accountIds.length > 0) {
             key.push('accounts', ...accountIds)
+        }
+
+        const catIds = unref(categoryIdsRef)
+        if (catIds && catIds.length > 0) {
+            key.push('cats', ...catIds.map(String))
+        }
+        const txTypes = unref(typesRef)
+        if (txTypes && txTypes.length > 0) {
+            key.push('types', ...txTypes)
+        }
+        if (unref(hasAttachmentRef)) {
+            key.push('attachment')
+        }
+        const searchVal = unref(searchRef)
+        if (searchVal) {
+            key.push('search', searchVal)
         }
 
         return key
@@ -76,7 +100,11 @@ export function useEntries(options: UseEntriesOptions = {}) {
                 endDate: end,
                 accountIds,
                 page,
-                limit
+                limit,
+                categoryIds: unref(categoryIdsRef),
+                hasAttachment: unref(hasAttachmentRef) || undefined,
+                types: unref(typesRef),
+                search: unref(searchRef)
             })
         }
     })

@@ -950,6 +950,12 @@ var listTransactionsSampleData = map[int]Transaction{
 	26: Income{Description: "p7", Date: getDateTime("2022-01-07 00:00:00"), Amount: 1, AccountID: 1},
 	27: Income{Description: "p8", Date: getDateTime("2022-01-08 00:00:00"), Amount: 1, AccountID: 1},
 	28: Income{Description: "p9", Date: getDateTime("2022-01-09 00:00:00"), Amount: 1, AccountID: 3},
+
+	// used in category filter tests (2021 date range)
+	30: Income{Description: "cat-i1", Date: getDate("2021-01-01"), Amount: 1, AccountID: 1, CategoryID: 1},
+	31: Expense{Description: "cat-e1", Date: getDate("2021-01-02"), Amount: 1, AccountID: 1, CategoryID: 2},
+	32: Income{Description: "cat-i2", Date: getDate("2021-01-03"), Amount: 1, AccountID: 1, CategoryID: 1},
+	33: Transfer{Description: "cat-t1", Date: getDate("2021-01-04"), OriginAmount: 1, OriginAccountID: 1, TargetAmount: 1, TargetAccountID: 2},
 }
 
 func TestStore_ListTransactions(t *testing.T) {
@@ -1090,6 +1096,30 @@ func TestStore_ListTransactions(t *testing.T) {
 				listTransactionsSampleData[24],
 			},
 		},
+		{
+			name:   "filter by single category",
+			tenant: tenant1,
+			opts: ListOpts{
+				StartDate:   getDate("2021-01-01"),
+				EndDate:     getDate("2021-12-31"),
+				CategoryIds: []uint{1},
+			},
+			want: []Transaction{
+				listTransactionsSampleData[32], listTransactionsSampleData[30],
+			},
+		},
+		{
+			name:   "filter by multiple categories",
+			tenant: tenant1,
+			opts: ListOpts{
+				StartDate:   getDate("2021-01-01"),
+				EndDate:     getDate("2021-12-31"),
+				CategoryIds: []uint{1, 2},
+			},
+			want: []Transaction{
+				listTransactionsSampleData[32], listTransactionsSampleData[31], listTransactionsSampleData[30],
+			},
+		},
 	}
 
 	for _, db := range testdbs.DBs() {
@@ -1097,6 +1127,7 @@ func TestStore_ListTransactions(t *testing.T) {
 			dbCon := db.ConnDbName("TestListTransactions")
 			store, _ := newAccountingStoreWithMarketData(t, dbCon)
 
+			categorySampleData(t, store, sampleCategories)
 			accountSampleData(t, store)
 			// note, to optimize the test, we execute all tests on a common set of pre created transactions
 			transactionSampleData(t, store, listTransactionsSampleData)
@@ -1123,6 +1154,103 @@ func TestStore_ListTransactions(t *testing.T) {
 						}
 					}
 
+				})
+			}
+		})
+	}
+}
+
+func TestStore_ListTransactions_HasAttachment(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			dbCon := db.ConnDbName("TestListTxAttachment")
+			store, _ := newAccountingStoreWithMarketData(t, dbCon)
+			accountSampleData(t, store)
+
+			id1, err := store.CreateTransaction(t.Context(), Income{
+				Description: "with attachment", Amount: 1, AccountID: 1, Date: getDate("2025-06-01"),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = store.CreateTransaction(t.Context(), Income{
+				Description: "without attachment", Amount: 1, AccountID: 1, Date: getDate("2025-06-02"),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Set attachment_id directly
+			store.db.Model(&dbTransaction{}).Where("id = ?", id1).Update("attachment_id", 999)
+
+			hasAttachment := true
+			got, _, err := store.ListTransactions(t.Context(), ListOpts{
+				StartDate:     getDate("2025-06-01"),
+				EndDate:       getDate("2025-06-30"),
+				HasAttachment: &hasAttachment,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got) != 1 {
+				t.Fatalf("expected 1 result, got %d", len(got))
+			}
+			if got[0].(Income).Description != "with attachment" {
+				t.Errorf("expected 'with attachment', got %q", got[0].(Income).Description)
+			}
+		})
+	}
+}
+
+func TestStore_ListTransactions_Search(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			dbCon := db.ConnDbName("TestListTxSearch")
+			store, _ := newAccountingStoreWithMarketData(t, dbCon)
+			accountSampleData(t, store)
+
+			if _, err := store.CreateTransaction(t.Context(), Income{
+				Description: "Grocery shopping", Amount: 50, AccountID: 1, Date: getDate("2025-07-01"),
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := store.CreateTransaction(t.Context(), Income{
+				Description: "Salary deposit", Notes: "monthly grocery allowance", Amount: 100, AccountID: 1, Date: getDate("2025-07-02"),
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := store.CreateTransaction(t.Context(), Income{
+				Description: "Gas station", Amount: 30, AccountID: 1, Date: getDate("2025-07-03"),
+			}); err != nil {
+				t.Fatal(err)
+			}
+
+			tcs := []struct {
+				name   string
+				search string
+				want   int
+			}{
+				{"match description", "grocery", 2},
+				{"match notes", "allowance", 1},
+				{"case insensitive", "GROCERY", 2},
+				{"partial match", "gro", 2},
+				{"no match", "xyz", 0},
+				{"empty search returns all", "", 3},
+			}
+
+			for _, tc := range tcs {
+				t.Run(tc.name, func(t *testing.T) {
+					got, _, err := store.ListTransactions(t.Context(), ListOpts{
+						StartDate: getDate("2025-07-01"),
+						EndDate:   getDate("2025-07-31"),
+						Search:    tc.search,
+					})
+					if err != nil {
+						t.Fatal(err)
+					}
+					if len(got) != tc.want {
+						t.Errorf("search %q: expected %d results, got %d", tc.search, tc.want, len(got))
+					}
 				})
 			}
 		})
@@ -1191,6 +1319,7 @@ func TestStore_PriorPageBalance(t *testing.T) {
 			dbCon := db.ConnDbName("TestPriorPageBalance")
 			store, _ := newAccountingStoreWithMarketData(t, dbCon)
 
+			categorySampleData(t, store, sampleCategories)
 			accountSampleData(t, store)
 			transactionSampleData(t, store, listTransactionsSampleData)
 
@@ -2472,6 +2601,98 @@ func TestStore_PriorPageBalance_ExcludesBalanceStatus(t *testing.T) {
 			want := 300.0
 			if got != want {
 				t.Errorf("PriorPageBalance = %v, want %v (balance status amount should not contribute)", got, want)
+			}
+		})
+	}
+}
+
+func TestStore_ListTransactions_CombinedFilters(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			dbCon := db.ConnDbName("TestListTxCombined")
+			store, _ := newAccountingStoreWithMarketData(t, dbCon)
+			categorySampleData(t, store, sampleCategories)
+			accountSampleData(t, store)
+
+			if _, err := store.CreateTransaction(t.Context(), Income{
+				Description: "Grocery income", Amount: 1, AccountID: 1, CategoryID: 1, Date: getDate("2025-08-01"),
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := store.CreateTransaction(t.Context(), Expense{
+				Description: "Grocery expense", Amount: 1, AccountID: 1, CategoryID: 2, Date: getDate("2025-08-02"),
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := store.CreateTransaction(t.Context(), Income{
+				Description: "Salary", Amount: 1, AccountID: 1, CategoryID: 1, Date: getDate("2025-08-03"),
+			}); err != nil {
+				t.Fatal(err)
+			}
+
+			got, _, err := store.ListTransactions(t.Context(), ListOpts{
+				StartDate:   getDate("2025-08-01"),
+				EndDate:     getDate("2025-08-31"),
+				CategoryIds: []uint{1},
+				Search:      "grocery",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got) != 1 {
+				t.Errorf("expected 1 result, got %d", len(got))
+			}
+		})
+	}
+}
+
+func TestStore_PriorPageBalance_IgnoresNewFilters(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			dbCon := db.ConnDbName("TestPriorBalNewFilters")
+			store, _ := newAccountingStoreWithMarketData(t, dbCon)
+			accountSampleData(t, store)
+
+			for i := 1; i <= 3; i++ {
+				if _, err := store.CreateTransaction(t.Context(), Income{
+					Description: fmt.Sprintf("income %d", i),
+					Amount:      10,
+					AccountID:   1,
+					CategoryID:  0,
+					Date:        getDate(fmt.Sprintf("2025-09-%02d", i)),
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			hasAttachment := true
+			baseOpts := ListOpts{
+				StartDate: getDate("2025-09-01"),
+				EndDate:   getDate("2025-09-30"),
+				AccountId: []int{1},
+				Limit:     1, Page: 1,
+			}
+			basePrior, err := store.PriorPageBalance(t.Context(), baseOpts, 1)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			filteredOpts := ListOpts{
+				StartDate:     getDate("2025-09-01"),
+				EndDate:       getDate("2025-09-30"),
+				AccountId:     []int{1},
+				Limit:         1, Page: 1,
+				CategoryIds:   []uint{999},
+				HasAttachment: &hasAttachment,
+				Search:        "nonexistent",
+			}
+			filteredPrior, err := store.PriorPageBalance(t.Context(), filteredOpts, 1)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if basePrior != filteredPrior {
+				t.Errorf("PriorPageBalance should ignore new filters: base=%f filtered=%f", basePrior, filteredPrior)
 			}
 		})
 	}

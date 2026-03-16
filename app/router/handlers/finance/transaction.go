@@ -570,60 +570,77 @@ func (h *Handler) GetTx(id uint) http.Handler {
 	})
 }
 
+// parseIntQueryParam parses an integer query parameter with a default value.
+func parseIntQueryParam(r *http.Request, key string, defaultVal int) (int, error) {
+	s := r.URL.Query().Get(key)
+	if s == "" {
+		return defaultVal, nil
+	}
+	var v int
+	if _, err := fmt.Sscanf(s, "%d", &v); err != nil {
+		return 0, fmt.Errorf("invalid %s format", key)
+	}
+	return v, nil
+}
+
+// parseIntListParam parses a repeated/comma-separated integer query parameter.
+func parseIntListParam(r *http.Request, key string) ([]int, error) {
+	var ids []int
+	for _, raw := range r.URL.Query()[key] {
+		for _, s := range strings.Split(raw, ",") {
+			s = strings.TrimSpace(s)
+			if s == "" {
+				continue
+			}
+			var v int
+			if _, err := fmt.Sscanf(s, "%d", &v); err != nil {
+				return nil, fmt.Errorf("invalid %s format", key)
+			}
+			ids = append(ids, v)
+		}
+	}
+	return ids, nil
+}
+
+// parseUintListParam parses a repeated/comma-separated uint query parameter.
+func parseUintListParam(r *http.Request, key string) ([]uint, error) {
+	var ids []uint
+	for _, raw := range r.URL.Query()[key] {
+		for _, s := range strings.Split(raw, ",") {
+			s = strings.TrimSpace(s)
+			if s == "" {
+				continue
+			}
+			var v uint
+			if _, err := fmt.Sscanf(s, "%d", &v); err != nil {
+				return nil, fmt.Errorf("invalid %s format", key)
+			}
+			ids = append(ids, v)
+		}
+	}
+	return ids, nil
+}
+
+// parseStringListParam parses a repeated/comma-separated string query parameter.
+func parseStringListParam(r *http.Request, key string) []string {
+	var vals []string
+	for _, raw := range r.URL.Query()[key] {
+		for _, s := range strings.Split(raw, ",") {
+			s = strings.TrimSpace(s)
+			if s != "" {
+				vals = append(vals, s)
+			}
+		}
+	}
+	return vals
+}
+
 func (h *Handler) ListTx() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		now := time.Now()
-		startDate, endDate, err := getDateRange(
-			r.URL.Query().Get("startDate"), r.URL.Query().Get("endDate"),
-			now.AddDate(0, 0, -30), now,
-		)
+		opts, accountIds, err := parseListTxParams(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
-		}
-
-		// Parse pagination parameters
-		limitStr := r.URL.Query().Get("limit")
-		limit := 30 // default
-		if limitStr != "" {
-			if _, err := fmt.Sscanf(limitStr, "%d", &limit); err != nil {
-				http.Error(w, "invalid limit format", http.StatusBadRequest)
-				return
-			}
-		}
-
-		page := 1 // default
-		pageStr := r.URL.Query().Get("page")
-		if pageStr != "" {
-			if _, err := fmt.Sscanf(pageStr, "%d", &page); err != nil {
-				http.Error(w, "invalid page format", http.StatusBadRequest)
-				return
-			}
-		}
-
-		// parse account ids (support multiple ?accountIds=1&accountIds=2 and comma-separated)
-		var accountIds []int
-		for _, raw := range r.URL.Query()["accountIds"] {
-			for _, id := range strings.Split(raw, ",") {
-				id = strings.TrimSpace(id)
-				if id == "" {
-					continue
-				}
-				var idInt int
-				if _, err := fmt.Sscanf(id, "%d", &idInt); err != nil {
-					http.Error(w, "invalid account ID format", http.StatusBadRequest)
-					return
-				}
-				accountIds = append(accountIds, idInt)
-			}
-		}
-
-		opts := accounting.ListOpts{
-			StartDate: startDate,
-			EndDate:   endDate,
-			Limit:     limit,
-			AccountId: accountIds,
-			Page:      page,
 		}
 
 		entries, total, err := h.Store.ListTransactions(r.Context(), opts)
@@ -662,6 +679,62 @@ func (h *Handler) ListTx() http.Handler {
 	})
 }
 
+func parseListTxParams(r *http.Request) (accounting.ListOpts, []int, error) {
+	now := time.Now()
+	startDate, endDate, err := getDateRange(
+		r.URL.Query().Get("startDate"), r.URL.Query().Get("endDate"),
+		now.AddDate(0, 0, -30), now,
+	)
+	if err != nil {
+		return accounting.ListOpts{}, nil, err
+	}
+
+	limit, err := parseIntQueryParam(r, "limit", 30)
+	if err != nil {
+		return accounting.ListOpts{}, nil, err
+	}
+	page, err := parseIntQueryParam(r, "page", 1)
+	if err != nil {
+		return accounting.ListOpts{}, nil, err
+	}
+
+	accountIds, err := parseIntListParam(r, "accountIds")
+	if err != nil {
+		return accounting.ListOpts{}, nil, err
+	}
+
+	txTypes := expandTypeGroups(parseStringListParam(r, "types"))
+
+	categoryIds, err := parseUintListParam(r, "categoryIds")
+	if err != nil {
+		return accounting.ListOpts{}, nil, err
+	}
+
+	var hasAttachment *bool
+	if r.URL.Query().Get("hasAttachment") == "true" {
+		b := true
+		hasAttachment = &b
+	}
+
+	search := r.URL.Query().Get("search")
+	if len(search) > 100 {
+		search = search[:100]
+	}
+
+	opts := accounting.ListOpts{
+		StartDate:     startDate,
+		EndDate:       endDate,
+		Limit:         limit,
+		AccountId:     accountIds,
+		Page:          page,
+		Types:         txTypes,
+		CategoryIds:   categoryIds,
+		HasAttachment: hasAttachment,
+		Search:        search,
+	}
+	return opts, accountIds, nil
+}
+
 const (
 	unknownTxStr       = "unknown"
 	incomeTxStr        = "income"
@@ -673,6 +746,29 @@ const (
 	stockTransferTxStr = "stocktransfer"
 	balanceStatusTxStr = "balancestatus"
 )
+
+const investmentGroupStr = "investment"
+
+// expandTypeGroups takes user-facing type group names and returns the corresponding TxType values.
+func expandTypeGroups(groups []string) []accounting.TxType {
+	var types []accounting.TxType
+	for _, g := range groups {
+		switch strings.ToLower(strings.TrimSpace(g)) {
+		case investmentGroupStr:
+			types = append(types,
+				accounting.StockBuyTransaction,
+				accounting.StockSellTransaction,
+				accounting.StockGrantTransaction,
+				accounting.StockTransferTransaction,
+			)
+		default:
+			if t := parseTxType(g); t != accounting.UnknownTransaction {
+				types = append(types, t)
+			}
+		}
+	}
+	return types
+}
 
 func parseTxType(in string) accounting.TxType {
 	switch strings.ToLower(in) {
