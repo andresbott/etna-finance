@@ -8,6 +8,7 @@ export interface CategoryNode {
         parentId?: number
         name: string
         description?: string
+        icon?: string
         path: string
     }
     checked?: boolean

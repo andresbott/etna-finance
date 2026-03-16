@@ -1209,15 +1209,21 @@ func TestStore_ListTransactions_Search(t *testing.T) {
 			store, _ := newAccountingStoreWithMarketData(t, dbCon)
 			accountSampleData(t, store)
 
-			store.CreateTransaction(t.Context(), Income{
+			if _, err := store.CreateTransaction(t.Context(), Income{
 				Description: "Grocery shopping", Amount: 50, AccountID: 1, Date: getDate("2025-07-01"),
-			})
-			store.CreateTransaction(t.Context(), Income{
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := store.CreateTransaction(t.Context(), Income{
 				Description: "Salary deposit", Notes: "monthly grocery allowance", Amount: 100, AccountID: 1, Date: getDate("2025-07-02"),
-			})
-			store.CreateTransaction(t.Context(), Income{
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := store.CreateTransaction(t.Context(), Income{
 				Description: "Gas station", Amount: 30, AccountID: 1, Date: getDate("2025-07-03"),
-			})
+			}); err != nil {
+				t.Fatal(err)
+			}
 
 			tcs := []struct {
 				name   string
@@ -2608,15 +2614,21 @@ func TestStore_ListTransactions_CombinedFilters(t *testing.T) {
 			categorySampleData(t, store, sampleCategories)
 			accountSampleData(t, store)
 
-			store.CreateTransaction(t.Context(), Income{
+			if _, err := store.CreateTransaction(t.Context(), Income{
 				Description: "Grocery income", Amount: 1, AccountID: 1, CategoryID: 1, Date: getDate("2025-08-01"),
-			})
-			store.CreateTransaction(t.Context(), Expense{
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := store.CreateTransaction(t.Context(), Expense{
 				Description: "Grocery expense", Amount: 1, AccountID: 1, CategoryID: 2, Date: getDate("2025-08-02"),
-			})
-			store.CreateTransaction(t.Context(), Income{
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := store.CreateTransaction(t.Context(), Income{
 				Description: "Salary", Amount: 1, AccountID: 1, CategoryID: 1, Date: getDate("2025-08-03"),
-			})
+			}); err != nil {
+				t.Fatal(err)
+			}
 
 			got, _, err := store.ListTransactions(t.Context(), ListOpts{
 				StartDate:   getDate("2025-08-01"),
@@ -2642,13 +2654,15 @@ func TestStore_PriorPageBalance_IgnoresNewFilters(t *testing.T) {
 			accountSampleData(t, store)
 
 			for i := 1; i <= 3; i++ {
-				store.CreateTransaction(t.Context(), Income{
+				if _, err := store.CreateTransaction(t.Context(), Income{
 					Description: fmt.Sprintf("income %d", i),
 					Amount:      10,
 					AccountID:   1,
-					CategoryID:  uint(i % 2),
+					CategoryID:  0,
 					Date:        getDate(fmt.Sprintf("2025-09-%02d", i)),
-				})
+				}); err != nil {
+					t.Fatal(err)
+				}
 			}
 
 			hasAttachment := true
