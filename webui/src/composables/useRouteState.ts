@@ -15,10 +15,18 @@ function parseDate(s: string): Date | null {
     return isNaN(d.getTime()) ? null : d
 }
 
+function parseIds(s: string): number[] {
+    if (!s) return []
+    return s.split(',').map(Number).filter((n) => !isNaN(n) && n > 0)
+}
+
+function parseStrings(s: string): string[] {
+    if (!s) return []
+    return s.split(',').filter(Boolean)
+}
+
 /**
- * Syncs startDate, endDate, page, and limit with URL query parameters.
- * On init, reads from query params if present; otherwise uses provided defaults.
- * On change, updates the URL without a full navigation.
+ * Syncs date range, pagination, and filter state with URL query parameters.
  */
 export function useRouteState(defaults: {
     startDate: Date
@@ -39,6 +47,12 @@ export function useRouteState(defaults: {
     const page = ref(initPage && initPage > 0 ? initPage : (defaults.page ?? 1))
     const limit = ref(initLimit && initLimit > 0 ? initLimit : (defaults.limit ?? 25))
 
+    // Filter params
+    const categoryIds = ref<number[]>(parseIds(route.query.categoryIds as string))
+    const types = ref<string[]>(parseStrings(route.query.types as string))
+    const hasAttachment = ref(route.query.hasAttachment === 'true')
+    const search = ref((route.query.search as string) || '')
+
     let updating = false
     let needsResync = false
 
@@ -49,15 +63,37 @@ export function useRouteState(defaults: {
         }
         updating = true
         needsResync = false
-        router.replace({
-            query: {
-                ...route.query,
-                from: formatDate(startDate.value),
-                to: formatDate(endDate.value),
-                page: String(page.value),
-                limit: String(limit.value)
-            }
-        }).catch(() => {}).finally(() => {
+
+        const query: Record<string, string> = {
+            ...route.query as Record<string, string>,
+            from: formatDate(startDate.value),
+            to: formatDate(endDate.value),
+            page: String(page.value),
+            limit: String(limit.value)
+        }
+
+        if (categoryIds.value.length > 0) {
+            query.categoryIds = categoryIds.value.join(',')
+        } else {
+            delete query.categoryIds
+        }
+        if (types.value.length > 0) {
+            query.types = types.value.join(',')
+        } else {
+            delete query.types
+        }
+        if (hasAttachment.value) {
+            query.hasAttachment = 'true'
+        } else {
+            delete query.hasAttachment
+        }
+        if (search.value) {
+            query.search = search.value
+        } else {
+            delete query.search
+        }
+
+        router.replace({ query }).catch(() => {}).finally(() => {
             updating = false
             if (needsResync) {
                 syncToRoute()
@@ -65,9 +101,8 @@ export function useRouteState(defaults: {
         })
     }
 
-    watch([startDate, endDate, page, limit], syncToRoute, { immediate: true })
+    watch([startDate, endDate, page, limit, categoryIds, types, hasAttachment, search], syncToRoute, { immediate: true })
 
-    // When navigating back/forward, pick up query changes
     watch(
         () => route.query,
         (q) => {
@@ -81,8 +116,20 @@ export function useRouteState(defaults: {
             if (qTo && formatDate(qTo) !== formatDate(endDate.value)) endDate.value = qTo
             if (qPage && qPage > 0 && qPage !== page.value) page.value = qPage
             if (qLimit && qLimit > 0 && qLimit !== limit.value) limit.value = qLimit
+
+            const qCategoryIds = parseIds(q.categoryIds as string)
+            if (JSON.stringify(qCategoryIds) !== JSON.stringify(categoryIds.value)) categoryIds.value = qCategoryIds
+
+            const qTypes = parseStrings(q.types as string)
+            if (JSON.stringify(qTypes) !== JSON.stringify(types.value)) types.value = qTypes
+
+            const qHasAttachment = q.hasAttachment === 'true'
+            if (qHasAttachment !== hasAttachment.value) hasAttachment.value = qHasAttachment
+
+            const qSearch = (q.search as string) || ''
+            if (qSearch !== search.value) search.value = qSearch
         }
     )
 
-    return { startDate, endDate, page, limit }
+    return { startDate, endDate, page, limit, categoryIds, types, hasAttachment, search }
 }

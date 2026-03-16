@@ -1,8 +1,10 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import Button from 'primevue/button'
 
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
+import EntryFilters from '@/components/entries/EntryFilters.vue'
 import AccountEntriesTable from './AccountEntriesTable.vue'
 import EntryDialogs from './EntryDialogs.vue'
 
@@ -20,7 +22,7 @@ const accountId = computed(() => route.params.id)
 
 /* --- Reactive State (synced with URL query params) --- */
 const today = new Date()
-const { startDate, endDate, page, limit } = useRouteState({
+const { startDate, endDate, page, limit, categoryIds, types, hasAttachment, search } = useRouteState({
     startDate: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 35),
     endDate: new Date(),
     limit: 25
@@ -35,7 +37,11 @@ const { entries: fetchedEntries, totalRecords, priorBalance, isLoading, isFetchi
     endDate,
     accountIds,
     page,
-    limit
+    limit,
+    categoryIds,
+    types,
+    hasAttachment,
+    search
 })
 
 /* --- Computed pagination values for template --- */
@@ -50,7 +56,7 @@ const handlePage = (event) => {
 }
 
 /* --- Reset pagination when date range or account changes --- */
-watch([startDate, endDate, accountId], () => {
+watch([startDate, endDate, accountId, categoryIds, types, hasAttachment, search], () => {
     page.value = 1
 })
 
@@ -137,6 +143,13 @@ const {
     deleteDialogVisible, entryToDelete,
     openEditEntryDialog, openDuplicateEntryDialog, openDeleteDialog, handleDeleteEntry
 } = useEntryDialogs(deleteEntry)
+
+const filtersExpanded = ref(
+    categoryIds.value.length > 0 ||
+    types.value.length > 0 ||
+    hasAttachment.value ||
+    search.value !== ''
+)
 </script>
 
 <template>
@@ -154,6 +167,14 @@ const {
                         v-model:endDate="endDate"
                         @change="refetch"
                     />
+                    <Button
+                        :icon="filtersExpanded ? 'pi pi-filter-slash' : 'pi pi-filter'"
+                        :severity="filtersExpanded ? 'primary' : 'secondary'"
+                        text
+                        rounded
+                        @click="filtersExpanded = !filtersExpanded"
+                        v-tooltip.bottom="'Filters'"
+                    />
                 </div>
                 <div class="add-entry-menu">
                     <AddEntryMenu
@@ -163,6 +184,16 @@ const {
                         :has-import-profile="!!currentAccount?.importProfileId"
                     />
                 </div>
+            </div>
+
+            <div class="filter-bar">
+                <EntryFilters
+                    v-model:categoryIds="categoryIds"
+                    v-model:types="types"
+                    v-model:hasAttachment="hasAttachment"
+                    v-model:search="search"
+                    v-model:expanded="filtersExpanded"
+                />
             </div>
 
             <div class="entries-view">
@@ -243,6 +274,12 @@ const {
     align-items: center;
     justify-content: flex-end;
     gap: 0.5rem;
+}
+
+.filter-bar {
+    padding: 0 1rem;
+    background-color: var(--surface-ground);
+    border-bottom: 1px solid var(--surface-border);
 }
 
 .entries-view {

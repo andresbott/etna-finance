@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/andresbott/etna/internal/marketdata"
@@ -2309,12 +2310,15 @@ func (store *Store) UpdateStockTransfer(ctx context.Context, input StockTransfer
 }
 
 type ListOpts struct {
-	StartDate time.Time
-	EndDate   time.Time
-	AccountId []int
-	Types     []TxType
-	Limit     int
-	Page      int
+	StartDate     time.Time
+	EndDate       time.Time
+	AccountId     []int
+	Types         []TxType
+	CategoryIds   []uint
+	HasAttachment *bool
+	Search        string
+	Limit         int
+	Page          int
 }
 
 const MaxSearchResults = 300
@@ -2396,6 +2400,21 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
 			"(EXISTS (SELECT 1 FROM db_entries AS e WHERE e.transaction_id = db_transactions.id AND e.account_id IN (?))"+
 				" OR EXISTS (SELECT 1 FROM db_trades AS t WHERE t.transaction_id = db_transactions.id AND t.account_id IN (?)))",
 			opts.AccountId, opts.AccountId)
+	}
+	// filter by category
+	if len(opts.CategoryIds) > 0 {
+		db = db.Where(
+			"EXISTS (SELECT 1 FROM db_entries AS ce WHERE ce.transaction_id = db_transactions.id AND ce.category_id IN (?))",
+			opts.CategoryIds)
+	}
+	// filter by attachment
+	if opts.HasAttachment != nil && *opts.HasAttachment {
+		db = db.Where("db_transactions.attachment_id IS NOT NULL")
+	}
+	// filter by search text (case-insensitive substring match on description and notes)
+	if opts.Search != "" {
+		pattern := "%" + strings.ToLower(opts.Search) + "%"
+		db = db.Where("(LOWER(db_transactions.description) LIKE ? OR LOWER(db_transactions.notes) LIKE ?)", pattern, pattern)
 	}
 
 	db = db.Group("db_transactions.id, db_transactions.date, db_transactions.description, db_transactions.notes, db_transactions.type")

@@ -618,12 +618,58 @@ func (h *Handler) ListTx() http.Handler {
 			}
 		}
 
+		// parse type groups (support both repeated and comma-separated)
+		var typeGroups []string
+		for _, raw := range r.URL.Query()["types"] {
+			for _, t := range strings.Split(raw, ",") {
+				t = strings.TrimSpace(t)
+				if t != "" {
+					typeGroups = append(typeGroups, t)
+				}
+			}
+		}
+		txTypes := expandTypeGroups(typeGroups)
+
+		// parse category IDs (support both repeated and comma-separated)
+		var categoryIds []uint
+		for _, raw := range r.URL.Query()["categoryIds"] {
+			for _, id := range strings.Split(raw, ",") {
+				id = strings.TrimSpace(id)
+				if id == "" {
+					continue
+				}
+				var idUint uint
+				if _, err := fmt.Sscanf(id, "%d", &idUint); err != nil {
+					http.Error(w, "invalid category ID format", http.StatusBadRequest)
+					return
+				}
+				categoryIds = append(categoryIds, idUint)
+			}
+		}
+
+		// parse hasAttachment
+		var hasAttachment *bool
+		if r.URL.Query().Get("hasAttachment") == "true" {
+			b := true
+			hasAttachment = &b
+		}
+
+		// parse search (cap at 100 chars)
+		search := r.URL.Query().Get("search")
+		if len(search) > 100 {
+			search = search[:100]
+		}
+
 		opts := accounting.ListOpts{
-			StartDate: startDate,
-			EndDate:   endDate,
-			Limit:     limit,
-			AccountId: accountIds,
-			Page:      page,
+			StartDate:     startDate,
+			EndDate:       endDate,
+			Limit:         limit,
+			AccountId:     accountIds,
+			Page:          page,
+			Types:         txTypes,
+			CategoryIds:   categoryIds,
+			HasAttachment: hasAttachment,
+			Search:        search,
 		}
 
 		entries, total, err := h.Store.ListTransactions(r.Context(), opts)
@@ -673,6 +719,29 @@ const (
 	stockTransferTxStr = "stocktransfer"
 	balanceStatusTxStr = "balancestatus"
 )
+
+const investmentGroupStr = "investment"
+
+// expandTypeGroups takes user-facing type group names and returns the corresponding TxType values.
+func expandTypeGroups(groups []string) []accounting.TxType {
+	var types []accounting.TxType
+	for _, g := range groups {
+		switch strings.ToLower(strings.TrimSpace(g)) {
+		case investmentGroupStr:
+			types = append(types,
+				accounting.StockBuyTransaction,
+				accounting.StockSellTransaction,
+				accounting.StockGrantTransaction,
+				accounting.StockTransferTransaction,
+			)
+		default:
+			if t := parseTxType(g); t != accounting.UnknownTransaction {
+				types = append(types, t)
+			}
+		}
+	}
+	return types
+}
 
 func parseTxType(in string) accounting.TxType {
 	switch strings.ToLower(in) {
