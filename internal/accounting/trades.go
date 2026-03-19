@@ -162,6 +162,33 @@ func (store *Store) ListTrades(ctx context.Context, opts ListTradesOpts) ([]Trad
 	return result, nil
 }
 
+// restoreSellTradeLots restores the quantity of each lot consumed by a sell trade,
+// reversing the FIFO allocation so the lots are available again.
+func restoreSellTradeLots(ctx context.Context, tx *gorm.DB, tradeID uint) error {
+	var disposals []dbLotDisposal
+	if err := tx.WithContext(ctx).Where("sell_trade_id = ?", tradeID).Find(&disposals).Error; err != nil {
+		return err
+	}
+	for _, d := range disposals {
+		var lot dbLot
+		if err := tx.WithContext(ctx).Where("id = ?", d.LotID).First(&lot).Error; err != nil {
+			return fmt.Errorf("failed to find lot %d for restoration: %w", d.LotID, err)
+		}
+		lot.Quantity += d.Quantity
+		lot.CostBasis = roundMoney(lot.Quantity * lot.CostPerShare)
+		lot.ClosedDate = nil
+		if lot.Quantity >= lot.OriginalQty {
+			lot.Status = LotOpen
+		} else {
+			lot.Status = LotPartial
+		}
+		if err := tx.WithContext(ctx).Save(&lot).Error; err != nil {
+			return fmt.Errorf("failed to restore lot %d: %w", d.LotID, err)
+		}
+	}
+	return nil
+}
+
 // deleteTrade removes a trade and its associated lots/disposals, then updates the position.
 func (store *Store) deleteTrade(ctx context.Context, tx *gorm.DB, tradeID uint) error {
 	var trade dbTrade
@@ -172,26 +199,8 @@ func (store *Store) deleteTrade(ctx context.Context, tx *gorm.DB, tradeID uint) 
 	// For sell trades: restore the quantity back to each lot consumed by this sell
 	// before deleting the disposal records.
 	if trade.TradeType == SellTrade {
-		var disposals []dbLotDisposal
-		if err := tx.WithContext(ctx).Where("sell_trade_id = ?", tradeID).Find(&disposals).Error; err != nil {
+		if err := restoreSellTradeLots(ctx, tx, tradeID); err != nil {
 			return err
-		}
-		for _, d := range disposals {
-			var lot dbLot
-			if err := tx.WithContext(ctx).Where("id = ?", d.LotID).First(&lot).Error; err != nil {
-				return fmt.Errorf("failed to find lot %d for restoration: %w", d.LotID, err)
-			}
-			lot.Quantity += d.Quantity
-			lot.CostBasis = roundMoney(lot.Quantity * lot.CostPerShare)
-			lot.ClosedDate = nil
-			if lot.Quantity >= lot.OriginalQty {
-				lot.Status = LotOpen
-			} else {
-				lot.Status = LotPartial
-			}
-			if err := tx.WithContext(ctx).Save(&lot).Error; err != nil {
-				return fmt.Errorf("failed to restore lot %d: %w", d.LotID, err)
-			}
 		}
 	}
 
