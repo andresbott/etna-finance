@@ -44,7 +44,7 @@ type dbCategory struct {
 	Name        string
 	Description string
 	Icon        string
-	Type        CategoryType
+	Type        CategoryType  `gorm:"<-:create"`
 	Children    []*dbCategory `gorm:"-"`
 }
 
