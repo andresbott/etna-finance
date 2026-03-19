@@ -54,6 +54,7 @@ export interface StockSellEntry extends BaseEntry {
     StockAmount: number
     costBasis?: number
     fees?: number
+    lotAllocations?: Array<{ lotId: number; quantity: number }>
 }
 
 export interface StockGrantEntry extends BaseEntry {

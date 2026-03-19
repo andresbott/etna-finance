@@ -132,6 +132,31 @@ func (s *Store) RateHistory(_ context.Context, main, secondary string, start, en
 	return out, nil
 }
 
+// RateAt returns the most recent rate record for the pair at or before time t. Returns nil if no data.
+func (s *Store) RateAt(_ context.Context, main, secondary string, t time.Time) (*RateRecord, error) {
+	if main == "" || secondary == "" {
+		return nil, fmt.Errorf("main and secondary currency cannot be empty")
+	}
+	rec, err := s.registry.RecordAt(fxSeriesName(main, secondary), t)
+	if err != nil {
+		errStr := err.Error()
+		if strings.Contains(errStr, "series not found") || strings.Contains(errStr, "record not found") {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get rate for %s/%s at %s: %w", main, secondary, t.Format(time.DateOnly), err)
+	}
+	if rec == nil {
+		return nil, nil
+	}
+	return &RateRecord{
+		ID:        rec.Id,
+		Main:      main,
+		Secondary: secondary,
+		Time:      rec.Time,
+		Rate:      rec.Value,
+	}, nil
+}
+
 // LatestRate returns the most recent rate record for the pair. Returns nil if no data.
 func (s *Store) LatestRate(_ context.Context, main, secondary string) (*RateRecord, error) {
 	if main == "" || secondary == "" {

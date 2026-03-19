@@ -84,6 +84,7 @@ const emit = defineEmits(['update:deleteDialogVisible', 'confirmDelete'])
         :investment-account-id="selectedEntry?.investmentAccountId"
         :cash-account-id="selectedEntry?.cashAccountId"
         :notes="selectedEntry?.notes ?? ''"
+        :initial-lot-allocations="isEditMode ? (selectedEntry?.lotAllocations ?? []) : []"
         @update:visible="dialogs.sellStock.value = $event"
     />
 

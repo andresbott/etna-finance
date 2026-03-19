@@ -82,7 +82,9 @@ const instrument = computed<MarketInstrument | undefined>(() => {
 })
 
 const dateRangeOptions: { value: PriceHistoryRange; label: string }[] = [
+    { value: '7d', label: '7D' },
     { value: '6m', label: '6M' },
+    { value: '1y', label: '1Y' },
     { value: 'max', label: 'Max' }
 ]
 
@@ -100,6 +102,20 @@ const {
 } = useMarketDataMutations(symbol)
 
 const priceHistory = computed(() => priceHistoryData.value)
+
+const rangeChange = computed(() => {
+    const prices = priceHistoryData.value.prices
+    if (prices.length < 2) return null
+    return prices[prices.length - 1] - prices[0]
+})
+
+const rangeChangePct = computed(() => {
+    const prices = priceHistoryData.value.prices
+    if (prices.length < 2) return null
+    const first = prices[0]
+    if (first === 0) return null
+    return ((prices[prices.length - 1] - first) / first) * 100
+})
 
 const rawDataRows = computed(() => {
     const { records } = priceHistoryData.value
@@ -180,7 +196,7 @@ const chartOption = computed(() => {
     if (!dates.length || !instrument.value) return {}
 
     const inst = instrument.value
-    const isPositive = (inst.change ?? 0) >= 0
+    const isPositive = (rangeChange.value ?? 0) >= 0
     const lineColor = isPositive ? '#22c55e' : '#ef4444'
     const areaColorTop = isPositive ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)'
     const areaColorBottom = 'rgba(255,255,255,0)'
@@ -302,15 +318,15 @@ function goBack() {
                                     <span class="current-price">{{ formatPrice(instrument.lastPrice) }}</span>
                                     <span class="currency-label">{{ instrument.currency }}</span>
                                     <Tag
-                                        :value="formatPct(instrument.changePct)"
-                                        :severity="getChangeSeverity(instrument.changePct)"
+                                        :value="formatPct(rangeChangePct)"
+                                        :severity="getChangeSeverity(rangeChangePct)"
                                         class="ml-2"
                                     />
                                     <span
-                                        :class="(instrument.change ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'"
+                                        :class="(rangeChange ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'"
                                         class="change-value ml-2"
                                     >
-                                        {{ formatChange(instrument.change) }}
+                                        {{ formatChange(rangeChange) }}
                                     </span>
                                 </div>
                             </div>

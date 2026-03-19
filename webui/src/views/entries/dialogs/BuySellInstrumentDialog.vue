@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, nextTick } from 'vue'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
 import { Form } from '@primevue/forms'
@@ -40,6 +40,7 @@ const createMutation = useMutation({
     onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ['entries'] })
         queryClient.invalidateQueries({ queryKey: ['portfolio-positions'] })
+        queryClient.invalidateQueries({ queryKey: ['portfolio-lots'] })
     }
 })
 
@@ -77,7 +78,8 @@ const props = defineProps({
     cashAmount: { type: Number, default: null },
     fees: { type: Number, default: 0 },
     autofocusAmount: { type: Boolean, default: false },
-    notes: { type: String, default: '' }
+    notes: { type: String, default: '' },
+    initialLotAllocations: { type: Array, default: () => [] }
 })
 
 const emit = defineEmits(['update:visible'])
@@ -86,6 +88,7 @@ const formKey = ref(0)
 // Multi-step state (sell only)
 const step = ref(1)
 const step1Errors = ref({})
+const step2Errors = ref({})
 
 watch(() => props.visible, (v) => {
     if (!v) {
@@ -93,6 +96,7 @@ watch(() => props.visible, (v) => {
     } else {
         step.value = 1
         step1Errors.value = {}
+        step2Errors.value = {}
     }
 })
 
@@ -116,6 +120,21 @@ function goToStep2() {
 
 function goToStep1() {
     step.value = 1
+    step2Errors.value = {}
+}
+
+function validateStep2() {
+    const errors = {}
+    const v = formValues.value
+    const invId = extractAccountId(v.InvestmentAccountId)
+    const cashId = extractAccountId(v.CashAccountId)
+    const netAmount = Number(v.targetAmount ?? 0)
+    const fees = Number(v.fees ?? 0)
+    if (invId == null) errors.InvestmentAccountId = 'Investment account is required'
+    if (cashId == null) errors.CashAccountId = 'Cash account is required'
+    if (!(netAmount > 0)) errors.targetAmount = 'Amount must be greater than 0'
+    if (fees < 0) errors.fees = 'Fees cannot be negative'
+    return errors
 }
 
 const initialOriginAmount = () => {
@@ -187,6 +206,7 @@ watch(
             const currentDesc = (formValues.value.description ?? '').toString().trim()
             if (!keepExisting || !currentDesc) {
                 formValues.value = { ...formValues.value, description: getDefaultDescriptionForInstrument(instrumentId) }
+                formKey.value++
             }
             // Prefill price unless we're editing an existing entry and the instrument hasn't changed
             const keepExistingPrice = keepExisting
@@ -250,16 +270,30 @@ const instrumentIdRef = computed(() => formValues.value.instrumentId ?? null)
 
 const { lots } = useLots(investmentAccountIdRef, instrumentIdRef)
 
+const visibleLots = computed(() =>
+    lots.value.filter(l => getLotAvailable(l) > 0)
+)
+
+const totalAvailable = computed(() =>
+    visibleLots.value.reduce((sum, l) => sum + getLotAvailable(l), 0)
+)
+
 const showLotTable = computed(() =>
     props.operationType === 'sell' &&
-    lots.value.length > 0 &&
+    visibleLots.value.length > 0 &&
     investmentAccountIdRef.value != null &&
     instrumentIdRef.value != null
 )
 
 watch(
     () => [props.visible, formValues.value.instrumentId, formValues.value.InvestmentAccountId],
-    () => { lotAllocations.value = [] }
+    ([visible]) => {
+        if (visible && props.isEdit && props.initialLotAllocations?.length > 0) {
+            lotAllocations.value = props.initialLotAllocations.map(a => ({ lotId: a.lotId, quantity: a.quantity }))
+        } else {
+            lotAllocations.value = []
+        }
+    }
 )
 
 const allocatedTotal = computed(() =>
@@ -276,6 +310,20 @@ const lotSelectionError = computed(() => {
 })
 
 const allocationMismatch = computed(() => lotSelectionError.value !== null)
+
+// When editing, each lot's "available" quantity is its current DB quantity plus
+// whatever was already allocated to this sell (which was subtracted when the sell was created).
+const initialAllocMap = computed(() => {
+    const map = {}
+    for (const a of (props.initialLotAllocations ?? [])) {
+        map[a.lotId] = (map[a.lotId] || 0) + a.quantity
+    }
+    return map
+})
+
+function getLotAvailable(lot) {
+    return lot.quantity + (initialAllocMap.value[lot.id] || 0)
+}
 
 function getLotQty(lotId) {
     const entry = lotAllocations.value.find(a => a.lotId === lotId)
@@ -298,9 +346,9 @@ function setLotQty(lotId, qty) {
 function applyFIFO() {
     const newAllocs = []
     let remaining = sellQty.value
-    for (const lot of lots.value) {
+    for (const lot of visibleLots.value) {
         if (remaining <= 0) break
-        const take = Math.min(lot.quantity, remaining)
+        const take = Math.min(getLotAvailable(lot), remaining)
         if (take > 0) {
             newAllocs.push({ lotId: lot.id, quantity: take })
             remaining -= take
@@ -312,10 +360,10 @@ function applyFIFO() {
 function applyLIFO() {
     const newAllocs = []
     let remaining = sellQty.value
-    const reversed = [...lots.value].reverse()
+    const reversed = [...visibleLots.value].reverse()
     for (const lot of reversed) {
         if (remaining <= 0) break
-        const take = Math.min(lot.quantity, remaining)
+        const take = Math.min(getLotAvailable(lot), remaining)
         if (take > 0) {
             newAllocs.push({ lotId: lot.id, quantity: take })
             remaining -= take
@@ -381,6 +429,8 @@ const doSave = async () => {
                 ...(lotAllocationsPayload ? { lotAllocations: lotAllocationsPayload } : {})
             }
             await updateEntry(updatePayload)
+            queryClient.invalidateQueries({ queryKey: ['portfolio-positions'] })
+            queryClient.invalidateQueries({ queryKey: ['portfolio-lots'] })
         } else {
             const payload = {
                 type: props.operationType === 'sell' ? 'stocksell' : 'stockbuy',
@@ -414,6 +464,8 @@ const handleSubmit = async (e) => {
 // Sell step 2 flow: triggered by direct @click to bypass PrimeVue Form validation
 // (step 1 fields are unmounted via v-if in step 2, causing the resolver to fail).
 const handleSellSave = async () => {
+    step2Errors.value = validateStep2()
+    if (Object.keys(step2Errors.value).length > 0) return
     await doSave()
 }
 </script>
@@ -502,6 +554,9 @@ const handleSellSave = async () => {
                         <Message v-if="step1Errors.quantity || $form.quantity?.invalid" severity="error" size="small">
                             {{ step1Errors.quantity ?? $form.quantity?.error?.message }}
                         </Message>
+                        <small v-if="operationType === 'sell' && totalAvailable > 0" class="text-color-secondary">
+                            Available: {{ totalAvailable.toFixed(4).replace(/\.?0+$/, '') }}
+                        </small>
                     </div>
                     <div>
                         <label for="pricePerShare" class="form-label">Price per share</label>
@@ -597,9 +652,10 @@ const handleSellSave = async () => {
                                 name="InvestmentAccountId"
                                 placeholder="Select investment or unvested account"
                                 :accountTypes="['investment', 'unvested']"
+                                @update:modelValue="delete step2Errors.InvestmentAccountId"
                             />
-                            <Message v-if="$form.InvestmentAccountId?.invalid" severity="error" size="small">
-                                {{ $form.InvestmentAccountId?.error?.message }}
+                            <Message v-if="step2Errors.InvestmentAccountId" severity="error" size="small">
+                                {{ step2Errors.InvestmentAccountId }}
                             </Message>
                         </div>
                         <div>
@@ -627,16 +683,16 @@ const handleSellSave = async () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr v-for="lot in lots" :key="lot.id">
+                                    <tr v-for="lot in visibleLots" :key="lot.id">
                                         <td>{{ lot.openDate?.split('T')[0] ?? lot.openDate }}</td>
-                                        <td class="text-right">{{ lot.quantity }}</td>
+                                        <td class="text-right">{{ getLotAvailable(lot) }}</td>
                                         <td class="text-right">{{ lot.costPerShare?.toFixed(4) }}</td>
                                         <td class="text-right">
                                             <InputNumber
                                                 :modelValue="getLotQty(lot.id)"
                                                 @update:modelValue="setLotQty(lot.id, $event)"
                                                 :min="0"
-                                                :max="lot.quantity"
+                                                :max="getLotAvailable(lot)"
                                                 :minFractionDigits="0"
                                                 :maxFractionDigits="4"
                                                 size="small"
@@ -679,9 +735,10 @@ const handleSellSave = async () => {
                                 placeholder="Select cash account"
                                 :accountTypes="['cash', 'checkin', 'savings', 'lent']"
                                 :currency="selectedInstrumentCurrency"
+                                @update:modelValue="delete step2Errors.CashAccountId"
                             />
-                            <Message v-if="$form.CashAccountId?.invalid" severity="error" size="small">
-                                {{ $form.CashAccountId?.error?.message }}
+                            <Message v-if="step2Errors.CashAccountId" severity="error" size="small">
+                                {{ step2Errors.CashAccountId }}
                             </Message>
                         </div>
                         <div>
@@ -693,8 +750,8 @@ const handleSellSave = async () => {
                                 :minFractionDigits="2"
                                 :maxFractionDigits="2"
                             />
-                            <Message v-if="$form.targetAmount?.invalid" severity="error" size="small">
-                                {{ $form.targetAmount?.error?.message }}
+                            <Message v-if="step2Errors.targetAmount" severity="error" size="small">
+                                {{ step2Errors.targetAmount }}
                             </Message>
                         </div>
                         <div>
@@ -706,8 +763,8 @@ const handleSellSave = async () => {
                                 :minFractionDigits="2"
                                 :maxFractionDigits="2"
                             />
-                            <Message v-if="$form.fees?.invalid" severity="error" size="small">
-                                {{ $form.fees?.error?.message }}
+                            <Message v-if="step2Errors.fees" severity="error" size="small">
+                                {{ step2Errors.fees }}
                             </Message>
                         </div>
                     </div>

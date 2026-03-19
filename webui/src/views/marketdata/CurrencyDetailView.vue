@@ -74,7 +74,9 @@ watch(activeTabIndex, (index) => {
 })
 
 const dateRangeOptions = [
+    { value: '7d', label: '7D' },
     { value: '6m', label: '6M' },
+    { value: '1y', label: '1Y' },
     { value: 'max', label: 'Max' }
 ]
 const selectedRange = ref<RateHistoryRange>('6m')
@@ -104,9 +106,9 @@ const currentRate = computed(() => {
 const currentChange = computed(() => {
     const p = priceHistory.value?.prices ?? []
     if (p.length < 2) return 0
-    const prev = p[p.length - 2]
+    const first = p[0]
     const curr = p[p.length - 1]
-    return prev !== 0 ? ((curr - prev) / prev) * 100 : 0
+    return first !== 0 ? ((curr - first) / first) * 100 : 0
 })
 
 const getTextColor = () => getComputedStyle(document.documentElement).getPropertyValue('--text-color') || '#495057'

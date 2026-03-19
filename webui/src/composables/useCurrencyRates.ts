@@ -85,7 +85,7 @@ export function useFXOverview() {
     }
 }
 
-export type RateHistoryRange = '6m' | 'max'
+export type RateHistoryRange = '7d' | '6m' | '1y' | 'max'
 
 export function useRateHistory(
     main: MaybeRefOrGetter<string>,

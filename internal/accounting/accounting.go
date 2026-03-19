@@ -13,9 +13,20 @@ type Store struct {
 	db           *gorm.DB
 	categoryTree *closuretree.Tree
 	marketStore  *marketdata.Store
+	mainCurrency string
 }
 
-func NewStore(db *gorm.DB, marketStore *marketdata.Store) (*Store, error) {
+// Option is a functional option for configuring a Store.
+type Option func(*Store)
+
+// WithMainCurrency sets the main currency used for FX conversion in balance reports.
+func WithMainCurrency(c string) Option {
+	return func(s *Store) {
+		s.mainCurrency = c
+	}
+}
+
+func NewStore(db *gorm.DB, marketStore *marketdata.Store, opts ...Option) (*Store, error) {
 	if db == nil {
 		return nil, fmt.Errorf("db cannot be nil")
 	}
@@ -23,6 +34,9 @@ func NewStore(db *gorm.DB, marketStore *marketdata.Store) (*Store, error) {
 	b := Store{
 		db:          db,
 		marketStore: marketStore,
+	}
+	for _, opt := range opts {
+		opt(&b)
 	}
 
 	stmt := &gorm.Statement{DB: db}

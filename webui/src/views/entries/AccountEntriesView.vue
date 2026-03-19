@@ -191,6 +191,7 @@ const filtersExpanded = ref(
                     v-model:hasAttachment="hasAttachment"
                     v-model:search="search"
                     v-model:expanded="filtersExpanded"
+                    :accountType="accountType"
                 />
             </div>
 

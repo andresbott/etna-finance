@@ -1,10 +1,8 @@
 <script setup>
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import Card from 'primevue/card'
-import TabView from 'primevue/tabview'
-import TabPanel from 'primevue/tabpanel'
+import SelectButton from 'primevue/selectbutton'
 import VChart from 'vue-echarts'
-import { useSettingsStore } from '@/store/settingsStore.js'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart } from 'echarts/charts'
@@ -18,14 +16,22 @@ import { useAccounts } from '@/composables/useAccounts'
 import { useBalance } from '@/composables/useGetBalanceReport'
 import { formatAmount } from '@/utils/currency'
 import { useDateFormat } from '@/composables/useDateFormat'
+import { rangeToStartEnd } from '@/utils/dateRange'
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent, DataZoomComponent])
 
-const settings = useSettingsStore()
 const { accounts } = useAccounts()
 const { balanceReport: balanceReportMutation } = useBalance()
 const { mutate, data: balanceReport } = balanceReportMutation
 const { formatDate } = useDateFormat()
+
+const dateRangeOptions = [
+    { value: '3m', label: '3M' },
+    { value: '1y', label: '1Y' }
+]
+const selectedRange = ref('3m')
+
+const stepsForRange = (_range) => 90
 
 // Gather all accounts from all providers
 const allAccounts = computed(() => {
@@ -82,6 +88,9 @@ const chartOption = computed(() => {
     const labels =
         mergedData.value?.[0]?.reportData?.map((r) => formatDate(r.Date)) || []
 
+    const textColor = getTextColor()
+    const surfaceColor = getSurfaceColor()
+
     const series =
         mergedData.value?.map((account, index) => ({
             name: account.name,
@@ -91,19 +100,42 @@ const chartOption = computed(() => {
             data: account.reportData.map((r) => r.Sum),
             lineStyle: { color: getColor(index) },
             itemStyle: { color: getColor(index) },
+            yAxisIndex: 0,
             _currency: account.currency || 'CHF'
         })) || []
 
-    const textColor = getTextColor()
-    const surfaceColor = getSurfaceColor()
+    // Sum of all non-unvested accounts per date point
+    const vestedAccounts = mergedData.value?.filter((a) => a.type !== 'unvested') || []
+    const totalData = labels.map((_, i) =>
+        vestedAccounts.reduce((sum, a) => sum + (a.reportData[i]?.Sum || 0), 0)
+    )
+
+    series.push({
+        name: 'Total',
+        type: 'line',
+        smooth: 0.1,
+        showSymbol: false,
+        clip: false,
+        data: totalData,
+        lineStyle: { color: textColor, width: 2.5, type: 'dashed' },
+        itemStyle: { color: textColor },
+        yAxisIndex: 1,
+        _currency: null,
+        endLabel: {
+            show: true,
+            formatter: (params) => formatAmount(params.value),
+            color: textColor,
+            fontWeight: 'bold'
+        }
+    })
 
     return {
         animation: true,
         animationDuration: 500,
         grid: {
             left: '3%',
-            right: '4%',
-            bottom: '18%',
+            right: '19%',
+            bottom: '3%',
             top: '3%',
             containLabel: true
         },
@@ -113,57 +145,64 @@ const chartOption = computed(() => {
                 let result = `<strong>${params[0].axisValueLabel}</strong><br/>`
                 for (const p of params) {
                     const s = series[p.seriesIndex]
-                    const currency = s?._currency || 'CHF'
-                    result += `${p.marker} ${p.seriesName}: ${formatAmount(p.value)} ${currency}<br/>`
+                    const currency = s?._currency
+                    const formatted = formatAmount(p.value)
+                    result += `${p.marker} ${p.seriesName}: ${formatted}${currency ? ` ${currency}` : ''}<br/>`
                 }
                 return result
             }
         },
         legend: {
             type: 'scroll',
-            bottom: 0,
-            left: 'left',
+            orient: 'vertical',
+            right: 10,
+            top: 'middle',
             textStyle: { color: textColor },
             icon: 'circle',
             itemWidth: 10,
             itemHeight: 10,
-            itemGap: 20,
+            itemGap: 12,
             selectedMode: 'multiple'
         },
         xAxis: {
             type: 'category',
             data: labels,
-            axisLabel: { color: textColor },
+            axisLabel: { show: false },
             axisLine: { lineStyle: { color: surfaceColor } },
             splitLine: { lineStyle: { color: surfaceColor } }
         },
-        yAxis: {
-            type: 'value',
-            axisLabel: { color: textColor },
-            axisLine: { lineStyle: { color: surfaceColor } },
-            splitLine: { lineStyle: { color: surfaceColor } }
-        },
+        yAxis: [
+            {
+                type: 'value',
+                axisLabel: { color: textColor },
+                axisLine: { lineStyle: { color: surfaceColor } },
+                splitLine: { lineStyle: { color: surfaceColor } }
+            },
+            {
+                type: 'value',
+                position: 'right',
+                axisLabel: { color: textColor },
+                axisLine: { show: true, lineStyle: { color: surfaceColor } },
+                splitLine: { show: false }
+            }
+        ],
         series
     }
 })
 
-// Fetch balance reports when accounts are loaded
+// Fetch balance reports when accounts are loaded or range changes
 watch(
-    allAccounts,
-    (accountsList) => {
+    [allAccounts, selectedRange],
+    ([accountsList]) => {
         if (accountsList && accountsList.length > 0) {
             const accountIds = accountsList.map((account) => account.id).filter(Boolean)
-            
+
             if (accountIds.length > 0) {
-                const today = new Date()
-                const sixMonthsAgo = new Date(today)
-                sixMonthsAgo.setMonth(today.getMonth() - 6)
-                const startDate = sixMonthsAgo.toISOString().split('T')[0]
-                
+                const { start } = rangeToStartEnd(selectedRange.value)
                 mutate({
                     accountIds,
-                    steps: 90,
-                    startDate
+                    steps: stepsForRange(selectedRange.value),
+                    startDate: start
                 })
             }
         }
@@ -176,23 +215,19 @@ watch(
     <Card>
         <template #title>Financial Overview</template>
         <template #content>
-            <TabView>
-                <TabPanel header="Balance over time">
-                    <VChart
-                        :option="chartOption"
-                        autoresize
-                        style="height: 450px"
-                    />
-                </TabPanel>
-                <TabPanel v-if="settings.instruments" header="Investment Products">
-                    <div
-                        class="instruments-placeholder"
-                        style="height: 450px; display: flex; align-items: center; justify-content: center; color: var(--c-text-muted-color, #6b7280);"
-                    >
-                        <span>Evolution of all investment products — chart coming soon.</span>
-                    </div>
-                </TabPanel>
-            </TabView>
+            <div style="display: flex; justify-content: flex-end; margin-bottom: 0.75rem;">
+                <SelectButton
+                    v-model="selectedRange"
+                    :options="dateRangeOptions"
+                    optionLabel="label"
+                    optionValue="value"
+                />
+            </div>
+            <VChart
+                :option="chartOption"
+                autoresize
+                style="height: 450px"
+            />
         </template>
     </Card>
 </template>

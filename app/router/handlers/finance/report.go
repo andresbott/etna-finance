@@ -138,9 +138,10 @@ type accountBalancesResponse struct {
 }
 
 type accountBalance struct {
-	Date  time.Time
-	Sum   float64
-	Count uint
+	Date        time.Time `json:"date"`
+	Sum         float64   `json:"sum"`
+	Count       uint      `json:"count"`
+	Unconverted bool      `json:"unconverted"`
 }
 
 func (h *Handler) AccountBalance() http.Handler {
@@ -210,9 +211,10 @@ func transformAccountBalance(in []accounting.AccountBalance) []accountBalance {
 	out := make([]accountBalance, len(in))
 	for i := 0; i < len(in); i++ {
 		out[i] = accountBalance{
-			Date:  in[i].Date,
-			Sum:   in[i].Sum,
-			Count: in[i].Count,
+			Date:        in[i].Date,
+			Sum:         in[i].Sum,
+			Count:       in[i].Count,
+			Unconverted: in[i].Unconverted,
 		}
 	}
 	return out
