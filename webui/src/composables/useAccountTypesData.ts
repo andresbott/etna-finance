@@ -4,6 +4,8 @@ import { useAccounts } from '@/composables/useAccounts'
 import { useSettingsStore } from '@/store/settingsStore'
 import { getLatestRate } from '@/lib/api/CurrencyRates'
 import { getBalanceReport } from '@/lib/api/report'
+import { useHoldings } from '@/composables/useHoldings'
+import { ACCOUNT_TYPES } from '@/types/account'
 
 export interface AccountTypeRow {
     type: string
@@ -14,6 +16,18 @@ export function useAccountTypesData() {
     const { accounts: accountProviders } = useAccounts()
     const settingsStore = useSettingsStore()
     const mainCurrency = computed(() => settingsStore.mainCurrency || 'CHF')
+    const { providersWithHoldings } = useHoldings()
+
+    // Map accountId -> totalValue (market value) for investment/unvested accounts
+    const holdingsTotalMap = computed(() => {
+        const map = new Map<number, number>()
+        for (const provider of providersWithHoldings.value) {
+            for (const account of provider.accounts) {
+                map.set(account.id, account.totalValue)
+            }
+        }
+        return map
+    })
 
     const allAccounts = computed(() => {
         if (!accountProviders.value) return []
@@ -49,26 +63,30 @@ export function useAccountTypesData() {
     }
 
     const accountsByType = computed<AccountTypeRow[]>(() => {
-        if (!allAccounts.value || !balanceReport.value) return []
-        const accountsWithBalances = allAccounts.value
-            .map((account) => {
-                const reportData = balanceReport.value?.accounts?.[account.id]
-                if (!reportData) return null
-                return { ...account, reportData }
-            })
-            .filter(Boolean) as Array<{ id: number; type?: string; currency?: string; reportData: Array<{ Sum: number }> }>
-
+        if (!allAccounts.value) return []
         const grouped: Record<string, AccountTypeRow> = {}
-        for (const account of accountsWithBalances) {
+        for (const account of allAccounts.value) {
             const type = account.type || 'Other'
             const currency = account.currency || 'CHF'
+            let balance: number
+
+            if (type === ACCOUNT_TYPES.INVESTMENT || type === ACCOUNT_TYPES.UNVESTED) {
+                // Use current market value from holdings for investment/unvested accounts
+                balance = holdingsTotalMap.value.get(account.id) ?? 0
+            } else {
+                // Use balance report for cash/other accounts
+                const reportData = balanceReport.value?.accounts?.[account.id]
+                if (!reportData) continue
+                balance = getLatestBalance({ reportData })
+            }
+
             if (!grouped[type]) {
                 grouped[type] = { type, currencies: {} }
             }
             if (!grouped[type].currencies[currency]) {
                 grouped[type].currencies[currency] = 0
             }
-            grouped[type].currencies[currency] += getLatestBalance(account)
+            grouped[type].currencies[currency] += balance
         }
         return Object.values(grouped)
     })

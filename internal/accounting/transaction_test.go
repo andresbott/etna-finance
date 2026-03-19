@@ -1949,6 +1949,25 @@ func TestStore_UpdateStockSell(t *testing.T) {
 			if err == nil {
 				t.Fatal("expected error for non-existent transaction")
 			}
+
+			// Regression: updating a sell must restore lot quantities first so the
+			// recreated sell can allocate from the same lots without "insufficient quantity".
+			qty := 5.0
+			err = store.UpdateStockSell(ctx, StockSellUpdate{Quantity: &qty, TotalAmount: ptr(775.0)}, sellID)
+			if err != nil {
+				t.Fatalf("UpdateStockSell quantity change (lot restore regression): %v", err)
+			}
+			got, err = store.GetTransaction(ctx, sellID)
+			if err != nil {
+				t.Fatalf("GetTransaction after qty change: %v", err)
+			}
+			gotSell, ok = got.(StockSell)
+			if !ok {
+				t.Fatalf("expected StockSell, got %T", got)
+			}
+			if gotSell.Quantity != 5 {
+				t.Errorf("expected quantity 5, got %v", gotSell.Quantity)
+			}
 		})
 	}
 }

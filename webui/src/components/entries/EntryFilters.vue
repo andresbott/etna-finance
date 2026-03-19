@@ -13,6 +13,12 @@ const hasAttachment = defineModel<boolean>('hasAttachment', { default: false })
 const search = defineModel<string>('search', { default: '' })
 const expanded = defineModel<boolean>('expanded', { default: false })
 
+const props = defineProps<{ accountType?: string | null }>()
+
+const isInvestmentAccount = computed(() =>
+    props.accountType === 'investment' || props.accountType === 'unvested'
+)
+
 const hasActiveFilters = computed(() =>
     categoryIds.value.length > 0 ||
     types.value.length > 0 ||
@@ -23,13 +29,24 @@ const hasActiveFilters = computed(() =>
 defineExpose({ hasActiveFilters })
 
 // Type options
-const typeOptions = [
+const defaultTypeOptions = [
     { label: 'Income', value: 'income' },
     { label: 'Expense', value: 'expense' },
     { label: 'Transfer', value: 'transfer' },
     { label: 'Investment', value: 'investment' },
     { label: 'Balance Status', value: 'balancestatus' }
 ]
+
+const investmentTypeOptions = [
+    { label: 'Buy', value: 'stockbuy' },
+    { label: 'Sell', value: 'stocksell' },
+    { label: 'Grant', value: 'stockgrant' },
+    { label: 'Transfer', value: 'stocktransfer' },
+]
+
+const typeOptions = computed(() =>
+    isInvestmentAccount.value ? investmentTypeOptions : defaultTypeOptions
+)
 
 // Category tree
 const { IncomeTreeData, ExpenseTreeData } = useCategoryTree()
@@ -167,6 +184,7 @@ watch(expanded, (val) => {
                 scrollHeight="20rem"
             />
             <TreeSelect
+                v-if="!isInvestmentAccount"
                 :modelValue="selectionKeys"
                 @update:modelValue="onCategorySelectionChange"
                 :options="categoryTreeData"

@@ -160,9 +160,10 @@ func getAccountIdsCurrencyMap(in []Account) map[currency.Unit][]uint {
 }
 
 type AccountBalance struct {
-	Date  time.Time
-	Sum   float64
-	Count uint
+	Date        time.Time
+	Sum         float64
+	Count       uint
+	Unconverted bool // true if this step's delta could not be converted to the main currency
 }
 
 // entry types used when calling sum entries for balance purposes
@@ -187,31 +188,48 @@ func (store *Store) AccountBalanceSingle(ctx context.Context, accountID uint, en
 // this allows to generate balance graphs.
 // If zero or 1 steps are selected, a slice with size 1 is returned that contains the balance at end date.
 // The implementation tries to be efficient to only sum the delta entries for every step.
+// When a main currency is configured, each step's delta is converted using the FX rate at the step's end date.
+// If no FX rate is available for a step, the delta is used unconverted and AccountBalance.Unconverted is set to true.
 func (store *Store) AccountBalance(ctx context.Context, accountID uint, steps int, startDate, endDate time.Time) ([]AccountBalance, error) {
 
 	if endDate.Before(startDate) {
 		return nil, fmt.Errorf("end date must be after start date")
 	}
-	// check the account exists
-	_, err := store.GetAccount(ctx, accountID)
+	account, err := store.GetAccount(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}
+	accountCurrency := account.Currency.String()
 
 	if steps <= 1 {
 		// handle single result requests
-		return store.accountBalanceSingle(ctx, accountID, endDate)
+		return store.accountBalanceSingle(ctx, accountID, accountCurrency, endDate)
 	} else {
 		if startDate.IsZero() {
-			return store.accountBalanceMultipleEmptyStartDate(ctx, accountID, steps, endDate)
+			return store.accountBalanceMultipleEmptyStartDate(ctx, accountID, accountCurrency, steps, endDate)
 		} else {
-			return store.accountBalanceMultipleEqualSteps(ctx, accountID, steps, startDate, endDate)
+			return store.accountBalanceMultipleEqualSteps(ctx, accountID, accountCurrency, steps, startDate, endDate)
 		}
 	}
 }
 
+// convertDelta converts a delta amount from accountCurrency to the store's main currency using the FX rate
+// at time t. The rate convention is "main/account" (e.g. "CHF/USD" = how many USD per 1 CHF), so
+// conversion is delta / rate. Returns the original delta and unconverted=true when conversion is not
+// possible: no market store, no main currency configured, same currency, missing rate, or rate is zero.
+func (store *Store) convertDelta(ctx context.Context, delta float64, accountCurrency string, t time.Time) (float64, bool) {
+	if store.marketStore == nil || store.mainCurrency == "" || accountCurrency == store.mainCurrency {
+		return delta, false
+	}
+	rec, err := store.marketStore.RateAt(ctx, store.mainCurrency, accountCurrency, t)
+	if err != nil || rec == nil || rec.Rate == 0 {
+		return delta, true
+	}
+	return delta / rec.Rate, false
+}
+
 // accountBalanceSingle internal function used to get a single account balance,
-func (store *Store) accountBalanceSingle(ctx context.Context, accountID uint, endDate time.Time) ([]AccountBalance, error) {
+func (store *Store) accountBalanceSingle(ctx context.Context, accountID uint, accountCurrency string, endDate time.Time) ([]AccountBalance, error) {
 
 	opts := sumEntriesOpts{
 		startDate:  time.Time{},
@@ -220,20 +238,22 @@ func (store *Store) accountBalanceSingle(ctx context.Context, accountID uint, en
 		entryTypes: balanceEntryTypes,
 	}
 	sum, err := store.sumEntries(ctx, opts)
-	if err != nil && !errors.Is(err, ErrEntryNotFound) {
+	if err != nil {
 		return nil, err
 	}
+	converted, unconverted := store.convertDelta(ctx, sum.Sum, accountCurrency, endDate)
 	b := AccountBalance{
-		Date:  toDate(endDate),
-		Sum:   sum.Sum,
-		Count: sum.Count,
+		Date:        toDate(endDate),
+		Sum:         converted,
+		Count:       sum.Count,
+		Unconverted: unconverted,
 	}
 	return []AccountBalance{b}, nil
 }
 
 // accountBalanceMultipleEmptyStartDate internal function used to get multiple account balances when no start date is
 // provided, this case the historical data is one day per step
-func (store *Store) accountBalanceMultipleEmptyStartDate(ctx context.Context, accountID uint, steps int, endDate time.Time) ([]AccountBalance, error) {
+func (store *Store) accountBalanceMultipleEmptyStartDate(ctx context.Context, accountID uint, accountCurrency string, steps int, endDate time.Time) ([]AccountBalance, error) {
 
 	var prevSum float64
 	var results []AccountBalance
@@ -265,16 +285,15 @@ func (store *Store) accountBalanceMultipleEmptyStartDate(ctx context.Context, ac
 
 		sum, err := store.sumEntries(ctx, opts)
 		if err != nil {
-			if errors.Is(err, ErrEntryNotFound) {
-				continue
-			}
 			return nil, err
 		}
-		prevSum += sum.Sum
+		converted, unconverted := store.convertDelta(ctx, sum.Sum, accountCurrency, dateTo)
+		prevSum += converted
 		results = append(results, AccountBalance{
-			Date:  toDate(dateTo), // remove the microsecond from the report for simplicity
-			Sum:   prevSum,
-			Count: sum.Count,
+			Date:        toDate(dateTo), // remove the microsecond from the report for simplicity
+			Sum:         prevSum,
+			Count:       sum.Count,
+			Unconverted: unconverted,
 		})
 	}
 
@@ -283,7 +302,7 @@ func (store *Store) accountBalanceMultipleEmptyStartDate(ctx context.Context, ac
 
 // accountBalanceMultipleEqualSteps internal function used to get multiple account balances where N amaunt of
 // steps are returned equialy spread over the time range
-func (store *Store) accountBalanceMultipleEqualSteps(ctx context.Context, accountID uint, steps int, startDate, endDate time.Time) ([]AccountBalance, error) {
+func (store *Store) accountBalanceMultipleEqualSteps(ctx context.Context, accountID uint, accountCurrency string, steps int, startDate, endDate time.Time) ([]AccountBalance, error) {
 	var prevSum float64
 
 	var results []AccountBalance
@@ -291,24 +310,31 @@ func (store *Store) accountBalanceMultipleEqualSteps(ctx context.Context, accoun
 	startDate = toDate(startDate)
 	opts := sumEntriesOpts{
 		startDate:  time.Time{},
-		endDate:    endOfDay(startDate), // sum everything up to 1 nanosecond before the start date
+		endDate:    endOfDay(startDate), // sum everything up to and including the end of start date
 		accountIds: []uint{accountID},
 		entryTypes: balanceEntryTypes,
 	}
 
 	sum, err := store.sumEntries(ctx, opts)
-	if err != nil && !errors.Is(err, ErrEntryNotFound) {
+	if err != nil {
 		return nil, err
 	}
-	prevSum = sum.Sum
+	converted, unconverted := store.convertDelta(ctx, sum.Sum, accountCurrency, startDate)
+	prevSum = converted
 	results = append(results, AccountBalance{
-		Date:  startDate,
-		Sum:   prevSum,
-		Count: sum.Count,
+		Date:        startDate,
+		Sum:         prevSum,
+		Count:       sum.Count,
+		Unconverted: unconverted,
 	})
 
 	// modify the start date before starting the iteration
 	startDate = startDate.Add(24 * time.Hour)
+
+	// If endDate is before the advanced startDate the initial point is all we can return
+	if !endDate.After(startDate) {
+		return results, nil
+	}
 
 	// Total daysInRange in the range
 	daysInRange := int(endDate.Sub(startDate).Hours() / 24)
@@ -345,16 +371,15 @@ func (store *Store) accountBalanceMultipleEqualSteps(ctx context.Context, accoun
 
 		sum, err = store.sumEntries(ctx, opts)
 		if err != nil {
-			if errors.Is(err, ErrEntryNotFound) {
-				continue
-			}
 			return nil, err
 		}
-		prevSum += sum.Sum
+		converted, unconverted := store.convertDelta(ctx, sum.Sum, accountCurrency, dateTo)
+		prevSum += converted
 		results = append(results, AccountBalance{
-			Date:  toDate(dateTo), // remove the microsecond from the report for simplicity
-			Sum:   prevSum,
-			Count: sum.Count,
+			Date:        toDate(dateTo), // remove the microsecond from the report for simplicity
+			Sum:         prevSum,
+			Count:       sum.Count,
+			Unconverted: unconverted,
 		})
 	}
 

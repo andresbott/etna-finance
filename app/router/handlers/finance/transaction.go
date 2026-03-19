@@ -489,7 +489,7 @@ func transactionToPayload(entry accounting.Transaction) transactionPayload {
 			AttachmentID:        entry.AttachmentID,
 		}
 	case accounting.StockSell:
-		return transactionPayload{
+		payload := transactionPayload{
 			Id:                  entry.Id,
 			Description:         entry.Description,
 			Notes:               entry.Notes,
@@ -505,6 +505,13 @@ func transactionToPayload(entry accounting.Transaction) transactionPayload {
 			CashAccountID:       entry.CashAccountID,
 			AttachmentID:        entry.AttachmentID,
 		}
+		for _, ls := range entry.LotSelections {
+			payload.LotAllocations = append(payload.LotAllocations, struct {
+				LotID    uint    `json:"lotId"`
+				Quantity float64 `json:"quantity"`
+			}{LotID: ls.LotID, Quantity: ls.Quantity})
+		}
+		return payload
 	case accounting.StockGrant:
 		return transactionPayload{
 			Id:              entry.Id,

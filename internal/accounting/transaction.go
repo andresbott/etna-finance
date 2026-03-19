@@ -995,7 +995,26 @@ func (store *Store) GetTransaction(ctx context.Context, Id uint) (Transaction, e
 			return nil, q.Error
 		}
 	}
-	return publicTransactions(payload)
+	tr, err := publicTransactions(payload)
+	if err != nil {
+		return nil, err
+	}
+	// Populate lot selections for sell transactions from stored disposals
+	if sell, ok := tr.(StockSell); ok {
+		for _, t := range payload.Trades {
+			if t.TradeType == SellTrade {
+				var disposals []dbLotDisposal
+				if dbErr := store.db.WithContext(ctx).Where("sell_trade_id = ?", t.Id).Find(&disposals).Error; dbErr == nil && len(disposals) > 0 {
+					for _, d := range disposals {
+						sell.LotSelections = append(sell.LotSelections, LotSelection{LotID: d.LotID, Quantity: d.Quantity})
+					}
+					tr = sell
+				}
+				break
+			}
+		}
+	}
+	return tr, nil
 }
 
 // publicTransactions takes a db representation of the transaction and returns a specific type

@@ -102,6 +102,17 @@ func runServer(configFile string) error {
 	if err != nil {
 		return err
 	}
+	// SQLite: limit to one open connection to prevent SQLITE_BUSY when concurrent
+	// goroutines (task runner, HTTP handlers) try to write at the same time.
+	// Also enable WAL mode for better read/write concurrency and set a busy timeout
+	// so any remaining contention blocks instead of failing immediately.
+	sqlDB, err := db.DB()
+	if err != nil {
+		return err
+	}
+	sqlDB.SetMaxOpenConns(10)
+	db.Exec("PRAGMA journal_mode=WAL")
+	db.Exec("PRAGMA busy_timeout=5000")
 
 	// ——— Application stores (shared by router and task runner) ———
 	marketStore, finStore, csvImportStore, attachmentStore, toolsDataStore, err := initStores(db, cfg)
@@ -207,7 +218,7 @@ func initStores(db *gorm.DB, cfg AppCfg) (*marketdata.Store, *accounting.Store, 
 	if err != nil {
 		return nil, nil, nil, nil, nil, fmt.Errorf("market data store: %w", err)
 	}
-	finStore, err := accounting.NewStore(db, marketStore)
+	finStore, err := accounting.NewStore(db, marketStore, accounting.WithMainCurrency(cfg.Settings.MainCurrency))
 	if err != nil {
 		return nil, nil, nil, nil, nil, fmt.Errorf("accounting store: %w", err)
 	}
