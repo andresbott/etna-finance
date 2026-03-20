@@ -31,7 +31,7 @@ export function useAccountTypesData() {
 
     const allAccounts = computed(() => {
         if (!accountProviders.value) return []
-        const accounts: Array<{ id: number; type?: string; currency?: string; reportData?: Array<{ Sum: number }> }> = []
+        const accounts: Array<{ id: number; type?: string; currency?: string; reportData?: Array<{ sum: number }> }> = []
         for (const provider of accountProviders.value) {
             if (provider.accounts && Array.isArray(provider.accounts)) {
                 accounts.push(...provider.accounts)
@@ -56,10 +56,10 @@ export function useAccountTypesData() {
 
     const balanceReport = computed(() => balanceReportQuery.data.value)
 
-    function getLatestBalance(account: { reportData?: Array<{ Sum: number }> }): number {
+    function getLatestBalance(account: { reportData?: Array<{ sum: number }> }): number {
         if (!account.reportData || account.reportData.length === 0) return 0
         const latestEntry = account.reportData[account.reportData.length - 1]
-        return latestEntry?.Sum ?? 0
+        return latestEntry?.sum ?? 0
     }
 
     const accountsByType = computed<AccountTypeRow[]>(() => {

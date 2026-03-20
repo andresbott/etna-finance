@@ -1,8 +1,5 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { VerticalLayout } from '@go-bumbu/vue-layouts'
-import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
-
 import Column from 'primevue/column'
 import Button from 'primevue/button'
 import TreeTable from 'primevue/treetable'
@@ -134,34 +131,32 @@ const handleDeleteProvider = async () => {
 </script>
 
 <template>
-    <div class="main-app-content">
-        <div class="view-container">
-            <div class="flex justify-content-between align-items-center mb-4">
-                <div class="flex align-items-center gap-2">
-                    <h1 class="m-0">Accounts</h1>
-                    <a
-                        :href="ACCOUNTS_DOCS_URL"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="inline-flex link-unstyled"
-                        aria-label="About accounts"
-                        v-tooltip.top="'About accounts'"
-                    >
-                        <Button
-                            icon="pi pi-question-circle"
-                            text
-                            rounded
-                            severity="secondary"
-                            class="p-button-sm"
-                        />
-                    </a>
-                </div>
+    <div>
+        <div class="mb-4">
+            <div class="flex align-items-center gap-2 mb-2">
+                <h1 class="text-2xl font-bold m-0 text-color">Account Setup</h1>
+                <a
+                    :href="ACCOUNTS_DOCS_URL"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="inline-flex link-unstyled"
+                    aria-label="About accounts"
+                    v-tooltip.top="'About accounts'"
+                >
+                    <Button icon="pi pi-question-circle" text rounded severity="secondary" class="p-button-sm" />
+                </a>
+            </div>
+            <p class="text-color-secondary m-0 mb-3 text-base">
+                Manage account providers and accounts used to track your finances
+            </p>
+            <div class="flex justify-content-end">
                 <Button
                     label="Add Account Provider"
                     icon="pi pi-plus"
                     @click="openNewProviderDialog"
                 />
             </div>
+        </div>
 
             <Card v-if="!accounts || accounts.length === 0">
                 <template #content>
@@ -248,8 +243,7 @@ const handleDeleteProvider = async () => {
                         </Column>
                     </TreeTable>
                 </template>
-            </Card>
-        </div>
+        </Card>
     </div>
 
     <AccountDialog

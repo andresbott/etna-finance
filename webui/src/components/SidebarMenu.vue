@@ -146,6 +146,16 @@
                             </router-link>
                         </li>
                     </template>
+
+                    <li class="menu-spacer"></li>
+
+                    <!-- SETTINGS SECTION -->
+                    <li>
+                        <router-link to="/settings" class="menu-item">
+                            <i class="pi pi-cog menu-icon"></i>
+                            <span class="menu-label">System</span>
+                        </router-link>
+                    </li>
                 </ul>
             </div>
         </Transition>

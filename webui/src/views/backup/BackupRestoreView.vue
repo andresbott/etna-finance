@@ -1,8 +1,5 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { VerticalLayout } from '@go-bumbu/vue-layouts'
-import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
-import TopBar from '@/views/topbar.vue'
 import Card from 'primevue/card'
 import Button from 'primevue/button'
 import Message from 'primevue/message'
@@ -133,51 +130,50 @@ const formatFileSize = (bytes) => {
 </script>
 
 <template>
-    <VerticalLayout :center-content="false" :fullHeight="true">
-        <template #header>
+    <div>
+        <div class="mb-4">
+            <h1 class="text-2xl font-bold mb-2 text-color">Backup & Restore</h1>
+            <p class="text-color-secondary m-0 mb-3 text-base">
+                Create and manage backups of your application data
+            </p>
+            <div class="flex justify-content-end gap-2">
+                <Button
+                    label="Create Backup"
+                    icon="pi pi-download"
+                    @click="handleBackup"
+                    :loading="isCreating"
+                    :disabled="isRestoring"
+                />
+                <Button
+                    label="Upload & Restore"
+                    icon="pi pi-upload"
+                    severity="secondary"
+                    @click="triggerFileUpload"
+                    :loading="isRestoring"
+                    :disabled="isCreating"
+                />
+                <input
+                    ref="fileInputRef"
+                    type="file"
+                    accept=".json,.zip"
+                    @change="handleFileSelected"
+                    style="display: none"
+                />
+            </div>
+        </div>
 
-        </template>
-        <template #default>
-            <div class="view-container">
-                <h1 class="text-2xl font-bold mb-3 text-color">Backup & Restore</h1>
-                
-                <Message v-if="successMessage" severity="success" :closable="true" @close="successMessage = ''">
-                    {{ successMessage }}
-                </Message>
-                
-                <Message v-if="errorMessage" severity="error" :closable="true" @close="errorMessage = ''">
-                    {{ errorMessage }}
-                </Message>
+        <Message v-if="successMessage" severity="success" :closable="true" @close="successMessage = ''" class="mb-3">
+            {{ successMessage }}
+        </Message>
 
-                <Card>
-                    <template #content>
-                        <!-- Action Buttons -->
-                        <div class="flex gap-3 mb-4 flex-wrap">
-                            <Button
-                                label="Create Backup"
-                                icon="pi pi-download"
-                                @click="handleBackup"
-                                :loading="isCreating"
-                                :disabled="isRestoring"
-                            />
-                            <Button
-                                label="Upload & Restore Backup"
-                                icon="pi pi-upload"
-                                @click="triggerFileUpload"
-                                :loading="isRestoring"
-                                :disabled="isCreating"
-                            />
-                            <input
-                                ref="fileInputRef"
-                                type="file"
-                                accept=".json,.zip"
-                                @change="handleFileSelected"
-                                style="display: none"
-                            />
-                        </div>
+        <Message v-if="errorMessage" severity="error" :closable="true" @close="errorMessage = ''" class="mb-3">
+            {{ errorMessage }}
+        </Message>
 
-                        <!-- Backup Files Table -->
-                        <div class="mt-3">
+        <Card>
+            <template #content>
+                <!-- Backup Files Table -->
+                <div>
                             <DataTable
                                 :value="backupFiles"
                                 :loading="isLoading"
@@ -239,12 +235,10 @@ const formatFileSize = (bytes) => {
                                     </template>
                                 </Column>
                             </DataTable>
-                        </div>
-                    </template>
-                </Card>
-            </div>
-        </template>
-    </VerticalLayout>
+                </div>
+            </template>
+        </Card>
+    </div>
 
     <!-- Delete Confirmation Dialog -->
     <ConfirmDialog

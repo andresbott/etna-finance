@@ -5,7 +5,6 @@ import { VerticalLayout } from '@go-bumbu/vue-layouts'
 import Topbar from './views/topbar.vue'
 import Footer from './views/parts/Footer.vue'
 import SidebarMenu from './components/SidebarMenu.vue'
-import SecondaryMenu from './components/SecondaryMenu.vue'
 import { useUiStore } from '@/store/uiStore.js'
 import { useUserStore } from '@/store/userStore'
 import Toast from 'primevue/toast'
@@ -25,7 +24,6 @@ onUnmounted(() => {
 
 <template>
     <Toast />
-    <SecondaryMenu v-if="user.isLoggedIn" />
     <VerticalLayout :center-content="false" :fullHeight="true">
         <template #header>
             <Topbar v-if="user.isLoggedIn" />

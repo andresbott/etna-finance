@@ -99,21 +99,22 @@ const saveInstrument = async (payload) => {
 </script>
 
 <template>
-    <div class="main-app-content">
-        <div class="view-container w-full">
-            <div class="flex justify-content-between align-items-center mb-2">
-                <h1 class="m-0">Investment Products</h1>
+    <div>
+        <div class="mb-4">
+            <h1 class="text-2xl font-bold mb-2 text-color">Investment Products</h1>
+            <p class="text-color-secondary m-0 mb-3 text-base">
+                Manage your investment products such as stocks, ETFs, forex, and commodities.
+            </p>
+            <div class="flex justify-content-end">
                 <Button
                     label="Add Instrument"
                     icon="pi pi-plus"
                     @click="openNewInstrumentDialog"
                 />
             </div>
-            <p class="text-color-secondary mt-0 mb-3">
-                Manage your investment products such as stocks, ETFs, forex, and commodities.
-            </p>
+        </div>
 
-            <Card v-if="!instruments.length && !isLoading">
+        <Card v-if="!instruments.length && !isLoading">
                 <template #content>
                     <div class="info-message">
                         No instruments yet. Add one to get started.
@@ -155,8 +156,7 @@ const saveInstrument = async (payload) => {
                         </Column>
                     </DataTable>
                 </template>
-            </Card>
-        </div>
+        </Card>
     </div>
 
     <InstrumentDialog

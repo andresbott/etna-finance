@@ -67,7 +67,7 @@ const accountsByProvider = computed(() => {
 const getLatestBalance = (account) => {
     if (!account.reportData || account.reportData.length === 0) return 0
     const latestEntry = account.reportData[account.reportData.length - 1]
-    return latestEntry?.Sum || 0
+    return latestEntry?.sum || 0
 }
 </script>
 

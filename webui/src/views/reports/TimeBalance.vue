@@ -86,7 +86,7 @@ const getSurfaceColor = () => {
 
 const chartOption = computed(() => {
     const labels =
-        mergedData.value?.[0]?.reportData?.map((r) => formatDate(r.Date)) || []
+        mergedData.value?.[0]?.reportData?.map((r) => formatDate(r.date)) || []
 
     const textColor = getTextColor()
     const surfaceColor = getSurfaceColor()
@@ -97,7 +97,7 @@ const chartOption = computed(() => {
             type: 'line',
             smooth: 0.1,
             showSymbol: false,
-            data: account.reportData.map((r) => r.Sum),
+            data: account.reportData.map((r) => r.sum),
             lineStyle: { color: getColor(index) },
             itemStyle: { color: getColor(index) },
             yAxisIndex: 0,
@@ -107,7 +107,7 @@ const chartOption = computed(() => {
     // Sum of all non-unvested accounts per date point
     const vestedAccounts = mergedData.value?.filter((a) => a.type !== 'unvested') || []
     const totalData = labels.map((_, i) =>
-        vestedAccounts.reduce((sum, a) => sum + (a.reportData[i]?.Sum || 0), 0)
+        vestedAccounts.reduce((sum, a) => sum + (a.reportData[i]?.sum || 0), 0)
     )
 
     series.push({

@@ -25,21 +25,6 @@ export const useUiStore = defineStore('ui', () => {
         }
     }
 
-    // Secondary menu drawer (user menu)
-    const isSecondaryDrawerVisible = ref(false)
-
-    const openSecondaryDrawer = () => {
-        isSecondaryDrawerVisible.value = true
-    }
-
-    const closeSecondaryDrawer = () => {
-        isSecondaryDrawerVisible.value = false
-    }
-
-    const toggleSecondaryDrawer = () => {
-        isSecondaryDrawerVisible.value = !isSecondaryDrawerVisible.value
-    }
-
     const initUi = () => {
         checkScreenWidth()
         window.addEventListener('resize', checkScreenWidth)
@@ -54,10 +39,6 @@ export const useUiStore = defineStore('ui', () => {
         openDrawer,
         closeDrawer,
         toggleDrawer,
-        isSecondaryDrawerVisible,
-        openSecondaryDrawer,
-        closeSecondaryDrawer,
-        toggleSecondaryDrawer,
         initUi,
         cleanupUi
     }

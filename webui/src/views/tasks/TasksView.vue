@@ -1,9 +1,11 @@
 <script setup>
-import { ResponsiveHorizontal } from '@go-bumbu/vue-layouts'
-import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
 import { ref, computed } from 'vue'
-import Card from 'primevue/card'
 import Message from 'primevue/message'
+import Tabs from 'primevue/tabs'
+import TabList from 'primevue/tablist'
+import Tab from 'primevue/tab'
+import TabPanels from 'primevue/tabpanels'
+import TabPanel from 'primevue/tabpanel'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Button from 'primevue/button'
@@ -16,7 +18,7 @@ import { useDateFormat } from '@/composables/useDateFormat'
 import { useTasks, EXECUTION_STATUS } from '@/composables/useTasks'
 
 const { formatDateTime } = useDateFormat()
-const leftSidebarCollapsed = ref(true)
+const activeTab = ref('tasks')
 
 const {
     tasks,
@@ -203,97 +205,145 @@ function closeLogDialog() {
 </script>
 
 <template>
-    <ResponsiveHorizontal :leftSidebarCollapsed="leftSidebarCollapsed">
-        <template #default>
-            <div class="p-3">
-                <Message
-                    v-if="tasksQuery.isError.value || executionsQuery.isError.value"
-                    severity="error"
-                    :closable="false"
-                    class="error-message"
-                >
-                    {{
-                        tasksQuery.error.value?.message ||
-                        executionsQuery.error.value?.message ||
-                        'Failed to load tasks'
-                    }}
-                </Message>
+    <div>
+        <div class="mb-4">
+            <h1 class="text-2xl font-bold mb-2 text-color">Tasks</h1>
+            <p class="text-color-secondary m-0 text-base">
+                Manage and monitor background tasks and their execution queue
+            </p>
+        </div>
 
-                <div class="grid">
-                    <div class="col-12">
-                        <Card>
-                            <template #title>
-                                <div class="flex align-items-center gap-2">
-                                    <i class="pi pi-briefcase"></i>
-                                    <span>Tasks</span>
-                                </div>
+        <Message
+            v-if="tasksQuery.isError.value || executionsQuery.isError.value"
+            severity="error"
+            :closable="false"
+            class="mb-3"
+        >
+            {{
+                tasksQuery.error.value?.message ||
+                executionsQuery.error.value?.message ||
+                'Failed to load tasks'
+            }}
+        </Message>
+
+        <Tabs v-model:value="activeTab">
+            <TabList>
+                <Tab value="tasks">Tasks</Tab>
+                <Tab value="queue">Queue</Tab>
+            </TabList>
+            <TabPanels>
+                <TabPanel value="tasks">
+                    <ProgressSpinner
+                        v-if="tasksQuery.isLoading.value"
+                        style="width: 3rem; height: 3rem"
+                        stroke-width="4"
+                    />
+                    <DataTable
+                        v-else
+                        :value="tasks"
+                        dataKey="id"
+                        stripedRows
+                        class="p-datatable-sm tasks-table"
+                    >
+                        <Column field="name" header="Name">
+                            <template #body="{ data }">
+                                <span class="font-semibold">{{ data.name }}</span>
+                                <p v-if="data.description" class="text-sm text-color-secondary mt-0 mb-0 mt-1">
+                                    {{ data.description }}
+                                </p>
                             </template>
-                            <template #content>
-                                <ProgressSpinner
-                                    v-if="tasksQuery.isLoading.value"
-                                    style="width: 3rem; height: 3rem"
-                                    stroke-width="4"
+                        </Column>
+                        <Column header="Schedule" style="width: 14rem">
+                            <template #body="{ data }">
+                                <span class="schedule-summary text-color-secondary">{{ scheduleSummary(data) }}</span>
+                                <Button
+                                    :label="data.schedule ? 'Edit' : 'Schedule'"
+                                    icon="pi pi-calendar"
+                                    size="small"
+                                    text
+                                    class="ml-2"
+                                    @click.stop="openScheduleDialog(data)"
                                 />
-                                <DataTable
-                                    v-else
-                                    :value="tasks"
-                                    dataKey="id"
-                                    stripedRows
-                                    class="p-datatable-sm tasks-table"
-                                >
-                                    <Column field="name" header="Name">
-                                        <template #body="{ data }">
-                                            <span class="font-semibold">{{
-                                                data.name
-                                            }}</span>
-                                            <p
-                                                v-if="data.description"
-                                                class="text-sm text-color-secondary mt-0 mb-0 mt-1"
-                                            >
-                                                {{ data.description }}
-                                            </p>
-                                        </template>
-                                    </Column>
-                                    <Column header="Schedule" style="width: 14rem">
-                                        <template #body="{ data }">
-                                            <span class="schedule-summary text-color-secondary">
-                                                {{ scheduleSummary(data) }}
-                                            </span>
-                                            <Button
-                                                :label="data.schedule ? 'Edit' : 'Schedule'"
-                                                icon="pi pi-calendar"
-                                                size="small"
-                                                text
-                                                class="ml-2"
-                                                @click.stop="openScheduleDialog(data)"
-                                            />
-                                        </template>
-                                    </Column>
-                                    <Column
-                                        header="Actions"
-                                        style="width: 8rem"
-                                    >
-                                        <template #body="{ data }">
-                                            <Button
-                                                label="Run now"
-                                                icon="pi pi-play"
-                                                size="small"
-                                                :loading="
-                                                    triggeringTaskId === data.id
-                                                "
-                                                :disabled="
-                                                    triggeringTaskId !== null
-                                                "
-                                                @click.stop="triggerTask(data)"
-                                            />
-                                        </template>
-                                    </Column>
-                                </DataTable>
                             </template>
-                        </Card>
-                    </div>
+                        </Column>
+                        <Column header="Actions" style="width: 8rem">
+                            <template #body="{ data }">
+                                <Button
+                                    label="Run now"
+                                    icon="pi pi-play"
+                                    size="small"
+                                    :loading="triggeringTaskId === data.id"
+                                    :disabled="triggeringTaskId !== null"
+                                    @click.stop="triggerTask(data)"
+                                />
+                            </template>
+                        </Column>
+                    </DataTable>
+                </TabPanel>
 
-                    <Dialog
+                <TabPanel value="queue">
+                    <p v-if="!executionsQuery.isLoading.value" class="queue-summary text-color-secondary text-sm mt-0 mb-2">
+                        <strong>Total: {{ queueCounts.total }}</strong>
+                        <span v-if="queueCounts.total > 0">
+                            · Waiting: {{ queueCounts.waiting }} · Running: {{ queueCounts.running }}
+                            · Complete: {{ queueCounts.complete }} · Failed: {{ queueCounts.failed }}
+                            <template v-if="queueCounts.panicked > 0"> · Panicked: {{ queueCounts.panicked }}</template>
+                            <template v-if="queueCounts.canceled > 0"> · Canceled: {{ queueCounts.canceled }}</template>
+                            <template v-if="queueCounts.cancel_error > 0"> · Cancel error: {{ queueCounts.cancel_error }}</template>
+                        </span>
+                    </p>
+                    <ProgressSpinner
+                        v-if="executionsQuery.isLoading.value"
+                        style="width: 3rem; height: 3rem"
+                        stroke-width="4"
+                    />
+                    <DataTable
+                        v-else
+                        :value="executions"
+                        dataKey="id"
+                        stripedRows
+                        class="p-datatable-sm queue-table queue-table--clickable"
+                        :paginator="executions.length > 50"
+                        :rows="50"
+                        @rowClick="(e) => openLogDialog(e.data)"
+                    >
+                        <Column header="Task" :sortable="false">
+                            <template #body="{ data }">{{ taskDisplayName(data.task_name) }}</template>
+                        </Column>
+                        <Column header="Queued at" :sortable="false">
+                            <template #body="{ data }">{{ formatExecutionTime(data.queuedAt) }}</template>
+                        </Column>
+                        <Column header="Duration" :sortable="false">
+                            <template #body="{ data }">{{ formatDuration(data.executionStartedAt, data.finishedAt) }}</template>
+                        </Column>
+                        <Column header="Status" bodyClass="queue-status-column" headerClass="queue-status-column" :sortable="false">
+                            <template #body="{ data }">
+                                <Tag :value="getStatusLabel(data.status)" :severity="getStatusSeverity(data.status)" />
+                            </template>
+                        </Column>
+                        <Column header="Actions" style="width: 8rem" :sortable="false">
+                            <template #body="{ data }">
+                                <Button
+                                    v-if="isExecutionCancelable(data.status)"
+                                    label="Cancel"
+                                    icon="pi pi-times"
+                                    size="small"
+                                    severity="secondary"
+                                    :loading="isCancelingExecution(data.id)"
+                                    :disabled="cancelMutation.isPending.value"
+                                    @click.stop="cancelTaskExecution(data.id)"
+                                />
+                            </template>
+                        </Column>
+                    </DataTable>
+                    <p v-if="!executionsQuery.isLoading.value && !executions.length" class="text-color-secondary mt-2 mb-0 text-sm">
+                        Queue is empty.
+                    </p>
+                </TabPanel>
+            </TabPanels>
+        </Tabs>
+
+        <Dialog
                         v-model:visible="scheduleDialogVisible"
                         :header="scheduleDialogTask ? `Schedule: ${scheduleDialogTask.name}` : 'Schedule'"
                         modal
@@ -359,118 +409,9 @@ function closeLogDialog() {
                                 @click="saveScheduleDialog"
                             />
                         </template>
-                    </Dialog>
+            </Dialog>
 
-                    <div class="col-12">
-                        <Card class="queue-card">
-                            <template #title>
-                                <div class="flex align-items-center gap-2">
-                                    <i class="pi pi-list"></i>
-                                    <span>Queue</span>
-                                </div>
-                            </template>
-                            <template #content>
-                                <p
-                                    v-if="!executionsQuery.isLoading.value"
-                                    class="queue-summary text-color-secondary text-sm mt-0 mb-2"
-                                >
-                                    <strong>Total: {{ queueCounts.total }}</strong>
-                                    <span v-if="queueCounts.total > 0">
-                                        · Waiting: {{ queueCounts.waiting }} · Running:
-                                        {{ queueCounts.running }} · Complete:
-                                        {{ queueCounts.complete }} · Failed:
-                                        {{ queueCounts.failed }}
-                                        <template v-if="queueCounts.panicked > 0">
-                                            · Panicked: {{ queueCounts.panicked }}
-                                        </template>
-                                        <template v-if="queueCounts.canceled > 0">
-                                            · Canceled: {{ queueCounts.canceled }}
-                                        </template>
-                                        <template v-if="queueCounts.cancel_error > 0">
-                                            · Cancel error: {{ queueCounts.cancel_error }}
-                                        </template>
-                                    </span>
-                                </p>
-                                <ProgressSpinner
-                                    v-if="executionsQuery.isLoading.value"
-                                    style="width: 3rem; height: 3rem"
-                                    stroke-width="4"
-                                />
-                                <DataTable
-                                    v-else
-                                    :value="executions"
-                                    dataKey="id"
-                                    stripedRows
-                                    class="p-datatable-sm queue-table queue-table--clickable"
-                                    :paginator="executions.length > 50"
-                                    :rows="50"
-                                    @rowClick="(e) => openLogDialog(e.data)"
-                                >
-                                    <Column header="Task" :sortable="false">
-                                        <template #body="{ data }">
-                                            {{ taskDisplayName(data.task_name) }}
-                                        </template>
-                                    </Column>
-                                    <Column header="Queued at" :sortable="false">
-                                        <template #body="{ data }">
-                                            {{
-                                                formatExecutionTime(
-                                                    data.queuedAt
-                                                )
-                                            }}
-                                        </template>
-                                    </Column>
-                                    <Column header="Duration" :sortable="false">
-                                        <template #body="{ data }">
-                                            {{
-                                                formatDuration(
-                                                    data.executionStartedAt,
-                                                    data.finishedAt
-                                                )
-                                            }}
-                                        </template>
-                                    </Column>
-                                    <Column header="Status" bodyClass="queue-status-column" headerClass="queue-status-column" :sortable="false">
-                                        <template #body="{ data }">
-                                            <Tag
-                                                :value="getStatusLabel(data.status)"
-                                                :severity="
-                                                    getStatusSeverity(
-                                                        data.status
-                                                    )
-                                                "
-                                            />
-                                        </template>
-                                    </Column>
-                                    <Column header="Actions" style="width: 8rem" :sortable="false">
-                                        <template #body="{ data }">
-                                            <Button
-                                                v-if="isExecutionCancelable(data.status)"
-                                                label="Cancel"
-                                                icon="pi pi-times"
-                                                size="small"
-                                                severity="secondary"
-                                                :loading="isCancelingExecution(data.id)"
-                                                :disabled="cancelMutation.isPending.value"
-                                                @click.stop="cancelTaskExecution(data.id)"
-                                            />
-                                        </template>
-                                    </Column>
-                                </DataTable>
-                                <p
-                                    v-if="
-                                        !executionsQuery.isLoading.value &&
-                                        !executions.length
-                                    "
-                                    class="text-color-secondary mt-2 mb-0 text-sm"
-                                >
-                                    Queue is empty.
-                                </p>
-                            </template>
-                        </Card>
-                    </div>
-
-                    <Dialog
+        <Dialog
                         v-model:visible="logDialogVisible"
                         :header="logDialogExecution ? `Log: ${taskDisplayName(logDialogExecution.task_name)} (${logDialogExecution.id})` : 'Task log'"
                         modal
@@ -498,21 +439,11 @@ function closeLogDialog() {
                         <template #footer>
                             <Button label="Close" @click="closeLogDialog" />
                         </template>
-                    </Dialog>
-                </div>
-            </div>
-        </template>
-    </ResponsiveHorizontal>
+        </Dialog>
+    </div>
 </template>
 
 <style scoped>
-.error-message {
-    margin-bottom: 1rem;
-}
-
-.queue-card {
-    margin-top: 1.5rem;
-}
 
 .queue-table--clickable :deep(.p-datatable-tbody > tr) {
     cursor: pointer;
