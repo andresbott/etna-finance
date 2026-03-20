@@ -1,10 +1,13 @@
 package csvimport
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/andresbott/etna/internal/accounting"
@@ -27,19 +30,137 @@ type ReapplyRow struct {
 	Changed             bool    `json:"changed"`
 }
 
-// ReapplyPreview returns an http.Handler that previews the effect of re-applying
+type categoryRulesPreviewRequest struct {
+	AdhocRule *adhocRuleInput `json:"adhocRule"`
+}
+
+type adhocRuleInput struct {
+	CategoryID uint   `json:"categoryId"`
+	Pattern    string `json:"pattern"`
+	IsRegex    bool   `json:"isRegex"`
+}
+
+// resolveRuleGroupsForPreview returns rule groups to use for preview.
+// For adhoc rules it validates and returns a synthetic group.
+// For stored rules it loads them from the database.
+// Returns a non-zero HTTP status code alongside the error on failure.
+func (h *ImportHandler) resolveRuleGroupsForPreview(ctx context.Context, req categoryRulesPreviewRequest) ([]csvimport.CategoryRuleGroup, int, error) {
+	if req.AdhocRule == nil {
+		groups, err := h.CsvStore.ListCategoryRuleGroups(ctx)
+		if err != nil {
+			return nil, http.StatusInternalServerError, fmt.Errorf("unable to list category rule groups: %w", err)
+		}
+		return groups, 0, nil
+	}
+	if req.AdhocRule.CategoryID == 0 {
+		return nil, http.StatusBadRequest, errors.New("adhocRule.categoryId must be non-zero")
+	}
+	if req.AdhocRule.Pattern == "" {
+		return nil, http.StatusBadRequest, errors.New("adhocRule.pattern must not be empty")
+	}
+	if req.AdhocRule.IsRegex {
+		if _, err := regexp.Compile(req.AdhocRule.Pattern); err != nil {
+			return nil, http.StatusBadRequest, fmt.Errorf("adhocRule.pattern is not a valid regex: %w", err)
+		}
+	}
+	return []csvimport.CategoryRuleGroup{{
+		CategoryID: req.AdhocRule.CategoryID,
+		Priority:   0,
+		Patterns: []csvimport.CategoryRulePattern{{
+			Pattern: req.AdhocRule.Pattern,
+			IsRegex: req.AdhocRule.IsRegex,
+		}},
+	}}, 0, nil
+}
+
+// buildCategoryNamesMap returns a map of category ID to name for all income and expense categories.
+func (h *ImportHandler) buildCategoryNamesMap(ctx context.Context) (map[uint]string, error) {
+	catNames := make(map[uint]string)
+	incomeCats, err := h.FinStore.ListDescendantCategories(ctx, 0, -1, accounting.IncomeCategory)
+	if err != nil {
+		return nil, fmt.Errorf("unable to list income categories: %w", err)
+	}
+	for _, c := range incomeCats {
+		catNames[c.Id] = c.Name
+	}
+	expenseCats, err := h.FinStore.ListDescendantCategories(ctx, 0, -1, accounting.ExpenseCategory)
+	if err != nil {
+		return nil, fmt.Errorf("unable to list expense categories: %w", err)
+	}
+	for _, c := range expenseCats {
+		catNames[c.Id] = c.Name
+	}
+	return catNames, nil
+}
+
+// collectPreviewRows paginates through all income and expense transactions and returns
+// rows where the given rule groups would assign a different category.
+func (h *ImportHandler) collectPreviewRows(ctx context.Context, groups []csvimport.CategoryRuleGroup, accountMap map[uint]accounting.Account, catNames map[uint]string) ([]ReapplyRow, error) {
+	var rows []ReapplyRow
+	for page := 1; ; page++ {
+		opts := accounting.ListOpts{
+			StartDate: time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC),
+			EndDate:   time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC),
+			Types:     []accounting.TxType{accounting.IncomeTransaction, accounting.ExpenseTransaction},
+			Limit:     accounting.MaxSearchResults,
+			Page:      page,
+		}
+		txs, _, err := h.FinStore.ListTransactions(ctx, opts)
+		if err != nil {
+			return nil, fmt.Errorf("unable to list transactions: %w", err)
+		}
+		if len(txs) == 0 {
+			break
+		}
+		for _, tx := range txs {
+			switch item := tx.(type) {
+			case accounting.Income:
+				newCatID := csvimport.MatchCategory(item.Description, groups)
+				if newCatID != 0 && newCatID != item.CategoryID {
+					rows = append(rows, ReapplyRow{
+						TransactionID: item.Id, TransactionType: "income",
+						Description: item.Description, Date: item.Date.Format("2006-01-02"),
+						Amount: item.Amount, AccountID: item.AccountID, AccountName: accountMap[item.AccountID].Name,
+						CurrentCategoryID: item.CategoryID, CurrentCategoryName: catNames[item.CategoryID],
+						NewCategoryID: newCatID, NewCategoryName: catNames[newCatID], Changed: true,
+					})
+				}
+			case accounting.Expense:
+				newCatID := csvimport.MatchCategory(item.Description, groups)
+				if newCatID != 0 && newCatID != item.CategoryID {
+					rows = append(rows, ReapplyRow{
+						TransactionID: item.Id, TransactionType: "expense",
+						Description: item.Description, Date: item.Date.Format("2006-01-02"),
+						Amount: item.Amount, AccountID: item.AccountID, AccountName: accountMap[item.AccountID].Name,
+						CurrentCategoryID: item.CategoryID, CurrentCategoryName: catNames[item.CategoryID],
+						NewCategoryID: newCatID, NewCategoryName: catNames[newCatID], Changed: true,
+					})
+				}
+			}
+		}
+	}
+	return rows, nil
+}
+
+// CategoryRulesPreview returns an http.Handler that previews the effect of re-applying
 // category matching rules to all existing income and expense transactions.
-func (h *ImportHandler) ReapplyPreview() http.Handler {
+func (h *ImportHandler) CategoryRulesPreview() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		// Load category rule groups
-		groups, err := h.CsvStore.ListCategoryRuleGroups(ctx)
-		if err != nil {
-			http.Error(w, "unable to list category rule groups: "+err.Error(), http.StatusInternalServerError)
-			return
+		var req categoryRulesPreviewRequest
+		if r.Body != nil {
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+				http.Error(w, "invalid request body: "+err.Error(), http.StatusBadRequest)
+				return
+			}
 		}
 
+		groups, httpStatus, err := h.resolveRuleGroupsForPreview(ctx, req)
+		if err != nil {
+			http.Error(w, err.Error(), httpStatus)
+			return
+		}
 		if len(groups) == 0 {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
@@ -47,96 +168,23 @@ func (h *ImportHandler) ReapplyPreview() http.Handler {
 			return
 		}
 
-		// Load account map
 		accountMap, err := h.FinStore.ListAccountsMap(ctx)
 		if err != nil {
 			http.Error(w, "unable to list accounts: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		// Build category name map
-		catNames := make(map[uint]string)
-		incomeCats, err := h.FinStore.ListDescendantCategories(ctx, 0, -1, accounting.IncomeCategory)
+		catNames, err := h.buildCategoryNamesMap(ctx)
 		if err != nil {
-			http.Error(w, "unable to list income categories: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		for _, c := range incomeCats {
-			catNames[c.Id] = c.Name
-		}
-		expenseCats, err := h.FinStore.ListDescendantCategories(ctx, 0, -1, accounting.ExpenseCategory)
+
+		rows, err := h.collectPreviewRows(ctx, groups, accountMap, catNames)
 		if err != nil {
-			http.Error(w, "unable to list expense categories: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		for _, c := range expenseCats {
-			catNames[c.Id] = c.Name
-		}
-
-		// Paginate through all income + expense transactions
-		var rows []ReapplyRow
-		for page := 1; ; page++ {
-			opts := accounting.ListOpts{
-				StartDate: time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC),
-				EndDate:   time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC),
-				Types:     []accounting.TxType{accounting.IncomeTransaction, accounting.ExpenseTransaction},
-				Limit:     accounting.MaxSearchResults,
-				Page:      page,
-			}
-
-			txs, _, err := h.FinStore.ListTransactions(ctx, opts)
-			if err != nil {
-				http.Error(w, "unable to list transactions: "+err.Error(), http.StatusInternalServerError)
-				return
-			}
-			if len(txs) == 0 {
-				break
-			}
-
-			for _, tx := range txs {
-				switch item := tx.(type) {
-				case accounting.Income:
-					newCatID := csvimport.MatchCategory(item.Description, groups)
-					if newCatID == 0 || newCatID == item.CategoryID {
-						continue
-					}
-					rows = append(rows, ReapplyRow{
-						TransactionID:       item.Id,
-						TransactionType:     "income",
-						Description:         item.Description,
-						Date:                item.Date.Format("2006-01-02"),
-						Amount:              item.Amount,
-						AccountID:           item.AccountID,
-						AccountName:         accountMap[item.AccountID].Name,
-						CurrentCategoryID:   item.CategoryID,
-						CurrentCategoryName: catNames[item.CategoryID],
-						NewCategoryID:       newCatID,
-						NewCategoryName:     catNames[newCatID],
-						Changed:             true,
-					})
-				case accounting.Expense:
-					newCatID := csvimport.MatchCategory(item.Description, groups)
-					if newCatID == 0 || newCatID == item.CategoryID {
-						continue
-					}
-					rows = append(rows, ReapplyRow{
-						TransactionID:       item.Id,
-						TransactionType:     "expense",
-						Description:         item.Description,
-						Date:                item.Date.Format("2006-01-02"),
-						Amount:              item.Amount,
-						AccountID:           item.AccountID,
-						AccountName:         accountMap[item.AccountID].Name,
-						CurrentCategoryID:   item.CategoryID,
-						CurrentCategoryName: catNames[item.CategoryID],
-						NewCategoryID:       newCatID,
-						NewCategoryName:     catNames[newCatID],
-						Changed:             true,
-					})
-				}
-			}
-		}
-
 		if rows == nil {
 			rows = []ReapplyRow{}
 		}
@@ -159,8 +207,8 @@ type reapplySubmitItem struct {
 	NewCategoryID   uint   `json:"newCategoryId"`
 }
 
-// ReapplySubmit returns an http.Handler that applies category changes to transactions.
-func (h *ImportHandler) ReapplySubmit() http.Handler {
+// CategoryRulesSubmit returns an http.Handler that applies category changes to transactions.
+func (h *ImportHandler) CategoryRulesSubmit() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 

@@ -19,7 +19,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-func TestReapplyPreview(t *testing.T) {
+func TestCategoryRulesPreview(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{
 		Logger: logger.Discard,
 	})
@@ -123,16 +123,16 @@ func TestReapplyPreview(t *testing.T) {
 		t.Fatalf("create tx4: %v", err)
 	}
 
-	// Build handler and call ReapplyPreview
+	// Build handler and call CategoryRulesPreview
 	handler := &ImportHandler{
 		CsvStore: csvStore,
 		FinStore: finStore,
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/reapply-preview", nil)
+	req := httptest.NewRequest(http.MethodPost, "/import/category-rules-preview", nil)
 	w := httptest.NewRecorder()
 
-	handler.ReapplyPreview().ServeHTTP(w, req)
+	handler.CategoryRulesPreview().ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
@@ -154,7 +154,126 @@ func TestReapplyPreview(t *testing.T) {
 	}
 }
 
-func TestReapplySubmit(t *testing.T) {
+func TestCategoryRulesPreviewAdhoc(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{
+		Logger: logger.Discard,
+	})
+	if err != nil {
+		t.Fatalf("unable to open sqlite: %v", err)
+	}
+	uDb, _ := db.DB()
+	defer func() { _ = uDb.Close() }()
+
+	mktStore, _ := marketdata.NewStore(db)
+	finStore, _ := accounting.NewStore(db, mktStore)
+	csvStore, _ := csvimport.NewStore(db)
+
+	ctx := context.Background()
+
+	providerID, err := finStore.CreateAccountProvider(ctx, accounting.AccountProvider{Name: "test", Description: "test", Icon: "bank"})
+	if err != nil {
+		t.Fatalf("create provider: %v", err)
+	}
+	accID, err := finStore.CreateAccount(ctx, accounting.Account{
+		Name:              "test-acc",
+		Currency:          currency.CHF,
+		Type:              accounting.CashAccountType,
+		AccountProviderID: providerID,
+	})
+	if err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+	foodCatID, err := finStore.CreateCategory(ctx, accounting.CategoryData{Name: "Food", Icon: "food", Type: accounting.ExpenseCategory}, 0)
+	if err != nil {
+		t.Fatalf("create Food category: %v", err)
+	}
+	transportCatID, err := finStore.CreateCategory(ctx, accounting.CategoryData{Name: "Transport", Icon: "transport", Type: accounting.ExpenseCategory}, 0)
+	if err != nil {
+		t.Fatalf("create Transport category: %v", err)
+	}
+
+	baseDate := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	// "GROCERY STORE" with Transport category -> should match adhoc substring "grocery" -> changed
+	_, err = finStore.CreateTransaction(ctx, accounting.Expense{
+		Description: "GROCERY STORE",
+		Amount:      50.00,
+		AccountID:   accID,
+		CategoryID:  transportCatID,
+		Date:        baseDate,
+	})
+	if err != nil {
+		t.Fatalf("create tx1: %v", err)
+	}
+	// "RENT PAYMENT" -> should NOT match adhoc "grocery"
+	_, err = finStore.CreateTransaction(ctx, accounting.Expense{
+		Description: "RENT PAYMENT",
+		Amount:      1000.00,
+		AccountID:   accID,
+		CategoryID:  transportCatID,
+		Date:        baseDate.AddDate(0, 0, 1),
+	})
+	if err != nil {
+		t.Fatalf("create tx2: %v", err)
+	}
+
+	handler := &ImportHandler{CsvStore: csvStore, FinStore: finStore}
+
+	t.Run("adhoc substring match returns only matching transactions", func(t *testing.T) {
+		body := fmt.Sprintf(`{"adhocRule":{"categoryId":%d,"pattern":"grocery","isRegex":false}}`, foodCatID)
+		req := httptest.NewRequest(http.MethodPost, "/import/category-rules-preview", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		handler.CategoryRulesPreview().ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		var rows []ReapplyRow
+		if err := json.Unmarshal(w.Body.Bytes(), &rows); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if len(rows) != 1 {
+			t.Fatalf("expected 1 row, got %d", len(rows))
+		}
+		if rows[0].NewCategoryID != foodCatID {
+			t.Errorf("expected newCategoryId=%d, got %d", foodCatID, rows[0].NewCategoryID)
+		}
+	})
+
+	t.Run("adhoc zero categoryId returns 400", func(t *testing.T) {
+		body := `{"adhocRule":{"categoryId":0,"pattern":"grocery","isRegex":false}}`
+		req := httptest.NewRequest(http.MethodPost, "/import/category-rules-preview", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		handler.CategoryRulesPreview().ServeHTTP(w, req)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("adhoc empty pattern returns 400", func(t *testing.T) {
+		body := fmt.Sprintf(`{"adhocRule":{"categoryId":%d,"pattern":"","isRegex":false}}`, foodCatID)
+		req := httptest.NewRequest(http.MethodPost, "/import/category-rules-preview", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		handler.CategoryRulesPreview().ServeHTTP(w, req)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("adhoc invalid regex returns 400", func(t *testing.T) {
+		body := fmt.Sprintf(`{"adhocRule":{"categoryId":%d,"pattern":"[invalid","isRegex":true}}`, foodCatID)
+		req := httptest.NewRequest(http.MethodPost, "/import/category-rules-preview", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		handler.CategoryRulesPreview().ServeHTTP(w, req)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", w.Code)
+		}
+	})
+}
+
+func TestCategoryRulesSubmit(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{
 		Logger: logger.Discard,
 	})
@@ -212,11 +331,11 @@ func TestReapplySubmit(t *testing.T) {
 
 	t.Run("successful update", func(t *testing.T) {
 		body := fmt.Sprintf(`[{"transactionId":%d,"transactionType":"expense","newCategoryId":%d}]`, txID, foodCatID)
-		req := httptest.NewRequest(http.MethodPost, "/reapply-submit", strings.NewReader(body))
+		req := httptest.NewRequest(http.MethodPost, "/import/category-rules-submit", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
-		handler.ReapplySubmit().ServeHTTP(w, req)
+		handler.CategoryRulesSubmit().ServeHTTP(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
@@ -233,11 +352,11 @@ func TestReapplySubmit(t *testing.T) {
 
 	t.Run("rejects mismatched category type", func(t *testing.T) {
 		body := fmt.Sprintf(`[{"transactionId":%d,"transactionType":"expense","newCategoryId":%d}]`, txID, salaryCatID)
-		req := httptest.NewRequest(http.MethodPost, "/reapply-submit", strings.NewReader(body))
+		req := httptest.NewRequest(http.MethodPost, "/import/category-rules-submit", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
-		handler.ReapplySubmit().ServeHTTP(w, req)
+		handler.CategoryRulesSubmit().ServeHTTP(w, req)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("expected status 400, got %d: %s", w.Code, w.Body.String())
