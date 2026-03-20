@@ -13,10 +13,6 @@ describe('uiStore', () => {
       expect(store.isDrawerVisible).toBe(false)
     })
 
-    it('has secondary drawer hidden by default', () => {
-      const store = useUiStore()
-      expect(store.isSecondaryDrawerVisible).toBe(false)
-    })
   })
 
   describe('main drawer', () => {
@@ -57,52 +53,6 @@ describe('uiStore', () => {
       store.toggleDrawer()
       store.toggleDrawer()
       expect(store.isDrawerVisible).toBe(false)
-    })
-  })
-
-  describe('secondary drawer', () => {
-    it('openSecondaryDrawer sets isSecondaryDrawerVisible to true', () => {
-      const store = useUiStore()
-      store.openSecondaryDrawer()
-      expect(store.isSecondaryDrawerVisible).toBe(true)
-    })
-
-    it('closeSecondaryDrawer sets isSecondaryDrawerVisible to false', () => {
-      const store = useUiStore()
-      store.openSecondaryDrawer()
-      store.closeSecondaryDrawer()
-      expect(store.isSecondaryDrawerVisible).toBe(false)
-    })
-
-    it('closeSecondaryDrawer when already closed stays false', () => {
-      const store = useUiStore()
-      store.closeSecondaryDrawer()
-      expect(store.isSecondaryDrawerVisible).toBe(false)
-    })
-
-    it('toggleSecondaryDrawer opens when closed', () => {
-      const store = useUiStore()
-      store.toggleSecondaryDrawer()
-      expect(store.isSecondaryDrawerVisible).toBe(true)
-    })
-
-    it('toggleSecondaryDrawer closes when open', () => {
-      const store = useUiStore()
-      store.openSecondaryDrawer()
-      store.toggleSecondaryDrawer()
-      expect(store.isSecondaryDrawerVisible).toBe(false)
-    })
-
-    it('secondary drawer is independent of main drawer', () => {
-      const store = useUiStore()
-      store.openDrawer()
-      store.openSecondaryDrawer()
-      expect(store.isDrawerVisible).toBe(true)
-      expect(store.isSecondaryDrawerVisible).toBe(true)
-
-      store.closeDrawer()
-      expect(store.isDrawerVisible).toBe(false)
-      expect(store.isSecondaryDrawerVisible).toBe(true)
     })
   })
 

@@ -48,7 +48,7 @@ describe('getBalanceReport', () => {
     })
 
     it('returns the data from the response', async () => {
-        const payload = { accounts: { 1: [{ Sum: 100 }] } }
+        const payload = { accounts: { 1: [{ sum:100 }] } }
         mockGet.mockResolvedValue({ data: payload })
 
         const result = await getBalanceReport([1], 1, '2025-01-01')
@@ -68,7 +68,7 @@ describe('getBalanceReport', () => {
 // ---------------------------------------------------------------------------
 describe('getAccountBalance', () => {
     it('builds URL with single accountId, steps=1, and endDate', async () => {
-        mockGet.mockResolvedValue({ data: { accounts: { 5: [{ Sum: 250 }] } } })
+        mockGet.mockResolvedValue({ data: { accounts: { 5: [{ sum:250 }] } } })
 
         await getAccountBalance(5, '2025-03-10')
 
@@ -79,7 +79,7 @@ describe('getAccountBalance', () => {
 
     it('extracts the Sum from the first entry of the matching account', async () => {
         mockGet.mockResolvedValue({
-            data: { accounts: { 7: [{ Sum: 1234.56 }] } },
+            data: { accounts: { 7: [{ sum:1234.56 }] } },
         })
 
         const result = await getAccountBalance(7, '2025-01-01')
@@ -115,7 +115,7 @@ describe('getAccountBalance', () => {
 
     it('returns 0 when Sum is 0', async () => {
         mockGet.mockResolvedValue({
-            data: { accounts: { 10: [{ Sum: 0 }] } },
+            data: { accounts: { 10: [{ sum:0 }] } },
         })
 
         const result = await getAccountBalance(10, '2025-01-01')
@@ -141,7 +141,7 @@ describe('getAccountBalance', () => {
 
     it('uses only the first entry even when multiple entries exist', async () => {
         mockGet.mockResolvedValue({
-            data: { accounts: { 3: [{ Sum: 100 }, { Sum: 999 }] } },
+            data: { accounts: { 3: [{ sum:100 }, { sum:999 }] } },
         })
 
         const result = await getAccountBalance(3, '2025-01-01')
