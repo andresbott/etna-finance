@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import type { ImportProfile, CategoryRuleGroup, CategoryRulePattern, ParsedRow, PreviewResult, ReapplyRow, ReapplySubmitItem } from '@/types/csvimport'
+import type { ImportProfile, CategoryRuleGroup, CategoryRulePattern, ParsedRow, PreviewResult, ReapplyRow, ReapplySubmitItem, AdhocRule } from '@/types/csvimport'
 
 // Profiles
 export const getProfiles = () => apiClient.get<ImportProfile[]>('/import/profiles').then(r => r.data)
@@ -58,9 +58,9 @@ export const previewCSV = (file: File, config: {
   }).then(r => r.data)
 }
 
-// Reapply category rules
-export const reapplyPreview = () =>
-  apiClient.post<ReapplyRow[]>('/import/reapply-preview').then(r => r.data)
+// Category rules preview / submit
+export const categoryRulesPreview = (adhocRule?: AdhocRule) =>
+  apiClient.post<ReapplyRow[]>('/import/category-rules-preview', adhocRule ? { adhocRule } : {}).then(r => r.data)
 
-export const reapplySubmit = (items: ReapplySubmitItem[]) =>
-  apiClient.post<{ updated: number }>('/import/reapply-submit', items).then(r => r.data)
+export const categoryRulesSubmit = (items: ReapplySubmitItem[]) =>
+  apiClient.post<{ updated: number }>('/import/category-rules-submit', items).then(r => r.data)

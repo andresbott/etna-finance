@@ -15,8 +15,8 @@ import {
     parseCSV,
     submitImport,
     previewCSV,
-    reapplyPreview,
-    reapplySubmit,
+    categoryRulesPreview,
+    categoryRulesSubmit,
 } from './CsvImport'
 import type {
     ImportProfile,
@@ -357,10 +357,10 @@ describe('previewCSV', () => {
     })
 })
 
-// --- Reapply ---
+// --- Category rules preview / submit ---
 
-describe('reapplyPreview', () => {
-    it('calls POST /import/reapply-preview and returns rows', async () => {
+describe('categoryRulesPreview', () => {
+    it('calls POST /import/category-rules-preview with empty body when no adhocRule', async () => {
         const mockReapplyRows: ReapplyRow[] = [{
             transactionId: 1,
             transactionType: 'expense',
@@ -377,16 +377,28 @@ describe('reapplyPreview', () => {
         }];
         (apiClient.post as Mock).mockResolvedValue({ data: mockReapplyRows })
 
-        const result = await reapplyPreview()
+        const result = await categoryRulesPreview()
 
-        expect(apiClient.post).toHaveBeenCalledWith('/import/reapply-preview')
+        expect(apiClient.post).toHaveBeenCalledWith('/import/category-rules-preview', {})
+        expect(apiClient.post).toHaveBeenCalledTimes(1)
+        expect(result).toEqual(mockReapplyRows)
+    })
+
+    it('calls POST /import/category-rules-preview with adhocRule when provided', async () => {
+        const mockReapplyRows: ReapplyRow[] = [];
+        (apiClient.post as Mock).mockResolvedValue({ data: mockReapplyRows })
+
+        const adhocRule = { categoryId: 5, pattern: 'grocery', isRegex: false }
+        const result = await categoryRulesPreview(adhocRule)
+
+        expect(apiClient.post).toHaveBeenCalledWith('/import/category-rules-preview', { adhocRule })
         expect(apiClient.post).toHaveBeenCalledTimes(1)
         expect(result).toEqual(mockReapplyRows)
     })
 })
 
-describe('reapplySubmit', () => {
-    it('calls POST /import/reapply-submit with items and returns count', async () => {
+describe('categoryRulesSubmit', () => {
+    it('calls POST /import/category-rules-submit with items and returns count', async () => {
         const items: ReapplySubmitItem[] = [{
             transactionId: 1,
             transactionType: 'expense',
@@ -394,9 +406,9 @@ describe('reapplySubmit', () => {
         }];
         (apiClient.post as Mock).mockResolvedValue({ data: { updated: 1 } })
 
-        const result = await reapplySubmit(items)
+        const result = await categoryRulesSubmit(items)
 
-        expect(apiClient.post).toHaveBeenCalledWith('/import/reapply-submit', items)
+        expect(apiClient.post).toHaveBeenCalledWith('/import/category-rules-submit', items)
         expect(apiClient.post).toHaveBeenCalledTimes(1)
         expect(result).toEqual({ updated: 1 })
     })

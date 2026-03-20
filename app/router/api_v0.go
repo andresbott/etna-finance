@@ -663,8 +663,8 @@ const importCategoryRuleGroupPath = "/import/category-rule-groups"
 const importParsePath = "/import/parse"
 const importSubmitPath = "/import/submit"
 const importPreviewPath = "/import/preview"
-const importReapplyPreviewPath = "/import/reapply-preview"
-const importReapplySubmitPath = "/import/reapply-submit"
+const importCategoryRulesPreviewPath = "/import/category-rules-preview"
+const importCategoryRulesSubmitPath = "/import/category-rules-submit"
 
 func (h *MainAppHandler) csvImportAPI(r *mux.Router) {
 	profileHndlr := csvimportHandler.ProfileHandler{Store: h.csvImportStore}
@@ -819,20 +819,20 @@ func (h *MainAppHandler) csvImportParseRoutes(r *mux.Router, importHndlr csvimpo
 }
 
 func (h *MainAppHandler) csvImportReapplyRoutes(r *mux.Router, importHndlr csvimportHandler.ImportHandler) {
-	r.Path(importReapplyPreviewPath).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Path(importCategoryRulesPreviewPath).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, err := sessionauth.CtxGetUserData(r); err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
-		importHndlr.ReapplyPreview().ServeHTTP(w, r)
+		importHndlr.CategoryRulesPreview().ServeHTTP(w, r)
 	})
 
-	r.Path(importReapplySubmitPath).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Path(importCategoryRulesSubmitPath).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, err := sessionauth.CtxGetUserData(r); err != nil {
 			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
-		importHndlr.ReapplySubmit().ServeHTTP(w, r)
+		importHndlr.CategoryRulesSubmit().ServeHTTP(w, r)
 	})
 }
 

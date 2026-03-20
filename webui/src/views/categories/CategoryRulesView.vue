@@ -13,6 +13,7 @@ import Tag from 'primevue/tag'
 import Divider from 'primevue/divider'
 import { useToast } from 'primevue/usetoast'
 import CategorySelect from '@/components/common/CategorySelect.vue'
+import AdHocCategoryRuleDialog from '@/components/common/AdHocCategoryRuleDialog.vue'
 import { useCategoryUtils } from '@/utils/categoryUtils'
 import type { CategoryRuleGroup, CategoryRulePattern } from '@/types/csvimport'
 
@@ -38,6 +39,9 @@ const isLoadingRules = ref(false)
 const showGroupDialog = ref(false)
 const editingGroup = ref<CategoryRuleGroup | null>(null)
 const isSavingRule = ref(false)
+
+// ============ Ad-hoc Rule Dialog ============
+const adhocDialogRef = ref<InstanceType<typeof AdHocCategoryRuleDialog> | null>(null)
 
 const formGroupName = ref('')
 const formGroupCategoryId = ref<number | null>(null)
@@ -192,6 +196,12 @@ onMounted(() => {
             </p>
             <div class="flex gap-2 justify-content-end">
                 <Button
+                    label="Apply Ad-hoc Rule"
+                    icon="pi pi-bolt"
+                    severity="secondary"
+                    @click="adhocDialogRef?.open()"
+                />
+                <Button
                     label="Re-apply Rules"
                     icon="pi pi-sync"
                     severity="secondary"
@@ -212,8 +222,8 @@ onMounted(() => {
                     :loading="isLoadingRules"
                     dataKey="id"
                     stripedRows
-                    :paginator="categoryRuleGroups.length > 10"
-                    :rows="10"
+                    :paginator="categoryRuleGroups.length > 50"
+                    :rows="50"
                     responsiveLayout="scroll"
                 >
                     <template #empty>
@@ -313,6 +323,8 @@ onMounted(() => {
                 </div>
             </div>
         </Dialog>
+
+        <AdHocCategoryRuleDialog ref="adhocDialogRef" />
     </div>
 </template>
 

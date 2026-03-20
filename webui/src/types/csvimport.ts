@@ -76,3 +76,9 @@ export interface ReapplySubmitItem {
   transactionType: 'income' | 'expense'
   newCategoryId: number
 }
+
+export interface AdhocRule {
+  categoryId: number
+  pattern: string
+  isRegex: boolean
+}

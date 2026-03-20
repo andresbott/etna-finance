@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Button from 'primevue/button'
@@ -11,6 +11,7 @@ import { useDateFormat } from '@/composables/useDateFormat'
 import { ACCOUNT_TYPES } from '@/types/account'
 import { getAttachmentUrl } from '@/lib/api/Attachment'
 import { formatAmount, formatCurrency } from '@/utils/currency'
+import AdHocCategoryRuleDialog from '@/components/common/AdHocCategoryRuleDialog.vue'
 
 /* --- Props --- */
 const props = defineProps({
@@ -105,6 +106,8 @@ const openAttachment = (data) => {
     window.open(getAttachmentUrl(data.id), '_blank')
 }
 
+const adhocDialogRef = ref(null)
+
 /* --- Balance (cash accounts only) --- */
 const entriesWithBalance = computed(() => {
     if (!props.entries || props.entries.length === 0 || isInstrumentAccount.value) return props.entries ?? []
@@ -183,7 +186,17 @@ const tableEntries = computed(() =>
                     </template>
                 </Column>
 
-                <Column field="categoryId" header="Category">
+                <Column field="categoryId">
+                    <template #header>
+                        <span class="font-semibold">Category</span>
+                        <Button
+                            icon="pi pi-bolt"
+                            text
+                            size="small"
+                            class="ml-1 p-0 no-hover"
+                            @click="adhocDialogRef?.open()"
+                        />
+                    </template>
                     <template #body="{ data }">
                         <span v-if="data.type === 'expense' || data.type === 'income'" :class="{ 'unclassified': !data.categoryId }" class="category-cell">
                             <i :class="['pi', getCategoryIcon(data.categoryId, data.type)]"></i>
@@ -389,6 +402,7 @@ const tableEntries = computed(() =>
                     </template>
                 </Column>
             </DataTable>
+            <AdHocCategoryRuleDialog ref="adhocDialogRef" />
         </template>
     </Card>
 </template>
@@ -412,5 +426,8 @@ const tableEntries = computed(() =>
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
+}
+:deep(.no-hover:hover) {
+    background: transparent !important;
 }
 </style>

@@ -10,7 +10,7 @@ import Card from 'primevue/card'
 import Checkbox from 'primevue/checkbox'
 import ProgressSpinner from 'primevue/progressspinner'
 
-import { reapplyPreview, reapplySubmit } from '@/lib/api/CsvImport'
+import { categoryRulesPreview, categoryRulesSubmit } from '@/lib/api/CsvImport'
 import { useDateFormat } from '@/composables/useDateFormat'
 import { getEntryTypeIcon } from '@/utils/entryDisplay'
 import { getApiErrorMessage } from '@/utils/apiError'
@@ -52,7 +52,9 @@ const getRowClass = (data) => ({
 const loadPreview = async () => {
     isLoading.value = true
     try {
-        const result = await reapplyPreview()
+        /** @type {import('@/types/csvimport').AdhocRule | undefined} */
+        const adhocRule = history.state?.adhocRule
+        const result = await categoryRulesPreview(adhocRule)
         rows.value = result
         const checked = {}
         for (const row of result) {
@@ -85,7 +87,7 @@ const handleSubmit = async () => {
 
     isSubmitting.value = true
     try {
-        const result = await reapplySubmit(selected)
+        const result = await categoryRulesSubmit(selected)
         toast.add({
             severity: 'success',
             summary: 'Categories updated',
@@ -188,7 +190,7 @@ onMounted(() => {
                             </Column>
 
                             <!-- Amount -->
-                            <Column field="amount" header="Amount" bodyStyle="text-align: right" style="width: 6rem">
+                            <Column field="amount" header="Amount" bodyStyle="text-align: right; white-space: nowrap" style="width: 8rem">
                                 <template #body="{ data }">
                                     <div class="amount" :class="data.transactionType === 'expense' ? 'expense' : 'income'">
                                         <template v-if="data.transactionType === 'expense'">-</template>
