@@ -20,7 +20,7 @@ const props = defineProps({
     providerId: { type: Number, default: null },
     name: { type: String, default: '' },
     description: { type: String, default: '' },
-    icon: { type: String, default: 'pi-chart-bar' },
+    icon: { type: String, default: 'ti-chart-bar' },
     visible: { type: Boolean, default: false }
 })
 
@@ -37,7 +37,7 @@ const formValues = ref({
 
 watch(props, (newProps) => {
     formValues.value = { ...newProps }
-    selectedIcon.value = newProps.icon || 'pi-chart-bar'
+    selectedIcon.value = newProps.icon || 'ti-chart-bar'
 })
 
 const resolver = ref(

@@ -104,7 +104,7 @@ const filtersExpanded = ref(
                         @change="refetch"
                     />
                     <Button
-                        :icon="filtersExpanded ? 'pi pi-filter-slash' : 'pi pi-filter'"
+                        :icon="filtersExpanded ? 'ti ti-filter-off' : 'ti ti-filter'"
                         :severity="filtersExpanded ? 'primary' : 'secondary'"
                         :outlined="!filtersExpanded"
                         class="filter-btn"

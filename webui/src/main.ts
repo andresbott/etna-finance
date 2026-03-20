@@ -5,7 +5,7 @@ import App from './App.vue'
 import CustomTheme from '@/theme.js'
 
 import 'primeflex/primeflex.css'
-import 'primeicons/primeicons.css'
+import '@tabler/icons-webfont/dist/tabler-icons-300.min.css'
 import '@/assets/style.scss'
 
 import PrimeVue from 'primevue/config'

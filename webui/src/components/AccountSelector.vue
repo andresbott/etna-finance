@@ -74,12 +74,12 @@ const accountsTree = computed(() => {
             return {
                 key: `provider-${provider.id}`,
                 label: provider.name,
-                icon: `pi ${provider.icon || 'pi-building'}`,
+                icon: `ti ti-${provider.icon || 'building-bank'}`,
                 selectable: false,
                 children: filteredAccounts.map((account) => ({
                     key: account.id,
                     label: `${account.name} (${account.currency})`,
-                    icon: `pi ${account.icon || 'pi-wallet'}`,
+                    icon: `ti ti-${account.icon || 'wallet'}`,
                     provider: provider.name,
                     data: account
                 }))
@@ -294,7 +294,7 @@ const handleSelectionChange = (val) => {
             <!-- Selected value display template -->
             <template #value>
                 <div v-if="selectedTreeNode" class="flex items-center gap-2">
-                    <i :class="['pi', selectedTreeNode.data?.icon || 'pi-wallet']"></i>
+                    <i :class="['ti', `ti-${selectedTreeNode.data?.icon || 'wallet'}`]"></i>
                     {{ selectedTreeNode.provider }}/{{ selectedTreeNode.label }}
                 </div>
                 <span v-else>{{ placeholder }}</span>

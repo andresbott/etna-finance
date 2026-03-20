@@ -12,7 +12,7 @@ const settings = useSettingsStore()
         <!-- Info message -->
         <Message severity="info" :closable="false" class="info-message">
             <div class="info-content">
-                <i class="pi pi-info-circle"></i>
+                <i class="ti ti-info-circle"></i>
                 <span>
                     These settings are controlled by the server configuration file and cannot be changed from the UI.
                     <!-- TODO: add link to documentation once available -->
@@ -24,14 +24,14 @@ const settings = useSettingsStore()
         <!-- Error state -->
         <Message v-if="settings.error" severity="error" :closable="false" class="info-message">
             <div class="info-content">
-                <i class="pi pi-exclamation-triangle"></i>
+                <i class="ti ti-alert-triangle"></i>
                 <span>Failed to load settings: {{ settings.error }}</span>
             </div>
         </Message>
 
         <!-- Loading state -->
         <div v-if="settings.isLoading" class="flex justify-content-center p-5">
-            <i class="pi pi-spin pi-spinner" style="font-size: 2rem"></i>
+            <i class="ti ti-loader-2 spin-icon" style="font-size: 2rem"></i>
         </div>
 
         <div v-else-if="settings.isLoaded" class="flex flex-column gap-3">
@@ -39,7 +39,7 @@ const settings = useSettingsStore()
             <Card>
                 <template #title>
                     <div class="flex align-items-center gap-2">
-                        <i class="pi pi-cog"></i>
+                        <i class="ti ti-settings"></i>
                         <span>General Settings</span>
                     </div>
                 </template>
@@ -47,7 +47,7 @@ const settings = useSettingsStore()
                     <div class="settings-list">
                         <div class="setting-item">
                             <div class="setting-label">
-                                <i class="pi pi-calendar mr-2"></i>
+                                <i class="ti ti-calendar mr-2"></i>
                                 <span>Date Format</span>
                             </div>
                             <div class="setting-value">
@@ -62,7 +62,7 @@ const settings = useSettingsStore()
             <Card>
                 <template #title>
                     <div class="flex align-items-center gap-2">
-                        <i class="pi pi-dollar"></i>
+                        <i class="ti ti-currency-dollar"></i>
                         <span>Currencies</span>
                     </div>
                 </template>
@@ -70,7 +70,7 @@ const settings = useSettingsStore()
                     <div class="settings-list">
                         <div class="setting-item">
                             <div class="setting-label">
-                                <i class="pi pi-wallet mr-2"></i>
+                                <i class="ti ti-wallet mr-2"></i>
                                 <span>Main Currency</span>
                             </div>
                             <div class="setting-value">
@@ -80,7 +80,7 @@ const settings = useSettingsStore()
 
                         <div class="setting-item">
                             <div class="setting-label">
-                                <i class="pi pi-list mr-2"></i>
+                                <i class="ti ti-list mr-2"></i>
                                 <span>Available Currencies</span>
                             </div>
                             <div class="setting-value">
@@ -102,7 +102,7 @@ const settings = useSettingsStore()
             <Card>
                 <template #title>
                     <div class="flex align-items-center gap-2">
-                        <i class="pi pi-star"></i>
+                        <i class="ti ti-star"></i>
                         <span>Features</span>
                     </div>
                 </template>
@@ -110,7 +110,7 @@ const settings = useSettingsStore()
                     <div class="settings-list">
                         <div class="setting-item">
                             <div class="setting-label">
-                                <i class="pi pi-chart-line mr-2"></i>
+                                <i class="ti ti-chart-line mr-2"></i>
                                 <span>Investment Products</span>
                             </div>
                             <div class="setting-value">
@@ -122,7 +122,7 @@ const settings = useSettingsStore()
                         </div>
                         <div class="setting-item">
                             <div class="setting-label">
-                                <i class="pi pi-calculator mr-2"></i>
+                                <i class="ti ti-calculator mr-2"></i>
                                 <span>Financial Tools</span>
                             </div>
                             <div class="setting-value">

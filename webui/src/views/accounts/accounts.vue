@@ -48,7 +48,7 @@ const treeTableData = computed(() => {
                 name: account.name,
                 type: account.type,
                 currency: account.currency,
-                icon: account.icon || 'pi-wallet'
+                icon: account.icon || 'ti-wallet'
             }
         })) || []
 
@@ -62,7 +62,7 @@ const treeTableData = computed(() => {
                 id: provider.id,
                 name: provider.name,
                 description: provider.description,
-                icon: provider.icon || 'pi-building'
+                icon: provider.icon || 'ti-building-bank'
             },
             children
         }
@@ -93,7 +93,7 @@ const editProvider = (provider) => {
 const addAccountToProvider = (provider) => {
     selectedAccount.value = {
         providerId: provider.data.id,
-        icon: 'pi-wallet'
+        icon: 'ti-wallet'
     }
     isEdit.value = false
     accountDialogVisible.value = true
@@ -143,7 +143,7 @@ const handleDeleteProvider = async () => {
                     aria-label="About accounts"
                     v-tooltip.top="'About accounts'"
                 >
-                    <Button icon="pi pi-question-circle" text rounded severity="secondary" class="p-button-sm" />
+                    <Button icon="ti ti-help-circle" text rounded severity="secondary" class="p-button-sm" />
                 </a>
             </div>
             <p class="text-color-secondary m-0 mb-3 text-base">
@@ -152,7 +152,7 @@ const handleDeleteProvider = async () => {
             <div class="flex justify-content-end">
                 <Button
                     label="Add Account Provider"
-                    icon="pi pi-plus"
+                    icon="ti ti-plus"
                     @click="openNewProviderDialog"
                 />
             </div>
@@ -177,7 +177,7 @@ const handleDeleteProvider = async () => {
                         <Column field="name" header="Name" expander>
                             <template #body="{ node }">
                                 <div class="flex align-items-center gap-2">
-                                    <i :class="['pi', node.data.icon]" class="text-color-secondary"></i>
+                                    <i :class="['ti', `ti-${node.data.icon}`]" class="text-color-secondary"></i>
                                     <span>{{ node.data.name }}</span>
                                 </div>
                             </template>
@@ -207,7 +207,7 @@ const handleDeleteProvider = async () => {
                                     :class="{ 'actions-row--indent': !node.children }"
                                 >
                                     <Button
-                                        icon="pi pi-plus"
+                                        icon="ti ti-plus"
                                         v-if="node.children"
                                         text
                                         rounded
@@ -215,7 +215,7 @@ const handleDeleteProvider = async () => {
                                         @click="addAccountToProvider(node)"
                                     />
                                     <Button
-                                        icon="pi pi-pencil"
+                                        icon="ti ti-pencil"
                                         text
                                         rounded
                                         class="p-1"
@@ -224,7 +224,7 @@ const handleDeleteProvider = async () => {
                                         "
                                     />
                                     <Button
-                                        icon="pi pi-trash"
+                                        icon="ti ti-trash"
                                         text
                                         rounded
                                         severity="danger"

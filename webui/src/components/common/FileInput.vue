@@ -6,7 +6,7 @@ const props = defineProps({
     accept: { type: String, default: '' },
     modelValue: { type: [File, null], default: null },
     label: { type: String, default: 'Choose file' },
-    icon: { type: String, default: 'pi pi-upload' },
+    icon: { type: String, default: 'ti ti-upload' },
     disabled: { type: Boolean, default: false }
 })
 
@@ -43,11 +43,11 @@ const clearFile = () => {
         />
         <div v-if="fileName" class="file-input-selected">
             <span class="file-input-name">
-                <i class="pi pi-file"></i>
+                <i class="ti ti-file"></i>
                 {{ fileName }}
             </span>
             <Button
-                icon="pi pi-times"
+                icon="ti ti-x"
                 text
                 rounded
                 severity="danger"

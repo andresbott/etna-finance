@@ -166,7 +166,7 @@ const openAttachment = (data) => {
                         <template #body="{ data }">
                             <Button
                                 v-if="data.attachmentId"
-                                icon="pi pi-paperclip"
+                                icon="ti ti-paperclip"
                                 text
                                 rounded
                                 size="small"
@@ -179,17 +179,17 @@ const openAttachment = (data) => {
                         <template #body="{ data }">
                             <span v-if="data.type === 'transfer'">
                                 {{ getAccountName(data.originAccountId) }}
-                                <i class="pi pi-arrow-right" style="font-size: 0.9rem; margin: 0 8px" />
+                                <i class="ti ti-arrow-right" style="font-size: 0.9rem; margin: 0 8px" />
                                 {{ getAccountName(data.targetAccountId) }}
                             </span>
                             <span v-else-if="data.type === 'stockbuy' || data.type === 'stocksell'">
                                 {{ getAccountName(data.cashAccountId) }}
-                                <i class="pi pi-arrow-right" style="font-size: 0.9rem; margin: 0 8px" />
+                                <i class="ti ti-arrow-right" style="font-size: 0.9rem; margin: 0 8px" />
                                 {{ getAccountName(data.investmentAccountId) }}
                             </span>
                             <span v-else-if="data.type === 'stocktransfer'">
                                 {{ getAccountName(data.originAccountId) }}
-                                <i class="pi pi-arrow-right" style="font-size: 0.9rem; margin: 0 8px" />
+                                <i class="ti ti-arrow-right" style="font-size: 0.9rem; margin: 0 8px" />
                                 {{ getAccountName(data.targetAccountId) }}
                             </span>
                             <span v-else-if="data.type === 'stockgrant'">
@@ -208,7 +208,7 @@ const openAttachment = (data) => {
                             <div v-if="data.type === 'transfer'" class="amount transfer">
                                 {{ data.originAmount != null ? formatAmount(data.originAmount) : '0.00' }}
                                 {{ getAccountCurrency(data.originAccountId) }}
-                                <i class="pi pi-arrow-right" style="font-size: 0.9rem; margin: 0 8px" />
+                                <i class="ti ti-arrow-right" style="font-size: 0.9rem; margin: 0 8px" />
                                 {{ formatAmount(data.targetAmount ?? 0) }}
                                 {{ getAccountCurrency(data.targetAccountId) }}
                             </div>
@@ -248,9 +248,9 @@ const openAttachment = (data) => {
                     <Column header="Actions" style="width: 120px">
                         <template #body="{ data }">
                             <div class="flex gap-2 justify-content-start">
-                                <Button icon="pi pi-pencil" text rounded class="p-1" @click="handleEdit(data)" v-tooltip.bottom="'Edit'" />
-                                <Button icon="pi pi-copy" text rounded class="p-1" @click="handleDuplicate(data)" v-tooltip.bottom="'Duplicate'" />
-                                <Button icon="pi pi-trash" text rounded severity="danger" class="p-1" :loading="isDeleting" @click="handleDelete(data)" v-tooltip.bottom="'Delete'" />
+                                <Button icon="ti ti-pencil" text rounded class="p-1" @click="handleEdit(data)" v-tooltip.bottom="'Edit'" />
+                                <Button icon="ti ti-copy" text rounded class="p-1" @click="handleDuplicate(data)" v-tooltip.bottom="'Duplicate'" />
+                                <Button icon="ti ti-trash" text rounded severity="danger" class="p-1" :loading="isDeleting" @click="handleDelete(data)" v-tooltip.bottom="'Delete'" />
                             </div>
                         </template>
                     </Column>
@@ -274,7 +274,7 @@ const openAttachment = (data) => {
                         <template #body="{ data }">
                             <Button
                                 v-if="data.attachmentId"
-                                icon="pi pi-paperclip"
+                                icon="ti ti-paperclip"
                                 text
                                 rounded
                                 size="small"
@@ -289,21 +289,21 @@ const openAttachment = (data) => {
                             <span v-if="data.type === 'transfer'">
                                 {{ getAccountName(data.originAccountId)
                                 }}<i
-                                    class="pi pi-arrow-right"
+                                    class="ti ti-arrow-right"
                                     style="font-size: 0.9rem; margin: 0 8px"
                                 />{{ getAccountName(data.targetAccountId) }}
                             </span>
                             <span v-else-if="data.type === 'stockbuy' || data.type === 'stocksell'">
                                 {{ getAccountName(data.cashAccountId)
                                 }}<i
-                                    class="pi pi-arrow-right"
+                                    class="ti ti-arrow-right"
                                     style="font-size: 0.9rem; margin: 0 8px"
                                 />{{ getAccountName(data.investmentAccountId) }}
                             </span>
                             <span v-else-if="data.type === 'stocktransfer'">
                                 {{ getAccountName(data.originAccountId)
                                 }}<i
-                                    class="pi pi-arrow-right"
+                                    class="ti ti-arrow-right"
                                     style="font-size: 0.9rem; margin: 0 8px"
                                 />{{ getAccountName(data.targetAccountId) }}
                             </span>
@@ -336,7 +336,7 @@ const openAttachment = (data) => {
                             {{ data.originAmount != null ? formatAmount(data.originAmount) : '0.00' }}
                             {{ getAccountCurrency(data.originAccountId) }}
                             <i
-                                class="pi pi-arrow-right"
+                                class="ti ti-arrow-right"
                                 style="font-size: 0.9rem; margin: 0 8px"
                             />
                             {{ formatAmount(data.targetAmount) }}
@@ -348,7 +348,7 @@ const openAttachment = (data) => {
                                 @ {{ formatAmount((data.costBasis ?? data.StockAmount) / data.quantity) }}
                                 {{ getInstrumentCurrency(data.instrumentId) }}
                                 <i
-                                    class="pi pi-arrow-right"
+                                    class="ti ti-arrow-right"
                                     style="font-size: 0.9rem; margin: 0 8px"
                                 />
                                 <span :class="isStockSell(data) ? 'stock-trade-total sell' : 'stock-trade-total buy'">{{ isStockSell(data) ? '+' : '' }}{{ formatAmount(stockTradeTotalAmount(data)) }} {{ getAccountCurrency(data.cashAccountId) }}</span>
@@ -358,7 +358,7 @@ const openAttachment = (data) => {
                             </template>
                             <template v-else-if="data.quantity && data.totalAmount != null">
                                 ({{ getInstrumentSymbol(data.instrumentId) }}) {{ data.quantity }}
-                                <i class="pi pi-arrow-right" style="font-size: 0.9rem; margin: 0 8px" />
+                                <i class="ti ti-arrow-right" style="font-size: 0.9rem; margin: 0 8px" />
                                 <span :class="isStockSell(data) ? 'stock-trade-total sell' : 'stock-trade-total buy'">{{ isStockSell(data) ? '+' : '' }}{{ formatAmount(stockTradeTotalAmount(data)) }} {{ getAccountCurrency(data.cashAccountId) }}</span>
                             </template>
                             <template v-else>—</template>
@@ -387,7 +387,7 @@ const openAttachment = (data) => {
                         <template #body="{ data }">
                             <div class="flex gap-2 justify-content-start">
                                 <Button
-                                    icon="pi pi-pencil"
+                                    icon="ti ti-pencil"
                                     text
                                     rounded
                                     class="p-1"
@@ -395,7 +395,7 @@ const openAttachment = (data) => {
                                     v-tooltip.bottom="'Edit'"
                                 />
                                 <Button
-                                    icon="pi pi-copy"
+                                    icon="ti ti-copy"
                                     text
                                     rounded
                                     class="p-1"
@@ -403,7 +403,7 @@ const openAttachment = (data) => {
                                     v-tooltip.bottom="'Duplicate'"
                                 />
                                 <Button
-                                    icon="pi pi-trash"
+                                    icon="ti ti-trash"
                                     text
                                     rounded
                                     severity="danger"

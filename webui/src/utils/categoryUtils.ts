@@ -76,10 +76,10 @@ export function useCategoryUtils() {
     }
 
     const getCategoryIcon = (id: number | string, type: 'expense' | 'income') => {
-        if (!id || id === 0) return 'pi-question-circle'
+        if (!id || id === 0) return 'help-circle'
         const nodes = type === 'expense' ? ExpenseTreeData.value : IncomeTreeData.value
         const node = findNodeById(nodes, id)
-        return node?.data?.icon || 'pi-tag'
+        return node?.data?.icon || 'tag'
     }
 
     return { getCategoryName, getCategoryPath, getCategoryIcon }

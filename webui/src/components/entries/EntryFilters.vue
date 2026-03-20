@@ -58,7 +58,7 @@ const convertTree = (nodes: any[], parentPath = ''): any[] => {
         const converted: any = {
             key: String(node.data.id),
             label: node.data.name,
-            icon: `pi ${node.data.icon || 'pi-tag'}`,
+            icon: `ti ti-${node.data.icon || 'tag'}`,
             data: { ...node.data, path }
         }
         if (node.children?.length) {
@@ -78,7 +78,7 @@ const categoryTreeData = computed(() => {
     if (incomeChildren.length) {
         items.push({ key: 'income-group', label: 'Income', selectable: false, children: incomeChildren })
     }
-    items.push({ key: '0', label: 'Unclassified', icon: 'pi pi-question-circle' })
+    items.push({ key: '0', label: 'Unclassified', icon: 'ti ti-help-circle' })
     return items
 })
 

@@ -19,7 +19,7 @@ const props = defineProps({
     providerId: { type: Number, default: null },
     name: { type: String, default: '' },
     description: { type: String, default: '' },
-    icon: { type: String, default: 'pi-building' },
+    icon: { type: String, default: 'building-bank' },
     visible: { type: Boolean, default: false }
 })
 
@@ -38,7 +38,7 @@ const formValues = ref({
 // Watch props to update form values when editing
 watch(props, (newProps) => {
     formValues.value = { ...newProps }
-    selectedIcon.value = newProps.icon || 'pi-building'
+    selectedIcon.value = newProps.icon || 'building-bank'
 })
 
 const resolver = ref(

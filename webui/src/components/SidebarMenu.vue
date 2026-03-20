@@ -9,19 +9,19 @@
                     </li>
                     <li>
                         <router-link to="/reports/overview" class="menu-item">
-                            <i class="pi pi-home menu-icon"></i>
+                            <i class="ti ti-home menu-icon"></i>
                             <span class="menu-label">Overview</span>
                         </router-link>
                     </li>
                     <li>
                         <router-link to="/reports/income-expense" class="menu-item">
-                            <i class="pi pi-chart-line menu-icon"></i>
+                            <i class="ti ti-chart-line menu-icon"></i>
                             <span class="menu-label">Income/Expense</span>
                         </router-link>
                     </li>
                     <li v-if="settings.instruments">
                         <router-link to="/reports/investment" class="menu-item">
-                            <i class="pi pi-chart-pie menu-icon"></i>
+                            <i class="ti ti-chart-pie menu-icon"></i>
                             <span class="menu-label">Investment Report</span>
                         </router-link>
                     </li>
@@ -34,7 +34,7 @@
                     </li>
                     <li>
                         <router-link to="/entries" class="menu-item">
-                            <i class="pi pi-th-large menu-icon"></i>
+                            <i class="ti ti-layout-grid menu-icon"></i>
                             <span class="menu-label">All Transactions</span>
                         </router-link>
                     </li>
@@ -43,10 +43,10 @@
                             @click="expandAllAccounts"
                             class="menu-item"
                         >
-                            <i class="pi pi-filter menu-icon"></i>
+                            <i class="ti ti-filter menu-icon"></i>
                             <span class="menu-label">Cash accounts</span>
-                            <i 
-                                class="pi pi-chevron-down menu-toggle" 
+                            <i
+                                class="ti ti-chevron-down menu-toggle"
                                 :class="{ 'rotate-180': isMyAccountsExpanded }"
                             ></i>
                         </a>
@@ -54,7 +54,7 @@
                         <ul class="menu-submenu" :class="{ hidden: !isMyAccountsExpanded }">
                             <li v-for="provider in accountsCashOnly" :key="provider.id">
                                 <div class="menu-item submenu-item menu-item-label">
-                                    <i :class="['pi', provider.icon || 'pi-building', 'menu-icon']"></i>
+                                    <i :class="['ti', `ti-${provider.icon || 'building-bank'}`, 'menu-icon']"></i>
                                     <span class="menu-label">{{ provider.name }}</span>
                                 </div>
 
@@ -64,7 +64,7 @@
                                             :to="`/entries/${account.id}`"
                                             class="menu-item submenu-item"
                                         >
-                                            <i :class="['pi', account.icon || 'pi-wallet', 'menu-icon']"></i>
+                                            <i :class="['ti', `ti-${account.icon || 'wallet'}`, 'menu-icon']"></i>
                                             <span class="menu-label">{{ account.name }}</span>
                                         </router-link>
                                     </li>
@@ -74,7 +74,7 @@
                     </li>
                     <li>
                         <router-link to="/financial-transactions" class="menu-item">
-                            <i class="pi pi-wallet menu-icon"></i>
+                            <i class="ti ti-wallet menu-icon"></i>
                             <span class="menu-label">Financial Transactions</span>
                         </router-link>
                     </li>
@@ -83,10 +83,10 @@
                             @click="expandAllInvestment"
                             class="menu-item"
                         >
-                            <i class="pi pi-chart-line menu-icon"></i>
+                            <i class="ti ti-chart-line menu-icon"></i>
                             <span class="menu-label">Investment</span>
                             <i
-                                class="pi pi-chevron-down menu-toggle"
+                                class="ti ti-chevron-down menu-toggle"
                                 :class="{ 'rotate-180': isInvestmentExpanded }"
                             ></i>
                         </a>
@@ -94,7 +94,7 @@
                         <ul class="menu-submenu" :class="{ hidden: !isInvestmentExpanded }">
                             <li v-for="provider in accountsInvestmentOnly" :key="provider.id">
                                 <div class="menu-item submenu-item menu-item-label">
-                                    <i :class="['pi', provider.icon || 'pi-building', 'menu-icon']"></i>
+                                    <i :class="['ti', `ti-${provider.icon || 'building-bank'}`, 'menu-icon']"></i>
                                     <span class="menu-label">{{ provider.name }}</span>
                                 </div>
 
@@ -104,7 +104,7 @@
                                             :to="`/entries/${account.id}`"
                                             class="menu-item submenu-item"
                                         >
-                                            <i :class="['pi', account.icon || 'pi-wallet', 'menu-icon']"></i>
+                                            <i :class="['ti', `ti-${account.icon || 'wallet'}`, 'menu-icon']"></i>
                                             <span class="menu-label">{{ account.name }}</span>
                                         </router-link>
                                     </li>
@@ -121,13 +121,13 @@
                     </li>
                     <li>
                         <router-link to="/market-data/currency-exchange" class="menu-item">
-                            <i class="pi pi-dollar menu-icon"></i>
+                            <i class="ti ti-currency-dollar menu-icon"></i>
                             <span class="menu-label">Currency Exchange</span>
                         </router-link>
                     </li>
                     <li v-if="settings.instruments">
                         <router-link to="/market-data/stock-market" class="menu-item">
-                            <i class="pi pi-chart-line menu-icon"></i>
+                            <i class="ti ti-chart-line menu-icon"></i>
                             <span class="menu-label">Stock Market</span>
                         </router-link>
                     </li>
@@ -141,7 +141,7 @@
                         </li>
                         <li>
                             <router-link to="/financial-simulator" class="menu-item">
-                                <i class="pi pi-calculator menu-icon"></i>
+                                <i class="ti ti-calculator menu-icon"></i>
                                 <span class="menu-label">Financial Simulator</span>
                             </router-link>
                         </li>
@@ -152,7 +152,7 @@
                     <!-- SETTINGS SECTION -->
                     <li>
                         <router-link to="/settings" class="menu-item">
-                            <i class="pi pi-cog menu-icon"></i>
+                            <i class="ti ti-settings menu-icon"></i>
                             <span class="menu-label">System</span>
                         </router-link>
                     </li>
@@ -333,7 +333,7 @@ const expandAllInvestment = () => {
 /* Icons */
 .menu-icon {
     margin-right: 0.75rem;
-    font-size: 1.125rem;
+    font-size: 1.35rem;
     line-height: 1 !important;
     color: var(--c-primary-50);
     transition: all 0.2s ease;

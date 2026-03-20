@@ -14,21 +14,21 @@ const sections = computed(() => {
         {
             title: 'Settings',
             items: [
-                { label: 'Configuration', icon: 'pi pi-cog', route: '/settings/configuration' }
+                { label: 'Configuration', icon: 'ti ti-settings', route: '/settings/configuration' }
             ]
         },
         {
             title: 'Accounts',
             items: [
-                { label: 'Account Setup', icon: 'pi pi-wallet', route: '/settings/accounts' },
-                { label: 'CSV Import', icon: 'pi pi-file-import', route: '/settings/csv-profiles' },
+                { label: 'Account Setup', icon: 'ti ti-wallet', route: '/settings/accounts' },
+                { label: 'CSV Import', icon: 'ti ti-file-import', route: '/settings/csv-profiles' },
             ]
         },
         {
             title: 'Categories',
             items: [
-                { label: 'Categories', icon: 'pi pi-tags', route: '/settings/categories' },
-                { label: 'Category Rules', icon: 'pi pi-bolt', route: '/settings/category-rules' },
+                { label: 'Categories', icon: 'ti ti-tags', route: '/settings/categories' },
+                { label: 'Category Rules', icon: 'ti ti-bolt', route: '/settings/category-rules' },
             ]
         },
     ]
@@ -37,7 +37,7 @@ const sections = computed(() => {
         result.push({
             title: 'Investments',
             items: [
-                { label: 'Investment Products', icon: 'pi pi-chart-bar', route: '/settings/instruments' }
+                { label: 'Investment Products', icon: 'ti ti-chart-bar', route: '/settings/instruments' }
             ]
         })
     }
@@ -45,8 +45,8 @@ const sections = computed(() => {
     result.push({
         title: 'Maintenance',
         items: [
-            { label: 'Backup/Restore', icon: 'pi pi-database', route: '/settings/backup-restore' },
-            { label: 'Tasks', icon: 'pi pi-briefcase', route: '/settings/tasks' },
+            { label: 'Backup/Restore', icon: 'ti ti-database', route: '/settings/backup-restore' },
+            { label: 'Tasks', icon: 'ti ti-briefcase', route: '/settings/tasks' },
         ]
     })
 
@@ -115,6 +115,10 @@ const sections = computed(() => {
 
 :deep(.p-button-label) {
     font-weight: 500;
+}
+
+:deep(.p-button-icon) {
+    font-size: 1.35rem;
 }
 
 :deep(.p-button:disabled) {

@@ -70,47 +70,47 @@ const allDropdownOptions = [
     {
         label: 'Add Expense',
         value: 'expense',
-        icon: 'pi pi-minus'
+        icon: 'ti ti-minus'
     },
     {
         label: 'Add Income',
         value: 'income',
-        icon: 'pi pi-plus'
+        icon: 'ti ti-plus'
     },
     {
         label: 'Add Transfer',
         value: 'transfer',
-        icon: 'pi pi-arrow-right-arrow-left'
+        icon: 'ti ti-arrows-left-right'
     },
     {
         label: 'Buy instrument',
         value: 'buyStock',
-        icon: 'pi pi-arrow-down-left'
+        icon: 'ti ti-arrow-down-left'
     },
     {
         label: 'Sell instrument',
         value: 'sellStock',
-        icon: 'pi pi-arrow-up-right'
+        icon: 'ti ti-arrow-up-right'
     },
     {
         label: 'Grant instrument',
         value: 'grantStock',
-        icon: 'pi pi-gift'
+        icon: 'ti ti-gift'
     },
     {
         label: 'Transfer instrument',
         value: 'transferInstrument',
-        icon: 'pi pi-arrow-right-arrow-left'
+        icon: 'ti ti-arrows-left-right'
     },
     {
         label: 'Balance Status',
         value: 'balanceStatus',
-        icon: 'pi pi-calculator'
+        icon: 'ti ti-calculator'
     },
     {
         label: 'Import CSV',
         value: 'importCsv',
-        icon: 'pi pi-upload'
+        icon: 'ti ti-upload'
     }
 ]
 
@@ -151,7 +151,7 @@ const dropdownOptions = computed(() => {
             <template #value="slotProps">
                 <span v-if="slotProps.value">{{ slotProps.value }}</span>
                 <span v-else class="placeholder-text">
-                    <i class="pi pi-plus" style="margin-right: 0.5rem;"></i>
+                    <i class="ti ti-plus" style="margin-right: 0.5rem;"></i>
                     Add Entry
                 </span>
             </template>

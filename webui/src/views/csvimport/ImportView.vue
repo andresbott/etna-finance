@@ -214,7 +214,7 @@ const checkedCount = computed(() => {
             <!-- Header -->
             <div class="toolbar">
                 <div class="toolbar-left">
-                    <Button icon="pi pi-arrow-left" text rounded @click="handleBack" v-tooltip.bottom="'Back to entries'" class="mr-2" />
+                    <Button icon="ti ti-arrow-left" text rounded @click="handleBack" v-tooltip.bottom="'Back to entries'" class="mr-2" />
                     <h2 class="account-title">
                         Import CSV — {{ accountTitle }}
                     </h2>
@@ -236,7 +236,7 @@ const checkedCount = computed(() => {
                             <div class="upload-actions">
                                 <Button
                                     label="Parse"
-                                    icon="pi pi-upload"
+                                    icon="ti ti-upload"
                                     :loading="isParsing"
                                     :disabled="!selectedFile"
                                     @click="handleParse"
@@ -261,13 +261,13 @@ const checkedCount = computed(() => {
                 <!-- Summary Bar -->
                 <div class="summary-bar">
                     <span class="summary-item summary-new">
-                        <i class="pi pi-check-circle"></i> {{ summary.newCount }} new
+                        <i class="ti ti-circle-check"></i> {{ summary.newCount }} new
                     </span>
                     <span class="summary-item summary-duplicate">
-                        <i class="pi pi-copy"></i> {{ summary.duplicateCount }} duplicates
+                        <i class="ti ti-copy"></i> {{ summary.duplicateCount }} duplicates
                     </span>
                     <span class="summary-item summary-error">
-                        <i class="pi pi-exclamation-triangle"></i> {{ summary.errorCount }} errors
+                        <i class="ti ti-alert-triangle"></i> {{ summary.errorCount }} errors
                     </span>
                 </div>
 
@@ -289,7 +289,7 @@ const checkedCount = computed(() => {
                                         v-model="checkedRows[data.rowNumber]"
                                         :binary="true"
                                     />
-                                    <i v-else class="pi pi-exclamation-triangle" style="color: var(--red-500)" v-tooltip.bottom="data.importError" />
+                                    <i v-else class="ti ti-alert-triangle" style="color: var(--red-500)" v-tooltip.bottom="data.importError" />
                                 </template>
                             </Column>
 
@@ -356,7 +356,7 @@ const checkedCount = computed(() => {
                 <div class="preview-actions">
                     <Button
                         :label="`Import Selected (${checkedCount})`"
-                        icon="pi pi-check"
+                        icon="ti ti-check"
                         :loading="isSubmitting"
                         :disabled="checkedCount === 0"
                         @click="handleImport"
@@ -364,7 +364,7 @@ const checkedCount = computed(() => {
                     <Button
                         label="Cancel"
                         severity="secondary"
-                        icon="pi pi-times"
+                        icon="ti ti-x"
                         @click="handleCancel"
                     />
                 </div>

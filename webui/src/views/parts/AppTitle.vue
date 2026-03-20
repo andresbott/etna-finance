@@ -1,6 +1,4 @@
 <script setup>
-import { PrimeIcons } from '@primevue/core/api'
-
 defineProps({
     icon: {
         type: String,
@@ -15,7 +13,7 @@ defineProps({
 
 <template>
     <div class="app-icon-text">
-        <i :class="icon" class="pi app-icon"></i>
+        <i :class="icon" class="ti app-icon"></i>
         <span v-if="text" class="app-text">{{ text }}</span>
     </div>
 </template>
@@ -31,7 +29,7 @@ defineProps({
 }
 
 .app-icon {
-    font-size: 1.5rem;
+    font-size: 1.75rem !important;
     color: var(--c-primary-50);
 }
 

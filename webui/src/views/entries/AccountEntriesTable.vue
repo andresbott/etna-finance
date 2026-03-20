@@ -176,7 +176,7 @@ const tableEntries = computed(() =>
                     <template #body="{ data }">
                         <Button
                             v-if="data.attachmentId"
-                            icon="pi pi-paperclip"
+                            icon="ti ti-paperclip"
                             text
                             rounded
                             size="small"
@@ -190,7 +190,7 @@ const tableEntries = computed(() =>
                     <template #header>
                         <span class="font-semibold">Category</span>
                         <Button
-                            icon="pi pi-bolt"
+                            icon="ti ti-bolt"
                             text
                             size="small"
                             class="ml-1 p-0 no-hover"
@@ -199,7 +199,7 @@ const tableEntries = computed(() =>
                     </template>
                     <template #body="{ data }">
                         <span v-if="data.type === 'expense' || data.type === 'income'" :class="{ 'unclassified': !data.categoryId }" class="category-cell">
-                            <i :class="['pi', getCategoryIcon(data.categoryId, data.type)]"></i>
+                            <i :class="['ti', `ti-${getCategoryIcon(data.categoryId, data.type)}`]"></i>
                             {{ getCategoryName(data.categoryId, data.type) }}
                         </span>
                     </template>
@@ -373,7 +373,7 @@ const tableEntries = computed(() =>
                         <div v-if="data.type === 'opening-balance'" class="flex align-items-center" style="height: 2.5rem"></div>
                         <div v-else class="flex gap-1 justify-content-start">
                             <Button
-                                icon="pi pi-pencil"
+                                icon="ti ti-pencil"
                                 text
                                 rounded
                                 class="p-1"
@@ -381,7 +381,7 @@ const tableEntries = computed(() =>
                                 v-tooltip.bottom="'Edit'"
                             />
                             <Button
-                                icon="pi pi-copy"
+                                icon="ti ti-copy"
                                 text
                                 rounded
                                 class="p-1"
@@ -389,7 +389,7 @@ const tableEntries = computed(() =>
                                 v-tooltip.bottom="'Duplicate'"
                             />
                             <Button
-                                icon="pi pi-trash"
+                                icon="ti ti-trash"
                                 text
                                 rounded
                                 severity="danger"

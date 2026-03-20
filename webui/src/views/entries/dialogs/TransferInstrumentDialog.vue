@@ -288,7 +288,7 @@ const handleSubmit = async (e) => {
                         </Message>
                     </div>
                     <div class="flex align-items-center pt-4">
-                        <i class="pi pi-arrow-right text-xl text-color-secondary"></i>
+                        <i class="ti ti-arrow-right text-xl text-color-secondary"></i>
                     </div>
                     <div class="flex flex-column gap-2 flex-1 transfer-instrument-accounts__cell">
                         <label for="TargetAccountId" class="form-label">To (target account)</label>
@@ -308,13 +308,13 @@ const handleSubmit = async (e) => {
                     <Button
                         type="submit"
                         label="Save"
-                        icon="pi pi-check"
+                        icon="ti ti-check"
                         :loading="isSaving"
                     />
                     <Button
                         type="button"
                         label="Cancel"
-                        icon="pi pi-times"
+                        icon="ti ti-x"
                         severity="secondary"
                         @click="$emit('update:visible', false)"
                     />

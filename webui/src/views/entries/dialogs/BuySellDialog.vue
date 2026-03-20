@@ -290,7 +290,7 @@ const handleSubmit = async (e) => {
                     </div>
 
                     <div class="flex align-items-center justify-content-center px-2">
-                        <i class="pi pi-arrow-right text-2xl"></i>
+                        <i class="ti ti-arrow-right text-2xl"></i>
                     </div>
 
                     <!-- To (right): investment + instrument + qty/price for buy; cash account + amount for sell -->
@@ -379,13 +379,13 @@ const handleSubmit = async (e) => {
                     <Button
                         type="submit"
                         label="Save"
-                        icon="pi pi-check"
+                        icon="ti ti-check"
                         :loading="isSaving"
                     />
                     <Button
                         type="button"
                         label="Cancel"
-                        icon="pi pi-times"
+                        icon="ti ti-x"
                         severity="secondary"
                         @click="$emit('update:visible', false)"
                     />

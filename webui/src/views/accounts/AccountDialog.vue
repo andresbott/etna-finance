@@ -25,7 +25,7 @@ const props = defineProps({
     name: { type: String, default: '' },
     currency: { type: String, default: 'CHF' },
     type: { type: String, default: 'cash' },
-    icon: { type: String, default: 'pi-wallet' },
+    icon: { type: String, default: 'wallet' },
     importProfileId: { type: Number, default: 0 },
     visible: { type: Boolean, default: false },
     providerId: { type: Number, required: true }
@@ -81,7 +81,7 @@ const formValues = ref({
 // Watch props to update form values when editing
 watch(props, (newProps) => {
     formValues.value = { name: newProps.name, currency: newProps.currency, type: newProps.type }
-    selectedIcon.value = newProps.icon || 'pi-wallet'
+    selectedIcon.value = newProps.icon || 'wallet'
     selectedProfileId.value = newProps.importProfileId || 0
 })
 
@@ -223,13 +223,13 @@ const onFormSubmit = async (e) => {
                         <Button
                             type="submit"
                             label="Save"
-                            icon="pi pi-check"
+                            icon="ti ti-check"
                             :loading="isCreating || isUpdating"
                         />
                         <Button
                             type="button"
                             label="Cancel"
-                            icon="pi pi-times"
+                            icon="ti ti-x"
                             severity="secondary"
                             @click="$emit('update:visible', false)"
                         />

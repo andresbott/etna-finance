@@ -124,12 +124,12 @@ const updateExample = (index, value) => {
             <template #title>
                 <div class="card-header">
                     <div class="title-section">
-                        <i class="pi pi-table"></i>
+                        <i class="ti ti-table"></i>
                         CSV Header Mapping
                     </div>
                     <div class="header-actions">
                         <Button
-                            icon="pi pi-plus"
+                            icon="ti ti-plus"
                             label="Add Column"
                             @click="addHeader"
                             outlined
@@ -171,7 +171,7 @@ const updateExample = (index, value) => {
                     >
                         <template #empty>
                             <div class="empty-state">
-                                <i class="pi pi-inbox"></i>
+                                <i class="ti ti-inbox"></i>
                                 <p>No CSV headers defined. Click "Add Column" to start.</p>
                             </div>
                         </template>
@@ -215,7 +215,7 @@ const updateExample = (index, value) => {
                         <Column header="Actions" style="width: 100px" :exportable="false">
                             <template #body="{ index }">
                                 <Button
-                                    icon="pi pi-trash"
+                                    icon="ti ti-trash"
                                     severity="danger"
                                     text
                                     rounded
@@ -229,14 +229,14 @@ const updateExample = (index, value) => {
                     <div class="editor-actions">
                         <Button
                             label="Reset"
-                            icon="pi pi-refresh"
+                            icon="ti ti-refresh"
                             severity="secondary"
                             outlined
                             @click="handleReset"
                         />
                         <Button
                             label="Save Mapping"
-                            icon="pi pi-save"
+                            icon="ti ti-device-floppy"
                             @click="handleSave"
                             :disabled="!isValid"
                         />

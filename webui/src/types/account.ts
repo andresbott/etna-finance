@@ -44,15 +44,15 @@ export const ACCOUNT_TYPES = {
 export type AccountType = typeof ACCOUNT_TYPES[keyof typeof ACCOUNT_TYPES]
 
 /**
- * Icons for each account type (PrimeIcons class names without 'pi-' prefix)
+ * Icons for each account type (Tabler icon names, prefix-free)
  */
 export const ACCOUNT_TYPE_ICONS: Record<AccountType, string> = {
-    [ACCOUNT_TYPES.CASH]: 'pi-money-bill',
-    [ACCOUNT_TYPES.CHECKING]: 'pi-credit-card',
-    [ACCOUNT_TYPES.SAVINGS]: 'pi-box',
-    [ACCOUNT_TYPES.INVESTMENT]: 'pi-chart-line',
-    [ACCOUNT_TYPES.UNVESTED]: 'pi-gift',
-    [ACCOUNT_TYPES.LENT]: 'pi-send',
+    [ACCOUNT_TYPES.CASH]: 'cash-banknote',
+    [ACCOUNT_TYPES.CHECKING]: 'credit-card',
+    [ACCOUNT_TYPES.SAVINGS]: 'box',
+    [ACCOUNT_TYPES.INVESTMENT]: 'chart-line',
+    [ACCOUNT_TYPES.UNVESTED]: 'gift',
+    [ACCOUNT_TYPES.LENT]: 'send',
 }
 
 /**
@@ -79,8 +79,8 @@ export function getAccountTypeLabel(accountType: AccountType | string | null | u
  * Get the icon for an account type, with fallback to default wallet icon.
  */
 export function getAccountTypeIcon(accountType: AccountType | string | null | undefined): string {
-    if (!accountType) return 'pi-wallet'
-    return ACCOUNT_TYPE_ICONS[accountType as AccountType] || 'pi-wallet'
+    if (!accountType) return 'wallet'
+    return ACCOUNT_TYPE_ICONS[accountType as AccountType] || 'wallet'
 }
 
 /**

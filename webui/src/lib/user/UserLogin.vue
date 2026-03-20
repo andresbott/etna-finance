@@ -69,7 +69,7 @@ const resolver = ({ values }) => {
                     <!--      USERNAME            -->
                     <InputGroup>
                         <InputGroupAddon>
-                            <i class="pi pi-user"></i>
+                            <i class="ti ti-user"></i>
                         </InputGroupAddon>
                         <InputText
                             id="username"
@@ -88,7 +88,7 @@ const resolver = ({ values }) => {
 
                     <InputGroup>
                         <InputGroupAddon>
-                            <i class="pi pi-lock"></i>
+                            <i class="ti ti-lock"></i>
                         </InputGroupAddon>
                         <Password
                             id="password"

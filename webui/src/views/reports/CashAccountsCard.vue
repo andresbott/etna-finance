@@ -88,7 +88,7 @@ const getLatestBalance = (account) => {
                         class="flex align-items-center gap-2 pb-2"
                         style="border-bottom: 1px solid rgba(0, 0, 0, 0.06)"
                     >
-                        <i :class="['pi', provider.icon || 'pi-building', 'text-primary']"></i>
+                        <i :class="['ti', `ti-${provider.icon || 'building-bank'}`, 'text-primary']"></i>
                         <span class="font-bold text-lg">{{ provider.name }}</span>
                     </div>
                     <div class="flex flex-column gap-2 ml-3">
@@ -99,7 +99,7 @@ const getLatestBalance = (account) => {
                             style="background: var(--surface-ground)"
                         >
                             <div class="flex align-items-center gap-2">
-                                <i :class="['pi', account.icon || 'pi-wallet']"></i>
+                                <i :class="['ti', `ti-${account.icon || 'wallet'}`]"></i>
                                 <span>{{ account.name }}</span>
                             </div>
                             <div class="flex align-items-center gap-2">

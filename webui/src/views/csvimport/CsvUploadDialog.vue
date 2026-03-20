@@ -79,7 +79,7 @@ const handleClose = () => {
         <template #footer>
             <Button
                 label="Parse"
-                icon="pi pi-upload"
+                icon="ti ti-upload"
                 :loading="isParsing"
                 :disabled="!selectedFile"
                 @click="handleParse"
