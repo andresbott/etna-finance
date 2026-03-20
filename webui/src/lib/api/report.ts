@@ -4,7 +4,7 @@ export const getBalanceReport = async (
     accountIds: number[],
     steps: number,
     startDate: string
-): Promise<{ accounts: Record<number, Array<{ Sum: number }>> }> => {
+): Promise<{ accounts: Record<number, Array<{ date: string; sum: number; count: number; unconverted: boolean }>> }> => {
     const idsParam = accountIds.join(',')
     const { data } = await apiClient.get(
         `/fin/report/balance?accountIds=${idsParam}&steps=${steps}&startDate=${startDate}`
@@ -28,7 +28,7 @@ export const getAccountBalance = async (
     }
     
     // Return the Sum from the first (and only) entry
-    return accountData[0]?.Sum ?? 0
+    return accountData[0]?.sum ?? 0
 }
 
 /**

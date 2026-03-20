@@ -3,7 +3,6 @@ import { HorizontalLayout as HL } from '@go-bumbu/vue-layouts'
 
 import { useUserStore } from '@/store/userStore'
 import Button from 'primevue/button'
-import Avatar from 'primevue/avatar'
 import AppTitle from '@/views/parts/AppTitle.vue'
 import { useUiStore } from '@/store/uiStore.js'
 import Menubar from 'primevue/menubar'
@@ -30,10 +29,6 @@ const uiStore = useUiStore()
 
 const toggleSidebar = () => {
     uiStore.toggleDrawer()
-}
-
-const toggleSecondaryMenu = () => {
-    uiStore.toggleSecondaryDrawer()
 }
 
 // Register logout action
@@ -63,18 +58,6 @@ user.registerLogoutAction(() => {
         </template>
 
         <template #right>
-            <Avatar
-                v-if="user.isLoggedIn"
-                icon="pi pi-user"
-                class="mr-2 ml-2"
-                size="large"
-                @click="toggleSecondaryMenu"
-                :style="{
-                    backgroundColor: 'var(--c-primary-200)',
-                    color: 'var(--c-primary-700)',
-                    cursor: 'pointer'
-                }"
-            />
             <router-link v-if="!user.isLoggedIn" to="/login" class="layout-topbar-logo">
                 <Button label="Login" icon="pi pi-sign-in" />
             </router-link>

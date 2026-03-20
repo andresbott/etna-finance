@@ -25,11 +25,7 @@ const router = createRouter({
         },
         {
             path: '/accounts',
-            name: 'accounts',
-            meta: {
-                requiresAuth: true
-            },
-            component: () => import('@/views/accounts/accounts.vue')
+            redirect: { name: 'settings-accounts' }
         },
         {
             path: '/entries',
@@ -80,32 +76,26 @@ const router = createRouter({
         {
             path: '/categories',
             name: 'categories',
-            meta: {
-                requiresAuth: true
-            },
-            component: () => import('@/views/categories/CategoriesView.vue')
+            meta: { requiresAuth: true },
+            component: () => import('@/views/categories/CategoriesView.vue'),
+            children: [
+                { path: '', redirect: { name: 'settings-categories' } },
+                { path: 'expense', redirect: { name: 'settings-categories' } },
+                { path: 'income', redirect: { name: 'settings-categories' } },
+                { path: 'rules', redirect: { name: 'settings-category-rules' } },
+            ]
         },
         {
             path: '/instruments',
-            name: 'instruments',
-            meta: {
-                requiresAuth: true,
-                requiresInstruments: true,
-                title: 'Investment Products'
-            },
-            component: () => import('@/views/instruments/InstrumentsView.vue')
+            redirect: { name: 'settings-instruments' }
         },
         {
             path: '/securities',
-            redirect: '/instruments'
+            redirect: { name: 'settings-instruments' }
         },
         {
             path: '/backup-restore',
-            name: 'backup-restore',
-            meta: {
-                requiresAuth: true
-            },
-            component: () => import('@/views/backup/BackupRestoreView.vue')
+            redirect: { name: 'settings-backup-restore' }
         },
         {
             path: '/financial-simulator',
@@ -131,23 +121,15 @@ const router = createRouter({
         },
         {
             path: '/tasks',
-            name: 'tasks',
-            meta: {
-                requiresAuth: true
-            },
-            component: () => import('@/views/tasks/TasksView.vue')
+            redirect: { name: 'settings-tasks' }
         },
         {
             path: '/tasks/:id',
-            redirect: () => ({ name: 'tasks' })
+            redirect: { name: 'settings-tasks' }
         },
         {
             path: '/setup/csv-profiles',
-            name: 'csv-profiles',
-            meta: {
-                requiresAuth: true
-            },
-            component: () => import('@/views/csvimport/CsvImportProfileView.vue')
+            redirect: '/settings/csv-profiles'
         },
         {
             path: '/market-data/currency-exchange',
@@ -210,10 +192,19 @@ const router = createRouter({
         {
             path: '/settings',
             name: 'settings',
-            meta: {
-                requiresAuth: true
-            },
-            component: () => import('@/views/settings/ConfigurationView.vue')
+            meta: { requiresAuth: true },
+            component: () => import('@/views/settings/SettingsView.vue'),
+            children: [
+                { path: '', redirect: { name: 'settings-configuration' } },
+                { path: 'configuration', name: 'settings-configuration', component: () => import('@/views/settings/ConfigurationView.vue') },
+                { path: 'csv-profiles', name: 'csv-profiles', component: () => import('@/views/csvimport/CsvImportProfileView.vue') },
+                { path: 'categories', name: 'settings-categories', component: () => import('@/views/settings/SettingsCategoriesView.vue') },
+                { path: 'category-rules', name: 'settings-category-rules', component: () => import('@/views/categories/CategoryRulesView.vue') },
+                { path: 'accounts', name: 'settings-accounts', component: () => import('@/views/accounts/accounts.vue') },
+                { path: 'instruments', name: 'settings-instruments', meta: { requiresInstruments: true }, component: () => import('@/views/instruments/InstrumentsView.vue') },
+                { path: 'backup-restore', name: 'settings-backup-restore', component: () => import('@/views/backup/BackupRestoreView.vue') },
+                { path: 'tasks', name: 'settings-tasks', component: () => import('@/views/tasks/TasksView.vue') },
+            ]
         },
         {
             path: '/login',
@@ -233,6 +224,10 @@ const router = createRouter({
         },
         {
             path: '/setup/reapply-rules',
+            redirect: { name: 'reapply-rules' }
+        },
+        {
+            path: '/settings/reapply-rules',
             name: 'reapply-rules',
             meta: {
                 requiresAuth: true

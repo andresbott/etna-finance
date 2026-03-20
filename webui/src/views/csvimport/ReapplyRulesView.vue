@@ -92,7 +92,7 @@ const handleSubmit = async () => {
             detail: `${result.updated} transactions updated successfully.`,
             life: 4000
         })
-        router.push('/setup/csv-profiles')
+        router.push('/settings/category-rules')
     } catch (err) {
         toast.add({
             severity: 'error',
@@ -107,7 +107,7 @@ const handleSubmit = async () => {
 
 /* --- Navigation --- */
 const handleBack = () => {
-    router.push('/setup/csv-profiles')
+    router.push('/settings/category-rules')
 }
 
 onMounted(() => {

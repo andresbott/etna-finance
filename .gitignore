@@ -41,6 +41,7 @@ zarf/appData/session
 .env
 config.yaml
 
-# Playwright MCP logs
+# AI stuff
 .playwright-mcp/
 docs/superpowers
+.superpowers
