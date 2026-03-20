@@ -27,7 +27,7 @@ const localCategory = ref({
     parentId: 0,
     type: 'expense',
     action: null,
-    icon: 'pi-tag',
+    icon: 'tag',
     ...props.categoryData
 })
 
@@ -42,7 +42,7 @@ watch(
                 parentId: 0,
                 type: 'expense',
                 action: null,
-                icon: 'pi-tag',
+                icon: 'tag',
                 ...newVal
             }
         }
@@ -78,7 +78,7 @@ const reset = () => {
         parentId: 0,
         type: 'expense',
         action: null,
-        icon: 'pi-tag'
+        icon: 'tag'
     }
 
     emit('reset')
@@ -136,8 +136,8 @@ const showParentSelector = computed(() => {
         </div>
 
         <template #footer>
-            <Button label="Save" icon="pi pi-check" @click="save" :disabled="!localCategory.name" />
-            <Button label="Cancel" icon="pi pi-times" text @click="cancel" />
+            <Button label="Save" icon="ti ti-check" @click="save" :disabled="!localCategory.name" />
+            <Button label="Cancel" icon="ti ti-x" text @click="cancel" />
         </template>
     </Dialog>
 </template>

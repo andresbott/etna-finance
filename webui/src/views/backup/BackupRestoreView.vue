@@ -139,14 +139,14 @@ const formatFileSize = (bytes) => {
             <div class="flex justify-content-end gap-2">
                 <Button
                     label="Create Backup"
-                    icon="pi pi-download"
+                    icon="ti ti-download"
                     @click="handleBackup"
                     :loading="isCreating"
                     :disabled="isRestoring"
                 />
                 <Button
                     label="Upload & Restore"
-                    icon="pi pi-upload"
+                    icon="ti ti-upload"
                     severity="secondary"
                     @click="triggerFileUpload"
                     :loading="isRestoring"
@@ -184,7 +184,7 @@ const formatFileSize = (bytes) => {
                             >
                                 <template #empty>
                                     <div class="empty-state">
-                                        <i class="pi pi-inbox"></i>
+                                        <i class="ti ti-inbox"></i>
                                         <p>No backup files found</p>
                                     </div>
                                 </template>
@@ -204,7 +204,7 @@ const formatFileSize = (bytes) => {
                                 <Column header="Actions" :exportable="false" headerStyle="width: 200px; text-align: center" bodyStyle="text-align: center">
                                     <template #body="{ data }">
                                         <Button
-                                            icon="pi pi-download"
+                                            icon="ti ti-download"
                                             severity="info"
                                             text
                                             rounded
@@ -214,7 +214,7 @@ const formatFileSize = (bytes) => {
                                             class="mr-2"
                                         />
                                         <Button
-                                            icon="pi pi-replay"
+                                            icon="ti ti-rotate"
                                             severity="success"
                                             text
                                             rounded
@@ -224,7 +224,7 @@ const formatFileSize = (bytes) => {
                                             class="mr-2"
                                         />
                                         <Button
-                                            icon="pi pi-trash"
+                                            icon="ti ti-trash"
                                             severity="danger"
                                             text
                                             rounded

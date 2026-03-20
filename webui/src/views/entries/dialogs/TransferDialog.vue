@@ -374,7 +374,7 @@ const emit = defineEmits(['update:visible'])
 
                     <!-- Arrow between sections -->
                     <div class="flex align-items-center justify-content-center px-2">
-                        <i class="pi pi-arrow-right text-2xl"></i>
+                        <i class="ti ti-arrow-right text-2xl"></i>
                     </div>
 
                     <!-- Target section (right side) -->
@@ -425,14 +425,14 @@ const emit = defineEmits(['update:visible'])
                     <label class="form-label">Attachment</label>
                     <div v-if="existingAttachmentId && !attachmentPendingDelete && !selectedFile" class="flex align-items-center gap-2">
                         <Button
-                            icon="pi pi-paperclip"
+                            icon="ti ti-paperclip"
                             label="View attachment"
                             text
                             size="small"
                             @click="viewAttachment"
                         />
                         <Button
-                            icon="pi pi-trash"
+                            icon="ti ti-trash"
                             text
                             rounded
                             severity="danger"
@@ -446,7 +446,7 @@ const emit = defineEmits(['update:visible'])
                             v-model="selectedFile"
                             accept=".jpg,.jpeg,.png,.webp,.pdf"
                             label="Choose file"
-                            icon="pi pi-paperclip"
+                            icon="ti ti-paperclip"
                         />
                     </div>
                 </div>
@@ -456,13 +456,13 @@ const emit = defineEmits(['update:visible'])
                     <Button
                         type="submit"
                         label="Save"
-                        icon="pi pi-check"
+                        icon="ti ti-check"
                         :loading="isCreating || isUpdating"
                     />
                     <Button
                         type="button"
                         label="Cancel"
-                        icon="pi pi-times"
+                        icon="ti ti-x"
                         severity="secondary"
                         @click="$emit('update:visible', false)"
                     />

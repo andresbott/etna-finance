@@ -37,11 +37,11 @@ function handleConfirm() {
     >
         <span class="block mb-4">{{ message }} {{ name ? `"${name}"` : '' }}</span>
         <div class="flex justify-content-end gap-3">
-            <Button type="button" label="Ok" icon="pi pi-check" @click="handleConfirm"></Button>
+            <Button type="button" label="Ok" icon="ti ti-check" @click="handleConfirm"></Button>
             <Button
                 type="button"
                 label="Cancel"
-                icon="pi pi-times"
+                icon="ti ti-x"
                 severity="secondary"
                 @click="visible = false"
             ></Button>

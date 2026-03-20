@@ -23,7 +23,7 @@
                     <span>{{ header }}</span>
                     <button
                         @click="close"
-                        class="pi pi-times text-gray-600 hover:text-gray-800"
+                        class="ti ti-x text-gray-600 hover:text-gray-800"
                     ></button>
                 </header>
 

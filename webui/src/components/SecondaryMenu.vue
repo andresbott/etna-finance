@@ -28,22 +28,22 @@ const sections = computed(() => {
     const appDataItems = [
         {
             label: 'CSV Import',
-            icon: 'pi pi-file-import',
+            icon: 'ti ti-file-import',
             route: '/setup/csv-profiles'
         },
-        { label: 'Categories', icon: 'pi pi-tags', route: '/categories' },
-        { label: 'Account Setup', icon: 'pi pi-wallet', route: '/accounts' },
+        { label: 'Categories', icon: 'ti ti-tags', route: '/categories' },
+        { label: 'Account Setup', icon: 'ti ti-wallet', route: '/accounts' },
     ]
 
     if (settings.instruments) {
-        appDataItems.push({ label: 'Investment Products', icon: 'pi pi-chart-bar', route: '/instruments' })
+        appDataItems.push({ label: 'Investment Products', icon: 'ti ti-chart-bar', route: '/instruments' })
     }
 
     return [
         {
             title: 'Settings',
             items: [
-                { label: 'Configuration', icon: 'pi pi-cog', route: '/settings' }
+                { label: 'Configuration', icon: 'ti ti-settings', route: '/settings' }
             ]
         },
         {
@@ -55,12 +55,12 @@ const sections = computed(() => {
             items: [
                 {
                     label: 'Backup/Restore',
-                    icon: 'pi pi-database',
+                    icon: 'ti ti-database',
                     route: '/backup-restore'
                 },
                 {
                     label: 'Tasks',
-                    icon: 'pi pi-briefcase',
+                    icon: 'ti ti-briefcase',
                     route: '/tasks'
                 }
             ]
@@ -78,7 +78,7 @@ const sections = computed(() => {
         <template #header>
             <div class="drawer-header">
                 <Avatar
-                    icon="pi pi-user"
+                    icon="ti ti-user"
                     size="large"
                     :style="{
                         backgroundColor: 'var(--c-primary-200)',
@@ -111,7 +111,7 @@ const sections = computed(() => {
             <div class="section">
                 <Button
                     label="Logout"
-                    icon="pi pi-sign-out"
+                    icon="ti ti-logout"
                     severity="danger"
                     class="menu-item"
                     text

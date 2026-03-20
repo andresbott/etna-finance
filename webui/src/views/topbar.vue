@@ -44,11 +44,11 @@ user.registerLogoutAction(() => {
             <div class="pl-4 flex items-center">
                 <i
                     v-if="user.isLoggedIn"
-                    class="pi pi-bars text-2xl cursor-pointer hamburger-icon"
+                    class="ti ti-menu-2 text-2xl cursor-pointer hamburger-icon"
                     @click="toggleSidebar"
                 ></i>
                 <router-link to="/start" class="layout-topbar-logo">
-                    <AppTitle icon="pi-money-bill" text="Etna" class="ml-4 mr-2" />
+                    <AppTitle icon="ti-cash-banknote" text="Etna" class="ml-4 mr-2" />
                 </router-link>
             </div>
         </template>
@@ -59,7 +59,7 @@ user.registerLogoutAction(() => {
 
         <template #right>
             <router-link v-if="!user.isLoggedIn" to="/login" class="layout-topbar-logo">
-                <Button label="Login" icon="pi pi-sign-in" />
+                <Button label="Login" icon="ti ti-login" />
             </router-link>
         </template>
     </HL>
@@ -98,6 +98,7 @@ i {
 }
 
 .hamburger-icon {
+    font-size: 1.75rem !important;
     color: var(--c-primary-50);
     transition: color 0.2s ease;
 }

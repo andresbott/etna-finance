@@ -123,7 +123,7 @@ onMounted(() => {
             <!-- Header -->
             <div class="toolbar">
                 <div class="toolbar-left">
-                    <Button icon="pi pi-arrow-left" text rounded @click="handleBack" v-tooltip.bottom="'Back to rules'" class="mr-2" />
+                    <Button icon="ti ti-arrow-left" text rounded @click="handleBack" v-tooltip.bottom="'Back to rules'" class="mr-2" />
                     <h2 class="page-title">Re-apply Category Rules</h2>
                 </div>
             </div>
@@ -139,7 +139,7 @@ onMounted(() => {
                 <!-- Summary Bar -->
                 <div class="summary-bar">
                     <span class="summary-item summary-changed">
-                        <i class="pi pi-sync"></i> {{ totalCount }} to update
+                        <i class="ti ti-refresh"></i> {{ totalCount }} to update
                     </span>
                 </div>
 
@@ -157,7 +157,7 @@ onMounted(() => {
                         >
                             <template #empty>
                                 <div class="empty-state">
-                                    <i class="pi pi-check-circle"></i>
+                                    <i class="ti ti-circle-check"></i>
                                     <p>No transactions match any category rules</p>
                                 </div>
                             </template>
@@ -226,7 +226,7 @@ onMounted(() => {
                 <div class="preview-actions">
                     <Button
                         :label="`Apply Selected (${checkedCount})`"
-                        icon="pi pi-check"
+                        icon="ti ti-check"
                         :loading="isSubmitting"
                         :disabled="checkedCount === 0"
                         @click="handleSubmit"
@@ -234,7 +234,7 @@ onMounted(() => {
                     <Button
                         label="Cancel"
                         severity="secondary"
-                        icon="pi pi-times"
+                        icon="ti ti-x"
                         @click="handleBack"
                     />
                 </div>

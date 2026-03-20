@@ -281,7 +281,7 @@ onMounted(() => fetchReportData())
                         <div class="section-header">
                             <h2 class="report-title">Income</h2>
                             <Button
-                                :icon="isIncomeFullyExpanded ? 'pi pi-minus' : 'pi pi-plus'"
+                                :icon="isIncomeFullyExpanded ? 'ti ti-minus' : 'ti ti-plus'"
                                 :label="isIncomeFullyExpanded ? 'Collapse' : 'Expand'"
                                 class="p-button-sm p-button-text"
                                 @click="toggleIncomeVisibility"
@@ -296,11 +296,11 @@ onMounted(() => fetchReportData())
                             <Column field="name" header="Name" :expander="true">
                                 <template #body="slotProps">
                                     <span class="category-name">
-                                        <i :class="['pi', slotProps.node.data.icon || 'pi-tag']"></i>
+                                        <i :class="['ti', `ti-${slotProps.node.data.icon || 'tag'}`]"></i>
                                         {{ slotProps.node.data.name }}
                                         <Button
                                             v-if="slotProps.node.key !== 'total'"
-                                            icon="pi pi-list"
+                                            icon="ti ti-list"
                                             class="view-entries-btn"
                                             text
                                             rounded
@@ -339,7 +339,7 @@ onMounted(() => fetchReportData())
                         <div class="section-header">
                             <h2 class="report-title">Expenses</h2>
                             <Button
-                                :icon="isExpenseFullyExpanded ? 'pi pi-minus' : 'pi pi-plus'"
+                                :icon="isExpenseFullyExpanded ? 'ti ti-minus' : 'ti ti-plus'"
                                 :label="isExpenseFullyExpanded ? 'Collapse' : 'Expand'"
                                 class="p-button-sm p-button-text"
                                 @click="toggleExpenseVisibility"
@@ -354,11 +354,11 @@ onMounted(() => fetchReportData())
                             <Column field="name" header="Name" :expander="true">
                                 <template #body="slotProps">
                                     <span class="category-name">
-                                        <i :class="['pi', slotProps.node.data.icon || 'pi-tag']"></i>
+                                        <i :class="['ti', `ti-${slotProps.node.data.icon || 'tag'}`]"></i>
                                         {{ slotProps.node.data.name }}
                                         <Button
                                             v-if="slotProps.node.key !== 'total'"
-                                            icon="pi pi-list"
+                                            icon="ti ti-list"
                                             class="view-entries-btn"
                                             text
                                             rounded

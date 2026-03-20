@@ -24,7 +24,7 @@ const convertTree = (nodes, parentPath = '') => {
         const converted = {
             key: String(node.data.id),
             label: node.data.name,
-            icon: `pi ${node.data.icon || 'pi-tag'}`,
+            icon: `ti ti-${node.data.icon || 'tag'}`,
             data: { ...node.data, path }
         }
 
@@ -114,7 +114,7 @@ const selectedCategoryDisplay = computed(() => {
 })
 
 const selectedCategoryIcon = computed(() => {
-    return selectedNode.value?.data?.icon || 'pi-tag'
+    return selectedNode.value?.data?.icon || 'tag'
 })
 </script>
 
@@ -135,7 +135,7 @@ const selectedCategoryIcon = computed(() => {
         >
             <template #value>
                 <span v-if="selectedCategoryDisplay" class="flex items-center gap-2">
-                    <i :class="['pi', selectedCategoryIcon]"></i>
+                    <i :class="['ti', `ti-${selectedCategoryIcon}`]"></i>
                     {{ selectedCategoryDisplay }}
                 </span>
                 <span v-else>{{ placeholder }}</span>

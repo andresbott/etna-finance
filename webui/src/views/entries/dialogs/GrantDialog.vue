@@ -295,14 +295,14 @@ const handleSubmit = async (e) => {
                     <Button
                         type="button"
                         label="Save"
-                        icon="pi pi-check"
+                        icon="ti ti-check"
                         :loading="isSaving"
                         @click="handleSubmit({ preventDefault: () => {} })"
                     />
                     <Button
                         type="button"
                         label="Cancel"
-                        icon="pi pi-times"
+                        icon="ti ti-x"
                         severity="secondary"
                         @click="$emit('update:visible', false)"
                     />

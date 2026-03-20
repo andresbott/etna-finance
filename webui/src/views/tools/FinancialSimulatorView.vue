@@ -285,9 +285,9 @@ function openAttachment(cs: CaseStudy) {
 }
 
 function typeIcon(toolType: string): string {
-    if (toolType === 'portfolio-simulator') return 'pi pi-chart-pie'
-    if (toolType === 'buy-vs-rent-simulator') return 'pi pi-arrows-h'
-    return 'pi pi-home'
+    if (toolType === 'portfolio-simulator') return 'ti ti-chart-pie'
+    if (toolType === 'buy-vs-rent-simulator') return 'ti ti-arrows-left-right'
+    return 'ti ti-home'
 }
 </script>
 
@@ -300,7 +300,7 @@ function typeIcon(toolType: string): string {
                     <template #title>
                         <div class="flex align-items-center justify-content-between">
                             <span>{{ comparisonYears }}-Year {{ isMoneyMode ? 'Investment Value' : 'Cumulative Growth' }} Comparison{{ inflationRate > 0 ? ` (${inflationRate}% inflation adj.)` : '' }}</span>
-                            <Button icon="pi pi-cog" text rounded @click="openChartSettings" v-tooltip.bottom="'Chart settings'" />
+                            <Button icon="ti ti-settings" text rounded @click="openChartSettings" v-tooltip.bottom="'Chart settings'" />
                         </div>
                     </template>
                     <template #content>
@@ -318,7 +318,7 @@ function typeIcon(toolType: string): string {
                     <template #title>
                         <div class="flex align-items-center justify-content-between">
                             <span>Simulations</span>
-                            <Button label="Add Simulation" icon="pi pi-plus" size="small" @click="openAddDialog" />
+                            <Button label="Add Simulation" icon="ti ti-plus" size="small" @click="openAddDialog" />
                         </div>
                     </template>
                     <template #content>
@@ -339,15 +339,15 @@ function typeIcon(toolType: string): string {
                             </Column>
                             <Column header="Attachment" style="width: 6rem">
                                 <template #body="{ data }">
-                                    <i v-if="data.attachmentId" class="pi pi-paperclip attachment-icon" @click="openAttachment(data)" v-tooltip.bottom="'View Attachment'" />
+                                    <i v-if="data.attachmentId" class="ti ti-paperclip attachment-icon" @click="openAttachment(data)" v-tooltip.bottom="'View Attachment'" />
                                 </template>
                             </Column>
                             <Column header="Actions" style="width: 120px">
                                 <template #body="{ data }">
                                     <div class="flex gap-2 justify-content-start">
-                                        <Button icon="pi pi-pencil" text rounded class="p-1" @click="handleEdit(data)" v-tooltip.bottom="'Edit'" />
-                                        <Button icon="pi pi-copy" text rounded class="p-1" @click="handleDuplicate(data)" v-tooltip.bottom="'Duplicate'" />
-                                        <Button icon="pi pi-trash" text rounded severity="danger" class="p-1" @click="openDeleteDialog(data)" v-tooltip.bottom="'Delete'" />
+                                        <Button icon="ti ti-pencil" text rounded class="p-1" @click="handleEdit(data)" v-tooltip.bottom="'Edit'" />
+                                        <Button icon="ti ti-copy" text rounded class="p-1" @click="handleDuplicate(data)" v-tooltip.bottom="'Duplicate'" />
+                                        <Button icon="ti ti-trash" text rounded severity="danger" class="p-1" @click="openDeleteDialog(data)" v-tooltip.bottom="'Delete'" />
                                     </div>
                                 </template>
                             </Column>

@@ -41,28 +41,28 @@ describe('getAccountTypeLabel', () => {
 
 describe('getAccountTypeIcon', () => {
     it('returns correct icon for each account type', () => {
-        expect(getAccountTypeIcon(ACCOUNT_TYPES.CASH)).toBe('pi-money-bill')
-        expect(getAccountTypeIcon(ACCOUNT_TYPES.CHECKING)).toBe('pi-credit-card')
-        expect(getAccountTypeIcon(ACCOUNT_TYPES.SAVINGS)).toBe('pi-box')
-        expect(getAccountTypeIcon(ACCOUNT_TYPES.INVESTMENT)).toBe('pi-chart-line')
-        expect(getAccountTypeIcon(ACCOUNT_TYPES.UNVESTED)).toBe('pi-gift')
-        expect(getAccountTypeIcon(ACCOUNT_TYPES.LENT)).toBe('pi-send')
+        expect(getAccountTypeIcon(ACCOUNT_TYPES.CASH)).toBe('cash-banknote')
+        expect(getAccountTypeIcon(ACCOUNT_TYPES.CHECKING)).toBe('credit-card')
+        expect(getAccountTypeIcon(ACCOUNT_TYPES.SAVINGS)).toBe('box')
+        expect(getAccountTypeIcon(ACCOUNT_TYPES.INVESTMENT)).toBe('chart-line')
+        expect(getAccountTypeIcon(ACCOUNT_TYPES.UNVESTED)).toBe('gift')
+        expect(getAccountTypeIcon(ACCOUNT_TYPES.LENT)).toBe('send')
     })
 
-    it('returns fallback "pi-wallet" for null', () => {
-        expect(getAccountTypeIcon(null)).toBe('pi-wallet')
+    it('returns fallback "wallet" for null', () => {
+        expect(getAccountTypeIcon(null)).toBe('wallet')
     })
 
-    it('returns fallback "pi-wallet" for undefined', () => {
-        expect(getAccountTypeIcon(undefined)).toBe('pi-wallet')
+    it('returns fallback "wallet" for undefined', () => {
+        expect(getAccountTypeIcon(undefined)).toBe('wallet')
     })
 
-    it('returns fallback "pi-wallet" for empty string', () => {
-        expect(getAccountTypeIcon('')).toBe('pi-wallet')
+    it('returns fallback "wallet" for empty string', () => {
+        expect(getAccountTypeIcon('')).toBe('wallet')
     })
 
-    it('returns fallback "pi-wallet" for an unrecognized account type', () => {
-        expect(getAccountTypeIcon('crypto')).toBe('pi-wallet')
+    it('returns fallback "wallet" for an unrecognized account type', () => {
+        expect(getAccountTypeIcon('crypto')).toBe('wallet')
     })
 })
 

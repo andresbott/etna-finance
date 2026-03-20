@@ -71,7 +71,7 @@ defineExpose({ open })
             <CategorySelect v-model="categoryId" type="all" label="Category *" />
 
             <div class="flex justify-content-end gap-2 mt-3">
-                <Button label="Apply" icon="pi pi-bolt" @click="handleApply" />
+                <Button label="Apply" icon="ti ti-bolt" @click="handleApply" />
                 <Button label="Cancel" severity="secondary" text @click="visible = false" />
             </div>
         </div>

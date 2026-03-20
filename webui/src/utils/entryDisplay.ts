@@ -3,17 +3,17 @@
  */
 
 const ENTRY_TYPE_ICONS: Record<string, string> = {
-    expense: 'pi pi-minus text-red-500',
-    income: 'pi pi-plus text-green-500',
-    transfer: 'pi pi-arrow-right-arrow-left text-blue-500',
-    stockbuy: 'pi pi-chart-line text-yellow-500',
-    stocksell: 'pi pi-chart-line text-orange-500',
-    stockgrant: 'pi pi-gift text-purple-500',
-    stocktransfer: 'pi pi-arrow-right-arrow-left text-indigo-500',
-    balancestatus: 'pi pi-calculator text-gray-500',
-    'opening-balance': 'pi pi-calculator text-gray-500'
+    expense: 'ti ti-minus text-red-500',
+    income: 'ti ti-plus text-green-500',
+    transfer: 'ti ti-arrows-left-right text-blue-500',
+    stockbuy: 'ti ti-chart-line text-yellow-500',
+    stocksell: 'ti ti-chart-line text-orange-500',
+    stockgrant: 'ti ti-gift text-purple-500',
+    stocktransfer: 'ti ti-arrows-left-right text-indigo-500',
+    balancestatus: 'ti ti-calculator text-gray-500',
+    'opening-balance': 'ti ti-calculator text-gray-500'
 }
 
 export function getEntryTypeIcon(type: string | null | undefined): string {
-    return ENTRY_TYPE_ICONS[type ?? ''] ?? 'pi pi-question-circle'
+    return ENTRY_TYPE_ICONS[type ?? ''] ?? 'ti ti-help-circle'
 }

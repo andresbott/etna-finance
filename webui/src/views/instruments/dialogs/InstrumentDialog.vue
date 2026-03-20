@@ -135,11 +135,11 @@ const onFormSubmit = (e) => {
                     </Message>
                 </div>
                 <div class="flex justify-content-end gap-3">
-                    <Button type="submit" label="Save" icon="pi pi-check" :loading="loading" />
+                    <Button type="submit" label="Save" icon="ti ti-check" :loading="loading" />
                     <Button
                         type="button"
                         label="Cancel"
-                        icon="pi pi-times"
+                        icon="ti ti-x"
                         severity="secondary"
                         @click="$emit('update:visible', false)"
                     />

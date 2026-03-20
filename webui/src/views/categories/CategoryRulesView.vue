@@ -197,19 +197,19 @@ onMounted(() => {
             <div class="flex gap-2 justify-content-end">
                 <Button
                     label="Apply Ad-hoc Rule"
-                    icon="pi pi-bolt"
+                    icon="ti ti-bolt"
                     severity="secondary"
                     @click="adhocDialogRef?.open()"
                 />
                 <Button
                     label="Re-apply Rules"
-                    icon="pi pi-sync"
+                    icon="ti ti-refresh"
                     severity="secondary"
                     @click="router.push('/settings/reapply-rules')"
                 />
                 <Button
                     label="New Group"
-                    icon="pi pi-plus"
+                    icon="ti ti-plus"
                     @click="openCreateGroupDialog"
                 />
             </div>
@@ -228,9 +228,9 @@ onMounted(() => {
                 >
                     <template #empty>
                         <div class="empty-state">
-                            <i class="pi pi-inbox"></i>
+                            <i class="ti ti-inbox"></i>
                             <p>No category matching rule groups found</p>
-                            <Button label="Create Your First Group" icon="pi pi-plus" @click="openCreateGroupDialog" outlined />
+                            <Button label="Create Your First Group" icon="ti ti-plus" @click="openCreateGroupDialog" outlined />
                         </div>
                     </template>
 
@@ -257,9 +257,9 @@ onMounted(() => {
                     <Column header="Actions" :exportable="false" style="width: 100px">
                         <template #body="{ data }">
                             <div class="flex gap-1 justify-content-center">
-                                <Button icon="pi pi-pencil" text rounded class="p-1"
+                                <Button icon="ti ti-pencil" text rounded class="p-1"
                                     @click="openEditGroupDialog(data)" v-tooltip.top="'Edit group'" />
-                                <Button icon="pi pi-trash" severity="danger" text rounded class="p-1"
+                                <Button icon="ti ti-trash" severity="danger" text rounded class="p-1"
                                     @click="handleDeleteGroup(data)" v-tooltip.top="'Delete group'" />
                             </div>
                         </template>
@@ -299,7 +299,7 @@ onMounted(() => {
                         <div v-for="(p, index) in formGroupPatterns" :key="index" class="pattern-row">
                             <span class="pattern-text">{{ p.pattern }}</span>
                             <Tag :value="p.isRegex ? 'Regex' : 'Substring'" :severity="p.isRegex ? 'warn' : 'info'" class="flex-shrink-0" />
-                            <Button icon="pi pi-times" severity="danger" text rounded size="small"
+                            <Button icon="ti ti-x" severity="danger" text rounded size="small"
                                 @click="removePattern(index)" v-tooltip.top="'Remove pattern'" />
                         </div>
                     </div>
@@ -312,13 +312,13 @@ onMounted(() => {
                             <Checkbox v-model="newPatternIsRegex" :binary="true" inputId="newPatternRegex" />
                             <label for="newPatternRegex" class="text-sm white-space-nowrap">Regex</label>
                         </div>
-                        <Button label="Add" icon="pi pi-plus" outlined @click="addPattern" :disabled="!newPatternValue.trim()" />
+                        <Button label="Add" icon="ti ti-plus" outlined @click="addPattern" :disabled="!newPatternValue.trim()" />
                     </div>
                 </div>
 
                 <div class="flex justify-content-end gap-2 mt-3">
                     <Button label="Cancel" severity="secondary" text @click="showGroupDialog = false" />
-                    <Button :label="editingGroup ? 'Update' : 'Create'" icon="pi pi-check"
+                    <Button :label="editingGroup ? 'Update' : 'Create'" icon="ti ti-check"
                         :loading="isSavingRule" @click="handleSaveGroup" />
                 </div>
             </div>

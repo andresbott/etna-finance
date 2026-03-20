@@ -353,7 +353,7 @@ onMounted(() => {
                     <div class="flex justify-content-end">
                         <Button
                             label="New Profile"
-                            icon="pi pi-plus"
+                            icon="ti ti-plus"
                             @click="openCreateDialog"
                         />
                     </div>
@@ -371,11 +371,11 @@ onMounted(() => {
                         >
                             <template #empty>
                                 <div class="empty-state">
-                                    <i class="pi pi-inbox"></i>
+                                    <i class="ti ti-inbox"></i>
                                     <p>No CSV import profiles found</p>
                                     <Button
                                         label="Create Your First Profile"
-                                        icon="pi pi-plus"
+                                        icon="ti ti-plus"
                                         @click="openCreateDialog"
                                         outlined
                                     />
@@ -385,7 +385,7 @@ onMounted(() => {
                             <Column field="name" header="Profile Name" :sortable="true">
                                 <template #body="{ data }">
                                     <div class="flex align-items-center gap-2 font-semibold">
-                                        <i class="pi pi-file-import text-primary"></i>
+                                        <i class="ti ti-file-import text-primary"></i>
                                         <span>{{ data.name }}</span>
                                     </div>
                                 </template>
@@ -407,7 +407,7 @@ onMounted(() => {
                                 <template #body="{ data }">
                                     <div class="flex gap-1 justify-content-center">
                                         <Button
-                                            icon="pi pi-pencil"
+                                            icon="ti ti-pencil"
                                             text
                                             rounded
                                             class="p-1"
@@ -415,7 +415,7 @@ onMounted(() => {
                                             v-tooltip.top="'Edit profile'"
                                         />
                                         <Button
-                                            icon="pi pi-trash"
+                                            icon="ti ti-trash"
                                             severity="danger"
                                             text
                                             rounded
@@ -471,7 +471,7 @@ onMounted(() => {
 
                                     <!-- Loading indicator for file analysis -->
                                     <div v-if="isLoadingFile" class="flex align-items-center gap-2 text-color-secondary">
-                                        <i class="pi pi-spin pi-spinner"></i>
+                                        <i class="ti ti-loader-2 spin-icon"></i>
                                         <span>Analyzing CSV file...</span>
                                     </div>
 
@@ -655,7 +655,7 @@ onMounted(() => {
                                         />
                                         <Button
                                             :label="editingProfile ? 'Update' : 'Create'"
-                                            icon="pi pi-check"
+                                            icon="ti ti-check"
                                             :loading="isSaving"
                                             @click="handleSaveProfile"
                                         />
@@ -690,7 +690,7 @@ onMounted(() => {
                                     </DataTable>
                                 </div>
                                 <div v-else class="empty-preview">
-                                    <i class="pi pi-table"></i>
+                                    <i class="ti ti-table"></i>
                                     <p>No preview available yet. Upload a CSV file and configure column mappings in the Settings tab.</p>
                                 </div>
                             </TabPanel>

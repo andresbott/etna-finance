@@ -26,7 +26,7 @@ const totalTooltipText = 'Values are converted to the main currency. Unvested (e
             <div class="flex align-items-center gap-2">
                 <span>Account Types</span>
                 <i
-                    class="pi pi-question-circle text-400 cursor-help"
+                    class="ti ti-help-circle text-400 cursor-help"
                     style="font-size: 1rem"
                     v-tooltip.bottom="totalTooltipText"
                     aria-label="Info"
@@ -42,7 +42,7 @@ const totalTooltipText = 'Values are converted to the main currency. Unvested (e
                 <Column field="type" header="Type" style="min-width: 200px">
                     <template #body="slotProps">
                         <div class="flex align-items-center gap-2">
-                            <i :class="['pi', getAccountTypeIcon(slotProps.data.type)]"></i>
+                            <i :class="['ti', `ti-${getAccountTypeIcon(slotProps.data.type)}`]"></i>
                             <span class="font-semibold">{{ getAccountTypeLabel(slotProps.data.type) }}</span>
                         </div>
                     </template>

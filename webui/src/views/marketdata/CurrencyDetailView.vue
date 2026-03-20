@@ -240,7 +240,7 @@ function goBack() {
             <div class="p-3">
                 <div class="header-nav">
                     <Button
-                        icon="pi pi-arrow-left"
+                        icon="ti ti-arrow-left"
                         label="Back to Currency Exchange"
                         text
                         severity="secondary"
@@ -252,7 +252,7 @@ function goBack() {
                     <Card>
                         <template #content>
                             <div class="text-center p-4">
-                                <i class="pi pi-exclamation-triangle" style="font-size: 2rem; color: var(--p-text-muted-color)"></i>
+                                <i class="ti ti-alert-triangle" style="font-size: 2rem; color: var(--p-text-muted-color)"></i>
                                 <p class="mt-3">Currency not specified.</p>
                                 <Button label="Back to Currency Exchange" @click="goBack" class="mt-2" />
                             </div>
@@ -306,7 +306,7 @@ function goBack() {
 
                                 <TabPanel header="Raw data" value="raw-data">
                                     <div class="raw-data-toolbar mb-3">
-                                        <Button label="Add" icon="pi pi-plus" :loading="isCreating" @click="openAddDataDialog" />
+                                        <Button label="Add" icon="ti ti-plus" :loading="isCreating" @click="openAddDataDialog" />
                                     </div>
                                     <DataTable
                                         :value="rawDataRows"
@@ -329,7 +329,7 @@ function goBack() {
                                         <Column header="Actions" style="width: 120px">
                                             <template #body="{ data }">
                                                 <Button
-                                                    icon="pi pi-pencil"
+                                                    icon="ti ti-pencil"
                                                     text
                                                     size="small"
                                                     severity="secondary"
@@ -337,7 +337,7 @@ function goBack() {
                                                     @click="openEditDataDialog(data)"
                                                 />
                                                 <Button
-                                                    icon="pi pi-trash"
+                                                    icon="ti ti-trash"
                                                     text
                                                     size="small"
                                                     severity="danger"
@@ -348,7 +348,7 @@ function goBack() {
                                         </Column>
                                     </DataTable>
                                     <p class="text-color-secondary text-sm mt-2 mb-0">
-                                        <i class="pi pi-info-circle"></i> Use + to add a rate. Edit or delete from the row actions.
+                                        <i class="ti ti-info-circle"></i> Use + to add a rate. Edit or delete from the row actions.
                                     </p>
                                 </TabPanel>
                             </TabView>
@@ -389,7 +389,7 @@ function goBack() {
                         </div>
                         <template #footer>
                             <Button label="Cancel" text severity="secondary" @click="dataDialogVisible = false" />
-                            <Button label="Save" icon="pi pi-check" :loading="isCreating || isUpdating" @click="saveDataDialog" />
+                            <Button label="Save" icon="ti ti-check" :loading="isCreating || isUpdating" @click="saveDataDialog" />
                         </template>
                     </Dialog>
 

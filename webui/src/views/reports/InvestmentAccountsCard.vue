@@ -28,7 +28,7 @@ const { providersWithHoldings, isLoading } = useHoldings()
                         class="flex align-items-center gap-2 pb-2"
                         style="border-bottom: 1px solid rgba(0, 0, 0, 0.06)"
                     >
-                        <i :class="['pi', provider.icon || 'pi-building', 'text-primary']"></i>
+                        <i :class="['ti', `ti-${provider.icon || 'building-bank'}`, 'text-primary']"></i>
                         <span class="font-bold text-lg">{{ provider.name }}</span>
                     </div>
 
@@ -44,7 +44,7 @@ const { providersWithHoldings, isLoading } = useHoldings()
                                 style="background: var(--surface-ground)"
                             >
                                 <div class="flex align-items-center gap-2">
-                                    <i :class="['pi', account.icon || 'pi-chart-line']"></i>
+                                    <i :class="['ti', `ti-${account.icon || 'chart-line'}`]"></i>
                                     <span class="font-semibold">{{ account.name }}</span>
                                     <span class="text-500 text-sm">({{ getAccountTypeLabel(account.type) }})</span>
                                 </div>

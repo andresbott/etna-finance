@@ -40,11 +40,11 @@ const toggleExpand = () => {
                     <template #content>
                         <div class="section-header">
                             <h2 class="report-title">
-                                <i class="pi pi-chart-line mr-2"></i>Current position
+                                <i class="ti ti-chart-line mr-2"></i>Current position
                             </h2>
                             <Button
                                 v-if="!isLoading && productPositions.length > 0"
-                                :icon="isFullyExpanded ? 'pi pi-minus' : 'pi pi-plus'"
+                                :icon="isFullyExpanded ? 'ti ti-minus' : 'ti ti-plus'"
                                 :label="isFullyExpanded ? 'Collapse' : 'Expand'"
                                 class="p-button-sm p-button-text"
                                 @click="toggleExpand"

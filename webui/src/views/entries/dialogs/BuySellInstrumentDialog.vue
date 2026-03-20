@@ -617,7 +617,7 @@ const handleSellSave = async () => {
                             </div>
                         </div>
                         <div class="flex align-items-center justify-content-center px-2">
-                            <i class="pi pi-arrow-right text-2xl"></i>
+                            <i class="ti ti-arrow-right text-2xl"></i>
                         </div>
                         <div class="flex flex-column gap-3 flex-1 p-2">
                             <div>
@@ -774,21 +774,21 @@ const handleSellSave = async () => {
                 <div class="flex justify-content-end gap-3 pt-3">
                     <!-- Sell step 1: Next -->
                     <template v-if="operationType === 'sell' && step === 1">
-                        <Button type="button" label="Next" icon="pi pi-arrow-right" iconPos="right" @click="goToStep2" />
+                        <Button type="button" label="Next" icon="ti ti-arrow-right" iconPos="right" @click="goToStep2" />
                     </template>
                     <!-- Sell step 2: Back + Save (direct click, bypasses PrimeVue Form submit) -->
                     <template v-else-if="operationType === 'sell' && step === 2">
-                        <Button type="button" label="Save" icon="pi pi-check" :loading="isSaving" @click="handleSellSave" />
-                        <Button type="button" label="Back" icon="pi pi-arrow-left" severity="secondary" @click="goToStep1" />
+                        <Button type="button" label="Save" icon="ti ti-check" :loading="isSaving" @click="handleSellSave" />
+                        <Button type="button" label="Back" icon="ti ti-arrow-left" severity="secondary" @click="goToStep1" />
                     </template>
                     <!-- Buy: Save -->
                     <template v-else>
-                        <Button type="submit" label="Save" icon="pi pi-check" :loading="isSaving" />
+                        <Button type="submit" label="Save" icon="ti ti-check" :loading="isSaving" />
                     </template>
                     <Button
                         type="button"
                         label="Cancel"
-                        icon="pi pi-times"
+                        icon="ti ti-x"
                         severity="secondary"
                         @click="$emit('update:visible', false)"
                     />

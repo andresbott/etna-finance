@@ -490,14 +490,14 @@ function viewAttachment() {
             <div class="p-3">
                 <div class="flex align-items-center justify-content-between mb-3">
                     <div class="flex align-items-center gap-2">
-                        <Button icon="pi pi-arrow-left" label="Back" text @click="router.push('/tools')" />
+                        <Button icon="ti ti-arrow-left" label="Back" text @click="router.push('/tools')" />
                         <span class="text-xl font-bold">Buy vs Rent : {{ activeCaseName }}</span>
                     </div>
                     <div class="flex align-items-center gap-2">
-                        <Button label="Import" icon="pi pi-download" size="small" outlined @click="openImportDialog()" />
-                        <Button label="Edit" icon="pi pi-pencil" size="small" outlined @click="showEditDialog = true" />
-                        <Button label="Save" icon="pi pi-save" size="small" @click="handleSave()" />
-                        <Button label="Save As" icon="pi pi-copy" size="small" outlined @click="openSaveAsDialog()" />
+                        <Button label="Import" icon="ti ti-download" size="small" outlined @click="openImportDialog()" />
+                        <Button label="Edit" icon="ti ti-pencil" size="small" outlined @click="showEditDialog = true" />
+                        <Button label="Save" icon="ti ti-device-floppy" size="small" @click="handleSave()" />
+                        <Button label="Save As" icon="ti ti-copy" size="small" outlined @click="openSaveAsDialog()" />
                     </div>
                 </div>
 
@@ -620,7 +620,7 @@ function viewAttachment() {
                                             <div v-for="(eq, idx) in additionalEquity" :key="'eq-' + idx" class="field dynamic-item">
                                                 <div class="flex justify-content-between align-items-center">
                                                     <label>Source Name</label>
-                                                    <Button icon="pi pi-trash" severity="danger" text size="small" @click="removeEquitySource(idx)" />
+                                                    <Button icon="ti ti-trash" severity="danger" text size="small" @click="removeEquitySource(idx)" />
                                                 </div>
                                                 <InputText v-model="eq.name" class="w-full" placeholder="e.g. 2nd Pillar" />
                                                 <label>Amount</label>
@@ -629,7 +629,7 @@ function viewAttachment() {
                                                     <Slider v-model="eq.amount" :min="0" :max="500000" :step="1000" class="field-slider" />
                                                 </div>
                                             </div>
-                                            <Button label="Add Equity Source" icon="pi pi-plus" size="small" text @click="addEquitySource" />
+                                            <Button label="Add Equity Source" icon="ti ti-plus" size="small" text @click="addEquitySource" />
                                             <div class="field-summary">
                                                 Total Equity: <strong>{{ formatCurrency(totalEquity) }}</strong>
                                             </div>
@@ -645,7 +645,7 @@ function viewAttachment() {
                                             <div v-for="(m, idx) in mortgages" :key="'m-' + idx" class="mortgage-block">
                                                 <div class="flex justify-content-between align-items-center mb-2">
                                                     <InputText v-model="m.name" class="mortgage-name" />
-                                                    <Button icon="pi pi-trash" severity="danger" text size="small" @click="removeMortgage(idx)" />
+                                                    <Button icon="ti ti-trash" severity="danger" text size="small" @click="removeMortgage(idx)" />
                                                 </div>
                                                 <div class="field" v-if="mortgages.length > 1">
                                                     <label>Principal</label>
@@ -682,7 +682,7 @@ function viewAttachment() {
                                                     <label>Amortize (pay down principal)</label>
                                                 </div>
                                             </div>
-                                            <Button label="Add Mortgage" icon="pi pi-plus" size="small" text @click="addMortgage" />
+                                            <Button label="Add Mortgage" icon="ti ti-plus" size="small" text @click="addMortgage" />
                                         </div>
                                     </TabPanel>
 
@@ -709,7 +709,7 @@ function viewAttachment() {
 
                                             <div class="field">
                                                 <label>ETF Expected Return (%/yr)
-                                                    <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                    <i class="ti ti-help-circle text-color-secondary text-sm cursor-pointer"
                                                        @click="openHelp('ETF Expected Return', '<p>The annual return you expect from investing in an ETF instead of buying property.</p><p>Historical average for a diversified world ETF is around <strong>7-8%</strong> nominal.</p><p>This is used to calculate the opportunity cost: what your equity + monthly savings would grow to if invested.</p>')" />
                                                 </label>
                                                 <div class="field-controls">
@@ -734,7 +734,7 @@ function viewAttachment() {
                                 </div>
                                 <div class="verdict-banner" :class="buyWinsAt20 ? 'verdict-buy' : 'verdict-rent'">
                                     <div class="verdict-icon">
-                                        <i :class="buyWinsAt20 ? 'pi pi-home' : 'pi pi-chart-line'" style="font-size: 1.5rem"></i>
+                                        <i :class="buyWinsAt20 ? 'ti ti-home' : 'ti ti-chart-line'" style="font-size: 1.5rem"></i>
                                     </div>
                                     <div class="verdict-text">
                                         <strong>{{ buyWinsAt20 ? 'Buying wins' : 'Renting + Investing wins' }}</strong> after 20 years
@@ -760,7 +760,7 @@ function viewAttachment() {
                                     <div class="result-row font-bold">
                                         <span class="result-label">
                                             Monthly Difference
-                                            <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                            <i class="ti ti-help-circle text-color-secondary text-sm cursor-pointer"
                                                @click="openHelp('Monthly Difference', '<p>The difference between your monthly cost of buying vs renting.</p><p>If <strong>positive</strong>, buying costs more — the extra amount is what you could invest in an ETF if you rent instead.</p><p>If <strong>negative</strong>, buying is cheaper monthly than renting.</p>')" />
                                         </span>
                                         <span class="result-value" :style="{ color: monthlyCostDifference > 0 ? 'var(--c-red-500)' : 'var(--c-green-500)' }">
@@ -771,14 +771,14 @@ function viewAttachment() {
                                     <h4>20-Year Net Worth</h4>
                                     <div class="result-row">
                                         <span class="result-label">
-                                            <i class="pi pi-circle-fill" style="color: #22c55e; font-size: 0.6rem; vertical-align: middle; margin-right: 0.3rem"></i>
+                                            <i class="ti ti-point" style="color: #22c55e; font-size: 0.6rem; vertical-align: middle; margin-right: 0.3rem"></i>
                                             Buy
                                         </span>
                                         <span class="result-value">{{ formatCurrency(finalBuy) }}</span>
                                     </div>
                                     <div class="result-row">
                                         <span class="result-label">
-                                            <i class="pi pi-circle-fill" style="color: #3b82f6; font-size: 0.6rem; vertical-align: middle; margin-right: 0.3rem"></i>
+                                            <i class="ti ti-point" style="color: #3b82f6; font-size: 0.6rem; vertical-align: middle; margin-right: 0.3rem"></i>
                                             Rent + Invest
                                         </span>
                                         <span class="result-value">{{ formatCurrency(finalRent) }}</span>
@@ -828,20 +828,20 @@ function viewAttachment() {
                             <label>Attachment</label>
                             <div v-if="activeCaseAttachmentId" class="flex align-items-center gap-2">
                                 <Button
-                                    icon="pi pi-paperclip"
+                                    icon="ti ti-paperclip"
                                     label="View attachment"
                                     text
                                     size="small"
                                     @click="viewAttachment"
                                 />
-                                <Button icon="pi pi-trash" text rounded severity="danger" size="small" @click="handleAttachmentDelete" v-tooltip.bottom="'Remove attachment'" />
+                                <Button icon="ti ti-trash" text rounded severity="danger" size="small" @click="handleAttachmentDelete" v-tooltip.bottom="'Remove attachment'" />
                             </div>
                             <FileInput
                                 v-else
                                 v-model="selectedAttachmentFile"
                                 accept=".jpg,.jpeg,.png,.webp,.pdf"
                                 label="Upload file"
-                                icon="pi pi-paperclip"
+                                icon="ti ti-paperclip"
                             />
                         </div>
                     </div>
@@ -868,7 +868,7 @@ function viewAttachment() {
                         class="w-full"
                     />
                     <template #footer>
-                        <Button label="Import" icon="pi pi-download" @click="handleImportConfirm" :disabled="!selectedImportCase" />
+                        <Button label="Import" icon="ti ti-download" @click="handleImportConfirm" :disabled="!selectedImportCase" />
                         <Button label="Cancel" text @click="showImportDialog = false" />
                     </template>
                 </Dialog>

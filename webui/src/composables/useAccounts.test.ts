@@ -124,8 +124,8 @@ describe('useAccounts', () => {
 
       await flushPromises()
 
-      await result.updateAccountProvider({ id: 1, name: 'Updated', description: 'desc', icon: 'pi-star' })
-      expect(updateAccountProvider).toHaveBeenCalledWith(1, { name: 'Updated', description: 'desc', icon: 'pi-star' })
+      await result.updateAccountProvider({ id: 1, name: 'Updated', description: 'desc', icon: 'star' })
+      expect(updateAccountProvider).toHaveBeenCalledWith(1, { name: 'Updated', description: 'desc', icon: 'star' })
     })
 
     it('exposes deleteAccountProvider that calls the API', async () => {
@@ -158,8 +158,8 @@ describe('useAccounts', () => {
 
       await flushPromises()
 
-      await result.updateAccount({ id: 10, name: 'Renamed', currency: 'USD', type: 'checkin', icon: 'pi-cc', importProfileId: 7 })
-      expect(updateAccount).toHaveBeenCalledWith(10, { name: 'Renamed', currency: 'USD', type: 'checkin', icon: 'pi-cc', importProfileId: 7 })
+      await result.updateAccount({ id: 10, name: 'Renamed', currency: 'USD', type: 'checkin', icon: 'credit-card', importProfileId: 7 })
+      expect(updateAccount).toHaveBeenCalledWith(10, { name: 'Renamed', currency: 'USD', type: 'checkin', icon: 'credit-card', importProfileId: 7 })
     })
 
     it('exposes deleteAccount that calls the API', async () => {

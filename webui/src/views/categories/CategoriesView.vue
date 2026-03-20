@@ -9,14 +9,14 @@ const navItems = [
     {
         group: 'Categories',
         items: [
-            { label: 'Expense', icon: 'pi-folder-open', name: 'expense-categories' },
-            { label: 'Income', icon: 'pi-folder-open', name: 'income-categories' },
+            { label: 'Expense', icon: 'folder-open', name: 'expense-categories' },
+            { label: 'Income', icon: 'folder-open', name: 'income-categories' },
         ]
     },
     {
         group: 'Automation',
         items: [
-            { label: 'Matching Rules', icon: 'pi-bolt', name: 'category-rules' },
+            { label: 'Matching Rules', icon: 'bolt', name: 'category-rules' },
         ]
     }
 ]
@@ -40,7 +40,7 @@ const isActive = (name: string) => route.name === name
                             :class="{ 'nav-item--active': isActive(item.name) }"
                             @click="router.push({ name: item.name })"
                         >
-                            <i :class="['pi', item.icon]"></i>
+                            <i :class="['ti', `ti-${item.icon}`]"></i>
                             <span>{{ item.label }}</span>
                         </div>
                     </template>

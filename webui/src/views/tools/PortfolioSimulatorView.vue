@@ -240,13 +240,13 @@ function formatCurrencyShort(value) {
             <div class="p-3">
                 <div class="flex align-items-center justify-content-between mb-3">
                     <div class="flex align-items-center gap-2">
-                        <Button icon="pi pi-arrow-left" label="Back" text @click="router.push('/financial-simulator')" />
+                        <Button icon="ti ti-arrow-left" label="Back" text @click="router.push('/financial-simulator')" />
                         <span class="text-xl font-bold">Portfolio Simulator : {{ activeCaseName }}</span>
                     </div>
                     <div class="flex align-items-center gap-2">
-                        <Button label="Edit" icon="pi pi-pencil" size="small" outlined @click="showEditDialog = true" />
-                        <Button label="Save" icon="pi pi-save" size="small" @click="handleSave()" />
-                        <Button label="Save As" icon="pi pi-copy" size="small" outlined @click="openSaveAsDialog()" />
+                        <Button label="Edit" icon="ti ti-pencil" size="small" outlined @click="showEditDialog = true" />
+                        <Button label="Save" icon="ti ti-device-floppy" size="small" @click="handleSave()" />
+                        <Button label="Save As" icon="ti ti-copy" size="small" outlined @click="openSaveAsDialog()" />
                     </div>
                 </div>
 
@@ -396,20 +396,20 @@ function formatCurrencyShort(value) {
                             <label>Attachment</label>
                             <div v-if="activeCaseAttachmentId" class="flex align-items-center gap-2">
                                 <Button
-                                    icon="pi pi-paperclip"
+                                    icon="ti ti-paperclip"
                                     label="View attachment"
                                     text
                                     size="small"
                                     @click="viewAttachment"
                                 />
-                                <Button icon="pi pi-trash" text rounded severity="danger" size="small" @click="handleAttachmentDelete" v-tooltip.bottom="'Remove attachment'" />
+                                <Button icon="ti ti-trash" text rounded severity="danger" size="small" @click="handleAttachmentDelete" v-tooltip.bottom="'Remove attachment'" />
                             </div>
                             <FileInput
                                 v-else
                                 v-model="selectedAttachmentFile"
                                 accept=".jpg,.jpeg,.png,.webp,.pdf"
                                 label="Upload file"
-                                icon="pi pi-paperclip"
+                                icon="ti ti-paperclip"
                             />
                         </div>
                     </div>

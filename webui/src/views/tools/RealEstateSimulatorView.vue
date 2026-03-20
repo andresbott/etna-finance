@@ -616,14 +616,14 @@ function formatPct(value: number): string {
             <div class="p-3">
                 <div class="flex align-items-center justify-content-between mb-3">
                     <div class="flex align-items-center gap-2">
-                        <Button icon="pi pi-arrow-left" label="Back" text @click="router.push('/tools')" />
+                        <Button icon="ti ti-arrow-left" label="Back" text @click="router.push('/tools')" />
                         <span class="text-xl font-bold">Real Estate Simulator : {{ activeCaseName }}</span>
                     </div>
                     <div class="flex align-items-center gap-2">
-                        <Button label="Edit" icon="pi pi-pencil" size="small" outlined @click="showEditDialog = true" />
-                        <Button label="Save" icon="pi pi-save" size="small" @click="handleSave()" />
-                        <Button label="Save As" icon="pi pi-copy" size="small" outlined @click="openSaveAsDialog()" />
-                        <Button label="Print" icon="pi pi-print" size="small" outlined @click="handlePrint()" />
+                        <Button label="Edit" icon="ti ti-pencil" size="small" outlined @click="showEditDialog = true" />
+                        <Button label="Save" icon="ti ti-device-floppy" size="small" @click="handleSave()" />
+                        <Button label="Save As" icon="ti ti-copy" size="small" outlined @click="openSaveAsDialog()" />
+                        <Button label="Print" icon="ti ti-printer" size="small" outlined @click="handlePrint()" />
                     </div>
                 </div>
 
@@ -663,7 +663,7 @@ function formatPct(value: number): string {
                                             <div class="section-header">One-time Purchase Costs</div>
                                             <div class="field">
                                                 <label>Transfer Tax (%)
-                                                    <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                    <i class="ti ti-help-circle text-color-secondary text-sm cursor-pointer"
                                                        @click="openHelp('Transfer Tax', '<p>Typically a percentage of the purchase price, often split between buyer and seller by custom.</p><p><strong>Note:</strong> the split is negotiable — the seller could push more to you.</p>')" />
                                                 </label>
                                                 <div class="field-controls">
@@ -674,7 +674,7 @@ function formatPct(value: number): string {
                                             </div>
                                             <div class="field">
                                                 <label>Notary / Land Registry Office (%)
-                                                    <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                    <i class="ti ti-help-circle text-color-secondary text-sm cursor-pointer"
                                                        @click="openHelp('Notary / Land Registry Office', '<p>Notary fees typically follow a degressive tariff — the percentage decreases as the purchase price increases. Usually around 0.1–0.3% of the purchase price.</p>')" />
                                                 </label>
                                                 <div class="field-controls">
@@ -685,7 +685,7 @@ function formatPct(value: number): string {
                                             </div>
                                             <div class="field">
                                                 <label>Land Registry Entry (%)
-                                                    <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                    <i class="ti ti-help-circle text-color-secondary text-sm cursor-pointer"
                                                        @click="openHelp('Land Registry Entry', '<p>~0.1% of purchase price for the land registry entry.</p>')" />
                                                 </label>
                                                 <div class="field-controls">
@@ -696,7 +696,7 @@ function formatPct(value: number): string {
                                             </div>
                                             <div class="field">
                                                 <label>Mortgage Deed
-                                                    <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                    <i class="ti ti-help-circle text-color-secondary text-sm cursor-pointer"
                                                        @click="openHelp('Mortgage Deed', '<p>Cost if a new mortgage deed needs to be issued. If an existing deed transfers with the property, this can be zero.</p><p><strong>Important unknown:</strong> Ask the seller if there is an existing mortgage deed on the property. If it covers your mortgage amount, you save on issuance fees.</p>')" />
                                                 </label>
                                                 <div class="field-controls">
@@ -734,7 +734,7 @@ function formatPct(value: number): string {
                                             <div v-for="(eq, idx) in additionalEquity" :key="'eq-' + idx" class="field dynamic-item">
                                                 <div class="flex justify-content-between align-items-center">
                                                     <label>Source Name</label>
-                                                    <Button icon="pi pi-trash" severity="danger" text size="small" @click="removeEquitySource(idx)" />
+                                                    <Button icon="ti ti-trash" severity="danger" text size="small" @click="removeEquitySource(idx)" />
                                                 </div>
                                                 <InputText v-model="eq.name" class="w-full" placeholder="e.g. 2nd Pillar" />
                                                 <label>Amount</label>
@@ -743,7 +743,7 @@ function formatPct(value: number): string {
                                                     <Slider v-model="eq.amount" :min="0" :max="500000" :step="1000" class="field-slider" />
                                                 </div>
                                             </div>
-                                            <Button label="Add Equity Source" icon="pi pi-plus" size="small" text @click="addEquitySource" />
+                                            <Button label="Add Equity Source" icon="ti ti-plus" size="small" text @click="addEquitySource" />
                                             <div class="field-summary">
                                                 Total Equity: <strong>{{ formatCurrency(totalEquity) }}</strong>
                                             </div>
@@ -759,7 +759,7 @@ function formatPct(value: number): string {
                                             <div v-for="(m, idx) in mortgages" :key="'m-' + idx" class="mortgage-block">
                                                 <div class="flex justify-content-between align-items-center mb-2">
                                                     <InputText v-model="m.name" class="mortgage-name" />
-                                                    <Button icon="pi pi-trash" severity="danger" text size="small" @click="removeMortgage(idx)" />
+                                                    <Button icon="ti ti-trash" severity="danger" text size="small" @click="removeMortgage(idx)" />
                                                 </div>
                                                 <div class="field" v-if="mortgages.length > 1">
                                                     <label>Principal</label>
@@ -796,7 +796,7 @@ function formatPct(value: number): string {
                                                     <label>Amortize (pay down principal)</label>
                                                 </div>
                                             </div>
-                                            <Button label="Add Mortgage" icon="pi pi-plus" size="small" text @click="addMortgage" />
+                                            <Button label="Add Mortgage" icon="ti ti-plus" size="small" text @click="addMortgage" />
                                         </div>
                                     </TabPanel>
 
@@ -848,7 +848,7 @@ function formatPct(value: number): string {
                                                 </div>
                                                 <div class="field">
                                                     <label>Maintenance Reserve (%)
-                                                        <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                        <i class="ti ti-help-circle text-color-secondary text-sm cursor-pointer"
                                                            @click="openHelp('Maintenance Reserve', '<p>Industry rule: 0.5–1.5% of property value/year. Lower for new buildings, higher for old.</p><p>Covers in-unit items only (not building-level, which is the renovation fund):</p><ul><li>Kitchen appliances (12–15 yr lifespan)</li><li>Kitchen cabinetry (20–25 yr)</li><li>Bathroom fixtures (20–25 yr)</li><li>Flooring (15–25 yr)</li><li>Interior paint (every tenant change)</li><li>Washing machine/dryer (10–15 yr)</li></ul><p><strong>Special assessments:</strong> The owners\' association can charge one-off levies for major unplanned repairs (e.g. roof, façade, plumbing). These are unpredictable but can be significant. Consider increasing this percentage to absorb them.</p>')" />
                                                     </label>
                                                     <div class="field-controls">
@@ -859,7 +859,7 @@ function formatPct(value: number): string {
                                                 </div>
                                                 <div class="field">
                                                     <label>Renovation Fund
-                                                        <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                        <i class="ti ti-help-circle text-color-secondary text-sm cursor-pointer"
                                                            @click="openHelp('Renovation Fund', '<p>Owner-only cost that cannot be passed to tenants. Covers building-level repairs and upgrades (roof, façade, common areas).</p><p>Typical rate: 1.50–3.00/m²/month, depending on building age, condition, and planned works.</p><p>Older buildings (50+ years) tend to have higher contributions.</p>')" />
                                                     </label>
                                                     <div class="field-controls">
@@ -869,7 +869,7 @@ function formatPct(value: number): string {
                                                 </div>
                                                 <div class="field">
                                                     <label>Vacancy Allowance (%)
-                                                        <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                        <i class="ti ti-help-circle text-color-secondary text-sm cursor-pointer"
                                                            @click="openHelp('Vacancy Allowance', '<p>Percentage of gross annual rent deducted to account for periods without a tenant (turnover, renovations between tenants, market slowdowns).</p><p><strong>Typical values:</strong></p><ul><li>1–2% — prime urban locations with high demand</li><li>3–5% — standard urban apartments</li><li>5–10% — suburban or less desirable locations</li><li>10%+ — rural, niche, or oversupplied markets</li></ul>')" />
                                                     </label>
                                                     <div class="field-controls">
@@ -927,7 +927,7 @@ function formatPct(value: number): string {
                                             <div class="result-row">
                                                 <span class="result-label flex align-items-center gap-2">
                                                     Affordability Ratio
-                                                    <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                    <i class="ti ti-help-circle text-color-secondary text-sm cursor-pointer"
                                                        @click="openHelp('Affordability Ratio', '<p>All monthly costs for your property should not be more than <strong>33%</strong> of your gross income.</p>')" />
                                                     <ProgressBar :value="Math.min(affordabilityRatio, 100)" :showValue="false" :pt="{ root: { style: { width: '5rem', height: '0.5rem' } }, value: { style: { background: affordabilityColor(affordabilityRatio) } } }" />
                                                 </span>
@@ -936,7 +936,7 @@ function formatPct(value: number): string {
                                             <div class="result-row">
                                                 <span class="result-label flex align-items-center gap-2">
                                                     Equity Contribution
-                                                    <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                    <i class="ti ti-help-circle text-color-secondary text-sm cursor-pointer"
                                                        @click="openHelp('Equity Contribution', '<p>Amount of equity you contribute.</p><p><strong>Considerations:</strong></p><ul><li>As of 2014, Swiss banking guidelines prohibit the financing of mortgages without a minimum of <strong>10%</strong> of a home\'s collateral value as a down payment.</li><li>Most banks will require a <strong>20%</strong> down payment.</li><li>While you can use the 2nd pillar to finance, at least <strong>10%</strong> needs to be a direct contribution.</li></ul>')" />
                                                     <ProgressBar :value="Math.min(equityContributionPct, 100)" :showValue="false" :pt="{ root: { style: { width: '5rem', height: '0.5rem' } }, value: { style: { background: equityColor(equityContributionPct) } } }" />
                                                 </span>
@@ -957,14 +957,14 @@ function formatPct(value: number): string {
                                             </div>
                                             <div class="result-row">
                                                 <span class="result-label">Simplified Taxable Income
-                                                    <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                    <i class="ti ti-help-circle text-color-secondary text-sm cursor-pointer"
                                                        @click="openHelp('Simplified Taxable Income', '<p>Rough estimate of additional taxable income from rental revenue, assuming 20% of gross annual rent is taxable after deductions.</p>')" />
                                                 </span>
                                                 <span class="result-value">{{ formatCurrency(grossAnnualRent * 0.2) }} / yr</span>
                                             </div>
                                             <div class="result-row">
                                                 <span class="result-label">Breakeven Rent
-                                                    <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                    <i class="ti ti-help-circle text-color-secondary text-sm cursor-pointer"
                                                        @click="openHelp('Breakeven Rent', '<p>The minimum monthly rent needed to cover all costs (recurring costs + mortgage payments) and achieve a net cash flow of zero.</p>')" />
                                                 </span>
                                                 <span class="result-value">{{ formatCurrency(breakevenMonthlyRent) }} / mo</span>
@@ -976,7 +976,7 @@ function formatPct(value: number): string {
                                             </div>
                                             <div class="result-row">
                                                 <span class="result-label font-bold">Total Levered Yield (ROI)
-                                                    <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                    <i class="ti ti-help-circle text-color-secondary text-sm cursor-pointer"
                                                        @click="openHelp('Total Levered Yield (ROI)', '<p>The total year-1 return on your cash invested, including net cash flow, equity buildup, and property appreciation.</p><p><strong>Formula:</strong> (Net Cash Flow + Year-1 Equity Buildup + Annual Appreciation) / Total Equity</p><p>This is the most complete metric for comparing against alternative investments (e.g. putting the same equity into an ETF).</p>')" />
                                                 </span>
                                                 <span class="result-value font-bold">{{ formatPct(totalLeveredYield) }}</span>
@@ -1016,7 +1016,7 @@ function formatPct(value: number): string {
                                             <div class="result-row">
                                                 <span class="result-label flex align-items-center gap-2">
                                                     Affordability Ratio
-                                                    <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                    <i class="ti ti-help-circle text-color-secondary text-sm cursor-pointer"
                                                        @click="openHelp('Affordability Ratio', '<p>All monthly costs for your property should not be more than <strong>33%</strong> of your gross income.</p>')" />
                                                     <ProgressBar :value="Math.min(affordabilityRatio, 100)" :showValue="false" :pt="{ root: { style: { width: '5rem', height: '0.5rem' } }, value: { style: { background: affordabilityColor(affordabilityRatio) } } }" />
                                                 </span>
@@ -1028,7 +1028,7 @@ function formatPct(value: number): string {
                                             <div class="result-row">
                                                 <span class="result-label flex align-items-center gap-2">
                                                     Equity Contribution
-                                                    <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                    <i class="ti ti-help-circle text-color-secondary text-sm cursor-pointer"
                                                        @click="openHelp('Equity Contribution', '<p>Amount of equity you contribute.</p><p><strong>Considerations:</strong></p><ul><li>As of 2014, Swiss banking guidelines prohibit the financing of mortgages without a minimum of <strong>10%</strong> of a home\'s collateral value as a down payment.</li><li>Most banks will require a <strong>20%</strong> down payment.</li><li>While you can use the 2nd pillar to finance, at least <strong>10%</strong> needs to be a direct contribution.</li></ul>')" />
                                                     <ProgressBar :value="Math.min(equityContributionPct, 100)" :showValue="false" :pt="{ root: { style: { width: '5rem', height: '0.5rem' } }, value: { style: { background: equityColor(equityContributionPct) } } }" />
                                                 </span>
@@ -1048,7 +1048,7 @@ function formatPct(value: number): string {
                                         <div class="report-section">
                                             <h4>
                                                 Swiss Mortgage Rules
-                                                <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer ml-2"
+                                                <i class="ti ti-help-circle text-color-secondary text-sm cursor-pointer ml-2"
                                                    @click="openHelp('Swiss Mortgage Rules', '<p>In Switzerland, when a mortgage covers more than <strong>2/3</strong> of the property value, it is split into two tranches:</p><h4>First Mortgage (up to 2/3)</h4><ul><li>Covers up to 66.7% of the property value.</li><li>Can be amortized, but the borrower is <strong>under no obligation</strong> to do so — you can just pay interest.</li></ul><h4>Second Mortgage (above 2/3)</h4><ul><li>Covers the portion between your equity and the 2/3 mark.</li><li>Banks often charge <strong>higher interest rates</strong> on this tranche.</li><li>Must be <strong>fully amortized within 15 years</strong>.</li><li>Must be paid off before the borrower turns <strong>65</strong> (retirement age).</li></ul><h4>Equity Requirements</h4><ul><li>Minimum <strong>20%</strong> equity required (some banks accept 10% in specific cases).</li><li>At least <strong>10%</strong> must be a direct cash contribution (not from pension funds).</li><li>2nd pillar (pension) funds can be used for the remaining equity.</li></ul>')" />
                                             </h4>
                                         </div>
@@ -1085,7 +1085,7 @@ function formatPct(value: number): string {
                                                 <div class="result-row" v-if="md.amortize">
                                                     <span class="result-label flex align-items-center gap-2">
                                                         Interest / Principal
-                                                        <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                        <i class="ti ti-help-circle text-color-secondary text-sm cursor-pointer"
                                                            @click="openHelp('Interest / Principal', '<p>Shows how much total interest you pay relative to the borrowed principal.</p><p>Lower is better — e.g. <strong>30%</strong> means you pay 30 cents of interest for every euro borrowed.</p>')" />
                                                         <ProgressBar :value="Math.min(md.interestToPrincipalRatio, 100)" :showValue="false" :pt="{ root: { style: { width: '5rem', height: '0.5rem' } }, value: { style: { background: interestRatioColor(md.interestToPrincipalRatio) } } }" />
                                                     </span>
@@ -1125,7 +1125,7 @@ function formatPct(value: number): string {
                                                 </div>
                                                 <div class="cost-table-row">
                                                     <span class="cost-table-label">Recurring Costs
-                                                        <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                        <i class="ti ti-help-circle text-color-secondary text-sm cursor-pointer"
                                                            @click="openHelp('Recurring Costs', '<p>Includes property tax, insurance, maintenance, incidental (' + incidentalPct.toFixed(1) + '% = ' + formatCurrency(incidentalCost) + '/yr), and other costs.</p><p><strong>Incidental</strong> is a yearly reserve for bigger expenses (e.g. repairs). A common rule of thumb is <strong>1%</strong> of the property value, though this should be evaluated more thoroughly.</p>')" />
                                                     </span>
                                                     <span class="cost-table-value">−{{ formatCurrency(totalRecurringCosts / 12) }}</span>
@@ -1148,21 +1148,21 @@ function formatPct(value: number): string {
                                             <h4>Property Metrics (unlevered)</h4>
                                             <div class="result-row">
                                                 <span class="result-label">Gross Annual Return
-                                                    <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                    <i class="ti ti-help-circle text-color-secondary text-sm cursor-pointer"
                                                        @click="openHelp('Gross Annual Return', '<p>Annual rent income as a percentage of the purchase price, before any expenses.</p><p><strong>Formula:</strong> Annual Rent / Purchase Price</p>')" />
                                                 </span>
                                                 <span class="result-value">{{ formatPct(grossAnnualReturn) }}</span>
                                             </div>
                                             <div class="result-row">
                                                 <span class="result-label">Net Operating Income (NOI)
-                                                    <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                    <i class="ti ti-help-circle text-color-secondary text-sm cursor-pointer"
                                                        @click="openHelp('Net Operating Income (NOI)', '<p>Rental income minus all recurring operating costs, but before mortgage payments.</p><p><strong>Formula:</strong> Annual Rent − Recurring Costs</p><p>NOI is useful for comparing properties regardless of how they are financed.</p>')" />
                                                 </span>
                                                 <span class="result-value">{{ formatCurrency(noi) }} / yr</span>
                                             </div>
                                             <div class="result-row">
                                                 <span class="result-label">Cap Rate
-                                                    <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                    <i class="ti ti-help-circle text-color-secondary text-sm cursor-pointer"
                                                        @click="openHelp('Cap Rate', '<p>The capitalization rate measures the property\'s return independent of financing.</p><p><strong>Formula:</strong> NOI / Market Value</p><p>A higher cap rate indicates a potentially better investment, but may also reflect higher risk.</p>')" />
                                                 </span>
                                                 <span class="result-value">{{ formatPct(capRate) }}</span>
@@ -1173,14 +1173,14 @@ function formatPct(value: number): string {
                                             <h4>Levered Yield (cash flow + equity buildup)</h4>
                                             <div class="result-row">
                                                 <span class="result-label">Year-1
-                                                    <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                    <i class="ti ti-help-circle text-color-secondary text-sm cursor-pointer"
                                                        @click="openHelp('Levered Yield (Year-1)', '<p>The return on your actual cash invested (equity), including net cash flow and equity buildup from mortgage principal repayment.</p><p><strong>Formula:</strong> (Net Cash Flow + Annual Equity Buildup) / Total Equity</p><p><strong>Note:</strong> Equity buildup uses the actual year-1 principal repayment from the amortization schedule. In early years, most of the mortgage payment goes to interest, so this value will be lower than a simple average over the loan term.</p><p>This metric is useful for comparing against alternative investments (e.g. putting the same equity into an ETF).</p>')" />
                                                 </span>
                                                 <span class="result-value">{{ formatPct(leveredYield) }}</span>
                                             </div>
                                             <div class="result-row">
                                                 <span class="result-label">Average
-                                                    <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                    <i class="ti ti-help-circle text-color-secondary text-sm cursor-pointer"
                                                        @click="openHelp('Levered Yield (Average)', '<p>Same as year-1 Levered Yield but using a linear average of equity buildup over the full mortgage term, instead of the year-1 value.</p><p><strong>Formula:</strong> (Net Cash Flow + Principal / Term Years) / Total Equity</p><p>This gives a sense of the average annual return over the life of the mortgage. Compare with the year-1 value to see how returns improve as more principal is repaid each year.</p>')" />
                                                 </span>
                                                 <span class="result-value">{{ formatPct(avgLeveredYield) }}</span>
@@ -1191,14 +1191,14 @@ function formatPct(value: number): string {
                                             <h4>Total Levered Yield (+ appreciation)</h4>
                                             <div class="result-row font-bold">
                                                 <span class="result-label">Year-1
-                                                    <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                    <i class="ti ti-help-circle text-color-secondary text-sm cursor-pointer"
                                                        @click="openHelp('Total Levered Yield (Year-1)', '<p>Levered Yield plus property appreciation, using year-1 equity buildup.</p><p><strong>Formula:</strong> (Net Cash Flow + Year-1 Equity Buildup + Annual Appreciation) / Total Equity</p><p>Annual appreciation is calculated as Market Value × Property Appreciation %. This is the most complete year-1 return metric for comparing against an ETF.</p>')" />
                                                 </span>
                                                 <span class="result-value">{{ formatPct(totalLeveredYield) }}</span>
                                             </div>
                                             <div class="result-row font-bold">
                                                 <span class="result-label">Average
-                                                    <i class="pi pi-question-circle text-color-secondary text-sm cursor-pointer"
+                                                    <i class="ti ti-help-circle text-color-secondary text-sm cursor-pointer"
                                                        @click="openHelp('Total Levered Yield (Average)', '<p>Same as year-1 Total Levered Yield but using a linear average of equity buildup over the full mortgage term.</p><p><strong>Formula:</strong> (Net Cash Flow + Principal / Term Years + Annual Appreciation) / Total Equity</p><p>This represents the average total annual return over the life of the mortgage, including property appreciation.</p>')" />
                                                 </span>
                                                 <span class="result-value">{{ formatPct(avgTotalLeveredYield) }}</span>
@@ -1244,20 +1244,20 @@ function formatPct(value: number): string {
                             <label>Attachment</label>
                             <div v-if="activeCaseAttachmentId" class="flex align-items-center gap-2">
                                 <Button
-                                    icon="pi pi-paperclip"
+                                    icon="ti ti-paperclip"
                                     label="View attachment"
                                     text
                                     size="small"
                                     @click="viewAttachment"
                                 />
-                                <Button icon="pi pi-trash" text rounded severity="danger" size="small" @click="handleAttachmentDelete" v-tooltip.bottom="'Remove attachment'" />
+                                <Button icon="ti ti-trash" text rounded severity="danger" size="small" @click="handleAttachmentDelete" v-tooltip.bottom="'Remove attachment'" />
                             </div>
                             <FileInput
                                 v-else
                                 v-model="selectedAttachmentFile"
                                 accept=".jpg,.jpeg,.png,.webp,.pdf"
                                 label="Upload file"
-                                icon="pi pi-paperclip"
+                                icon="ti ti-paperclip"
                             />
                         </div>
                     </div>

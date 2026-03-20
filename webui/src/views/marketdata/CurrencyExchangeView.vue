@@ -60,13 +60,13 @@ function onRowClick(event) {
                 <div class="mb-2 flex align-items-start justify-content-between gap-2">
                     <div>
                         <h1 class="flex align-items-center gap-3 m-0 mb-2">
-                            <i class="pi pi-chart-line text-primary"></i>
+                            <i class="ti ti-chart-line text-primary"></i>
                             Currency Exchange
                         </h1>
                         <p class="text-color-secondary mt-0 mb-3">
                             Exchange rates and trends
                             <i
-                                class="pi pi-question-circle"
+                                class="ti ti-help-circle"
                                 v-tooltip.bottom="'Use Tasks to update and schedule currency rate ingestion'"
                                 style="cursor: help"
                             />
@@ -76,9 +76,9 @@ function onRowClick(event) {
 
                 <Message v-if="isError" severity="error" :closable="false" class="mb-3">
                     <div class="flex align-items-center gap-2 flex-wrap">
-                        <i class="pi pi-exclamation-triangle"></i>
+                        <i class="ti ti-alert-triangle"></i>
                         <span>{{ error?.message ?? 'Failed to load currency data.' }}</span>
-                        <Button label="Retry" icon="pi pi-refresh" text size="small" @click="refetch" />
+                        <Button label="Retry" icon="ti ti-refresh" text size="small" @click="refetch" />
                     </div>
                 </Message>
 
@@ -138,7 +138,7 @@ function onRowClick(event) {
                                 <template #body="{ data }">
                                     <div class="flex gap-2 justify-content-end">
                                         <Button
-                                            icon="pi pi-plus"
+                                            icon="ti ti-plus"
                                             text
                                             rounded
                                             class="p-1"
@@ -193,7 +193,7 @@ function onRowClick(event) {
                     </div>
                     <template #footer>
                         <Button label="Cancel" text severity="secondary" @click="addDialogVisible = false" />
-                        <Button label="Save" icon="pi pi-check" :loading="isCreating" @click="saveAddDialog" />
+                        <Button label="Save" icon="ti ti-check" :loading="isCreating" @click="saveAddDialog" />
                     </template>
                 </Dialog>
             </div>

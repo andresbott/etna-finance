@@ -258,7 +258,7 @@ function closeLogDialog() {
                                 <span class="schedule-summary text-color-secondary">{{ scheduleSummary(data) }}</span>
                                 <Button
                                     :label="data.schedule ? 'Edit' : 'Schedule'"
-                                    icon="pi pi-calendar"
+                                    icon="ti ti-calendar"
                                     size="small"
                                     text
                                     class="ml-2"
@@ -270,7 +270,7 @@ function closeLogDialog() {
                             <template #body="{ data }">
                                 <Button
                                     label="Run now"
-                                    icon="pi pi-play"
+                                    icon="ti ti-player-play"
                                     size="small"
                                     :loading="triggeringTaskId === data.id"
                                     :disabled="triggeringTaskId !== null"
@@ -326,7 +326,7 @@ function closeLogDialog() {
                                 <Button
                                     v-if="isExecutionCancelable(data.status)"
                                     label="Cancel"
-                                    icon="pi pi-times"
+                                    icon="ti ti-x"
                                     size="small"
                                     severity="secondary"
                                     :loading="isCancelingExecution(data.id)"
@@ -404,7 +404,7 @@ function closeLogDialog() {
                             <Button label="Cancel" text severity="secondary" @click="closeScheduleDialog" />
                             <Button
                                 label="Save"
-                                icon="pi pi-check"
+                                icon="ti ti-check"
                                 :loading="scheduleDialogSaving"
                                 @click="saveScheduleDialog"
                             />

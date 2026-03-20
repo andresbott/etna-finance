@@ -53,10 +53,10 @@ interface Category {
 }
 
 const categoryDialogVisible = ref(false)
-const categoryData = ref<Category>({ id: null, name: '', description: '', parentId: 0, icon: 'pi-tag' })
+const categoryData = ref<Category>({ id: null, name: '', description: '', parentId: 0, icon: 'tag' })
 
 const resetCategoryData = () => {
-    categoryData.value = { id: null, name: '', description: '', parentId: 0, icon: 'pi-tag' }
+    categoryData.value = { id: null, name: '', description: '', parentId: 0, icon: 'tag' }
 }
 
 const handleAddEdit = (item: Category | null, action: string) => {
@@ -74,7 +74,7 @@ const handleAddEdit = (item: Category | null, action: string) => {
         categoryData.value.id = item.id
         categoryData.value.name = item.name
         categoryData.value.description = item.description
-        categoryData.value.icon = item.icon || 'pi-tag'
+        categoryData.value.icon = item.icon || 'tag'
         categoryData.value.action = 'edit'
     }
     categoryData.value.type = 'income'
@@ -89,7 +89,7 @@ const saveCategory = () => {
             name: categoryData.value.name,
             description: categoryData.value.description || undefined,
             parentId: categoryData.value.parentId || undefined,
-            icon: categoryData.value.icon || 'pi-tag'
+            icon: categoryData.value.icon || 'tag'
         }
         createIncomeCategory.mutate(dto, {
             onSuccess: () => { categoryDialogVisible.value = false },
@@ -107,7 +107,7 @@ const saveCategory = () => {
             name: categoryData.value.name,
             description: categoryData.value.description || undefined,
             parentId: categoryData.value.parentId,
-            icon: categoryData.value.icon || 'pi-tag'
+            icon: categoryData.value.icon || 'tag'
         }
         updateIncomeMutation.mutate(
             { id: categoryData.value.id, payload: dto },
@@ -152,7 +152,7 @@ const deleteCategory = () => {
             <Column field="name" header="Name" expander>
                 <template #body="slotProps">
                     <span class="inline-flex align-items-center gap-2">
-                        <i :class="['pi', slotProps.node.data.icon || 'pi-tag']"></i>
+                        <i :class="['ti', `ti-${slotProps.node.data.icon || 'tag'}`]"></i>
                         {{ slotProps.node.data.name }}
                     </span>
                 </template>
@@ -163,18 +163,18 @@ const deleteCategory = () => {
                     <div class="flex gap-1 justify-content-end w-full">
                         <Button
                             label="Add new parent category"
-                            icon="pi pi-plus"
+                            icon="ti ti-plus"
                             @click="handleAddEdit(null, 'add')"
                         />
                     </div>
                 </template>
                 <template #body="slotProps">
                     <div class="flex gap-1 justify-content-end w-full">
-                        <Button icon="pi pi-plus" text rounded class="p-1"
+                        <Button icon="ti ti-plus" text rounded class="p-1"
                             @click="handleAddEdit(slotProps.node.data, 'add')" />
-                        <Button icon="pi pi-pencil" text rounded class="p-1"
+                        <Button icon="ti ti-pencil" text rounded class="p-1"
                             @click="handleAddEdit(slotProps.node.data, 'edit')" />
-                        <Button icon="pi pi-trash" text rounded severity="danger" class="p-1"
+                        <Button icon="ti ti-trash" text rounded severity="danger" class="p-1"
                             @click="confirmDelete(slotProps.node.data)" />
                     </div>
                 </template>

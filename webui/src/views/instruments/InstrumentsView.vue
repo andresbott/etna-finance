@@ -108,7 +108,7 @@ const saveInstrument = async (payload) => {
             <div class="flex justify-content-end">
                 <Button
                     label="Add Instrument"
-                    icon="pi pi-plus"
+                    icon="ti ti-plus"
                     @click="openNewInstrumentDialog"
                 />
             </div>
@@ -137,14 +137,14 @@ const saveInstrument = async (payload) => {
                             <template #body="{ data }">
                                 <div class="flex gap-1 justify-content-end">
                                     <Button
-                                        icon="pi pi-pencil"
+                                        icon="ti ti-pencil"
                                         text
                                         rounded
                                         class="p-1"
                                         @click="editInstrument(data)"
                                     />
                                     <Button
-                                        icon="pi pi-trash"
+                                        icon="ti ti-trash"
                                         text
                                         rounded
                                         severity="danger"
