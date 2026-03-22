@@ -31,7 +31,7 @@ import { uploadAttachment, deleteAttachment, getAttachmentUrl } from '@/lib/api/
 import FileInput from '@/components/common/FileInput.vue'
 
 const queryClient = useQueryClient()
-const { createEntry, updateEntry, isCreating, isUpdating } = useEntryMutations()
+const { createEntry, updateEntry, deleteEntry, isCreating, isUpdating } = useEntryMutations()
 const backendError = ref('')
 const { accounts } = useAccounts()
 const { pickerDateFormat, dateValidation } = useDateFormat()
@@ -48,7 +48,8 @@ const props = defineProps({
     visible: { type: Boolean, default: false },
     autofocusAmount: { type: Boolean, default: false },
     attachmentId: { type: Number, default: null },
-    notes: { type: String, default: '' }
+    notes: { type: String, default: '' },
+    deleteAfterCreateId: { type: Number, default: null }
 })
 
 const selectedFile = ref(null)
@@ -233,6 +234,17 @@ const handleSubmit = async (e) => {
         }
         if (attachmentChanged) {
             queryClient.invalidateQueries({ queryKey: ['entries'] })
+        }
+
+        // If this was a transform from income/expense, delete the original entry
+        if (props.deleteAfterCreateId != null) {
+            try {
+                await deleteEntry(String(props.deleteAfterCreateId))
+            } catch (e) {
+                console.error('Transfer created but failed to delete original entry:', e)
+                backendError.value = 'Transfer created, but the original entry could not be deleted. Please delete it manually.'
+                return // Keep dialog open so user sees the warning
+            }
         }
 
         emit('update:visible', false)

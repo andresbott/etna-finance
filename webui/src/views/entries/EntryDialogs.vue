@@ -13,10 +13,11 @@ defineProps({
     isDuplicateMode: { type: Boolean, default: false },
     dialogs: { type: Object, required: true },
     deleteDialogVisible: { type: Boolean, default: false },
-    entryToDelete: { type: Object, default: null }
+    entryToDelete: { type: Object, default: null },
+    transformDeleteId: { type: Number, default: null }
 })
 
-const emit = defineEmits(['update:deleteDialogVisible', 'confirmDelete'])
+const emit = defineEmits(['update:deleteDialogVisible', 'confirmDelete', 'transformToTransfer'])
 </script>
 
 <template>
@@ -34,6 +35,7 @@ const emit = defineEmits(['update:deleteDialogVisible', 'confirmDelete'])
         :autofocus-amount="isDuplicateMode"
         :attachment-id="isDuplicateMode ? undefined : selectedEntry?.attachmentId"
         :notes="selectedEntry?.notes ?? ''"
+        @transform-to-transfer="emit('transformToTransfer', $event)"
     />
 
     <TransferDialog
@@ -51,6 +53,7 @@ const emit = defineEmits(['update:deleteDialogVisible', 'confirmDelete'])
         :autofocus-amount="isDuplicateMode"
         :attachment-id="isDuplicateMode ? undefined : selectedEntry?.attachmentId"
         :notes="selectedEntry?.notes ?? ''"
+        :delete-after-create-id="transformDeleteId"
     />
 
     <BuySellInstrumentDialog

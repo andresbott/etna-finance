@@ -233,7 +233,7 @@ const viewAttachment = () => {
 }
 
 // Define the emit for updating visibility
-const emit = defineEmits(['update:visible'])
+const emit = defineEmits(['update:visible', 'transformToTransfer'])
 </script>
 
 <template>
@@ -384,20 +384,40 @@ const emit = defineEmits(['update:visible'])
                     </div>
                 </div>
 
-                <div class="flex justify-content-end gap-3">
+                <div class="flex justify-content-between gap-3">
                     <Button
-                        type="submit"
-                        label="Save"
-                        icon="ti ti-check"
-                        :loading="isCreating || isUpdating"
-                    />
-                    <Button
+                        v-if="isEdit"
                         type="button"
-                        label="Cancel"
-                        icon="ti ti-x"
+                        label="To Transfer"
+                        icon="ti ti-arrows-left-right"
                         severity="secondary"
-                        @click="$emit('update:visible', false)"
+                        outlined
+                        @click="emit('transformToTransfer', {
+                            id: entryId,
+                            date: formValues.date,
+                            description: formValues.description,
+                            notes: formValues.notes,
+                            amount: formValues.amount,
+                            accountId: extractAccountId(formValues.AccountId),
+                            entryType: entryType
+                        })"
                     />
+                    <div v-else></div>
+                    <div class="flex gap-3">
+                        <Button
+                            type="submit"
+                            label="Save"
+                            icon="ti ti-check"
+                            :loading="isCreating || isUpdating"
+                        />
+                        <Button
+                            type="button"
+                            label="Cancel"
+                            icon="ti ti-x"
+                            severity="secondary"
+                            @click="$emit('update:visible', false)"
+                        />
+                    </div>
                 </div>
             </div>
         </Form>
