@@ -240,6 +240,7 @@ type Account struct {
 	Name              string
 	Description       string
 	Icon              string
+	Notes             string
 	Currency          currency.Unit
 	Type              AccountType
 	ImportProfileID   uint // 0 = no linked import profile
@@ -252,6 +253,7 @@ type dbAccount struct {
 	Name            string
 	Description     string
 	Icon            string
+	Notes           string `gorm:"size:1024"`
 	Type            AccountType
 	Currency        string
 	ImportProfileID uint `gorm:"default:null"`
@@ -273,6 +275,7 @@ func dbToAccount(in dbAccount) Account {
 		Name:              in.Name,
 		Description:       in.Description,
 		Icon:              in.Icon,
+		Notes:             in.Notes,
 		Currency:          cur,
 		Type:              in.Type,
 		ImportProfileID:   in.ImportProfileID,
@@ -303,6 +306,7 @@ func (store *Store) CreateAccount(ctx context.Context, item Account) (uint, erro
 		Name:            item.Name,
 		Description:     item.Description,
 		Icon:            item.Icon,
+		Notes:           item.Notes,
 		Type:            item.Type,
 		Currency:        currencyStr,
 		ImportProfileID: item.ImportProfileID,
@@ -332,6 +336,7 @@ type AccountUpdatePayload struct {
 	Name            *string
 	Description     *string
 	Icon            *string
+	Notes           *string
 	Currency        *currency.Unit
 	ProviderID      *uint
 	Type            AccountType
@@ -366,6 +371,11 @@ func (store *Store) UpdateAccount(ctx context.Context, item AccountUpdatePayload
 	if item.Icon != nil {
 		updateStruct.Icon = *item.Icon
 		selectedFields = append(selectedFields, "Icon")
+	}
+
+	if item.Notes != nil {
+		updateStruct.Notes = *item.Notes
+		selectedFields = append(selectedFields, "Notes")
 	}
 
 	if item.Type != UnknownAccountType {

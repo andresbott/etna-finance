@@ -221,6 +221,7 @@ const router = createRouter({
                 { path: 'instruments', name: 'settings-instruments', meta: { requiresInstruments: true }, component: () => import('@/views/instruments/InstrumentsView.vue') },
                 { path: 'backup-restore', name: 'settings-backup-restore', component: () => import('@/views/backup/BackupRestoreView.vue') },
                 { path: 'tasks', name: 'settings-tasks', component: () => import('@/views/tasks/TasksView.vue') },
+                { path: 'about', name: 'settings-about', component: () => import('@/views/settings/AboutView.vue') },
             ]
         },
         {

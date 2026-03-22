@@ -2,6 +2,7 @@
 import { ref, watch, computed, onMounted } from 'vue'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
+import Textarea from 'primevue/textarea'
 import Button from 'primevue/button'
 import { Form } from '@primevue/forms'
 import Message from 'primevue/message'
@@ -15,7 +16,7 @@ import { ACCOUNT_TYPES, ACCOUNT_TYPE_LABELS, getAccountTypeLabel } from '@/types
 import { useSettingsStore } from '@/store/settingsStore'
 import { getProfiles } from '@/lib/api/CsvImport'
 
-const { createAccount, updateAccount, isCreating, isUpdating } = useAccounts()
+const { accounts, createAccount, updateAccount, isCreating, isUpdating } = useAccounts()
 const settingsStore = useSettingsStore()
 const backendError = ref('')
 
@@ -26,6 +27,7 @@ const props = defineProps({
     currency: { type: String, default: 'CHF' },
     type: { type: String, default: 'cash' },
     icon: { type: String, default: 'wallet' },
+    notes: { type: String, default: '' },
     importProfileId: { type: Number, default: 0 },
     visible: { type: Boolean, default: false },
     providerId: { type: Number, required: true }
@@ -52,8 +54,17 @@ const accountTypeOptions = computed(() => {
     return allAccountTypeOptions.filter(opt => !instrumentAccountTypes.includes(opt.value))
 })
 
+// Provider selection (edit mode only)
+const selectedProviderId = ref(props.providerId)
+const providerOptions = computed(() =>
+    (accounts.value ?? []).map(p => ({ label: p.name, value: p.id }))
+)
+
 // Separate ref for icon since it's not managed by the Form
 const selectedIcon = ref(props.icon)
+
+// Notes
+const notesValue = ref(props.notes)
 
 // Import profiles
 const profiles = ref([])
@@ -82,6 +93,8 @@ const formValues = ref({
 watch(props, (newProps) => {
     formValues.value = { name: newProps.name, currency: newProps.currency, type: newProps.type }
     selectedIcon.value = newProps.icon || 'wallet'
+    notesValue.value = newProps.notes || ''
+    selectedProviderId.value = newProps.providerId
     selectedProfileId.value = newProps.importProfileId || 0
 })
 
@@ -100,8 +113,9 @@ const onFormSubmit = async (e) => {
         const formData = {
             ...e.values,
             icon: selectedIcon.value,
+            notes: notesValue.value,
             accountId: props.accountId,
-            providerId: props.providerId,
+            providerId: selectedProviderId.value,
             importProfileId: selectedProfileId.value
         }
 
@@ -114,6 +128,7 @@ const onFormSubmit = async (e) => {
                     currency: formData.currency,
                     type: formData.type,
                     icon: formData.icon,
+                    notes: formData.notes,
                     providerId: formData.providerId,
                     importProfileId: formData.importProfileId
                 })
@@ -129,6 +144,7 @@ const onFormSubmit = async (e) => {
                     currency: formData.currency,
                     type: formData.type,
                     icon: formData.icon,
+                    notes: formData.notes,
                     providerId: formData.providerId,
                     importProfileId: formData.importProfileId
                 })
@@ -172,6 +188,16 @@ const onFormSubmit = async (e) => {
                     <div>
                         <label for="icon" class="form-label">Icon</label>
                         <IconSelect v-model="selectedIcon" />
+                    </div>
+                    <div v-if="isEdit">
+                        <label class="form-label">Provider</label>
+                        <Select
+                            v-model="selectedProviderId"
+                            :options="providerOptions"
+                            optionLabel="label"
+                            optionValue="value"
+                            placeholder="Select Provider"
+                        />
                     </div>
                     <div>
                         <label for="accountTypes" class="form-label">Type</label>
@@ -217,6 +243,10 @@ const onFormSubmit = async (e) => {
                             optionValue="value"
                             placeholder="No import profile"
                         />
+                    </div>
+                    <div>
+                        <label class="form-label">Notes</label>
+                        <Textarea v-model="notesValue" rows="3" placeholder="Optional notes about this account" />
                     </div>
 
                     <div class="flex justify-content-end gap-3">

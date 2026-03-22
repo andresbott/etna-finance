@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, nextTick, watch } from 'vue'
 import { getEntry } from '@/lib/api/Entry'
 
 export function useEntryDialogs(deleteEntryFn: (id: string) => Promise<void>) {
@@ -8,6 +8,7 @@ export function useEntryDialogs(deleteEntryFn: (id: string) => Promise<void>) {
 
     const deleteDialogVisible = ref(false)
     const entryToDelete = ref<Record<string, unknown> | null>(null)
+    const transformDeleteId = ref<number | null>(null)
 
     const dialogs = {
         incomeExpense: ref(false),
@@ -80,6 +81,56 @@ export function useEntryDialogs(deleteEntryFn: (id: string) => Promise<void>) {
         }
     }
 
+    const openTransformToTransfer = async (data: {
+        id: number
+        date: Date
+        description: string
+        notes: string
+        amount: number
+        accountId: number
+        entryType: string
+    }) => {
+        // Close income/expense dialog first
+        dialogs.incomeExpense.value = false
+        await nextTick()
+
+        isEditMode.value = false
+        isDuplicateMode.value = false
+        transformDeleteId.value = data.id
+
+        // Build selectedEntry shaped for TransferDialog props
+        if (data.entryType === 'expense') {
+            selectedEntry.value = {
+                description: data.description,
+                notes: data.notes,
+                date: data.date,
+                originAccountId: data.accountId,
+                originAmount: data.amount,
+                targetAccountId: null,
+                targetAmount: 0
+            }
+        } else {
+            selectedEntry.value = {
+                description: data.description,
+                notes: data.notes,
+                date: data.date,
+                targetAccountId: data.accountId,
+                targetAmount: data.amount,
+                originAccountId: null,
+                originAmount: 0
+            }
+        }
+
+        dialogs.transfer.value = true
+    }
+
+    // Clear transformDeleteId when transfer dialog closes (cancel or success)
+    watch(dialogs.transfer, (open) => {
+        if (!open) {
+            transformDeleteId.value = null
+        }
+    })
+
     return {
         selectedEntry,
         isEditMode,
@@ -90,6 +141,8 @@ export function useEntryDialogs(deleteEntryFn: (id: string) => Promise<void>) {
         openEditEntryDialog,
         openDuplicateEntryDialog,
         openDeleteDialog,
-        handleDeleteEntry
+        handleDeleteEntry,
+        openTransformToTransfer,
+        transformDeleteId
     }
 }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
@@ -8,6 +8,7 @@ import Checkbox from 'primevue/checkbox'
 import Button from 'primevue/button'
 import CategorySelect from '@/components/common/CategorySelect.vue'
 
+const route = useRoute()
 const router = useRouter()
 const toast = useToast()
 
@@ -35,6 +36,7 @@ const handleApply = () => {
     visible.value = false
     router.push({
         name: 'reapply-rules',
+        query: { redirect: route.fullPath },
         state: {
             adhocRule: {
                 categoryId: categoryId.value,

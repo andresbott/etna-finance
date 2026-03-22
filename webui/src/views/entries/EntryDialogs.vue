@@ -13,10 +13,11 @@ defineProps({
     isDuplicateMode: { type: Boolean, default: false },
     dialogs: { type: Object, required: true },
     deleteDialogVisible: { type: Boolean, default: false },
-    entryToDelete: { type: Object, default: null }
+    entryToDelete: { type: Object, default: null },
+    transformDeleteId: { type: Number, default: null }
 })
 
-const emit = defineEmits(['update:deleteDialogVisible', 'confirmDelete'])
+const emit = defineEmits(['update:deleteDialogVisible', 'confirmDelete', 'transformToTransfer'])
 </script>
 
 <template>
@@ -32,8 +33,9 @@ const emit = defineEmits(['update:deleteDialogVisible', 'confirmDelete'])
         :entry-id="selectedEntry?.id"
         :category-id="selectedEntry?.categoryId"
         :autofocus-amount="isDuplicateMode"
-        :attachment-id="selectedEntry?.attachmentId"
+        :attachment-id="isDuplicateMode ? undefined : selectedEntry?.attachmentId"
         :notes="selectedEntry?.notes ?? ''"
+        @transform-to-transfer="emit('transformToTransfer', $event)"
     />
 
     <TransferDialog
@@ -49,8 +51,9 @@ const emit = defineEmits(['update:deleteDialogVisible', 'confirmDelete'])
         :target-account-id="selectedEntry?.targetAccountId"
         :origin-account-id="selectedEntry?.originAccountId"
         :autofocus-amount="isDuplicateMode"
-        :attachment-id="selectedEntry?.attachmentId"
+        :attachment-id="isDuplicateMode ? undefined : selectedEntry?.attachmentId"
         :notes="selectedEntry?.notes ?? ''"
+        :delete-after-create-id="transformDeleteId"
     />
 
     <BuySellInstrumentDialog
@@ -123,7 +126,7 @@ const emit = defineEmits(['update:deleteDialogVisible', 'confirmDelete'])
         :amount="selectedEntry?.Amount"
         :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
         :account-id="selectedEntry?.accountId"
-        :attachment-id="selectedEntry?.attachmentId"
+        :attachment-id="isDuplicateMode ? undefined : selectedEntry?.attachmentId"
         :notes="selectedEntry?.notes ?? ''"
     />
 

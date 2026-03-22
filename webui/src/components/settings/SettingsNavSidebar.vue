@@ -14,7 +14,8 @@ const sections = computed(() => {
         {
             title: 'Settings',
             items: [
-                { label: 'Configuration', icon: 'ti ti-settings', route: '/settings/configuration' }
+                { label: 'Configuration', icon: 'ti ti-settings', route: '/settings/configuration' },
+                { label: 'About', icon: 'ti ti-info-circle', route: '/settings/about' },
             ]
         },
         {

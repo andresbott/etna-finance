@@ -365,6 +365,11 @@ func TestCreateAccount(t *testing.T) {
 					input:  Account{Name: "Main with Icon", Icon: "wallet-icon", Currency: currency.USD, Type: InvestmentAccountType, AccountProviderID: 1},
 				},
 				{
+					name:   "create account with notes",
+					tenant: tenant1,
+					input:  Account{Name: "Noted Account", Currency: currency.USD, Type: CashAccountType, AccountProviderID: 1, Notes: "this is a test note"},
+				},
+				{
 					name:    "want error on empty name",
 					tenant:  tenant1,
 					input:   Account{Name: "", Currency: currency.USD, AccountProviderID: 1},
@@ -607,6 +612,20 @@ func TestUpdateAccount(t *testing.T) {
 					updateTenant:  tenant1,
 					updatePayload: AccountUpdatePayload{Icon: ptr("new-chart-icon")},
 					want:          Account{ID: 5, Name: "acc5", Icon: "new-chart-icon", Currency: currency.CHF, Type: InvestmentAccountType, AccountProviderID: 1},
+				},
+				{
+					name:          "update notes",
+					updateID:      1,
+					updateTenant:  tenant1,
+					updatePayload: AccountUpdatePayload{Notes: ptr("updated note")},
+					want:          Account{ID: 1, Name: "Updated Name", Icon: "euro", Currency: currency.EUR, Type: CashAccountType, AccountProviderID: 1, Notes: "updated note"},
+				},
+				{
+					name:          "clear notes",
+					updateID:      1,
+					updateTenant:  tenant1,
+					updatePayload: AccountUpdatePayload{Notes: ptr("")},
+					want:          Account{ID: 1, Name: "Updated Name", Icon: "euro", Currency: currency.EUR, Type: CashAccountType, AccountProviderID: 1, Notes: ""},
 				},
 				{
 					name:          "error when updating non-existent account",

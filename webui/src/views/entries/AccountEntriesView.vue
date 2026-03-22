@@ -141,7 +141,8 @@ watch(
 const {
     selectedEntry, isEditMode, isDuplicateMode, dialogs,
     deleteDialogVisible, entryToDelete,
-    openEditEntryDialog, openDuplicateEntryDialog, openDeleteDialog, handleDeleteEntry
+    openEditEntryDialog, openDuplicateEntryDialog, openDeleteDialog, handleDeleteEntry,
+    openTransformToTransfer, transformDeleteId
 } = useEntryDialogs(deleteEntry)
 
 const filtersExpanded = ref(
@@ -221,8 +222,10 @@ const filtersExpanded = ref(
         :dialogs="dialogs"
         :delete-dialog-visible="deleteDialogVisible"
         :entry-to-delete="entryToDelete"
+        :transform-delete-id="transformDeleteId"
         @update:delete-dialog-visible="deleteDialogVisible = $event"
         @confirm-delete="handleDeleteEntry"
+        @transform-to-transfer="openTransformToTransfer"
     />
 </template>
 

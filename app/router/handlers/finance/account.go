@@ -163,6 +163,7 @@ func (h *Handler) ListAccountProviders() http.Handler {
 					Id:              account.ID,
 					Name:            account.Name,
 					Icon:            account.Icon,
+					Notes:           account.Notes,
 					Currency:        currencyStr,
 					Type:            strings.ToLower(account.Type.String()),
 					ImportProfileId: account.ImportProfileID,
@@ -205,6 +206,7 @@ type accountPayload struct {
 	ProviderId      uint   `json:"providerId,omitempty"`
 	Name            string `json:"name"`
 	Icon            string `json:"icon"`
+	Notes           string `json:"notes"`
 	Currency        string `json:"currency"`
 	Type            string `json:"type"` // enum of type
 	ImportProfileId uint   `json:"importProfileId,omitempty"`
@@ -233,6 +235,7 @@ func (h *Handler) CreateAccount() http.Handler {
 		account := accounting.Account{
 			Name:              payload.Name,
 			Icon:              payload.Icon,
+			Notes:             payload.Notes,
 			AccountProviderID: payload.ProviderId,
 			Type:              t,
 			ImportProfileID:   payload.ImportProfileId,
@@ -266,6 +269,7 @@ func (h *Handler) CreateAccount() http.Handler {
 			Id:              accID,
 			Name:            account.Name,
 			Icon:            account.Icon,
+			Notes:           account.Notes,
 			Currency:        currencyStr,
 			Type:            account.Type.String(),
 			ImportProfileId: account.ImportProfileID,
@@ -286,8 +290,10 @@ type accountUpdatePayload struct {
 	Id              uint    `json:"id"`
 	Name            *string `json:"name"`
 	Icon            *string `json:"icon"`
+	Notes           *string `json:"notes"`
 	Currency        *string `json:"currency"`
 	Type            string  `json:"type"`
+	ProviderId      *uint   `json:"providerId"`
 	ImportProfileId *uint   `json:"importProfileId"`
 }
 
@@ -311,6 +317,14 @@ func (h *Handler) UpdateAccount(Id uint) http.Handler {
 
 		if payload.Icon != nil {
 			account.Icon = payload.Icon
+		}
+
+		if payload.Notes != nil {
+			account.Notes = payload.Notes
+		}
+
+		if payload.ProviderId != nil {
+			account.ProviderID = payload.ProviderId
 		}
 
 		if payload.ImportProfileId != nil {

@@ -156,6 +156,7 @@ func writeAccounts(ctx context.Context, zw *zipWriter, store *accounting.Store) 
 			Name:              acc.Name,
 			Description:       acc.Description,
 			Icon:              acc.Icon,
+			Notes:             acc.Notes,
 			Currency:          acc.Currency.String(),
 			Type:              acc.Type.String(),
 			ImportProfileID:   acc.ImportProfileID,

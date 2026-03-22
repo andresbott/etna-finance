@@ -293,9 +293,9 @@ const handleSelectionChange = (val) => {
 
             <!-- Selected value display template -->
             <template #value>
-                <div v-if="selectedTreeNode" class="flex items-center gap-2">
+                <div v-if="selectedTreeNode" class="flex items-center gap-2 account-select__value">
                     <i :class="['ti', `ti-${selectedTreeNode.data?.icon || 'wallet'}`]"></i>
-                    {{ selectedTreeNode.provider }}/{{ selectedTreeNode.label }}
+                    <span class="account-select__label">{{ selectedTreeNode.provider }}/{{ selectedTreeNode.label }}</span>
                 </div>
                 <span v-else>{{ placeholder }}</span>
             </template>
@@ -308,5 +308,13 @@ const handleSelectionChange = (val) => {
     width: 100%;
 }
 
-/* Add any additional custom styling here */
+.account-select__value {
+    min-width: 0;
+}
+
+.account-select__label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 </style>

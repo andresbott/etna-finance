@@ -9,24 +9,9 @@ const settings = useSettingsStore()
 
 <template>
     <div>
-        <!-- Info message -->
-        <Message severity="info" :closable="false" class="info-message">
-            <div class="info-content">
-                <i class="ti ti-info-circle"></i>
-                <span>
-                    These settings are controlled by the server configuration file and cannot be changed from the UI.
-                    <!-- TODO: add link to documentation once available -->
-                    See the <strong>documentation</strong> for details on how to configure these values.
-                </span>
-            </div>
-        </Message>
-
         <!-- Error state -->
-        <Message v-if="settings.error" severity="error" :closable="false" class="info-message">
-            <div class="info-content">
-                <i class="ti ti-alert-triangle"></i>
-                <span>Failed to load settings: {{ settings.error }}</span>
-            </div>
+        <Message v-if="settings.error" severity="error" :closable="false" icon="ti ti-alert-triangle">
+            Failed to load settings: {{ settings.error }}
         </Message>
 
         <!-- Loading state -->
@@ -44,6 +29,12 @@ const settings = useSettingsStore()
                     </div>
                 </template>
                 <template #content>
+                    <Message severity="info" :closable="false" icon="ti ti-info-circle">
+                        These settings are controlled by the server configuration file and cannot be changed from the UI.
+                        See the <router-link to="/docs/getting-started/configuration">documentation</router-link> for details on how to configure these values.
+                    </Message>
+
+                    <h4 class="text-sm font-semibold text-color-secondary mt-3 mb-2">General</h4>
                     <div class="settings-list">
                         <div class="setting-item">
                             <div class="setting-label">
@@ -55,18 +46,8 @@ const settings = useSettingsStore()
                             </div>
                         </div>
                     </div>
-                </template>
-            </Card>
 
-            <!-- Currencies -->
-            <Card>
-                <template #title>
-                    <div class="flex align-items-center gap-2">
-                        <i class="ti ti-currency-dollar"></i>
-                        <span>Currencies</span>
-                    </div>
-                </template>
-                <template #content>
+                    <h4 class="text-sm font-semibold text-color-secondary mt-3 mb-2">Currencies</h4>
                     <div class="settings-list">
                         <div class="setting-item">
                             <div class="setting-label">
@@ -95,18 +76,8 @@ const settings = useSettingsStore()
                             </div>
                         </div>
                     </div>
-                </template>
-            </Card>
 
-            <!-- Features -->
-            <Card>
-                <template #title>
-                    <div class="flex align-items-center gap-2">
-                        <i class="ti ti-star"></i>
-                        <span>Features</span>
-                    </div>
-                </template>
-                <template #content>
+                    <h4 class="text-sm font-semibold text-color-secondary mt-3 mb-2">Features</h4>
                     <div class="settings-list">
                         <div class="setting-item">
                             <div class="setting-label">
@@ -120,6 +91,7 @@ const settings = useSettingsStore()
                                 />
                             </div>
                         </div>
+
                         <div class="setting-item">
                             <div class="setting-label">
                                 <i class="ti ti-calculator mr-2"></i>
@@ -140,24 +112,23 @@ const settings = useSettingsStore()
 </template>
 
 <style scoped>
-.info-message {
-    margin-bottom: 1.5rem;
+.p-message-enter-active {
+    animation: none !important;
 }
 
-.info-message :deep(.p-message-wrapper) {
-    padding: 1rem 1.25rem;
+:deep(.p-message-icon) {
+    font-size: 1.5rem !important;
+    width: 1.5rem !important;
+    height: 1.5rem !important;
 }
 
-.info-content {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    font-size: 1rem;
+:deep(.p-message) {
+    margin-bottom: 1rem;
 }
 
-.info-content i {
-    font-size: 1.25rem;
-    flex-shrink: 0;
+:deep(.p-message a) {
+    color: inherit;
+    text-decoration: underline;
 }
 
 .settings-list {

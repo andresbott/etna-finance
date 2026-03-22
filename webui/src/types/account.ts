@@ -15,6 +15,7 @@ export interface Account {
     currency: string
     type: string
     icon?: string
+    notes?: string
     importProfileId?: number
 }
 

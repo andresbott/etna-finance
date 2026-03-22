@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import Card from 'primevue/card'
 import SelectButton from 'primevue/selectbutton'
+import Tag from 'primevue/tag'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -15,8 +16,11 @@ import {
 import { useAccounts } from '@/composables/useAccounts'
 import { useBalance } from '@/composables/useGetBalanceReport'
 import { formatAmount } from '@/utils/currency'
+import { formatPct, getChangeSeverity } from '@/utils/format'
+import { formatChange } from '@/composables/useMarketData'
 import { useDateFormat } from '@/composables/useDateFormat'
 import { rangeToStartEnd } from '@/utils/dateRange'
+import { useSettingsStore } from '@/store/settingsStore.js'
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent, DataZoomComponent])
 
@@ -24,6 +28,7 @@ const { accounts } = useAccounts()
 const { balanceReport: balanceReportMutation } = useBalance()
 const { mutate, data: balanceReport } = balanceReportMutation
 const { formatDate } = useDateFormat()
+const settings = useSettingsStore()
 
 const dateRangeOptions = [
     { value: '3m', label: '3M' },
@@ -36,7 +41,7 @@ const stepsForRange = (_range) => 90
 // Gather all accounts from all providers
 const allAccounts = computed(() => {
     if (!accounts.value) return []
-    
+
     const accountsList = []
     for (const provider of accounts.value) {
         if (provider.accounts && Array.isArray(provider.accounts)) {
@@ -46,22 +51,71 @@ const allAccounts = computed(() => {
     return accountsList
 })
 
-// Merge accounts with their balance report data
-const mergedData = computed(() => {
-    if (!balanceReport.value || !allAccounts.value) return []
-    
-    return allAccounts.value
-        .map((account) => {
-            const reportData = balanceReport.value?.accounts?.[account.id]
-            if (!reportData) return null
+// Aggregate balance data by provider
+const providerData = computed(() => {
+    if (!balanceReport.value || !accounts.value) return []
+
+    return accounts.value
+        .map((provider) => {
+            if (!provider.accounts || provider.accounts.length === 0) return null
+
+            // Collect report data for each account in this provider
+            const accountReports = provider.accounts
+                .map((account) => ({
+                    type: account.type,
+                    reportData: balanceReport.value?.accounts?.[account.id]
+                }))
+                .filter((a) => a.reportData)
+
+            if (accountReports.length === 0) return null
+
+            // Sum balances across accounts per date point
+            const reportData = accountReports[0].reportData.map((point, i) => ({
+                date: point.date,
+                sum: accountReports.reduce((total, a) => total + (a.reportData[i]?.sum || 0), 0),
+                unconverted: accountReports.some((a) => a.reportData[i]?.unconverted)
+            }))
+
+            // Check if provider has any non-unvested accounts
+            const hasVestedAccounts = provider.accounts.some((a) => a.type !== 'unvested')
 
             return {
-                ...account,
-                reportData
+                id: provider.id,
+                name: provider.name,
+                icon: provider.icon,
+                reportData,
+                hasVestedAccounts
             }
         })
         .filter(Boolean)
 })
+
+// Total stats for the price-row header
+const totalCurrentValue = computed(() => {
+    const vestedProviders = providerData.value.filter((p) => p.hasVestedAccounts)
+    if (vestedProviders.length === 0) return null
+    const lastIndex = vestedProviders[0]?.reportData?.length - 1
+    if (lastIndex == null || lastIndex < 0) return null
+    return vestedProviders.reduce((sum, p) => sum + (p.reportData[lastIndex]?.sum || 0), 0)
+})
+
+const totalFirstValue = computed(() => {
+    const vestedProviders = providerData.value.filter((p) => p.hasVestedAccounts)
+    if (vestedProviders.length === 0) return null
+    return vestedProviders.reduce((sum, p) => sum + (p.reportData[0]?.sum || 0), 0)
+})
+
+const totalChange = computed(() => {
+    if (totalCurrentValue.value == null || totalFirstValue.value == null) return null
+    return totalCurrentValue.value - totalFirstValue.value
+})
+
+const totalChangePct = computed(() => {
+    if (totalChange.value == null || totalFirstValue.value == null || totalFirstValue.value === 0) return null
+    return (totalChange.value / totalFirstValue.value) * 100
+})
+
+const mainCurrency = computed(() => settings.mainCurrency || 'CHF')
 
 const colors = [
     '#22c55e', '#3b82f6', '#eab308', '#ef4444',
@@ -86,28 +140,27 @@ const getSurfaceColor = () => {
 
 const chartOption = computed(() => {
     const labels =
-        mergedData.value?.[0]?.reportData?.map((r) => formatDate(r.date)) || []
+        providerData.value?.[0]?.reportData?.map((r) => formatDate(r.date)) || []
 
     const textColor = getTextColor()
     const surfaceColor = getSurfaceColor()
 
     const series =
-        mergedData.value?.map((account, index) => ({
-            name: account.name,
+        providerData.value?.map((provider, index) => ({
+            name: provider.name,
             type: 'line',
             smooth: 0.1,
             showSymbol: false,
-            data: account.reportData.map((r) => r.sum),
+            data: provider.reportData.map((r) => r.sum),
             lineStyle: { color: getColor(index) },
             itemStyle: { color: getColor(index) },
-            yAxisIndex: 0,
-            _currency: account.currency || 'CHF'
+            yAxisIndex: 0
         })) || []
 
-    // Sum of all non-unvested accounts per date point
-    const vestedAccounts = mergedData.value?.filter((a) => a.type !== 'unvested') || []
+    // Sum of all providers with vested accounts per date point
+    const vestedProviders = providerData.value?.filter((p) => p.hasVestedAccounts) || []
     const totalData = labels.map((_, i) =>
-        vestedAccounts.reduce((sum, a) => sum + (a.reportData[i]?.sum || 0), 0)
+        vestedProviders.reduce((sum, p) => sum + (p.reportData[i]?.sum || 0), 0)
     )
 
     series.push({
@@ -120,7 +173,6 @@ const chartOption = computed(() => {
         lineStyle: { color: textColor, width: 2.5, type: 'dashed' },
         itemStyle: { color: textColor },
         yAxisIndex: 1,
-        _currency: null,
         endLabel: {
             show: true,
             formatter: (params) => formatAmount(params.value),
@@ -144,10 +196,8 @@ const chartOption = computed(() => {
             formatter: (params) => {
                 let result = `<strong>${params[0].axisValueLabel}</strong><br/>`
                 for (const p of params) {
-                    const s = series[p.seriesIndex]
-                    const currency = s?._currency
                     const formatted = formatAmount(p.value)
-                    result += `${p.marker} ${p.seriesName}: ${formatted}${currency ? ` ${currency}` : ''}<br/>`
+                    result += `${p.marker} ${p.seriesName}: ${formatted} ${mainCurrency.value}<br/>`
                 }
                 return result
             }
@@ -215,7 +265,22 @@ watch(
     <Card>
         <template #title>Financial Overview</template>
         <template #content>
-            <div style="display: flex; justify-content: flex-end; margin-bottom: 0.75rem;">
+            <div class="chart-controls">
+                <div v-if="totalCurrentValue != null" class="price-row">
+                    <span class="current-price">{{ formatAmount(totalCurrentValue) }}</span>
+                    <span class="currency-label">{{ mainCurrency }}</span>
+                    <Tag
+                        :value="formatPct(totalChangePct)"
+                        :severity="getChangeSeverity(totalChangePct)"
+                        class="ml-2"
+                    />
+                    <span
+                        :class="(totalChange ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'"
+                        class="change-value ml-2"
+                    >
+                        {{ formatChange(totalChange) }}
+                    </span>
+                </div>
                 <SelectButton
                     v-model="selectedRange"
                     :options="dateRangeOptions"
@@ -231,3 +296,36 @@ watch(
         </template>
     </Card>
 </template>
+
+<style scoped>
+.chart-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.price-row {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.current-price {
+    font-size: 1.6rem;
+    font-weight: 700;
+}
+
+.currency-label {
+    font-size: 0.9rem;
+    color: var(--p-text-muted-color);
+    margin-left: 0.25rem;
+}
+
+.change-value {
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+</style>

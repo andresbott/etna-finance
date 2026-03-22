@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 
 import Button from 'primevue/button'
@@ -15,8 +15,10 @@ import { useDateFormat } from '@/composables/useDateFormat'
 import { getEntryTypeIcon } from '@/utils/entryDisplay'
 import { getApiErrorMessage } from '@/utils/apiError'
 
+const route = useRoute()
 const router = useRouter()
 const toast = useToast()
+const returnPath = computed(() => typeof route.query.redirect === 'string' ? route.query.redirect : '/settings/category-rules')
 const { formatDate } = useDateFormat()
 
 const formatAmount = (n) =>
@@ -94,7 +96,7 @@ const handleSubmit = async () => {
             detail: `${result.updated} transactions updated successfully.`,
             life: 4000
         })
-        router.push('/settings/category-rules')
+        router.push(returnPath.value)
     } catch (err) {
         toast.add({
             severity: 'error',
@@ -109,7 +111,7 @@ const handleSubmit = async () => {
 
 /* --- Navigation --- */
 const handleBack = () => {
-    router.push('/settings/category-rules')
+    router.push(returnPath.value)
 }
 
 onMounted(() => {

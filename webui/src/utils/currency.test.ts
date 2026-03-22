@@ -33,6 +33,10 @@ describe('formatCurrency', () => {
   it('formats small decimal numbers', () => {
     expect(formatCurrency(0.01)).toBe('0.01')
   })
+
+  it('formats negative zero as zero', () => {
+    expect(formatCurrency(-0)).toBe('0.00')
+  })
 })
 
 describe('formatAmount', () => {
@@ -54,5 +58,9 @@ describe('formatAmount', () => {
 
   it('rounds to two decimal places', () => {
     expect(formatAmount(1.999)).toBe('2.00')
+  })
+
+  it('formats negative zero as zero', () => {
+    expect(formatAmount(-0)).toBe('0.00')
   })
 })
