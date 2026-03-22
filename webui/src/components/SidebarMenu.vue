@@ -149,11 +149,20 @@
 
                     <li class="menu-spacer"></li>
 
-                    <!-- SETTINGS SECTION -->
+                    <!-- SYSTEM SECTION -->
+                    <li class="menu-section">
+                        <div class="menu-section-label">System</div>
+                    </li>
                     <li>
                         <router-link to="/settings" class="menu-item">
                             <i class="ti ti-settings menu-icon"></i>
-                            <span class="menu-label">System</span>
+                            <span class="menu-label">Settings</span>
+                        </router-link>
+                    </li>
+                    <li>
+                        <router-link to="/docs" class="menu-item">
+                            <i class="ti ti-book menu-icon"></i>
+                            <span class="menu-label">Documentation</span>
                         </router-link>
                     </li>
                 </ul>
