@@ -10,7 +10,8 @@ export function formatCurrency(
     minimumFractionDigits: number = 2,
     maximumFractionDigits: number = 2
 ): string {
-    return amount.toLocaleString(undefined, {
+    const value = Object.is(amount, -0) ? 0 : amount
+    return value.toLocaleString(undefined, {
         minimumFractionDigits,
         maximumFractionDigits
     })

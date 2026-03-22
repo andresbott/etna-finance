@@ -112,6 +112,11 @@ a {
         max-width: 1200px;
     }
 
+    /* Ensure flex children can shrink below content width */
+    .flex-1 {
+        min-width: 0;
+    }
+
     /* Make all form inputs full width within dialogs */
     .p-inputtext,
     .p-inputnumber,

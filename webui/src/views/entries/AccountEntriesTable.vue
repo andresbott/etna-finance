@@ -347,7 +347,7 @@ const tableEntries = computed(() =>
 
                 <Column v-if="!isInstrumentAccount" field="balance" header="Balance" bodyStyle="text-align: right" class="balance-column">
                     <template #body="{ data }">
-                        <div class="balance" :class="{ 'balance-negative': data.balance < 0 }">
+                        <div class="balance" :class="{ 'balance-negative': data.balance < 0 && !Object.is(data.balance, -0) }">
                             {{ formatAmount(data.balance) }}
                         </div>
                     </template>

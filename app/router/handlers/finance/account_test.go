@@ -433,6 +433,12 @@ func TestUpdateAccount(t *testing.T) {
 			expectCode: http.StatusOK,
 		},
 		{
+			name:       "successful request move to different provider",
+			user:       tenant1,
+			payload:    bytes.NewBuffer([]byte(`{"providerId":2}`)),
+			expectCode: http.StatusOK,
+		},
+		{
 			name:       "empty payload",
 			user:       tenant1,
 			expecErr:   "request had empty body",
@@ -482,6 +488,38 @@ func TestUpdateAccount(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestUpdateAccountProvider_MovesAccount(t *testing.T) {
+	h, end := SampleHandler(t)
+	defer end()
+
+	// Create an account under provider 1
+	accountId, err := h.Store.CreateAccount(t.Context(),
+		accounting.Account{Name: "Movable", Currency: currency.USD, AccountProviderID: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Update via handler to move to provider 2
+	payload := bytes.NewBuffer([]byte(`{"providerId":2}`))
+	req, _ := http.NewRequest("PATCH", "/api/accounts/"+strconv.FormatUint(uint64(accountId), 10), payload)
+	recorder := httptest.NewRecorder()
+	handler := h.UpdateAccount(accountId)
+	handler.ServeHTTP(recorder, req)
+
+	if status := recorder.Code; status != http.StatusOK {
+		t.Fatalf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	}
+
+	// Verify the account is now under provider 2
+	got, err := h.Store.GetAccount(t.Context(), accountId)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.AccountProviderID != 2 {
+		t.Errorf("expected account provider ID 2, got %d", got.AccountProviderID)
 	}
 }
 

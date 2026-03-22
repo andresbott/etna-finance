@@ -32,7 +32,7 @@ const emit = defineEmits(['update:deleteDialogVisible', 'confirmDelete'])
         :entry-id="selectedEntry?.id"
         :category-id="selectedEntry?.categoryId"
         :autofocus-amount="isDuplicateMode"
-        :attachment-id="selectedEntry?.attachmentId"
+        :attachment-id="isDuplicateMode ? undefined : selectedEntry?.attachmentId"
         :notes="selectedEntry?.notes ?? ''"
     />
 
@@ -49,7 +49,7 @@ const emit = defineEmits(['update:deleteDialogVisible', 'confirmDelete'])
         :target-account-id="selectedEntry?.targetAccountId"
         :origin-account-id="selectedEntry?.originAccountId"
         :autofocus-amount="isDuplicateMode"
-        :attachment-id="selectedEntry?.attachmentId"
+        :attachment-id="isDuplicateMode ? undefined : selectedEntry?.attachmentId"
         :notes="selectedEntry?.notes ?? ''"
     />
 
@@ -123,7 +123,7 @@ const emit = defineEmits(['update:deleteDialogVisible', 'confirmDelete'])
         :amount="selectedEntry?.Amount"
         :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
         :account-id="selectedEntry?.accountId"
-        :attachment-id="selectedEntry?.attachmentId"
+        :attachment-id="isDuplicateMode ? undefined : selectedEntry?.attachmentId"
         :notes="selectedEntry?.notes ?? ''"
     />
 

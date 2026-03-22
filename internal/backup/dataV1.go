@@ -33,6 +33,7 @@ type accountV1 struct {
 	Name              string `json:"name"`
 	Description       string `json:"description"`
 	Icon              string `json:"icon"`
+	Notes             string `json:"notes,omitempty"`
 	Currency          string `json:"currency"`
 	Type              string `json:"accountType"`
 	ImportProfileID   uint   `json:"importProfileId"`

@@ -48,7 +48,10 @@ const treeTableData = computed(() => {
                 name: account.name,
                 type: account.type,
                 currency: account.currency,
-                icon: account.icon || 'ti-wallet'
+                icon: account.icon || 'ti-wallet',
+                notes: account.notes,
+                providerId: provider.id,
+                importProfileId: account.importProfileId
             }
         })) || []
 
@@ -256,6 +259,7 @@ const handleDeleteProvider = async () => {
         :currency="selectedAccount?.currency"
         :type="selectedAccount?.type"
         :icon="selectedAccount?.icon"
+        :notes="selectedAccount?.notes"
         :import-profile-id="selectedAccount?.importProfileId"
     />
 

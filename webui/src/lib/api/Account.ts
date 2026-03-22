@@ -17,6 +17,8 @@ export interface AccountItem {
     currency: string
     type: string
     icon?: string
+    notes?: string
+    providerId?: number
     importProfileId?: number
 }
 
