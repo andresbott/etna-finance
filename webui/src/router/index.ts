@@ -190,6 +190,23 @@ const router = createRouter({
             }
         },
         {
+            path: '/docs',
+            name: 'docs',
+            meta: { requiresAuth: true },
+            component: () => import('@/views/docs/DocsView.vue'),
+            children: [
+                { path: '', redirect: { name: 'docs-overview' } },
+                { path: 'overview', name: 'docs-overview', component: () => import('@/views/docs/DocsOverviewView.vue') },
+                { path: 'getting-started/configuration', name: 'docs-configuration', component: () => import('@/views/docs/getting-started/ConfigurationView.vue') },
+                { path: 'guides/handling-rsus', name: 'docs-handling-rsus', component: () => import('@/views/docs/guides/HandlingRsusView.vue') },
+                { path: 'guides/handling-espp', name: 'docs-handling-espp', component: () => import('@/views/docs/guides/HandlingEsppView.vue') },
+                { path: 'concepts/accounts', name: 'docs-concepts-accounts', component: () => import('@/views/docs/concepts/AccountsView.vue') },
+                { path: 'concepts/categories', name: 'docs-concepts-categories', component: () => import('@/views/docs/concepts/CategoriesView.vue') },
+                { path: 'concepts/category-rules', name: 'docs-concepts-category-rules', component: () => import('@/views/docs/concepts/CategoryRulesView.vue') },
+                { path: 'concepts/csv-import-profiles', name: 'docs-concepts-csv-import-profiles', component: () => import('@/views/docs/concepts/CsvImportProfilesView.vue') },
+            ]
+        },
+        {
             path: '/settings',
             name: 'settings',
             meta: { requiresAuth: true },

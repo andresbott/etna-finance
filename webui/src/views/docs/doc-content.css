@@ -1,0 +1,77 @@
+.doc-content {
+    max-width: 720px;
+}
+
+.doc-content section {
+    margin-bottom: 2rem;
+}
+
+.doc-content h3 {
+    margin-bottom: 0.75rem;
+    color: var(--text-color);
+}
+
+.doc-content h4 {
+    margin-bottom: 0.5rem;
+    margin-top: 1rem;
+    color: var(--text-color);
+}
+
+.doc-content p {
+    margin-bottom: 0.75rem;
+    line-height: 1.6;
+    color: var(--text-color-secondary);
+}
+
+.doc-content ol,
+.doc-content ul {
+    margin-bottom: 0.75rem;
+    padding-left: 1.5rem;
+    color: var(--text-color-secondary);
+    line-height: 1.6;
+}
+
+.doc-content li {
+    margin-bottom: 0.35rem;
+}
+
+.doc-content code {
+    background-color: var(--surface-100);
+    padding: 0.15rem 0.35rem;
+    border-radius: 4px;
+    font-size: 0.875rem;
+}
+
+.doc-content pre {
+    background-color: var(--surface-100);
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    margin-bottom: 0.75rem;
+    overflow-x: auto;
+}
+
+.doc-content pre code {
+    background: none;
+    padding: 0;
+    font-size: 0.875rem;
+    line-height: 1.6;
+}
+
+.doc-content a {
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+.doc-content a:hover {
+    text-decoration: underline;
+}
+
+.doc-content .p-message-enter-active {
+    animation: none !important;
+}
+
+.doc-content .p-message-icon {
+    font-size: 1.5rem !important;
+    width: 1.5rem !important;
+    height: 1.5rem !important;
+}
