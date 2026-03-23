@@ -35,6 +35,7 @@ describe('settingsStore', () => {
             expect(store.mainCurrency).toBe('')
             expect(store.currencies).toEqual([])
             expect(store.instruments).toBe(false)
+            expect(store.rsu).toBe(false)
             expect(store.marketDataSymbols).toEqual([])
             expect(store.version).toBe('')
         })
@@ -52,6 +53,7 @@ describe('settingsStore', () => {
                 mainCurrency: 'USD',
                 currencies: ['USD', 'EUR', 'GBP'],
                 instruments: true,
+                rsu: true,
                 marketDataSymbols: ['AAPL', 'GOOGL'],
                 version: '1.2.3',
             },
@@ -70,6 +72,7 @@ describe('settingsStore', () => {
             expect(store.mainCurrency).toBe('USD')
             expect(store.currencies).toEqual(['USD', 'EUR', 'GBP'])
             expect(store.instruments).toBe(true)
+            expect(store.rsu).toBe(true)
             expect(store.marketDataSymbols).toEqual(['AAPL', 'GOOGL'])
             expect(store.version).toBe('1.2.3')
         })
@@ -260,6 +263,7 @@ describe('settingsStore', () => {
                     mainCurrency: 'USD',
                     currencies: ['USD', 'EUR'],
                     instruments: true,
+                    rsu: true,
                     marketDataSymbols: ['AAPL'],
                     version: '2.0.0',
                 },
@@ -279,6 +283,7 @@ describe('settingsStore', () => {
             expect(store.mainCurrency).toBe('')
             expect(store.currencies).toEqual([])
             expect(store.instruments).toBe(false)
+            expect(store.rsu).toBe(false)
             expect(store.marketDataSymbols).toEqual([])
             expect(store.version).toBe('')
             expect(store.hasMultipleCurrencies).toBe(false)

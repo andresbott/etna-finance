@@ -4,6 +4,8 @@ import TransferDialog from './dialogs/TransferDialog.vue'
 import BuySellInstrumentDialog from './dialogs/BuySellInstrumentDialog.vue'
 import GrantDialog from './dialogs/GrantDialog.vue'
 import TransferInstrumentDialog from './dialogs/TransferInstrumentDialog.vue'
+import VestingDialog from './dialogs/VestingDialog.vue'
+import ForfeitDialog from './dialogs/ForfeitDialog.vue'
 import BalanceStatusDialog from '@/views/entries/dialogs/BalanceStatusDialog.vue'
 import DeleteDialog from '@/components/common/ConfirmDialog.vue'
 
@@ -116,6 +118,33 @@ const emit = defineEmits(['update:deleteDialogVisible', 'confirmDelete', 'transf
         :target-account-id="selectedEntry?.targetAccountId"
         :notes="selectedEntry?.notes ?? ''"
         @update:visible="dialogs.transferInstrument.value = $event"
+    />
+    <VestingDialog
+        v-model:visible="dialogs.vestStock.value"
+        :is-edit="isEditMode"
+        :entry-id="selectedEntry?.id"
+        :instrument-id="selectedEntry?.instrumentId"
+        :description="selectedEntry?.description"
+        :vesting-price="selectedEntry?.vestingPrice"
+        :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
+        :origin-account-id="selectedEntry?.originAccountId"
+        :target-account-id="selectedEntry?.targetAccountId"
+        :category-id="selectedEntry?.categoryId"
+        :notes="selectedEntry?.notes ?? ''"
+        :initial-lot-allocations="isEditMode ? (selectedEntry?.lotAllocations ?? []) : []"
+        @update:visible="dialogs.vestStock.value = $event"
+    />
+    <ForfeitDialog
+        v-model:visible="dialogs.forfeitStock.value"
+        :is-edit="isEditMode"
+        :entry-id="selectedEntry?.id"
+        :instrument-id="selectedEntry?.instrumentId"
+        :description="selectedEntry?.description"
+        :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
+        :account-id="selectedEntry?.accountId"
+        :notes="selectedEntry?.notes ?? ''"
+        :initial-lot-allocations="isEditMode ? (selectedEntry?.lotAllocations ?? []) : []"
+        @update:visible="dialogs.forfeitStock.value = $event"
     />
 
     <BalanceStatusDialog

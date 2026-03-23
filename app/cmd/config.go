@@ -38,6 +38,7 @@ type AppSettings struct {
 	MainCurrency         string
 	AdditionalCurrencies []string // currencies to track; main currency is implicit, do not repeat
 	Instruments          bool
+	Rsu                  bool
 	Tools                bool
 	MaxAttachmentSizeMB  float64 // max upload size in MB; 0 = default (10 MB)
 }
@@ -129,6 +130,7 @@ var defaultCfg = AppCfg{
 		MainCurrency:         "CHF",
 		AdditionalCurrencies: nil, // empty = main currency only
 		Instruments:          false,
+		Rsu:                  false,
 		Tools:                false,
 	},
 	MarketDataImporters: MarketDataImportersCfg{}, // set Massive with ApiKeys in YAML to enable backfill

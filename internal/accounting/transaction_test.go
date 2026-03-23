@@ -2,6 +2,7 @@ package accounting
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -2039,13 +2040,30 @@ func TestStore_UpdateStockTransfer(t *testing.T) {
 		t.Run(db.DbType(), func(t *testing.T) {
 			ctx := t.Context()
 			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("storeUpdateStockXfer"))
-			grantAccountID, investmentAccountID, instrumentID := setupStockGrantTransferTest(t, ctx, store, mktStore)
+
+			// Create two investment accounts for transfer.
+			providerID, err := store.CreateAccountProvider(ctx, AccountProvider{Name: "Broker"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			invA, err := store.CreateAccount(ctx, Account{AccountProviderID: providerID, Name: "Investment A", Currency: currency.USD, Type: InvestmentAccountType})
+			if err != nil {
+				t.Fatal(err)
+			}
+			invB, err := store.CreateAccount(ctx, Account{AccountProviderID: providerID, Name: "Investment B", Currency: currency.USD, Type: InvestmentAccountType})
+			if err != nil {
+				t.Fatal(err)
+			}
+			instrumentID, err := mktStore.CreateInstrument(ctx, marketdata.Instrument{Symbol: "RSU", Name: "Company RSU", Currency: currency.USD})
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			// First create a grant so there are lots to transfer
-			_, err := store.CreateStockGrant(ctx, StockGrant{
+			_, err = store.CreateStockGrant(ctx, StockGrant{
 				Description:  "RSU grant",
 				Date:         getDate("2025-03-01"),
-				AccountID:    grantAccountID,
+				AccountID:    invA,
 				InstrumentID: instrumentID,
 				Quantity:     100,
 			})
@@ -2054,10 +2072,10 @@ func TestStore_UpdateStockTransfer(t *testing.T) {
 			}
 
 			transfer := StockTransfer{
-				Description:     "RSU vest",
+				Description:     "transfer shares",
 				Date:            getDate("2025-03-15"),
-				SourceAccountID: grantAccountID,
-				TargetAccountID: investmentAccountID,
+				SourceAccountID: invA,
+				TargetAccountID: invB,
 				InstrumentID:    instrumentID,
 				Quantity:        50,
 			}
@@ -2249,12 +2267,29 @@ func TestStore_CreateStockGrant_CreateStockTransfer(t *testing.T) {
 		t.Run(db.DbType(), func(t *testing.T) {
 			ctx := t.Context()
 			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("storeCreateStockGrantTransfer"))
-			grantAccountID, investmentAccountID, instrumentID := setupStockGrantTransferTest(t, ctx, store, mktStore)
+
+			// Create two investment accounts for transfer.
+			providerID, err := store.CreateAccountProvider(ctx, AccountProvider{Name: "Broker"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			invA, err := store.CreateAccount(ctx, Account{AccountProviderID: providerID, Name: "Investment A", Currency: currency.USD, Type: InvestmentAccountType})
+			if err != nil {
+				t.Fatal(err)
+			}
+			invB, err := store.CreateAccount(ctx, Account{AccountProviderID: providerID, Name: "Investment B", Currency: currency.USD, Type: InvestmentAccountType})
+			if err != nil {
+				t.Fatal(err)
+			}
+			instrumentID, err := mktStore.CreateInstrument(ctx, marketdata.Instrument{Symbol: "RSU", Name: "Company RSU", Currency: currency.USD})
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			grant := StockGrant{
 				Description:  "RSU grant",
 				Date:         getDate("2025-03-01"),
-				AccountID:    grantAccountID,
+				AccountID:    invA,
 				InstrumentID: instrumentID,
 				Quantity:     100,
 			}
@@ -2272,10 +2307,10 @@ func TestStore_CreateStockGrant_CreateStockTransfer(t *testing.T) {
 			verifyStockGrantResult(t, gotGrant, grant)
 
 			transfer := StockTransfer{
-				Description:     "RSU vest to brokerage",
+				Description:     "transfer to brokerage B",
 				Date:            getDate("2025-03-15"),
-				SourceAccountID: grantAccountID,
-				TargetAccountID: investmentAccountID,
+				SourceAccountID: invA,
+				TargetAccountID: invB,
 				InstrumentID:    instrumentID,
 				Quantity:        50,
 			}
@@ -2712,6 +2747,2890 @@ func TestStore_PriorPageBalance_IgnoresNewFilters(t *testing.T) {
 
 			if basePrior != filteredPrior {
 				t.Errorf("PriorPageBalance should ignore new filters: base=%f filtered=%f", basePrior, filteredPrior)
+			}
+		})
+	}
+}
+
+// setupCreateStockVest creates a grant and vest, returning the vest ID and category ID for verification.
+func setupCreateStockVest(t *testing.T, ctx context.Context, store *Store,
+	unvestedID, investmentID, instrumentID uint,
+) (vestID uint, categoryID uint) {
+	t.Helper()
+	_, err := store.CreateStockGrant(ctx, StockGrant{
+		Description:     "RSU Grant 100 shares",
+		Date:            getDate("2025-01-15"),
+		AccountID:       unvestedID,
+		InstrumentID:    instrumentID,
+		Quantity:        100,
+		FairMarketValue: 50.0,
+	})
+	if err != nil {
+		t.Fatalf("CreateStockGrant: %v", err)
+	}
+
+	lots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+	if err != nil {
+		t.Fatalf("ListLots: %v", err)
+	}
+	if len(lots) != 1 {
+		t.Fatalf("expected 1 lot in unvested account, got %d", len(lots))
+	}
+	lotID := lots[0].Id
+
+	categoryID, err = store.CreateCategory(ctx, CategoryData{Name: "RSU Income", Type: IncomeCategory}, 0)
+	if err != nil {
+		t.Fatalf("CreateCategory: %v", err)
+	}
+
+	vestID, err = store.CreateStockVest(ctx, StockVest{
+		Description:     "Vest 60 shares",
+		Date:            getDate("2025-06-15"),
+		SourceAccountID: unvestedID,
+		TargetAccountID: investmentID,
+		InstrumentID:    instrumentID,
+		VestingPrice:    75.0,
+		CategoryID:      categoryID,
+		LotSelections:   []LotSelection{{LotID: lotID, Quantity: 60}},
+	})
+	if err != nil {
+		t.Fatalf("CreateStockVest: %v", err)
+	}
+	if vestID == 0 {
+		t.Fatal("expected non-zero transaction id")
+	}
+	return vestID, categoryID
+}
+
+func verifyStockVestGetTransaction(t *testing.T, ctx context.Context, store *Store,
+	vestID, unvestedID, investmentID, instrumentID, categoryID uint,
+) {
+	t.Helper()
+	got, err := store.GetTransaction(ctx, vestID)
+	if err != nil {
+		t.Fatalf("GetTransaction: %v", err)
+	}
+	gotVest, ok := got.(StockVest)
+	if !ok {
+		t.Fatalf("expected StockVest, got %T", got)
+	}
+	if gotVest.SourceAccountID != unvestedID {
+		t.Errorf("SourceAccountID: got %d, want %d", gotVest.SourceAccountID, unvestedID)
+	}
+	if gotVest.TargetAccountID != investmentID {
+		t.Errorf("TargetAccountID: got %d, want %d", gotVest.TargetAccountID, investmentID)
+	}
+	if gotVest.InstrumentID != instrumentID {
+		t.Errorf("InstrumentID: got %d, want %d", gotVest.InstrumentID, instrumentID)
+	}
+	if gotVest.VestingPrice != 75.0 {
+		t.Errorf("VestingPrice: got %v, want 75", gotVest.VestingPrice)
+	}
+	if gotVest.CategoryID != categoryID {
+		t.Errorf("CategoryID: got %d, want %d", gotVest.CategoryID, categoryID)
+	}
+	if gotVest.Description != "Vest 60 shares" {
+		t.Errorf("Description: got %q, want %q", gotVest.Description, "Vest 60 shares")
+	}
+}
+
+func verifyStockVestLots(t *testing.T, ctx context.Context, store *Store,
+	unvestedID, investmentID, instrumentID uint,
+) {
+	t.Helper()
+	targetLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: investmentID, InstrumentID: instrumentID})
+	if err != nil {
+		t.Fatalf("ListLots(target): %v", err)
+	}
+	if len(targetLots) != 1 {
+		t.Fatalf("expected 1 lot in target account, got %d", len(targetLots))
+	}
+	if targetLots[0].CostPerShare != 75.0 {
+		t.Errorf("target lot CostPerShare: got %v, want 75", targetLots[0].CostPerShare)
+	}
+	if targetLots[0].Quantity != 60 {
+		t.Errorf("target lot Quantity: got %v, want 60", targetLots[0].Quantity)
+	}
+
+	sourceLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+	if err != nil {
+		t.Fatalf("ListLots(source): %v", err)
+	}
+	totalRemaining := 0.0
+	for _, l := range sourceLots {
+		totalRemaining += l.Quantity
+	}
+	if totalRemaining != 40 {
+		t.Errorf("source remaining quantity: got %v, want 40", totalRemaining)
+	}
+}
+
+func verifyStockVestListTransactions(t *testing.T, ctx context.Context, store *Store,
+	vestID, unvestedID, investmentID, instrumentID, categoryID uint,
+) {
+	t.Helper()
+	list, count, err := store.ListTransactions(ctx, ListOpts{
+		StartDate: getDate("2025-06-01"),
+		EndDate:   getDate("2025-06-30"),
+		Types:     []TxType{StockVestTransaction},
+		Limit:     10,
+	})
+	if err != nil {
+		t.Fatalf("ListTransactions: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("ListTransactions count: got %d, want 1", count)
+	}
+	if len(list) != 1 {
+		t.Fatalf("ListTransactions len: got %d, want 1", len(list))
+	}
+	listedVest, ok := list[0].(StockVest)
+	if !ok {
+		t.Fatalf("expected StockVest from ListTransactions, got %T", list[0])
+	}
+	if listedVest.Id != vestID {
+		t.Errorf("ListTransactions Id: got %d, want %d", listedVest.Id, vestID)
+	}
+	if listedVest.Description != "Vest 60 shares" {
+		t.Errorf("ListTransactions Description: got %q, want %q", listedVest.Description, "Vest 60 shares")
+	}
+	if listedVest.SourceAccountID != unvestedID {
+		t.Errorf("ListTransactions SourceAccountID: got %d, want %d", listedVest.SourceAccountID, unvestedID)
+	}
+	if listedVest.TargetAccountID != investmentID {
+		t.Errorf("ListTransactions TargetAccountID: got %d, want %d", listedVest.TargetAccountID, investmentID)
+	}
+	if listedVest.InstrumentID != instrumentID {
+		t.Errorf("ListTransactions InstrumentID: got %d, want %d", listedVest.InstrumentID, instrumentID)
+	}
+	if listedVest.VestingPrice != 75.0 {
+		t.Errorf("ListTransactions VestingPrice: got %v, want 75", listedVest.VestingPrice)
+	}
+	if listedVest.CategoryID != categoryID {
+		t.Errorf("ListTransactions CategoryID: got %d, want %d", listedVest.CategoryID, categoryID)
+	}
+}
+
+func TestStore_CreateStockVest(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("storeCreateStockVest"))
+			unvestedID, investmentID, instrumentID := setupStockGrantTransferTest(t, ctx, store, mktStore)
+
+			vestID, categoryID := setupCreateStockVest(t, ctx, store, unvestedID, investmentID, instrumentID)
+
+			t.Run("verify GetTransaction", func(t *testing.T) {
+				verifyStockVestGetTransaction(t, ctx, store, vestID, unvestedID, investmentID, instrumentID, categoryID)
+			})
+			t.Run("verify lots", func(t *testing.T) {
+				verifyStockVestLots(t, ctx, store, unvestedID, investmentID, instrumentID)
+			})
+			t.Run("verify ListTransactions", func(t *testing.T) {
+				verifyStockVestListTransactions(t, ctx, store, vestID, unvestedID, investmentID, instrumentID, categoryID)
+			})
+		})
+	}
+}
+
+func TestStore_UpdateStockVest(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("storeUpdateStockVest"))
+			unvestedID, investmentID, instrumentID := setupStockGrantTransferTest(t, ctx, store, mktStore)
+
+			// 1. Create a grant (100 shares, FMV $50)
+			_, err := store.CreateStockGrant(ctx, StockGrant{
+				Description:     "RSU Grant 100 shares",
+				Date:            getDate("2025-01-15"),
+				AccountID:       unvestedID,
+				InstrumentID:    instrumentID,
+				Quantity:        100,
+				FairMarketValue: 50.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+
+			// 2. List lots to get the lot ID
+			lots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots: %v", err)
+			}
+			if len(lots) != 1 {
+				t.Fatalf("expected 1 lot in unvested account, got %d", len(lots))
+			}
+			lotID := lots[0].Id
+
+			// 3. Create income category
+			categoryID, err := store.CreateCategory(ctx, CategoryData{Name: "RSU Income", Type: IncomeCategory}, 0)
+			if err != nil {
+				t.Fatalf("CreateCategory: %v", err)
+			}
+
+			// 4. Create StockVest (60 shares at $75)
+			vest := StockVest{
+				Description:     "Vest 60 shares",
+				Date:            getDate("2025-06-15"),
+				SourceAccountID: unvestedID,
+				TargetAccountID: investmentID,
+				InstrumentID:    instrumentID,
+				VestingPrice:    75.0,
+				CategoryID:      categoryID,
+				LotSelections: []LotSelection{
+					{LotID: lotID, Quantity: 60},
+				},
+			}
+			vestID, err := store.CreateStockVest(ctx, vest)
+			if err != nil {
+				t.Fatalf("CreateStockVest: %v", err)
+			}
+
+			// 5. Update: change vesting price to $80
+			newPrice := 80.0
+			err = store.UpdateStockVest(ctx, StockVestUpdate{
+				VestingPrice: &newPrice,
+			}, vestID)
+			if err != nil {
+				t.Fatalf("UpdateStockVest: %v", err)
+			}
+
+			// 6. Verify via GetTransaction that VestingPrice is now $80
+			got, err := store.GetTransaction(ctx, vestID)
+			if err != nil {
+				t.Fatalf("GetTransaction after update: %v", err)
+			}
+			gotVest, ok := got.(StockVest)
+			if !ok {
+				t.Fatalf("expected StockVest, got %T", got)
+			}
+			if gotVest.VestingPrice != 80.0 {
+				t.Errorf("VestingPrice: got %v, want 80", gotVest.VestingPrice)
+			}
+
+			// 7. Verify target lot costPerShare is $80
+			targetLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: investmentID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots(target) after update: %v", err)
+			}
+			if len(targetLots) != 1 {
+				t.Fatalf("expected 1 lot in target account, got %d", len(targetLots))
+			}
+			if targetLots[0].CostPerShare != 80.0 {
+				t.Errorf("target lot CostPerShare: got %v, want 80", targetLots[0].CostPerShare)
+			}
+		})
+	}
+}
+
+// setupVestAndDelete creates a grant, vests, verifies the vest, then deletes the vest.
+func setupVestAndDelete(t *testing.T, ctx context.Context, store *Store,
+	unvestedID, investmentID, instrumentID uint,
+) {
+	t.Helper()
+	vestID, _ := setupCreateStockVest(t, ctx, store, unvestedID, investmentID, instrumentID)
+
+	srcLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+	if err != nil {
+		t.Fatalf("ListLots(source) before delete: %v", err)
+	}
+	srcTotal := 0.0
+	for _, l := range srcLots {
+		srcTotal += l.Quantity
+	}
+	if srcTotal != 40 {
+		t.Fatalf("source lots before delete: got %v, want 40", srcTotal)
+	}
+
+	if err := store.DeleteTransaction(ctx, vestID); err != nil {
+		t.Fatalf("DeleteTransaction: %v", err)
+	}
+}
+
+func verifyDeleteVestSourceLots(t *testing.T, ctx context.Context, store *Store,
+	unvestedID, instrumentID uint,
+) {
+	t.Helper()
+	srcLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+	if err != nil {
+		t.Fatalf("ListLots(source) after delete: %v", err)
+	}
+	if len(srcLots) != 1 {
+		t.Fatalf("expected 1 source lot after delete, got %d", len(srcLots))
+	}
+	if srcLots[0].Quantity != 100 {
+		t.Errorf("source lot Quantity after delete: got %v, want 100", srcLots[0].Quantity)
+	}
+	if srcLots[0].CostPerShare != 50.0 {
+		t.Errorf("source lot CostPerShare after delete: got %v, want 50", srcLots[0].CostPerShare)
+	}
+	if srcLots[0].Status != LotOpen {
+		t.Errorf("source lot Status after delete: got %v, want %v (Open)", srcLots[0].Status, LotOpen)
+	}
+}
+
+func verifyDeleteVestPositions(t *testing.T, ctx context.Context, store *Store,
+	unvestedID, investmentID, instrumentID uint,
+) {
+	t.Helper()
+	srcPos, err := store.GetPosition(ctx, unvestedID, instrumentID)
+	if err != nil {
+		t.Fatalf("GetPosition(source) after delete: %v", err)
+	}
+	if srcPos.Quantity != 100 {
+		t.Errorf("source position Quantity: got %v, want 100", srcPos.Quantity)
+	}
+	targetPositions, err := store.ListPositions(ctx, ListPositionsOpts{AccountID: investmentID})
+	if err != nil {
+		t.Fatalf("ListPositions(target) after delete: %v", err)
+	}
+	for _, p := range targetPositions {
+		if p.InstrumentID == instrumentID && p.Quantity != 0 {
+			t.Errorf("target position Quantity: got %v, want 0", p.Quantity)
+		}
+	}
+}
+
+func TestDeleteStockVest_RestoresSourceLots(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("storeDeleteVestRestore"))
+			unvestedID, investmentID, instrumentID := setupStockGrantTransferTest(t, ctx, store, mktStore)
+
+			setupVestAndDelete(t, ctx, store, unvestedID, investmentID, instrumentID)
+
+			t.Run("verify source lots restored", func(t *testing.T) {
+				verifyDeleteVestSourceLots(t, ctx, store, unvestedID, instrumentID)
+			})
+			t.Run("verify target lots removed", func(t *testing.T) {
+				targetLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: investmentID, InstrumentID: instrumentID})
+				if err != nil {
+					t.Fatalf("ListLots(target) after delete: %v", err)
+				}
+				if len(targetLots) != 0 {
+					t.Errorf("expected 0 target lots after delete, got %d", len(targetLots))
+				}
+			})
+			t.Run("verify positions", func(t *testing.T) {
+				verifyDeleteVestPositions(t, ctx, store, unvestedID, investmentID, instrumentID)
+			})
+		})
+	}
+}
+
+func TestUpdateStockVest_BlockedWhenSharesSold(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("storeUpdateVestBlocked"))
+			unvestedID, investmentID, instrumentID := setupStockGrantTransferTest(t, ctx, store, mktStore)
+
+			// We also need a cash account for the sell
+			providerID, err := store.CreateAccountProvider(ctx, AccountProvider{Name: "Cash Broker"})
+			if err != nil {
+				t.Fatalf("CreateAccountProvider: %v", err)
+			}
+			cashID, err := store.CreateAccount(ctx, Account{
+				AccountProviderID: providerID,
+				Name:              "Cash",
+				Currency:          currency.USD,
+				Type:              CheckinAccountType,
+			})
+			if err != nil {
+				t.Fatalf("CreateAccount(cash): %v", err)
+			}
+
+			// 1. Create grant (100 shares, FMV $50) in unvested account
+			_, err = store.CreateStockGrant(ctx, StockGrant{
+				Description:     "RSU Grant 100 shares",
+				Date:            getDate("2025-01-15"),
+				AccountID:       unvestedID,
+				InstrumentID:    instrumentID,
+				Quantity:        100,
+				FairMarketValue: 50.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+
+			// 2. List lots to get lot ID
+			lots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots: %v", err)
+			}
+			if len(lots) != 1 {
+				t.Fatalf("expected 1 lot in unvested account, got %d", len(lots))
+			}
+			lotID := lots[0].Id
+
+			// 3. Create income category
+			categoryID, err := store.CreateCategory(ctx, CategoryData{Name: "RSU Income", Type: IncomeCategory}, 0)
+			if err != nil {
+				t.Fatalf("CreateCategory: %v", err)
+			}
+
+			// 4. Vest 60 shares at $75
+			vest := StockVest{
+				Description:     "Vest 60 shares",
+				Date:            getDate("2025-06-15"),
+				SourceAccountID: unvestedID,
+				TargetAccountID: investmentID,
+				InstrumentID:    instrumentID,
+				VestingPrice:    75.0,
+				CategoryID:      categoryID,
+				LotSelections: []LotSelection{
+					{LotID: lotID, Quantity: 60},
+				},
+			}
+			vestID, err := store.CreateStockVest(ctx, vest)
+			if err != nil {
+				t.Fatalf("CreateStockVest: %v", err)
+			}
+
+			// 5. Sell 20 of the vested shares
+			_, err = store.CreateStockSell(ctx, StockSell{
+				Description:         "Sell 20 vested shares",
+				Date:                getDate("2025-07-01"),
+				InvestmentAccountID: investmentID,
+				CashAccountID:       cashID,
+				InstrumentID:        instrumentID,
+				Quantity:            20,
+				TotalAmount:         2000, // $100/share
+			})
+			if err != nil {
+				t.Fatalf("CreateStockSell: %v", err)
+			}
+
+			// 6. Try to UpdateStockVest — should return an error
+			newPrice := 80.0
+			err = store.UpdateStockVest(ctx, StockVestUpdate{
+				VestingPrice: &newPrice,
+			}, vestID)
+			if err == nil {
+				t.Fatal("expected error when updating vest with sold shares, got nil")
+			}
+			var validationErr ErrValidation
+			if !errors.As(err, &validationErr) {
+				t.Fatalf("expected ErrValidation, got %T: %v", err, err)
+			}
+			if !strings.Contains(string(validationErr), "some vested shares have been sold") {
+				t.Errorf("unexpected error message: %q", validationErr)
+			}
+
+			// 7. Verify all lots remain unchanged
+			// Source: should still be 40
+			srcLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots(source): %v", err)
+			}
+			srcTotal := 0.0
+			for _, l := range srcLots {
+				srcTotal += l.Quantity
+			}
+			if srcTotal != 40 {
+				t.Errorf("source lots after blocked update: got %v, want 40", srcTotal)
+			}
+
+			// Target: should still be 40 (60 vested - 20 sold)
+			targetLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: investmentID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots(target): %v", err)
+			}
+			targetTotal := 0.0
+			for _, l := range targetLots {
+				targetTotal += l.Quantity
+			}
+			if targetTotal != 40 {
+				t.Errorf("target lots after blocked update: got %v, want 40", targetTotal)
+			}
+		})
+	}
+}
+
+func TestUpdateStockVest_RejectsInvalidMerge(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("vestUpdateInvalid"))
+			unvestedID, investmentID, instrumentID := setupStockGrantTransferTest(t, ctx, store, mktStore)
+
+			// Create a grant (100 shares, FMV $50) in the unvested account.
+			_, err := store.CreateStockGrant(ctx, StockGrant{
+				Description:     "RSU Grant 100 shares",
+				Date:            getDate("2025-01-15"),
+				AccountID:       unvestedID,
+				InstrumentID:    instrumentID,
+				Quantity:        100,
+				FairMarketValue: 50.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+
+			// List lots to get the lot ID.
+			lots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots: %v", err)
+			}
+			if len(lots) != 1 {
+				t.Fatalf("expected 1 lot, got %d", len(lots))
+			}
+			lotID := lots[0].Id
+
+			// Create an income category.
+			categoryID, err := store.CreateCategory(ctx, CategoryData{Name: "RSU Income", Type: IncomeCategory}, 0)
+			if err != nil {
+				t.Fatalf("CreateCategory: %v", err)
+			}
+
+			// Create a valid vest.
+			vestID, err := store.CreateStockVest(ctx, StockVest{
+				Description:     "Vest 60 shares",
+				Date:            getDate("2025-06-15"),
+				SourceAccountID: unvestedID,
+				TargetAccountID: investmentID,
+				InstrumentID:    instrumentID,
+				VestingPrice:    75.0,
+				CategoryID:      categoryID,
+				LotSelections:   []LotSelection{{LotID: lotID, Quantity: 60}},
+			})
+			if err != nil {
+				t.Fatalf("CreateStockVest: %v", err)
+			}
+
+			// Try to update with VestingPrice = 0 — should be rejected.
+			zeroPrice := 0.0
+			err = store.UpdateStockVest(ctx, StockVestUpdate{
+				VestingPrice: &zeroPrice,
+			}, vestID)
+			if err == nil {
+				t.Fatal("expected validation error for VestingPrice=0, got nil")
+			}
+			var validationErr ErrValidation
+			if !errors.As(err, &validationErr) {
+				t.Fatalf("expected ErrValidation for VestingPrice=0, got %T: %v", err, err)
+			}
+			if !strings.Contains(string(validationErr), "vesting price") {
+				t.Errorf("unexpected error message for VestingPrice=0: %q", validationErr)
+			}
+
+			// Try to update with SourceAccountID = TargetAccountID — should be rejected.
+			err = store.UpdateStockVest(ctx, StockVestUpdate{
+				SourceAccountID: &investmentID,
+			}, vestID)
+			if err == nil {
+				t.Fatal("expected validation error for same source/target, got nil")
+			}
+			if !errors.As(err, &validationErr) {
+				t.Fatalf("expected ErrValidation for same source/target, got %T: %v", err, err)
+			}
+			if !strings.Contains(string(validationErr), "source and target must be different") {
+				t.Errorf("unexpected error message for same source/target: %q", validationErr)
+			}
+		})
+	}
+}
+
+func TestCreateStockVest_RejectsZeroQuantity(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("vestZeroQty"))
+			unvestedID, investmentID, instrumentID := setupStockGrantTransferTest(t, ctx, store, mktStore)
+
+			// Create a grant (100 shares, FMV $50) in the unvested account.
+			_, err := store.CreateStockGrant(ctx, StockGrant{
+				Description:     "RSU Grant 100 shares",
+				Date:            getDate("2025-01-15"),
+				AccountID:       unvestedID,
+				InstrumentID:    instrumentID,
+				Quantity:        100,
+				FairMarketValue: 50.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+
+			// List lots to get the lot ID.
+			lots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots: %v", err)
+			}
+			if len(lots) != 1 {
+				t.Fatalf("expected 1 lot, got %d", len(lots))
+			}
+			lotID := lots[0].Id
+
+			// Create an income category.
+			categoryID, err := store.CreateCategory(ctx, CategoryData{Name: "RSU Income", Type: IncomeCategory}, 0)
+			if err != nil {
+				t.Fatalf("CreateCategory: %v", err)
+			}
+
+			// Try to create a vest with a LotSelection of quantity 0.
+			_, err = store.CreateStockVest(ctx, StockVest{
+				Description:     "Zero quantity vest",
+				Date:            getDate("2025-06-15"),
+				SourceAccountID: unvestedID,
+				TargetAccountID: investmentID,
+				InstrumentID:    instrumentID,
+				VestingPrice:    75.0,
+				CategoryID:      categoryID,
+				LotSelections:   []LotSelection{{LotID: lotID, Quantity: 0}},
+			})
+			if err == nil {
+				t.Fatal("expected validation error for zero quantity, got nil")
+			}
+			var validationErr ErrValidation
+			if !errors.As(err, &validationErr) {
+				t.Fatalf("expected ErrValidation for zero quantity, got %T: %v", err, err)
+			}
+			if !strings.Contains(string(validationErr), "total vesting quantity must be greater than 0") {
+				t.Errorf("unexpected error message: %q", validationErr)
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// RSU Lifecycle Edge-Case Tests
+// ---------------------------------------------------------------------------
+
+// rsuTestSetup is a helper that creates unvested + investment + cash accounts,
+// an instrument, and an income category. It returns all IDs needed for RSU tests.
+func rsuTestSetup(t *testing.T, ctx context.Context, store *Store, mktStore *marketdata.Store) (
+	unvestedID, investmentID, cashID, instrumentID, categoryID uint,
+) {
+	t.Helper()
+	unvestedID, investmentID, instrumentID = setupStockGrantTransferTest(t, ctx, store, mktStore)
+
+	// Create a cash account for sells
+	providerID, err := store.CreateAccountProvider(ctx, AccountProvider{Name: "Cash Provider"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cashID, err = store.CreateAccount(ctx, Account{
+		AccountProviderID: providerID,
+		Name:              "Checking",
+		Currency:          currency.USD,
+		Type:              CheckinAccountType,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	categoryID, err = store.CreateCategory(ctx, CategoryData{Name: "RSU Income", Type: IncomeCategory}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return
+}
+
+// sumLotQuantity returns the total quantity across all lots returned by ListLots.
+func sumLotQuantity(t *testing.T, lots []Lot) float64 {
+	t.Helper()
+	total := 0.0
+	for _, l := range lots {
+		total += l.Quantity
+	}
+	return total
+}
+
+// TestRSU_Scenario1_DeleteGrantAfterVest verifies that deleting a grant
+// that has already been partially vested is blocked to prevent orphaned
+// vested lots in the investment account.
+func TestRSU_Scenario1_DeleteGrantAfterVest(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("rsuScenario1"))
+			unvestedID, investmentID, _, instrumentID, categoryID := rsuTestSetup(t, ctx, store, mktStore)
+
+			// Grant 100 shares at FMV $50
+			grantID, err := store.CreateStockGrant(ctx, StockGrant{
+				Description:     "RSU Grant 100",
+				Date:            getDate("2025-01-01"),
+				AccountID:       unvestedID,
+				InstrumentID:    instrumentID,
+				Quantity:        100,
+				FairMarketValue: 50.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+
+			// Get the lot ID for vesting
+			lots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots: %v", err)
+			}
+			lotID := lots[0].Id
+
+			// Vest 60 shares at $75
+			_, err = store.CreateStockVest(ctx, StockVest{
+				Description:     "Vest 60",
+				Date:            getDate("2025-06-01"),
+				SourceAccountID: unvestedID,
+				TargetAccountID: investmentID,
+				InstrumentID:    instrumentID,
+				VestingPrice:    75.0,
+				CategoryID:      categoryID,
+				LotSelections:   []LotSelection{{LotID: lotID, Quantity: 60}},
+			})
+			if err != nil {
+				t.Fatalf("CreateStockVest: %v", err)
+			}
+
+			// Delete the grant -- should be blocked because lots have been vested
+			err = store.DeleteTransaction(ctx, grantID)
+			if err == nil {
+				t.Fatal("expected error when deleting grant with vested lots, got nil")
+			}
+
+			// Verify data is still consistent: unvested=40, investment=60
+			srcLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots(source): %v", err)
+			}
+			if got := sumLotQuantity(t, srcLots); got != 40 {
+				t.Errorf("source lots after blocked delete: got %v, want 40", got)
+			}
+
+			tgtLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: investmentID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots(target): %v", err)
+			}
+			if got := sumLotQuantity(t, tgtLots); got != 60 {
+				t.Errorf("target lots after blocked delete: got %v, want 60", got)
+			}
+		})
+	}
+}
+
+// TestRSU_Scenario2_UpdateGrantAfterVest verifies that editing a grant's
+// quantity below the already-vested amount is blocked.
+func TestRSU_Scenario2_UpdateGrantAfterVest(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("rsuScenario2"))
+			unvestedID, investmentID, _, instrumentID, categoryID := rsuTestSetup(t, ctx, store, mktStore)
+
+			// Grant 100 shares
+			grantID, err := store.CreateStockGrant(ctx, StockGrant{
+				Description:     "RSU Grant 100",
+				Date:            getDate("2025-01-01"),
+				AccountID:       unvestedID,
+				InstrumentID:    instrumentID,
+				Quantity:        100,
+				FairMarketValue: 50.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+
+			lots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots: %v", err)
+			}
+			lotID := lots[0].Id
+
+			// Vest 60 shares
+			_, err = store.CreateStockVest(ctx, StockVest{
+				Description:     "Vest 60",
+				Date:            getDate("2025-06-01"),
+				SourceAccountID: unvestedID,
+				TargetAccountID: investmentID,
+				InstrumentID:    instrumentID,
+				VestingPrice:    75.0,
+				CategoryID:      categoryID,
+				LotSelections:   []LotSelection{{LotID: lotID, Quantity: 60}},
+			})
+			if err != nil {
+				t.Fatalf("CreateStockVest: %v", err)
+			}
+
+			// Try to reduce grant to 50 shares -- should fail since 60 already vested
+			newQty := 50.0
+			err = store.UpdateStockGrant(ctx, StockGrantUpdate{Quantity: &newQty}, grantID)
+			if err == nil {
+				t.Fatal("expected error when reducing grant below vested amount, got nil")
+			}
+
+			// Verify data is still consistent
+			srcLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots(source): %v", err)
+			}
+			if got := sumLotQuantity(t, srcLots); got != 40 {
+				t.Errorf("source lots after blocked update: got %v, want 40", got)
+			}
+			tgtLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: investmentID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots(target): %v", err)
+			}
+			if got := sumLotQuantity(t, tgtLots); got != 60 {
+				t.Errorf("target lots after blocked update: got %v, want 60", got)
+			}
+		})
+	}
+}
+
+// TestRSU_Scenario3_DeleteVestThenGrant verifies the full cleanup:
+// grant 100, vest all 100, delete vest, delete grant -> all lots gone.
+func TestRSU_Scenario3_DeleteVestThenGrant(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("rsuScenario3"))
+			unvestedID, investmentID, _, instrumentID, categoryID := rsuTestSetup(t, ctx, store, mktStore)
+
+			grantID, err := store.CreateStockGrant(ctx, StockGrant{
+				Description:     "RSU Grant 100",
+				Date:            getDate("2025-01-01"),
+				AccountID:       unvestedID,
+				InstrumentID:    instrumentID,
+				Quantity:        100,
+				FairMarketValue: 50.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+
+			lots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots: %v", err)
+			}
+			lotID := lots[0].Id
+
+			vestID, err := store.CreateStockVest(ctx, StockVest{
+				Description:     "Vest 100",
+				Date:            getDate("2025-06-01"),
+				SourceAccountID: unvestedID,
+				TargetAccountID: investmentID,
+				InstrumentID:    instrumentID,
+				VestingPrice:    75.0,
+				CategoryID:      categoryID,
+				LotSelections:   []LotSelection{{LotID: lotID, Quantity: 100}},
+			})
+			if err != nil {
+				t.Fatalf("CreateStockVest: %v", err)
+			}
+
+			// Delete the vest
+			if err := store.DeleteTransaction(ctx, vestID); err != nil {
+				t.Fatalf("DeleteTransaction(vest): %v", err)
+			}
+
+			// Source lot should be back to 100
+			srcLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots(source) after vest delete: %v", err)
+			}
+			if len(srcLots) != 1 || srcLots[0].Quantity != 100 {
+				t.Fatalf("source lots after vest delete: got qty=%v, want 100", sumLotQuantity(t, srcLots))
+			}
+
+			// No target lots
+			tgtLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: investmentID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots(target) after vest delete: %v", err)
+			}
+			if len(tgtLots) != 0 {
+				t.Errorf("expected 0 target lots, got %d", len(tgtLots))
+			}
+
+			// Now delete the grant
+			if err := store.DeleteTransaction(ctx, grantID); err != nil {
+				t.Fatalf("DeleteTransaction(grant): %v", err)
+			}
+
+			// No lots anywhere
+			allSrcLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots(source) after grant delete: %v", err)
+			}
+			if len(allSrcLots) != 0 {
+				t.Errorf("expected 0 source lots after full cleanup, got %d", len(allSrcLots))
+			}
+
+			// Positions should be zero
+			srcPositions, err := store.ListPositions(ctx, ListPositionsOpts{AccountID: unvestedID})
+			if err != nil {
+				t.Fatalf("ListPositions(source): %v", err)
+			}
+			for _, p := range srcPositions {
+				if p.InstrumentID == instrumentID && p.Quantity != 0 {
+					t.Errorf("source position qty: got %v, want 0", p.Quantity)
+				}
+			}
+		})
+	}
+}
+
+// TestRSU_Scenario4_DeleteGrantAfterVestAndSell verifies that deleting a grant
+// after vest and sell is blocked because it would orphan both vested and sold lots.
+func TestRSU_Scenario4_DeleteGrantAfterVestAndSell(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("rsuScenario4"))
+			unvestedID, investmentID, cashID, instrumentID, categoryID := rsuTestSetup(t, ctx, store, mktStore)
+
+			// Grant 100 shares
+			grantID, err := store.CreateStockGrant(ctx, StockGrant{
+				Description:     "RSU Grant 100",
+				Date:            getDate("2025-01-01"),
+				AccountID:       unvestedID,
+				InstrumentID:    instrumentID,
+				Quantity:        100,
+				FairMarketValue: 50.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+
+			lots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots: %v", err)
+			}
+			lotID := lots[0].Id
+
+			// Vest 60 shares
+			_, err = store.CreateStockVest(ctx, StockVest{
+				Description:     "Vest 60",
+				Date:            getDate("2025-06-01"),
+				SourceAccountID: unvestedID,
+				TargetAccountID: investmentID,
+				InstrumentID:    instrumentID,
+				VestingPrice:    75.0,
+				CategoryID:      categoryID,
+				LotSelections:   []LotSelection{{LotID: lotID, Quantity: 60}},
+			})
+			if err != nil {
+				t.Fatalf("CreateStockVest: %v", err)
+			}
+
+			// Sell 30 shares
+			_, err = store.CreateStockSell(ctx, StockSell{
+				Description:         "Sell 30",
+				Date:                getDate("2025-07-01"),
+				InvestmentAccountID: investmentID,
+				CashAccountID:       cashID,
+				InstrumentID:        instrumentID,
+				Quantity:            30,
+				TotalAmount:         3000,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockSell: %v", err)
+			}
+
+			// Delete the grant -- should be blocked
+			err = store.DeleteTransaction(ctx, grantID)
+			if err == nil {
+				t.Fatal("expected error when deleting grant with vested+sold lots, got nil")
+			}
+
+			// Verify data is still consistent
+			srcLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots(source): %v", err)
+			}
+			if got := sumLotQuantity(t, srcLots); got != 40 {
+				t.Errorf("source lots: got %v, want 40", got)
+			}
+
+			tgtLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: investmentID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots(target): %v", err)
+			}
+			if got := sumLotQuantity(t, tgtLots); got != 30 {
+				t.Errorf("target lots: got %v, want 30 (60 vested - 30 sold)", got)
+			}
+		})
+	}
+}
+
+// TestRSU_Scenario5_DeleteSellThenVest verifies the full restoration chain:
+// grant 100, vest 60, sell 30, delete sell, delete vest -> source lot = 100.
+func TestRSU_Scenario5_DeleteSellThenVest(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("rsuScenario5"))
+			unvestedID, investmentID, cashID, instrumentID, categoryID := rsuTestSetup(t, ctx, store, mktStore)
+
+			// Grant 100
+			_, err := store.CreateStockGrant(ctx, StockGrant{
+				Description:     "RSU Grant 100",
+				Date:            getDate("2025-01-01"),
+				AccountID:       unvestedID,
+				InstrumentID:    instrumentID,
+				Quantity:        100,
+				FairMarketValue: 50.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+
+			lots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots: %v", err)
+			}
+			lotID := lots[0].Id
+
+			// Vest 60
+			vestID, err := store.CreateStockVest(ctx, StockVest{
+				Description:     "Vest 60",
+				Date:            getDate("2025-06-01"),
+				SourceAccountID: unvestedID,
+				TargetAccountID: investmentID,
+				InstrumentID:    instrumentID,
+				VestingPrice:    75.0,
+				CategoryID:      categoryID,
+				LotSelections:   []LotSelection{{LotID: lotID, Quantity: 60}},
+			})
+			if err != nil {
+				t.Fatalf("CreateStockVest: %v", err)
+			}
+
+			// Sell 30
+			sellID, err := store.CreateStockSell(ctx, StockSell{
+				Description:         "Sell 30",
+				Date:                getDate("2025-07-01"),
+				InvestmentAccountID: investmentID,
+				CashAccountID:       cashID,
+				InstrumentID:        instrumentID,
+				Quantity:            30,
+				TotalAmount:         3000,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockSell: %v", err)
+			}
+
+			// Delete the sell
+			if err := store.DeleteTransaction(ctx, sellID); err != nil {
+				t.Fatalf("DeleteTransaction(sell): %v", err)
+			}
+
+			// After sell delete: target lots should be back to 60
+			tgtLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: investmentID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots(target) after sell delete: %v", err)
+			}
+			if got := sumLotQuantity(t, tgtLots); got != 60 {
+				t.Errorf("target lots after sell delete: got %v, want 60", got)
+			}
+
+			// Delete the vest
+			if err := store.DeleteTransaction(ctx, vestID); err != nil {
+				t.Fatalf("DeleteTransaction(vest): %v", err)
+			}
+
+			// After vest delete: source should be 100, no target lots
+			srcLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots(source) after vest delete: %v", err)
+			}
+			if got := sumLotQuantity(t, srcLots); got != 100 {
+				t.Errorf("source lots after vest delete: got %v, want 100", got)
+			}
+
+			tgtLots, err = store.ListLots(ctx, ListLotsOpts{AccountID: investmentID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots(target) after vest delete: %v", err)
+			}
+			if len(tgtLots) != 0 {
+				t.Errorf("expected 0 target lots after vest delete, got %d (qty=%v)", len(tgtLots), sumLotQuantity(t, tgtLots))
+			}
+
+			// Source position should be 100
+			srcPos, err := store.GetPosition(ctx, unvestedID, instrumentID)
+			if err != nil {
+				t.Fatalf("GetPosition(source): %v", err)
+			}
+			if srcPos.Quantity != 100 {
+				t.Errorf("source position: got %v, want 100", srcPos.Quantity)
+			}
+		})
+	}
+}
+
+// TestRSU_Scenario7_MultiGrantVest verifies that vesting from multiple grants
+// handles lot selection correctly.
+func TestRSU_Scenario7_MultiGrantVest(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("rsuScenario7"))
+			unvestedID, investmentID, _, instrumentID, categoryID := rsuTestSetup(t, ctx, store, mktStore)
+
+			// Grant A: 50 shares
+			_, err := store.CreateStockGrant(ctx, StockGrant{
+				Description:     "Grant A",
+				Date:            getDate("2025-01-01"),
+				AccountID:       unvestedID,
+				InstrumentID:    instrumentID,
+				Quantity:        50,
+				FairMarketValue: 40.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant A: %v", err)
+			}
+
+			// Grant B: 50 shares
+			_, err = store.CreateStockGrant(ctx, StockGrant{
+				Description:     "Grant B",
+				Date:            getDate("2025-02-01"),
+				AccountID:       unvestedID,
+				InstrumentID:    instrumentID,
+				Quantity:        50,
+				FairMarketValue: 45.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant B: %v", err)
+			}
+
+			// Get lot IDs
+			lots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots: %v", err)
+			}
+			if len(lots) != 2 {
+				t.Fatalf("expected 2 lots, got %d", len(lots))
+			}
+			// lots are ordered by open_date ASC
+			lotAID := lots[0].Id
+			lotBID := lots[1].Id
+
+			// Vest 70 shares from both grants: 50 from A, 20 from B
+			_, err = store.CreateStockVest(ctx, StockVest{
+				Description:     "Vest 70",
+				Date:            getDate("2025-06-01"),
+				SourceAccountID: unvestedID,
+				TargetAccountID: investmentID,
+				InstrumentID:    instrumentID,
+				VestingPrice:    75.0,
+				CategoryID:      categoryID,
+				LotSelections: []LotSelection{
+					{LotID: lotAID, Quantity: 50},
+					{LotID: lotBID, Quantity: 20},
+				},
+			})
+			if err != nil {
+				t.Fatalf("CreateStockVest: %v", err)
+			}
+
+			// Verify source: Grant A lot should be closed (0), Grant B lot should have 30
+			srcLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots(source): %v", err)
+			}
+			totalSrc := sumLotQuantity(t, srcLots)
+			if totalSrc != 30 {
+				t.Errorf("source lots total: got %v, want 30", totalSrc)
+			}
+
+			// Verify target: should have 70 shares at $75/share
+			tgtLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: investmentID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots(target): %v", err)
+			}
+			totalTgt := sumLotQuantity(t, tgtLots)
+			if totalTgt != 70 {
+				t.Errorf("target lots total: got %v, want 70", totalTgt)
+			}
+			// All target lots should have CostPerShare = 75
+			for _, l := range tgtLots {
+				if l.CostPerShare != 75.0 {
+					t.Errorf("target lot %d CostPerShare: got %v, want 75", l.Id, l.CostPerShare)
+				}
+			}
+
+			// Verify positions
+			srcPos, err := store.GetPosition(ctx, unvestedID, instrumentID)
+			if err != nil {
+				t.Fatalf("GetPosition(source): %v", err)
+			}
+			if srcPos.Quantity != 30 {
+				t.Errorf("source position: got %v, want 30", srcPos.Quantity)
+			}
+			tgtPos, err := store.GetPosition(ctx, investmentID, instrumentID)
+			if err != nil {
+				t.Fatalf("GetPosition(target): %v", err)
+			}
+			if tgtPos.Quantity != 70 {
+				t.Errorf("target position: got %v, want 70", tgtPos.Quantity)
+			}
+		})
+	}
+}
+
+// TestRSU_Scenario8_DeleteVestFromMultiGrant verifies that deleting a vest
+// that drew from multiple grants correctly restores BOTH source grants.
+func TestRSU_Scenario8_DeleteVestFromMultiGrant(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("rsuScenario8"))
+			unvestedID, investmentID, _, instrumentID, categoryID := rsuTestSetup(t, ctx, store, mktStore)
+
+			// Grant A: 50 shares
+			_, err := store.CreateStockGrant(ctx, StockGrant{
+				Description:     "Grant A",
+				Date:            getDate("2025-01-01"),
+				AccountID:       unvestedID,
+				InstrumentID:    instrumentID,
+				Quantity:        50,
+				FairMarketValue: 40.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant A: %v", err)
+			}
+
+			// Grant B: 50 shares
+			_, err = store.CreateStockGrant(ctx, StockGrant{
+				Description:     "Grant B",
+				Date:            getDate("2025-02-01"),
+				AccountID:       unvestedID,
+				InstrumentID:    instrumentID,
+				Quantity:        50,
+				FairMarketValue: 45.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant B: %v", err)
+			}
+
+			lots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots: %v", err)
+			}
+			lotAID := lots[0].Id
+			lotBID := lots[1].Id
+
+			// Vest 70 from both
+			vestID, err := store.CreateStockVest(ctx, StockVest{
+				Description:     "Vest 70",
+				Date:            getDate("2025-06-01"),
+				SourceAccountID: unvestedID,
+				TargetAccountID: investmentID,
+				InstrumentID:    instrumentID,
+				VestingPrice:    75.0,
+				CategoryID:      categoryID,
+				LotSelections: []LotSelection{
+					{LotID: lotAID, Quantity: 50},
+					{LotID: lotBID, Quantity: 20},
+				},
+			})
+			if err != nil {
+				t.Fatalf("CreateStockVest: %v", err)
+			}
+
+			// Delete the vest
+			if err := store.DeleteTransaction(ctx, vestID); err != nil {
+				t.Fatalf("DeleteTransaction(vest): %v", err)
+			}
+
+			// Source: both lots should be fully restored
+			srcLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots(source) after delete: %v", err)
+			}
+			// Sort by open_date to get A first
+			sort.Slice(srcLots, func(i, j int) bool { return srcLots[i].OpenDate.Before(srcLots[j].OpenDate) })
+
+			if len(srcLots) < 2 {
+				t.Fatalf("expected at least 2 source lots, got %d", len(srcLots))
+			}
+
+			// Grant A lot should be 50
+			if srcLots[0].Quantity != 50 {
+				t.Errorf("Grant A lot after delete: got %v, want 50", srcLots[0].Quantity)
+			}
+			if srcLots[0].Status != LotOpen {
+				t.Errorf("Grant A lot status: got %v, want Open", srcLots[0].Status)
+			}
+
+			// Grant B lot should be 50
+			if srcLots[1].Quantity != 50 {
+				t.Errorf("Grant B lot after delete: got %v, want 50", srcLots[1].Quantity)
+			}
+			if srcLots[1].Status != LotOpen {
+				t.Errorf("Grant B lot status: got %v, want Open", srcLots[1].Status)
+			}
+
+			// No target lots
+			tgtLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: investmentID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots(target) after delete: %v", err)
+			}
+			if len(tgtLots) != 0 {
+				t.Errorf("expected 0 target lots, got %d", len(tgtLots))
+			}
+		})
+	}
+}
+
+// TestRSU_Scenario10_DeleteVestAfterSell verifies that deleting a vest
+// when some vested shares have been sold is blocked.
+func TestRSU_Scenario10_DeleteVestAfterSell(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("rsuScenario10"))
+			unvestedID, investmentID, cashID, instrumentID, categoryID := rsuTestSetup(t, ctx, store, mktStore)
+
+			// Grant 100
+			_, err := store.CreateStockGrant(ctx, StockGrant{
+				Description:     "RSU Grant 100",
+				Date:            getDate("2025-01-01"),
+				AccountID:       unvestedID,
+				InstrumentID:    instrumentID,
+				Quantity:        100,
+				FairMarketValue: 50.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+
+			lots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots: %v", err)
+			}
+			lotID := lots[0].Id
+
+			// Vest 60
+			vestID, err := store.CreateStockVest(ctx, StockVest{
+				Description:     "Vest 60",
+				Date:            getDate("2025-06-01"),
+				SourceAccountID: unvestedID,
+				TargetAccountID: investmentID,
+				InstrumentID:    instrumentID,
+				VestingPrice:    75.0,
+				CategoryID:      categoryID,
+				LotSelections:   []LotSelection{{LotID: lotID, Quantity: 60}},
+			})
+			if err != nil {
+				t.Fatalf("CreateStockVest: %v", err)
+			}
+
+			// Sell 30
+			_, err = store.CreateStockSell(ctx, StockSell{
+				Description:         "Sell 30",
+				Date:                getDate("2025-07-01"),
+				InvestmentAccountID: investmentID,
+				CashAccountID:       cashID,
+				InstrumentID:        instrumentID,
+				Quantity:            30,
+				TotalAmount:         3000,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockSell: %v", err)
+			}
+
+			// Delete the vest -- should be blocked because some vested shares were sold
+			err = store.DeleteTransaction(ctx, vestID)
+			if err == nil {
+				t.Fatal("expected error when deleting vest with sold shares, got nil")
+			}
+
+			// Verify data is still consistent: source=40, target=30 (60-30 sold)
+			srcLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots(source): %v", err)
+			}
+			if got := sumLotQuantity(t, srcLots); got != 40 {
+				t.Errorf("source lots: got %v, want 40", got)
+			}
+
+			tgtLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: investmentID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots(target): %v", err)
+			}
+			if got := sumLotQuantity(t, tgtLots); got != 30 {
+				t.Errorf("target lots: got %v, want 30", got)
+			}
+		})
+	}
+}
+
+// TestRSU_Scenario11_UpdateVestPrice verifies that updating the vesting price
+// also updates the income entry amount.
+func TestRSU_Scenario11_UpdateVestPrice(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("rsuScenario11"))
+			unvestedID, investmentID, _, instrumentID, categoryID := rsuTestSetup(t, ctx, store, mktStore)
+
+			// Grant 100 shares
+			_, err := store.CreateStockGrant(ctx, StockGrant{
+				Description:     "RSU Grant 100",
+				Date:            getDate("2025-01-01"),
+				AccountID:       unvestedID,
+				InstrumentID:    instrumentID,
+				Quantity:        100,
+				FairMarketValue: 50.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+
+			lots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots: %v", err)
+			}
+			lotID := lots[0].Id
+
+			// Vest 60 at $75 => income = 60 * 75 = $4500
+			vestID, err := store.CreateStockVest(ctx, StockVest{
+				Description:     "Vest 60",
+				Date:            getDate("2025-06-01"),
+				SourceAccountID: unvestedID,
+				TargetAccountID: investmentID,
+				InstrumentID:    instrumentID,
+				VestingPrice:    75.0,
+				CategoryID:      categoryID,
+				LotSelections:   []LotSelection{{LotID: lotID, Quantity: 60}},
+			})
+			if err != nil {
+				t.Fatalf("CreateStockVest: %v", err)
+			}
+
+			// Verify income entry before update
+			var entriesBefore []dbEntry
+			if err := store.db.Where("transaction_id = ? AND entry_type = ?", vestID, stockVestIncomeEntry).Find(&entriesBefore).Error; err != nil {
+				t.Fatalf("query entries: %v", err)
+			}
+			if len(entriesBefore) != 1 {
+				t.Fatalf("expected 1 income entry, got %d", len(entriesBefore))
+			}
+			if entriesBefore[0].Amount != 4500 {
+				t.Errorf("income entry before update: got %v, want 4500", entriesBefore[0].Amount)
+			}
+
+			// Update vesting price to $80 => income should be 60 * 80 = $4800
+			newPrice := 80.0
+			if err := store.UpdateStockVest(ctx, StockVestUpdate{VestingPrice: &newPrice}, vestID); err != nil {
+				t.Fatalf("UpdateStockVest: %v", err)
+			}
+
+			// Verify income entry after update
+			var entriesAfter []dbEntry
+			if err := store.db.Where("transaction_id = ? AND entry_type = ?", vestID, stockVestIncomeEntry).Find(&entriesAfter).Error; err != nil {
+				t.Fatalf("query entries after update: %v", err)
+			}
+			if len(entriesAfter) != 1 {
+				t.Fatalf("expected 1 income entry after update, got %d", len(entriesAfter))
+			}
+			if entriesAfter[0].Amount != 4800 {
+				t.Errorf("income entry after update: got %v, want 4800", entriesAfter[0].Amount)
+			}
+
+			// Verify target lot cost per share updated
+			tgtLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: investmentID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots(target): %v", err)
+			}
+			if len(tgtLots) != 1 {
+				t.Fatalf("expected 1 target lot, got %d", len(tgtLots))
+			}
+			if tgtLots[0].CostPerShare != 80 {
+				t.Errorf("target lot CostPerShare: got %v, want 80", tgtLots[0].CostPerShare)
+			}
+		})
+	}
+}
+
+// TestRSU_Scenario12_DeleteVestCleansIncomeEntry verifies that deleting a vest
+// also removes the income entry.
+func TestRSU_Scenario12_DeleteVestCleansIncomeEntry(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("rsuScenario12"))
+			unvestedID, investmentID, _, instrumentID, categoryID := rsuTestSetup(t, ctx, store, mktStore)
+
+			_, err := store.CreateStockGrant(ctx, StockGrant{
+				Description:     "RSU Grant 100",
+				Date:            getDate("2025-01-01"),
+				AccountID:       unvestedID,
+				InstrumentID:    instrumentID,
+				Quantity:        100,
+				FairMarketValue: 50.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+
+			lots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots: %v", err)
+			}
+			lotID := lots[0].Id
+
+			vestID, err := store.CreateStockVest(ctx, StockVest{
+				Description:     "Vest 60",
+				Date:            getDate("2025-06-01"),
+				SourceAccountID: unvestedID,
+				TargetAccountID: investmentID,
+				InstrumentID:    instrumentID,
+				VestingPrice:    75.0,
+				CategoryID:      categoryID,
+				LotSelections:   []LotSelection{{LotID: lotID, Quantity: 60}},
+			})
+			if err != nil {
+				t.Fatalf("CreateStockVest: %v", err)
+			}
+
+			// Delete the vest
+			if err := store.DeleteTransaction(ctx, vestID); err != nil {
+				t.Fatalf("DeleteTransaction(vest): %v", err)
+			}
+
+			// Verify no income entries remain for this transaction
+			var entries []dbEntry
+			if err := store.db.Where("transaction_id = ?", vestID).Find(&entries).Error; err != nil {
+				t.Fatalf("query entries: %v", err)
+			}
+			if len(entries) != 0 {
+				t.Errorf("expected 0 entries after vest delete, got %d", len(entries))
+			}
+
+			// Verify the transaction itself is deleted
+			_, err = store.GetTransaction(ctx, vestID)
+			if err == nil {
+				t.Error("expected transaction not found, got nil error")
+			}
+		})
+	}
+}
+
+// TestRSU_Scenario13_TwoVestsFromSameGrant verifies that two sequential vests
+// from the same grant lot correctly see the reduced quantity.
+func TestRSU_Scenario13_TwoVestsFromSameGrant(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("rsuScenario13"))
+			unvestedID, investmentID, _, instrumentID, categoryID := rsuTestSetup(t, ctx, store, mktStore)
+
+			// Grant 100 shares
+			_, err := store.CreateStockGrant(ctx, StockGrant{
+				Description:     "RSU Grant 100",
+				Date:            getDate("2025-01-01"),
+				AccountID:       unvestedID,
+				InstrumentID:    instrumentID,
+				Quantity:        100,
+				FairMarketValue: 50.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+
+			lots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots: %v", err)
+			}
+			lotID := lots[0].Id
+
+			// Vest 30 shares at $70
+			_, err = store.CreateStockVest(ctx, StockVest{
+				Description:     "Vest 30",
+				Date:            getDate("2025-06-01"),
+				SourceAccountID: unvestedID,
+				TargetAccountID: investmentID,
+				InstrumentID:    instrumentID,
+				VestingPrice:    70.0,
+				CategoryID:      categoryID,
+				LotSelections:   []LotSelection{{LotID: lotID, Quantity: 30}},
+			})
+			if err != nil {
+				t.Fatalf("CreateStockVest(1): %v", err)
+			}
+
+			// Vest 40 more shares at $80 (from same lot, now has 70 remaining)
+			_, err = store.CreateStockVest(ctx, StockVest{
+				Description:     "Vest 40",
+				Date:            getDate("2025-09-01"),
+				SourceAccountID: unvestedID,
+				TargetAccountID: investmentID,
+				InstrumentID:    instrumentID,
+				VestingPrice:    80.0,
+				CategoryID:      categoryID,
+				LotSelections:   []LotSelection{{LotID: lotID, Quantity: 40}},
+			})
+			if err != nil {
+				t.Fatalf("CreateStockVest(2): %v", err)
+			}
+
+			// Source should have 30 remaining (100 - 30 - 40)
+			srcLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots(source): %v", err)
+			}
+			if got := sumLotQuantity(t, srcLots); got != 30 {
+				t.Errorf("source lots: got %v, want 30", got)
+			}
+
+			// Target should have 70 total (30 + 40) in 2 lots
+			tgtLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: investmentID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots(target): %v", err)
+			}
+			if got := sumLotQuantity(t, tgtLots); got != 70 {
+				t.Errorf("target lots: got %v, want 70", got)
+			}
+			if len(tgtLots) != 2 {
+				t.Errorf("expected 2 target lots (one per vest), got %d", len(tgtLots))
+			}
+
+			// Verify different cost bases
+			sort.Slice(tgtLots, func(i, j int) bool { return tgtLots[i].Quantity < tgtLots[j].Quantity })
+			if tgtLots[0].CostPerShare != 70.0 || tgtLots[0].Quantity != 30 {
+				t.Errorf("first vest lot: CostPerShare=%v Qty=%v, want 70/30", tgtLots[0].CostPerShare, tgtLots[0].Quantity)
+			}
+			if tgtLots[1].CostPerShare != 80.0 || tgtLots[1].Quantity != 40 {
+				t.Errorf("second vest lot: CostPerShare=%v Qty=%v, want 80/40", tgtLots[1].CostPerShare, tgtLots[1].Quantity)
+			}
+
+			// Trying to vest 40 more should fail (only 30 remaining)
+			_, err = store.CreateStockVest(ctx, StockVest{
+				Description:     "Vest too many",
+				Date:            getDate("2025-12-01"),
+				SourceAccountID: unvestedID,
+				TargetAccountID: investmentID,
+				InstrumentID:    instrumentID,
+				VestingPrice:    90.0,
+				CategoryID:      categoryID,
+				LotSelections:   []LotSelection{{LotID: lotID, Quantity: 40}},
+			})
+			if err == nil {
+				t.Fatal("expected error when vesting more than available, got nil")
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Second pass RSU tests (TestRSU2_*)
+// ---------------------------------------------------------------------------
+
+// TestRSU2_DeleteStockTransferRestoresSourceLots verifies that deleting a
+// StockTransfer restores the consumed source lots (bug: previously source
+// lots were never restored on transfer deletion).
+func TestRSU2_DeleteStockTransferRestoresSourceLots(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("rsu2DeleteTransfer"))
+
+			// Create two investment accounts for transfer.
+			providerID, err := store.CreateAccountProvider(ctx, AccountProvider{Name: "Broker"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			invA, err := store.CreateAccount(ctx, Account{AccountProviderID: providerID, Name: "Investment A", Currency: currency.USD, Type: InvestmentAccountType})
+			if err != nil {
+				t.Fatal(err)
+			}
+			invB, err := store.CreateAccount(ctx, Account{AccountProviderID: providerID, Name: "Investment B", Currency: currency.USD, Type: InvestmentAccountType})
+			if err != nil {
+				t.Fatal(err)
+			}
+			instrumentID, err := mktStore.CreateInstrument(ctx, marketdata.Instrument{Symbol: "RSU", Name: "Company RSU", Currency: currency.USD})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Grant 100 shares into investment A
+			_, err = store.CreateStockGrant(ctx, StockGrant{
+				Description:     "Grant 100",
+				Date:            getDate("2025-01-01"),
+				AccountID:       invA,
+				InstrumentID:    instrumentID,
+				Quantity:        100,
+				FairMarketValue: 50.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+
+			// Transfer 60 from invA to invB
+			transferID, err := store.CreateStockTransfer(ctx, StockTransfer{
+				Description:     "Transfer 60",
+				Date:            getDate("2025-06-01"),
+				SourceAccountID: invA,
+				TargetAccountID: invB,
+				InstrumentID:    instrumentID,
+				Quantity:        60,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockTransfer: %v", err)
+			}
+
+			// Verify: invA=40, invB=60
+			srcLots, _ := store.ListLots(ctx, ListLotsOpts{AccountID: invA, InstrumentID: instrumentID})
+			if got := sumLotQuantity(t, srcLots); got != 40 {
+				t.Fatalf("before delete: source lots = %v, want 40", got)
+			}
+			tgtLots, _ := store.ListLots(ctx, ListLotsOpts{AccountID: invB, InstrumentID: instrumentID})
+			if got := sumLotQuantity(t, tgtLots); got != 60 {
+				t.Fatalf("before delete: target lots = %v, want 60", got)
+			}
+
+			// Delete the transfer
+			if err := store.DeleteTransaction(ctx, transferID); err != nil {
+				t.Fatalf("DeleteTransaction(transfer): %v", err)
+			}
+
+			// Source should be back to 100
+			srcLots, _ = store.ListLots(ctx, ListLotsOpts{AccountID: invA, InstrumentID: instrumentID})
+			if got := sumLotQuantity(t, srcLots); got != 100 {
+				t.Errorf("after delete: source lots = %v, want 100", got)
+			}
+
+			// Target should be 0
+			tgtLots, _ = store.ListLots(ctx, ListLotsOpts{AccountID: invB, InstrumentID: instrumentID})
+			if got := sumLotQuantity(t, tgtLots); got != 0 {
+				t.Errorf("after delete: target lots = %v, want 0", got)
+			}
+
+			// Positions should match lots
+			srcPos, _ := store.GetPosition(ctx, invA, instrumentID)
+			if srcPos.Quantity != 100 {
+				t.Errorf("after delete: source position = %v, want 100", srcPos.Quantity)
+			}
+		})
+	}
+}
+
+// TestRSU2_UpdateStockTransferRestoresSourceLots verifies that updating a
+// StockTransfer (e.g. changing quantity) correctly restores source lots
+// and reapplies the transfer.
+func TestRSU2_UpdateStockTransferRestoresSourceLots(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("rsu2UpdateTransfer"))
+
+			// Create two investment accounts for transfer.
+			providerID, err := store.CreateAccountProvider(ctx, AccountProvider{Name: "Broker"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			invA, err := store.CreateAccount(ctx, Account{AccountProviderID: providerID, Name: "Investment A", Currency: currency.USD, Type: InvestmentAccountType})
+			if err != nil {
+				t.Fatal(err)
+			}
+			invB, err := store.CreateAccount(ctx, Account{AccountProviderID: providerID, Name: "Investment B", Currency: currency.USD, Type: InvestmentAccountType})
+			if err != nil {
+				t.Fatal(err)
+			}
+			instrumentID, err := mktStore.CreateInstrument(ctx, marketdata.Instrument{Symbol: "RSU", Name: "Company RSU", Currency: currency.USD})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Grant 100 into investment A
+			_, err = store.CreateStockGrant(ctx, StockGrant{
+				Description:     "Grant 100",
+				Date:            getDate("2025-01-01"),
+				AccountID:       invA,
+				InstrumentID:    instrumentID,
+				Quantity:        100,
+				FairMarketValue: 50.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+
+			// Transfer 60 from invA to invB
+			transferID, err := store.CreateStockTransfer(ctx, StockTransfer{
+				Description:     "Transfer 60",
+				Date:            getDate("2025-06-01"),
+				SourceAccountID: invA,
+				TargetAccountID: invB,
+				InstrumentID:    instrumentID,
+				Quantity:        60,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockTransfer: %v", err)
+			}
+
+			// Update transfer quantity from 60 to 30
+			newQty := 30.0
+			err = store.UpdateStockTransfer(ctx, StockTransferUpdate{Quantity: &newQty}, transferID)
+			if err != nil {
+				t.Fatalf("UpdateStockTransfer: %v", err)
+			}
+
+			// Source should be 70 (100-30), target should be 30
+			srcLots, _ := store.ListLots(ctx, ListLotsOpts{AccountID: invA, InstrumentID: instrumentID})
+			if got := sumLotQuantity(t, srcLots); got != 70 {
+				t.Errorf("after update: source lots = %v, want 70", got)
+			}
+			tgtLots, _ := store.ListLots(ctx, ListLotsOpts{AccountID: invB, InstrumentID: instrumentID})
+			if got := sumLotQuantity(t, tgtLots); got != 30 {
+				t.Errorf("after update: target lots = %v, want 30", got)
+			}
+		})
+	}
+}
+
+// TestRSU2_VestCategoryMustBeIncome verifies that creating a vest with an
+// expense category is rejected.
+func TestRSU2_VestCategoryMustBeIncome(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("rsu2VestCategory"))
+			unvestedID, investmentID, _, instrumentID, _ := rsuTestSetup(t, ctx, store, mktStore)
+
+			// Create an expense category
+			expenseCatID, err := store.CreateCategory(ctx, CategoryData{Name: "Expense Cat", Type: ExpenseCategory}, 0)
+			if err != nil {
+				t.Fatalf("CreateCategory: %v", err)
+			}
+
+			// Grant 100
+			_, err = store.CreateStockGrant(ctx, StockGrant{
+				Description:     "Grant 100",
+				Date:            getDate("2025-01-01"),
+				AccountID:       unvestedID,
+				InstrumentID:    instrumentID,
+				Quantity:        100,
+				FairMarketValue: 50.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+
+			lots, _ := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			lotID := lots[0].Id
+
+			// Try to vest with expense category - should fail
+			_, err = store.CreateStockVest(ctx, StockVest{
+				Description:     "Vest 50",
+				Date:            getDate("2025-06-01"),
+				SourceAccountID: unvestedID,
+				TargetAccountID: investmentID,
+				InstrumentID:    instrumentID,
+				VestingPrice:    75.0,
+				CategoryID:      expenseCatID,
+				LotSelections:   []LotSelection{{LotID: lotID, Quantity: 50}},
+			})
+			if err == nil {
+				t.Fatal("expected error when vesting with expense category, got nil")
+			}
+			if !strings.Contains(err.Error(), "income category") {
+				t.Errorf("expected income category error, got: %v", err)
+			}
+		})
+	}
+}
+
+// TestRSU2_DeleteVestBlockedWhenSharesTransferred verifies that deleting
+// a vest is blocked when vested shares have been moved by a downstream
+// StockTransfer (not just sells).
+func TestRSU2_DeleteVestBlockedWhenSharesTransferred(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("rsu2VestTransferGuard"))
+			unvestedID, investmentID, _, instrumentID, categoryID := rsuTestSetup(t, ctx, store, mktStore)
+
+			// Create a second investment account
+			providerID, _ := store.CreateAccountProvider(ctx, AccountProvider{Name: "Broker2"})
+			investmentID2, err := store.CreateAccount(ctx, Account{
+				AccountProviderID: providerID,
+				Name:              "Second Investment",
+				Currency:          currency.USD,
+				Type:              InvestmentAccountType,
+			})
+			if err != nil {
+				t.Fatalf("CreateAccount: %v", err)
+			}
+
+			// Grant 100
+			_, err = store.CreateStockGrant(ctx, StockGrant{
+				Description:     "Grant 100",
+				Date:            getDate("2025-01-01"),
+				AccountID:       unvestedID,
+				InstrumentID:    instrumentID,
+				Quantity:        100,
+				FairMarketValue: 50.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+
+			lots, _ := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			lotID := lots[0].Id
+
+			// Vest 50 to investment
+			vestID, err := store.CreateStockVest(ctx, StockVest{
+				Description:     "Vest 50",
+				Date:            getDate("2025-06-01"),
+				SourceAccountID: unvestedID,
+				TargetAccountID: investmentID,
+				InstrumentID:    instrumentID,
+				VestingPrice:    75.0,
+				CategoryID:      categoryID,
+				LotSelections:   []LotSelection{{LotID: lotID, Quantity: 50}},
+			})
+			if err != nil {
+				t.Fatalf("CreateStockVest: %v", err)
+			}
+
+			// Transfer 25 from investment to investmentID2
+			_, err = store.CreateStockTransfer(ctx, StockTransfer{
+				Description:     "Transfer 25",
+				Date:            getDate("2025-07-01"),
+				SourceAccountID: investmentID,
+				TargetAccountID: investmentID2,
+				InstrumentID:    instrumentID,
+				Quantity:        25,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockTransfer: %v", err)
+			}
+
+			// Try to delete the vest - should be blocked because shares were transferred
+			err = store.DeleteTransaction(ctx, vestID)
+			if err == nil {
+				t.Fatal("expected error when deleting vest with transferred shares, got nil")
+			}
+			if !strings.Contains(err.Error(), "downstream") {
+				t.Errorf("expected downstream error, got: %v", err)
+			}
+
+			// Verify data is still consistent
+			srcLots, _ := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if got := sumLotQuantity(t, srcLots); got != 50 {
+				t.Errorf("source lots = %v, want 50", got)
+			}
+		})
+	}
+}
+
+// TestRSU2_DeleteTransferBlockedWhenSharesSold verifies that deleting a
+// StockTransfer is blocked when transferred lots have been sold.
+func TestRSU2_DeleteTransferBlockedWhenSharesSold(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("rsu2TransferSellGuard"))
+
+			// Create two investment accounts + cash account for sells.
+			providerID, err := store.CreateAccountProvider(ctx, AccountProvider{Name: "Broker"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			invA, err := store.CreateAccount(ctx, Account{AccountProviderID: providerID, Name: "Investment A", Currency: currency.USD, Type: InvestmentAccountType})
+			if err != nil {
+				t.Fatal(err)
+			}
+			invB, err := store.CreateAccount(ctx, Account{AccountProviderID: providerID, Name: "Investment B", Currency: currency.USD, Type: InvestmentAccountType})
+			if err != nil {
+				t.Fatal(err)
+			}
+			cashID, err := store.CreateAccount(ctx, Account{AccountProviderID: providerID, Name: "Checking", Currency: currency.USD, Type: CheckinAccountType})
+			if err != nil {
+				t.Fatal(err)
+			}
+			instrumentID, err := mktStore.CreateInstrument(ctx, marketdata.Instrument{Symbol: "RSU", Name: "Company RSU", Currency: currency.USD})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Grant 100 into investment A
+			_, err = store.CreateStockGrant(ctx, StockGrant{
+				Description:     "Grant 100",
+				Date:            getDate("2025-01-01"),
+				AccountID:       invA,
+				InstrumentID:    instrumentID,
+				Quantity:        100,
+				FairMarketValue: 50.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+
+			// Transfer 60 from invA to invB
+			transferID, err := store.CreateStockTransfer(ctx, StockTransfer{
+				Description:     "Transfer 60",
+				Date:            getDate("2025-06-01"),
+				SourceAccountID: invA,
+				TargetAccountID: invB,
+				InstrumentID:    instrumentID,
+				Quantity:        60,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockTransfer: %v", err)
+			}
+
+			// Sell 20 from invB
+			_, err = store.CreateStockSell(ctx, StockSell{
+				Description:         "Sell 20",
+				Date:                getDate("2025-07-01"),
+				InvestmentAccountID: invB,
+				CashAccountID:       cashID,
+				InstrumentID:        instrumentID,
+				Quantity:            20,
+				TotalAmount:         2000,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockSell: %v", err)
+			}
+
+			// Try to delete the transfer - should be blocked because shares were sold
+			err = store.DeleteTransaction(ctx, transferID)
+			if err == nil {
+				t.Fatal("expected error when deleting transfer with sold shares, got nil")
+			}
+		})
+	}
+}
+
+// TestRSU2_VestLotInstrumentMismatch verifies that vestLots rejects lots
+// whose instrument doesn't match the vest instrument.
+func TestRSU2_VestLotInstrumentMismatch(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("rsu2LotInstrument"))
+			unvestedID, investmentID, _, instrumentID, categoryID := rsuTestSetup(t, ctx, store, mktStore)
+
+			// Create a second instrument
+			instrumentID2, err := mktStore.CreateInstrument(ctx, marketdata.Instrument{
+				Symbol:   "OTHER",
+				Name:     "Other Stock",
+				Currency: currency.USD,
+			})
+			if err != nil {
+				t.Fatalf("CreateInstrument: %v", err)
+			}
+
+			// Grant 100 of instrument 1
+			_, err = store.CreateStockGrant(ctx, StockGrant{
+				Description:     "Grant Inst1",
+				Date:            getDate("2025-01-01"),
+				AccountID:       unvestedID,
+				InstrumentID:    instrumentID,
+				Quantity:        100,
+				FairMarketValue: 50.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant(inst1): %v", err)
+			}
+
+			lots, _ := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			lotIDInst1 := lots[0].Id
+
+			// Try to vest using instrument 2 but selecting lots from instrument 1
+			_, err = store.CreateStockVest(ctx, StockVest{
+				Description:     "Cross-instrument vest",
+				Date:            getDate("2025-06-01"),
+				SourceAccountID: unvestedID,
+				TargetAccountID: investmentID,
+				InstrumentID:    instrumentID2,
+				VestingPrice:    75.0,
+				CategoryID:      categoryID,
+				LotSelections:   []LotSelection{{LotID: lotIDInst1, Quantity: 50}},
+			})
+			if err == nil {
+				t.Fatal("expected error when vesting with mismatched instrument, got nil")
+			}
+			if !strings.Contains(err.Error(), "instrument") {
+				t.Errorf("expected instrument mismatch error, got: %v", err)
+			}
+		})
+	}
+}
+
+// TestRSU2_TwoVestsDeleteFirstRestoresCorrectly verifies that when two
+// vests come from the same grant, deleting the first one restores exactly
+// the right number of shares (scenario 15).
+func TestRSU2_TwoVestsDeleteFirstRestoresCorrectly(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("rsu2TwoVestsDelete"))
+			unvestedID, investmentID, _, instrumentID, categoryID := rsuTestSetup(t, ctx, store, mktStore)
+
+			// Grant 100
+			_, err := store.CreateStockGrant(ctx, StockGrant{
+				Description:     "Grant 100",
+				Date:            getDate("2025-01-01"),
+				AccountID:       unvestedID,
+				InstrumentID:    instrumentID,
+				Quantity:        100,
+				FairMarketValue: 50.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+
+			lots, _ := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			lotID := lots[0].Id
+
+			// Vest A: 30 shares
+			vestA, err := store.CreateStockVest(ctx, StockVest{
+				Description:     "Vest A 30",
+				Date:            getDate("2025-03-01"),
+				SourceAccountID: unvestedID,
+				TargetAccountID: investmentID,
+				InstrumentID:    instrumentID,
+				VestingPrice:    60.0,
+				CategoryID:      categoryID,
+				LotSelections:   []LotSelection{{LotID: lotID, Quantity: 30}},
+			})
+			if err != nil {
+				t.Fatalf("CreateStockVest A: %v", err)
+			}
+
+			// Vest B: 40 shares
+			_, err = store.CreateStockVest(ctx, StockVest{
+				Description:     "Vest B 40",
+				Date:            getDate("2025-06-01"),
+				SourceAccountID: unvestedID,
+				TargetAccountID: investmentID,
+				InstrumentID:    instrumentID,
+				VestingPrice:    75.0,
+				CategoryID:      categoryID,
+				LotSelections:   []LotSelection{{LotID: lotID, Quantity: 40}},
+			})
+			if err != nil {
+				t.Fatalf("CreateStockVest B: %v", err)
+			}
+
+			// Verify: source=30, target=70
+			srcLots, _ := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if got := sumLotQuantity(t, srcLots); got != 30 {
+				t.Fatalf("after both vests: source = %v, want 30", got)
+			}
+
+			// Delete vest A
+			if err := store.DeleteTransaction(ctx, vestA); err != nil {
+				t.Fatalf("DeleteTransaction(vestA): %v", err)
+			}
+
+			// Source should be 60 (30 restored from vest A, 40 still vested by B)
+			srcLots, _ = store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if got := sumLotQuantity(t, srcLots); got != 60 {
+				t.Errorf("after delete vest A: source = %v, want 60", got)
+			}
+			// Target should be 40 (only vest B remains)
+			tgtLots, _ := store.ListLots(ctx, ListLotsOpts{AccountID: investmentID, InstrumentID: instrumentID})
+			if got := sumLotQuantity(t, tgtLots); got != 40 {
+				t.Errorf("after delete vest A: target = %v, want 40", got)
+			}
+		})
+	}
+}
+
+// TestRSU2_GrantTransferVestDelete verifies the complex sequence:
+// Grant 100 to unvested, Vest 50 to investment A, Transfer 30 from A to B, delete transfer.
+// Transfer deletion should succeed because the transferred lots haven't been sold.
+func TestRSU2_GrantTransferVestDelete(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("rsu2GrantTransferVest"))
+			unvestedID, investmentID, _, instrumentID, categoryID := rsuTestSetup(t, ctx, store, mktStore)
+
+			// Create a second investment account for the transfer target.
+			providerID, err := store.CreateAccountProvider(ctx, AccountProvider{Name: "Broker2"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			investmentB, err := store.CreateAccount(ctx, Account{
+				AccountProviderID: providerID,
+				Name:              "Investment B",
+				Currency:          currency.USD,
+				Type:              InvestmentAccountType,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Grant 100 to unvested
+			_, err = store.CreateStockGrant(ctx, StockGrant{
+				Description:     "Grant 100",
+				Date:            getDate("2025-01-01"),
+				AccountID:       unvestedID,
+				InstrumentID:    instrumentID,
+				Quantity:        100,
+				FairMarketValue: 50.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+
+			// Vest 50 from unvested to investment A
+			lots, _ := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if len(lots) == 0 || sumLotQuantity(t, lots) != 100 {
+				t.Fatalf("expected 100 unvested shares, got %v", sumLotQuantity(t, lots))
+			}
+			lotID := lots[0].Id
+
+			_, err = store.CreateStockVest(ctx, StockVest{
+				Description:     "Vest 50",
+				Date:            getDate("2025-03-01"),
+				SourceAccountID: unvestedID,
+				TargetAccountID: investmentID,
+				InstrumentID:    instrumentID,
+				VestingPrice:    75.0,
+				CategoryID:      categoryID,
+				LotSelections:   []LotSelection{{LotID: lotID, Quantity: 50}},
+			})
+			if err != nil {
+				t.Fatalf("CreateStockVest: %v", err)
+			}
+
+			// Transfer 30 from investment A to investment B
+			transferID, err := store.CreateStockTransfer(ctx, StockTransfer{
+				Description:     "Transfer 30",
+				Date:            getDate("2025-06-01"),
+				SourceAccountID: investmentID,
+				TargetAccountID: investmentB,
+				InstrumentID:    instrumentID,
+				Quantity:        30,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockTransfer: %v", err)
+			}
+
+			// Try to delete the transfer - it should succeed because the
+			// transferred lots haven't been sold or further transferred
+			err = store.DeleteTransaction(ctx, transferID)
+			if err != nil {
+				t.Fatalf("DeleteTransaction(transfer): expected success, got %v", err)
+			}
+
+			// After deleting transfer: unvested=50, investmentA=50, investmentB=0
+			srcLots, _ := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if got := sumLotQuantity(t, srcLots); got != 50 {
+				t.Errorf("unvested = %v, want 50", got)
+			}
+			invALots, _ := store.ListLots(ctx, ListLotsOpts{AccountID: investmentID, InstrumentID: instrumentID})
+			if got := sumLotQuantity(t, invALots); got != 50 {
+				t.Errorf("investmentA = %v, want 50", got)
+			}
+			invBLots, _ := store.ListLots(ctx, ListLotsOpts{AccountID: investmentB, InstrumentID: instrumentID})
+			if got := sumLotQuantity(t, invBLots); got != 0 {
+				t.Errorf("investmentB = %v, want 0", got)
+			}
+		})
+	}
+}
+
+// TestRSU2_UpdateVestCategoryValidation verifies that updating a vest
+// to an expense category is rejected.
+func TestRSU2_UpdateVestCategoryValidation(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("rsu2UpdateVestCat"))
+			unvestedID, investmentID, _, instrumentID, categoryID := rsuTestSetup(t, ctx, store, mktStore)
+
+			// Create an expense category
+			expenseCatID, err := store.CreateCategory(ctx, CategoryData{Name: "Expense Cat", Type: ExpenseCategory}, 0)
+			if err != nil {
+				t.Fatalf("CreateCategory: %v", err)
+			}
+
+			// Grant 100
+			_, err = store.CreateStockGrant(ctx, StockGrant{
+				Description:     "Grant 100",
+				Date:            getDate("2025-01-01"),
+				AccountID:       unvestedID,
+				InstrumentID:    instrumentID,
+				Quantity:        100,
+				FairMarketValue: 50.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+
+			lots, _ := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			lotID := lots[0].Id
+
+			// Create vest with valid income category
+			vestID, err := store.CreateStockVest(ctx, StockVest{
+				Description:     "Vest 50",
+				Date:            getDate("2025-06-01"),
+				SourceAccountID: unvestedID,
+				TargetAccountID: investmentID,
+				InstrumentID:    instrumentID,
+				VestingPrice:    75.0,
+				CategoryID:      categoryID,
+				LotSelections:   []LotSelection{{LotID: lotID, Quantity: 50}},
+			})
+			if err != nil {
+				t.Fatalf("CreateStockVest: %v", err)
+			}
+
+			// Try to update vest to expense category - should fail
+			err = store.UpdateStockVest(ctx, StockVestUpdate{CategoryID: &expenseCatID}, vestID)
+			if err == nil {
+				t.Fatal("expected error when updating vest to expense category, got nil")
+			}
+			if !strings.Contains(err.Error(), "income category") {
+				t.Errorf("expected income category error, got: %v", err)
+			}
+		})
+	}
+}
+
+// TestRSU_PositionConsistency verifies that after create/delete/update sequences,
+// dbPosition always matches the sum of open/partial lots.
+func TestRSU_PositionConsistency(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("rsuPositionConsistency"))
+			unvestedID, investmentID, cashID, instrumentID, categoryID := rsuTestSetup(t, ctx, store, mktStore)
+
+			// Helper to check position matches lots
+			checkConsistency := func(label string) {
+				t.Helper()
+				for _, accID := range []uint{unvestedID, investmentID} {
+					lots, err := store.ListLots(ctx, ListLotsOpts{AccountID: accID, InstrumentID: instrumentID})
+					if err != nil {
+						t.Fatalf("%s: ListLots(%d): %v", label, accID, err)
+					}
+					lotQty := 0.0
+					lotCost := 0.0
+					for _, l := range lots {
+						if l.Status != LotClosed {
+							lotQty += l.Quantity
+							lotCost += l.CostBasis
+						}
+					}
+					pos, err := store.GetPosition(ctx, accID, instrumentID)
+					if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+						t.Fatalf("%s: GetPosition(%d): %v", label, accID, err)
+					}
+					if math.Abs(pos.Quantity-lotQty) > 0.001 {
+						t.Errorf("%s: account %d position.Quantity=%v != lots sum=%v", label, accID, pos.Quantity, lotQty)
+					}
+					if math.Abs(pos.CostBasis-roundMoney(lotCost)) > 0.01 {
+						t.Errorf("%s: account %d position.CostBasis=%v != lots sum=%v", label, accID, pos.CostBasis, roundMoney(lotCost))
+					}
+				}
+			}
+
+			// Grant 100
+			_, err := store.CreateStockGrant(ctx, StockGrant{
+				Description:     "RSU Grant 100",
+				Date:            getDate("2025-01-01"),
+				AccountID:       unvestedID,
+				InstrumentID:    instrumentID,
+				Quantity:        100,
+				FairMarketValue: 50.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+			checkConsistency("after grant")
+
+			lots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots: %v", err)
+			}
+			lotID := lots[0].Id
+
+			// Vest 60
+			vestID, err := store.CreateStockVest(ctx, StockVest{
+				Description:     "Vest 60",
+				Date:            getDate("2025-06-01"),
+				SourceAccountID: unvestedID,
+				TargetAccountID: investmentID,
+				InstrumentID:    instrumentID,
+				VestingPrice:    75.0,
+				CategoryID:      categoryID,
+				LotSelections:   []LotSelection{{LotID: lotID, Quantity: 60}},
+			})
+			if err != nil {
+				t.Fatalf("CreateStockVest: %v", err)
+			}
+			checkConsistency("after vest")
+
+			// Sell 30
+			sellID, err := store.CreateStockSell(ctx, StockSell{
+				Description:         "Sell 30",
+				Date:                getDate("2025-07-01"),
+				InvestmentAccountID: investmentID,
+				CashAccountID:       cashID,
+				InstrumentID:        instrumentID,
+				Quantity:            30,
+				TotalAmount:         3000,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockSell: %v", err)
+			}
+			checkConsistency("after sell")
+
+			// Delete sell
+			if err := store.DeleteTransaction(ctx, sellID); err != nil {
+				t.Fatalf("DeleteTransaction(sell): %v", err)
+			}
+			checkConsistency("after delete sell")
+
+			// Delete vest
+			if err := store.DeleteTransaction(ctx, vestID); err != nil {
+				t.Fatalf("DeleteTransaction(vest): %v", err)
+			}
+			checkConsistency("after delete vest")
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Stock Forfeit Tests
+// ---------------------------------------------------------------------------
+
+// setupCreateStockForfeit creates a grant and forfeits 40 shares, returning the forfeit ID and lot ID.
+func setupCreateStockForfeit(t *testing.T, ctx context.Context, store *Store,
+	unvestedID, instrumentID uint,
+) (forfeitID uint, lotID uint) {
+	t.Helper()
+	_, err := store.CreateStockGrant(ctx, StockGrant{
+		Description:     "RSU Grant 100 shares",
+		Date:            getDate("2025-01-15"),
+		AccountID:       unvestedID,
+		InstrumentID:    instrumentID,
+		Quantity:        100,
+		FairMarketValue: 50.0,
+	})
+	if err != nil {
+		t.Fatalf("CreateStockGrant: %v", err)
+	}
+
+	lots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+	if err != nil {
+		t.Fatalf("ListLots: %v", err)
+	}
+	if len(lots) != 1 {
+		t.Fatalf("expected 1 lot in unvested account, got %d", len(lots))
+	}
+	lotID = lots[0].Id
+
+	forfeitID, err = store.CreateStockForfeit(ctx, StockForfeit{
+		Description:   "Forfeit 40 shares",
+		Date:          getDate("2025-06-15"),
+		AccountID:     unvestedID,
+		InstrumentID:  instrumentID,
+		LotSelections: []LotSelection{{LotID: lotID, Quantity: 40}},
+	})
+	if err != nil {
+		t.Fatalf("CreateStockForfeit: %v", err)
+	}
+	if forfeitID == 0 {
+		t.Fatal("expected non-zero transaction id")
+	}
+	return forfeitID, lotID
+}
+
+func verifyStockForfeitGetTransaction(t *testing.T, ctx context.Context, store *Store,
+	forfeitID, unvestedID, instrumentID, lotID uint,
+) {
+	t.Helper()
+	got, err := store.GetTransaction(ctx, forfeitID)
+	if err != nil {
+		t.Fatalf("GetTransaction: %v", err)
+	}
+	gotForfeit, ok := got.(StockForfeit)
+	if !ok {
+		t.Fatalf("expected StockForfeit, got %T", got)
+	}
+	if gotForfeit.AccountID != unvestedID {
+		t.Errorf("AccountID: got %d, want %d", gotForfeit.AccountID, unvestedID)
+	}
+	if gotForfeit.InstrumentID != instrumentID {
+		t.Errorf("InstrumentID: got %d, want %d", gotForfeit.InstrumentID, instrumentID)
+	}
+	if gotForfeit.Quantity != 40 {
+		t.Errorf("Quantity: got %v, want 40", gotForfeit.Quantity)
+	}
+	if gotForfeit.Description != "Forfeit 40 shares" {
+		t.Errorf("Description: got %q, want %q", gotForfeit.Description, "Forfeit 40 shares")
+	}
+	if len(gotForfeit.LotSelections) != 1 {
+		t.Fatalf("LotSelections: got %d, want 1", len(gotForfeit.LotSelections))
+	}
+	if gotForfeit.LotSelections[0].LotID != lotID || gotForfeit.LotSelections[0].Quantity != 40 {
+		t.Errorf("LotSelections[0]: got {%d, %v}, want {%d, 40}", gotForfeit.LotSelections[0].LotID, gotForfeit.LotSelections[0].Quantity, lotID)
+	}
+}
+
+func verifyStockForfeitLotsAndPosition(t *testing.T, ctx context.Context, store *Store,
+	unvestedID, instrumentID uint,
+) {
+	t.Helper()
+	sourceLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+	if err != nil {
+		t.Fatalf("ListLots: %v", err)
+	}
+	totalRemaining := 0.0
+	for _, l := range sourceLots {
+		totalRemaining += l.Quantity
+	}
+	if totalRemaining != 60 {
+		t.Errorf("remaining quantity: got %v, want 60", totalRemaining)
+	}
+	pos, err := store.GetPosition(ctx, unvestedID, instrumentID)
+	if err != nil {
+		t.Fatalf("GetPosition: %v", err)
+	}
+	if pos.Quantity != 60 {
+		t.Errorf("position quantity: got %v, want 60", pos.Quantity)
+	}
+}
+
+func verifyStockForfeitListTransactions(t *testing.T, ctx context.Context, store *Store,
+	forfeitID, unvestedID, instrumentID uint,
+) {
+	t.Helper()
+	list, count, err := store.ListTransactions(ctx, ListOpts{
+		StartDate: getDate("2025-06-01"),
+		EndDate:   getDate("2025-06-30"),
+		Types:     []TxType{StockForfeitTransaction},
+		Limit:     10,
+	})
+	if err != nil {
+		t.Fatalf("ListTransactions: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("ListTransactions count: got %d, want 1", count)
+	}
+	if len(list) != 1 {
+		t.Fatalf("ListTransactions len: got %d, want 1", len(list))
+	}
+	listedForfeit, ok := list[0].(StockForfeit)
+	if !ok {
+		t.Fatalf("expected StockForfeit from ListTransactions, got %T", list[0])
+	}
+	if listedForfeit.Id != forfeitID {
+		t.Errorf("ListTransactions Id: got %d, want %d", listedForfeit.Id, forfeitID)
+	}
+	if listedForfeit.AccountID != unvestedID {
+		t.Errorf("ListTransactions AccountID: got %d, want %d", listedForfeit.AccountID, unvestedID)
+	}
+	if listedForfeit.InstrumentID != instrumentID {
+		t.Errorf("ListTransactions InstrumentID: got %d, want %d", listedForfeit.InstrumentID, instrumentID)
+	}
+	if listedForfeit.Quantity != 40 {
+		t.Errorf("ListTransactions Quantity: got %v, want 40", listedForfeit.Quantity)
+	}
+}
+
+func TestStore_CreateStockForfeit(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("storeCreateStockForfeit"))
+			unvestedID, _, instrumentID := setupStockGrantTransferTest(t, ctx, store, mktStore)
+
+			forfeitID, lotID := setupCreateStockForfeit(t, ctx, store, unvestedID, instrumentID)
+
+			t.Run("verify GetTransaction", func(t *testing.T) {
+				verifyStockForfeitGetTransaction(t, ctx, store, forfeitID, unvestedID, instrumentID, lotID)
+			})
+			t.Run("verify lots and position", func(t *testing.T) {
+				verifyStockForfeitLotsAndPosition(t, ctx, store, unvestedID, instrumentID)
+			})
+			t.Run("verify ListTransactions", func(t *testing.T) {
+				verifyStockForfeitListTransactions(t, ctx, store, forfeitID, unvestedID, instrumentID)
+			})
+		})
+	}
+}
+
+func TestStore_CreateStockForfeit_PartialVest(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("storeForfeitPartialVest"))
+			unvestedID, investmentID, instrumentID := setupStockGrantTransferTest(t, ctx, store, mktStore)
+
+			// 1. Grant 100 shares at FMV $50
+			_, err := store.CreateStockGrant(ctx, StockGrant{
+				Description:     "RSU Grant 100 shares",
+				Date:            getDate("2025-01-15"),
+				AccountID:       unvestedID,
+				InstrumentID:    instrumentID,
+				Quantity:        100,
+				FairMarketValue: 50.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+
+			// 2. Get lot ID
+			lots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots: %v", err)
+			}
+			lotID := lots[0].Id
+
+			// 3. Create income category
+			categoryID, err := store.CreateCategory(ctx, CategoryData{Name: "RSU Income", Type: IncomeCategory}, 0)
+			if err != nil {
+				t.Fatalf("CreateCategory: %v", err)
+			}
+
+			// 4. Vest 60 shares at $75
+			_, err = store.CreateStockVest(ctx, StockVest{
+				Description:     "Vest 60 shares",
+				Date:            getDate("2025-03-15"),
+				SourceAccountID: unvestedID,
+				TargetAccountID: investmentID,
+				InstrumentID:    instrumentID,
+				VestingPrice:    75.0,
+				CategoryID:      categoryID,
+				LotSelections: []LotSelection{
+					{LotID: lotID, Quantity: 60},
+				},
+			})
+			if err != nil {
+				t.Fatalf("CreateStockVest: %v", err)
+			}
+
+			// 5. Verify 40 shares remaining in unvested
+			unvestedLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots (unvested): %v", err)
+			}
+			unvestedQty := 0.0
+			for _, l := range unvestedLots {
+				unvestedQty += l.Quantity
+			}
+			if unvestedQty != 40 {
+				t.Fatalf("unvested quantity after vest: got %v, want 40", unvestedQty)
+			}
+
+			// 6. Forfeit remaining 40 shares
+			_, err = store.CreateStockForfeit(ctx, StockForfeit{
+				Description:  "Forfeit remaining",
+				Date:         getDate("2025-06-15"),
+				AccountID:    unvestedID,
+				InstrumentID: instrumentID,
+				LotSelections: []LotSelection{
+					{LotID: lotID, Quantity: 40},
+				},
+			})
+			if err != nil {
+				t.Fatalf("CreateStockForfeit: %v", err)
+			}
+
+			// 7. Verify 0 shares in unvested
+			unvestedPos, err := store.GetPosition(ctx, unvestedID, instrumentID)
+			if err != nil {
+				// Position with 0 shares may not exist
+				unvestedPos = Position{Quantity: 0}
+			}
+			if unvestedPos.Quantity != 0 {
+				t.Errorf("unvested position after forfeit: got %v, want 0", unvestedPos.Quantity)
+			}
+
+			// 8. Verify 60 shares still in investment (vest was not affected)
+			investmentPos, err := store.GetPosition(ctx, investmentID, instrumentID)
+			if err != nil {
+				t.Fatalf("GetPosition (investment): %v", err)
+			}
+			if investmentPos.Quantity != 60 {
+				t.Errorf("investment position: got %v, want 60", investmentPos.Quantity)
+			}
+		})
+	}
+}
+
+func TestDeleteStockForfeit_RestoresLots(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("storeDeleteStockForfeit"))
+			unvestedID, _, instrumentID := setupStockGrantTransferTest(t, ctx, store, mktStore)
+
+			// 1. Grant 100 shares
+			_, err := store.CreateStockGrant(ctx, StockGrant{
+				Description:     "RSU Grant 100 shares",
+				Date:            getDate("2025-01-15"),
+				AccountID:       unvestedID,
+				InstrumentID:    instrumentID,
+				Quantity:        100,
+				FairMarketValue: 50.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+
+			// 2. Get lot ID
+			lots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots: %v", err)
+			}
+			lotID := lots[0].Id
+
+			// 3. Forfeit 40 shares
+			forfeitID, err := store.CreateStockForfeit(ctx, StockForfeit{
+				Description:  "Forfeit 40 shares",
+				Date:         getDate("2025-06-15"),
+				AccountID:    unvestedID,
+				InstrumentID: instrumentID,
+				LotSelections: []LotSelection{
+					{LotID: lotID, Quantity: 40},
+				},
+			})
+			if err != nil {
+				t.Fatalf("CreateStockForfeit: %v", err)
+			}
+
+			// 4. Verify 60 shares remaining
+			pos, err := store.GetPosition(ctx, unvestedID, instrumentID)
+			if err != nil {
+				t.Fatalf("GetPosition: %v", err)
+			}
+			if pos.Quantity != 60 {
+				t.Errorf("position after forfeit: got %v, want 60", pos.Quantity)
+			}
+
+			// 5. Delete the forfeit
+			err = store.DeleteTransaction(ctx, forfeitID)
+			if err != nil {
+				t.Fatalf("DeleteTransaction: %v", err)
+			}
+
+			// 6. Verify 100 shares restored
+			pos, err = store.GetPosition(ctx, unvestedID, instrumentID)
+			if err != nil {
+				t.Fatalf("GetPosition after delete: %v", err)
+			}
+			if pos.Quantity != 100 {
+				t.Errorf("position after delete: got %v, want 100", pos.Quantity)
+			}
+
+			// 7. Verify lot is fully restored
+			lotsAfter, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots after delete: %v", err)
+			}
+			if len(lotsAfter) != 1 {
+				t.Fatalf("expected 1 lot, got %d", len(lotsAfter))
+			}
+			if lotsAfter[0].Quantity != 100 {
+				t.Errorf("lot quantity after delete: got %v, want 100", lotsAfter[0].Quantity)
+			}
+			if lotsAfter[0].Status != LotOpen {
+				t.Errorf("lot status after delete: got %v, want LotOpen", lotsAfter[0].Status)
+			}
+		})
+	}
+}
+
+func TestStore_UpdateStockForfeit(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("storeUpdateStockForfeit"))
+			unvestedID, _, instrumentID := setupStockGrantTransferTest(t, ctx, store, mktStore)
+
+			// 1. Grant 100 shares
+			_, err := store.CreateStockGrant(ctx, StockGrant{
+				Description:     "RSU Grant 100 shares",
+				Date:            getDate("2025-01-15"),
+				AccountID:       unvestedID,
+				InstrumentID:    instrumentID,
+				Quantity:        100,
+				FairMarketValue: 50.0,
+			})
+			if err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+
+			// 2. Get lot ID
+			lots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots: %v", err)
+			}
+			lotID := lots[0].Id
+
+			// 3. Forfeit 40 shares
+			forfeitID, err := store.CreateStockForfeit(ctx, StockForfeit{
+				Description:  "Forfeit 40 shares",
+				Date:         getDate("2025-06-15"),
+				AccountID:    unvestedID,
+				InstrumentID: instrumentID,
+				LotSelections: []LotSelection{
+					{LotID: lotID, Quantity: 40},
+				},
+			})
+			if err != nil {
+				t.Fatalf("CreateStockForfeit: %v", err)
+			}
+
+			// 4. Verify 60 remaining
+			pos, err := store.GetPosition(ctx, unvestedID, instrumentID)
+			if err != nil {
+				t.Fatalf("GetPosition: %v", err)
+			}
+			if pos.Quantity != 60 {
+				t.Errorf("position after initial forfeit: got %v, want 60", pos.Quantity)
+			}
+
+			// 5. Update to forfeit only 30 shares
+			newDesc := "Forfeit 30 shares"
+			err = store.UpdateTransaction(ctx, StockForfeitUpdate{
+				Description: &newDesc,
+				LotSelections: []LotSelection{
+					{LotID: lotID, Quantity: 30},
+				},
+			}, forfeitID)
+			if err != nil {
+				t.Fatalf("UpdateTransaction: %v", err)
+			}
+
+			// 6. Verify 70 shares remaining
+			pos, err = store.GetPosition(ctx, unvestedID, instrumentID)
+			if err != nil {
+				t.Fatalf("GetPosition after update: %v", err)
+			}
+			if pos.Quantity != 70 {
+				t.Errorf("position after update: got %v, want 70", pos.Quantity)
+			}
+
+			// 7. Verify via GetTransaction
+			got, err := store.GetTransaction(ctx, forfeitID)
+			if err != nil {
+				t.Fatalf("GetTransaction: %v", err)
+			}
+			gotForfeit, ok := got.(StockForfeit)
+			if !ok {
+				t.Fatalf("expected StockForfeit, got %T", got)
+			}
+			if gotForfeit.Description != "Forfeit 30 shares" {
+				t.Errorf("Description: got %q, want %q", gotForfeit.Description, "Forfeit 30 shares")
+			}
+			if gotForfeit.Quantity != 30 {
+				t.Errorf("Quantity: got %v, want 30", gotForfeit.Quantity)
+			}
+
+			// 8. Verify lot state
+			lotsAfter, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots after update: %v", err)
+			}
+			totalQty := 0.0
+			for _, l := range lotsAfter {
+				totalQty += l.Quantity
+			}
+			if totalQty != 70 {
+				t.Errorf("lots total quantity after update: got %v, want 70", totalQty)
 			}
 		})
 	}

@@ -5,6 +5,8 @@ import IncomeExpenseDialog from '@/views/entries/dialogs/IncomeExpenseDialog.vue
 import BuySellInstrumentDialog from '@/views/entries/dialogs/BuySellInstrumentDialog.vue'
 import GrantDialog from '@/views/entries/dialogs/GrantDialog.vue'
 import TransferInstrumentDialog from '@/views/entries/dialogs/TransferInstrumentDialog.vue'
+import VestingDialog from '@/views/entries/dialogs/VestingDialog.vue'
+import ForfeitDialog from '@/views/entries/dialogs/ForfeitDialog.vue'
 import TransferDialog from '@/views/entries/dialogs/TransferDialog.vue'
 import BalanceStatusDialog from '@/views/entries/dialogs/BalanceStatusDialog.vue'
 import CsvUploadDialog from '@/views/csvimport/CsvUploadDialog.vue'
@@ -47,6 +49,8 @@ const dialogs = ref({
     sellStock: false,
     grantStock: false,
     transferInstrument: false,
+    vestStock: false,
+    forfeitStock: false,
     balanceStatus: false,
     importCsv: false
 })
@@ -103,6 +107,16 @@ const allDropdownOptions = [
         icon: 'ti ti-arrows-left-right'
     },
     {
+        label: 'Vest instrument',
+        value: 'vestStock',
+        icon: 'ti ti-certificate'
+    },
+    {
+        label: 'Forfeit instrument',
+        value: 'forfeitStock',
+        icon: 'ti ti-circle-x'
+    },
+    {
         label: 'Balance Status',
         value: 'balanceStatus',
         icon: 'ti ti-calculator'
@@ -114,7 +128,8 @@ const allDropdownOptions = [
     }
 ]
 
-const instrumentOperations = ['buyStock', 'sellStock', 'grantStock', 'transferInstrument']
+const instrumentOperations = ['buyStock', 'sellStock', 'grantStock', 'transferInstrument', 'vestStock', 'forfeitStock']
+const rsuOperations = ['vestStock', 'forfeitStock']
 
 /* Filtered dropdown options based on account type and instrument settings */
 const dropdownOptions = computed(() => {
@@ -123,6 +138,7 @@ const dropdownOptions = computed(() => {
         .filter(option => {
             if (!allowedOps.includes(option.value)) return false
             if (!settings.instruments && instrumentOperations.includes(option.value)) return false
+            if (!settings.rsu && rsuOperations.includes(option.value)) return false
             if (option.value === 'importCsv' && !props.defaultAccountId) return false
             return true
         })
@@ -229,6 +245,22 @@ const dropdownOptions = computed(() => {
             :isEdit="false"
             :origin-account-id="defaultOriginAccountId ?? defaultAccountId"
             @update:visible="dialogs.transferInstrument = $event"
+        />
+
+        <!-- Vest instrument Dialog -->
+        <VestingDialog
+            v-model:visible="dialogs.vestStock"
+            :isEdit="false"
+            :origin-account-id="defaultAccountId"
+            @update:visible="dialogs.vestStock = $event"
+        />
+
+        <!-- Forfeit instrument Dialog -->
+        <ForfeitDialog
+            v-model:visible="dialogs.forfeitStock"
+            :isEdit="false"
+            :account-id="defaultAccountId"
+            @update:visible="dialogs.forfeitStock = $event"
         />
 
         <!-- CSV Upload Dialog -->

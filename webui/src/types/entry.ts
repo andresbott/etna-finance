@@ -73,6 +73,25 @@ export interface StockTransferEntry extends BaseEntry {
     quantity: number
 }
 
+export interface StockVestEntry extends BaseEntry {
+    type: 'stockvest'
+    originAccountId: number
+    targetAccountId: number
+    instrumentId: number
+    vestingPrice: number
+    categoryId: number
+    quantity: number
+    lotAllocations: Array<{ lotId: number; quantity: number }>
+}
+
+export interface StockForfeitEntry extends BaseEntry {
+    type: 'stockforfeit'
+    accountId: number
+    instrumentId: number
+    quantity: number
+    lotAllocations: Array<{ lotId: number; quantity: number }>
+}
+
 export interface BalanceStatusEntry extends BaseEntry {
     type: 'balancestatus'
     accountId: string
@@ -88,6 +107,8 @@ export type Entry =
     | StockSellEntry
     | StockGrantEntry
     | StockTransferEntry
+    | StockVestEntry
+    | StockForfeitEntry
     | BalanceStatusEntry
 
 export interface CreateEntryDTO {
@@ -117,8 +138,10 @@ export interface UpdateEntryDTO {
     // Stock transfer
     originAccountId?: number
     targetAccountId?: number
-    // Manual lot selection for stock sell
+    // Manual lot selection for stock sell / vest
     lotAllocations?: Array<{ lotId: number; quantity: number }>
+    // Stock vest
+    vestingPrice?: number
 }
 
 export interface EntryFilters {

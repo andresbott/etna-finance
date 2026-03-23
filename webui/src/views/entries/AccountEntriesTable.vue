@@ -81,6 +81,8 @@ const getRowClass = (data) => ({
     'stocksell-row': data.type === 'stocksell',
     'stockgrant-row': data.type === 'stockgrant',
     'stocktransfer-row': data.type === 'stocktransfer',
+    'stockvest-row': data.type === 'stockvest',
+    'stockforfeit-row': data.type === 'stockforfeit',
     'opening-balance-row': data.type === 'opening-balance',
     'balancestatus-row': data.type === 'balancestatus'
 })
@@ -198,9 +200,9 @@ const tableEntries = computed(() =>
                         />
                     </template>
                     <template #body="{ data }">
-                        <span v-if="data.type === 'expense' || data.type === 'income'" :class="{ 'unclassified': !data.categoryId }" class="category-cell">
-                            <i :class="['ti', `ti-${getCategoryIcon(data.categoryId, data.type)}`]"></i>
-                            {{ getCategoryName(data.categoryId, data.type) }}
+                        <span v-if="data.type === 'expense' || data.type === 'income' || data.type === 'stockvest'" :class="{ 'unclassified': !data.categoryId }" class="category-cell">
+                            <i :class="['ti', `ti-${getCategoryIcon(data.categoryId, data.type === 'stockvest' ? 'income' : data.type)}`]"></i>
+                            {{ getCategoryName(data.categoryId, data.type === 'stockvest' ? 'income' : data.type) }}
                         </span>
                     </template>
                 </Column>
@@ -279,6 +281,28 @@ const tableEntries = computed(() =>
                                     <template v-else>—</template>
                                 </template>
                             </div>
+                            <div v-else-if="data.type === 'stockvest'" class="amount">
+                                <template v-if="data.instrumentId != null">
+                                    ({{ getInstrumentSymbol(data.instrumentId) }})
+                                    <template v-if="String(data.originAccountId) === String(accountId)">−{{ data.quantity }}</template>
+                                    <template v-else-if="String(data.targetAccountId) === String(accountId)">+{{ data.quantity }}</template>
+                                    <template v-else>—</template>
+                                    <template v-if="data.vestingPrice != null && data.quantity != null">
+                                        = {{ formatAmount(data.vestingPrice * data.quantity) }} {{ getInstrumentCurrency(data.instrumentId) }}
+                                    </template>
+                                </template>
+                                <template v-else>
+                                    <template v-if="String(data.originAccountId) === String(accountId)">−{{ data.quantity }}</template>
+                                    <template v-else-if="String(data.targetAccountId) === String(accountId)">+{{ data.quantity }}</template>
+                                    <template v-else>—</template>
+                                </template>
+                            </div>
+                            <div v-else-if="data.type === 'stockforfeit'" class="amount amount-negative">
+                                <template v-if="data.instrumentId != null">
+                                    ({{ getInstrumentSymbol(data.instrumentId) }}) −{{ data.quantity }}
+                                </template>
+                                <template v-else>−{{ data.quantity }}</template>
+                            </div>
                             <div v-else-if="data.type === 'balancestatus'" class="amount balance-status">
                                 {{ formatAmount(data.Amount) }}
                                 {{ getAccountCurrency(data.accountId) }}
@@ -338,6 +362,22 @@ const tableEntries = computed(() =>
                                     <template v-else>—</template>
                                 </template>
                             </div>
+                            <div v-else-if="data.type === 'stockvest'" class="amount">
+                                <template v-if="data.instrumentId != null">
+                                    <template v-if="String(data.originAccountId) === String(accountId)">−{{ data.quantity }} {{ getInstrumentSymbol(data.instrumentId) }}</template>
+                                    <template v-else-if="String(data.targetAccountId) === String(accountId)">+{{ data.quantity }} {{ getInstrumentSymbol(data.instrumentId) }}</template>
+                                    <template v-else>—</template>
+                                </template>
+                                <template v-else>
+                                    <template v-if="String(data.originAccountId) === String(accountId)">−{{ data.quantity }}</template>
+                                    <template v-else-if="String(data.targetAccountId) === String(accountId)">+{{ data.quantity }}</template>
+                                    <template v-else>—</template>
+                                </template>
+                            </div>
+                            <div v-else-if="data.type === 'stockforfeit'" class="amount amount-negative">
+                                <template v-if="data.instrumentId != null">−{{ data.quantity }} {{ getInstrumentSymbol(data.instrumentId) }}</template>
+                                <template v-else>−{{ data.quantity }}</template>
+                            </div>
                             <div v-else class="amount">
                                 {{ formatAmount(data.totalAmount ?? data.targetAmount ?? 0) }}
                             </div>
@@ -355,14 +395,27 @@ const tableEntries = computed(() =>
 
                 <Column v-if="isInstrumentAccount" field="price" header="Price" bodyStyle="text-align: right" class="price-column">
                     <template #body="{ data }">
-                        <template v-if="data.type === 'stockbuy' || data.type === 'stocksell'">
+                        <template v-if="data.type === 'stockbuy'">
                             <span v-if="data.quantity != null && data.StockAmount != null && data.quantity > 0">
                                 {{ formatPrice(data.StockAmount / data.quantity) }} {{ getInstrumentCurrency(data.instrumentId) }}
                             </span>
                             <span v-else>—</span>
                         </template>
+                        <template v-else-if="data.type === 'stocksell'">
+                            <span v-if="data.quantity != null && data.totalAmount != null && data.quantity !== 0">
+                                {{ formatPrice(Math.abs(data.totalAmount / data.quantity)) }} {{ getInstrumentCurrency(data.instrumentId) }}
+                            </span>
+                            <span v-else>—</span>
+                        </template>
+                        <template v-else-if="data.type === 'stockvest'">
+                            <span v-if="data.vestingPrice != null">
+                                {{ formatPrice(data.vestingPrice) }} {{ getInstrumentCurrency(data.instrumentId) }}
+                            </span>
+                            <span v-else>—</span>
+                        </template>
                         <template v-else-if="data.type === 'stockgrant'">—</template>
                         <template v-else-if="data.type === 'stocktransfer'">—</template>
+                        <template v-else-if="data.type === 'stockforfeit'">—</template>
                         <template v-else>—</template>
                     </template>
                 </Column>

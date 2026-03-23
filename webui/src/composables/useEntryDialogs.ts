@@ -19,6 +19,8 @@ export function useEntryDialogs(deleteEntryFn: (id: string) => Promise<void>) {
         sellStock: ref(false),
         grantStock: ref(false),
         transferInstrument: ref(false),
+        vestStock: ref(false),
+        forfeitStock: ref(false),
         balanceStatus: ref(false)
     }
 
@@ -30,6 +32,8 @@ export function useEntryDialogs(deleteEntryFn: (id: string) => Promise<void>) {
         stocksell: 'sellStock',
         stockgrant: 'grantStock',
         stocktransfer: 'transferInstrument',
+        stockvest: 'vestStock',
+        stockforfeit: 'forfeitStock',
         balancestatus: 'balanceStatus'
     }
 
@@ -44,13 +48,13 @@ export function useEntryDialogs(deleteEntryFn: (id: string) => Promise<void>) {
         isEditMode.value = true
         isDuplicateMode.value = false
 
-        // For sells, list API does not include fees; fetch full entry so dialog shows correct net + fees
-        if (entry.type === 'stocksell') {
+        // For sells/vests, list API does not include fees or full details; fetch full entry so dialog shows correct data
+        if (entry.type === 'stocksell' || entry.type === 'stockvest' || entry.type === 'stockforfeit') {
             try {
                 const full = await getEntry(entry.id as string)
                 selectedEntry.value = full
             } catch (e) {
-                console.error('Failed to load sell entry for edit', e)
+                console.error('Failed to load entry for edit', e)
                 selectedEntry.value = entry
             }
         } else {

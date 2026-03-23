@@ -95,6 +95,8 @@ export const ENTRY_OPERATIONS = {
     SELL_STOCK: 'sellStock',
     GRANT_STOCK: 'grantStock',
     TRANSFER_INSTRUMENT: 'transferInstrument',
+    VEST_STOCK: 'vestStock',
+    FORFEIT_STOCK: 'forfeitStock',
     BALANCE_STATUS: 'balanceStatus',
     IMPORT_CSV: 'importCsv',
 } as const
@@ -139,10 +141,9 @@ export const ALLOWED_OPERATIONS_BY_ACCOUNT_TYPE: Record<AccountType, EntryOperat
         ENTRY_OPERATIONS.TRANSFER_INSTRUMENT,
     ],
     [ACCOUNT_TYPES.UNVESTED]: [
-        ENTRY_OPERATIONS.BUY_STOCK,
-        ENTRY_OPERATIONS.SELL_STOCK,
         ENTRY_OPERATIONS.GRANT_STOCK,
-        ENTRY_OPERATIONS.TRANSFER_INSTRUMENT,
+        ENTRY_OPERATIONS.VEST_STOCK,
+        ENTRY_OPERATIONS.FORFEIT_STOCK,
     ],
     [ACCOUNT_TYPES.LENT]: [
         ENTRY_OPERATIONS.INCOME,

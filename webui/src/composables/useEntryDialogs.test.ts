@@ -92,6 +92,85 @@ describe('useEntryDialogs', () => {
         })
     })
 
+    describe('openEditEntryDialog', () => {
+        it('opens the correct dialog for stockvest', async () => {
+            await result.openEditEntryDialog({ id: '1', type: 'stockvest' })
+            expect(result.dialogs.vestStock.value).toBe(true)
+            expect(result.isEditMode.value).toBe(true)
+        })
+
+        it('opens the correct dialog for stockforfeit', async () => {
+            await result.openEditEntryDialog({ id: '2', type: 'stockforfeit' })
+            expect(result.dialogs.forfeitStock.value).toBe(true)
+            expect(result.isEditMode.value).toBe(true)
+        })
+
+        it('fetches full entry for stockvest edits', async () => {
+            const { getEntry } = await import('@/lib/api/Entry')
+            const mockEntry = { id: '1', type: 'stockvest', vestingPrice: 75, lotAllocations: [{ lotId: 1, quantity: 50 }] }
+            vi.mocked(getEntry).mockResolvedValue(mockEntry)
+
+            await result.openEditEntryDialog({ id: '1', type: 'stockvest' })
+            expect(getEntry).toHaveBeenCalledWith('1')
+            expect(result.selectedEntry.value).toEqual(mockEntry)
+        })
+
+        it('fetches full entry for stockforfeit edits', async () => {
+            const { getEntry } = await import('@/lib/api/Entry')
+            const mockEntry = { id: '2', type: 'stockforfeit', lotAllocations: [{ lotId: 3, quantity: 40 }] }
+            vi.mocked(getEntry).mockResolvedValue(mockEntry)
+
+            await result.openEditEntryDialog({ id: '2', type: 'stockforfeit' })
+            expect(getEntry).toHaveBeenCalledWith('2')
+            expect(result.selectedEntry.value).toEqual(mockEntry)
+        })
+
+        it('does NOT fetch full entry for income edits', async () => {
+            const { getEntry } = await import('@/lib/api/Entry')
+            vi.mocked(getEntry).mockClear()
+
+            await result.openEditEntryDialog({ id: '3', type: 'income' })
+            expect(getEntry).not.toHaveBeenCalled()
+            expect(result.dialogs.incomeExpense.value).toBe(true)
+        })
+
+        it('maps all entry types to correct dialogs', async () => {
+            const typeToDialog: Record<string, string> = {
+                income: 'incomeExpense',
+                expense: 'incomeExpense',
+                transfer: 'transfer',
+                stockbuy: 'buyStock',
+                stocksell: 'sellStock',
+                stockgrant: 'grantStock',
+                stocktransfer: 'transferInstrument',
+                stockvest: 'vestStock',
+                stockforfeit: 'forfeitStock',
+                balancestatus: 'balanceStatus',
+            }
+            for (const [type, dialogKey] of Object.entries(typeToDialog)) {
+                // Reset all dialogs
+                for (const d of Object.values(result.dialogs)) d.value = false
+                await result.openEditEntryDialog({ id: '1', type })
+                expect((result.dialogs as Record<string, { value: boolean }>)[dialogKey].value, `${type} should open ${dialogKey}`).toBe(true)
+            }
+        })
+    })
+
+    describe('openDuplicateEntryDialog', () => {
+        it('opens the correct dialog for stockvest in duplicate mode', async () => {
+            await result.openDuplicateEntryDialog({ id: '1', type: 'stockvest' })
+            expect(result.dialogs.vestStock.value).toBe(true)
+            expect(result.isDuplicateMode.value).toBe(true)
+            expect(result.isEditMode.value).toBe(false)
+        })
+
+        it('opens the correct dialog for stockforfeit in duplicate mode', async () => {
+            await result.openDuplicateEntryDialog({ id: '2', type: 'stockforfeit' })
+            expect(result.dialogs.forfeitStock.value).toBe(true)
+            expect(result.isDuplicateMode.value).toBe(true)
+        })
+    })
+
     describe('transformDeleteId watcher', () => {
         it('clears transformDeleteId when transfer dialog closes', async () => {
             await result.openTransformToTransfer({

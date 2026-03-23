@@ -67,6 +67,9 @@ type transactionPayload struct {
 	// used for stock grant (instruments added for free; no cash account) - reuses accountId
 	FairMarketValue float64 `json:"fairMarketValue"`
 
+	// used for stock vest
+	VestingPrice float64 `json:"vestingPrice"`
+
 	// used for stock sell manual lot selection
 	LotAllocations []struct {
 		LotID    uint    `json:"lotId"`
@@ -74,6 +77,18 @@ type transactionPayload struct {
 	} `json:"lotAllocations,omitempty"`
 
 	AttachmentID *uint `json:"attachmentId,omitempty"`
+}
+
+// parseLotSelections converts payload lot allocations to accounting LotSelection values.
+func parseLotSelections(allocations []struct {
+	LotID    uint    `json:"lotId"`
+	Quantity float64 `json:"quantity"`
+}) []accounting.LotSelection {
+	var selections []accounting.LotSelection
+	for _, a := range allocations {
+		selections = append(selections, accounting.LotSelection{LotID: a.LotID, Quantity: a.Quantity})
+	}
+	return selections
 }
 
 func (h *Handler) CreateTx() http.Handler {
@@ -133,10 +148,6 @@ func (h *Handler) CreateTx() http.Handler {
 				StockAmount:         payload.StockAmount,
 			}
 		case accounting.StockSellTransaction:
-			var lotSelections []accounting.LotSelection
-			for _, a := range payload.LotAllocations {
-				lotSelections = append(lotSelections, accounting.LotSelection{LotID: a.LotID, Quantity: a.Quantity})
-			}
 			entry = accounting.StockSell{
 				Description:         payload.Description,
 				Notes:               payload.Notes,
@@ -147,7 +158,7 @@ func (h *Handler) CreateTx() http.Handler {
 				Quantity:            payload.Quantity,
 				TotalAmount:         payload.TotalAmount,
 				Fees:                payload.Fees,
-				LotSelections:       lotSelections,
+				LotSelections:       parseLotSelections(payload.LotAllocations),
 			}
 		case accounting.StockGrantTransaction:
 			entry = accounting.StockGrant{
@@ -168,6 +179,27 @@ func (h *Handler) CreateTx() http.Handler {
 				TargetAccountID: payload.TargetAccountID,
 				InstrumentID:    payload.InstrumentID,
 				Quantity:        payload.Quantity,
+			}
+		case accounting.StockVestTransaction:
+			entry = accounting.StockVest{
+				Description:     payload.Description,
+				Notes:           payload.Notes,
+				Date:            payload.Date.Time,
+				SourceAccountID: payload.OriginAccountID,
+				TargetAccountID: payload.TargetAccountID,
+				InstrumentID:    payload.InstrumentID,
+				VestingPrice:    payload.VestingPrice,
+				CategoryID:      payload.CategoryId,
+				LotSelections:   parseLotSelections(payload.LotAllocations),
+			}
+		case accounting.StockForfeitTransaction:
+			entry = accounting.StockForfeit{
+				Description:   payload.Description,
+				Notes:         payload.Notes,
+				Date:          payload.Date.Time,
+				AccountID:     payload.AccountId,
+				InstrumentID:  payload.InstrumentID,
+				LotSelections: parseLotSelections(payload.LotAllocations),
 			}
 		case accounting.BalanceStatusTransaction:
 			entry = accounting.BalanceStatus{
@@ -267,7 +299,10 @@ type entryUpdatePayload struct {
 	Quantity            *float64 `json:"quantity"`
 	TotalAmount         *float64 `json:"totalAmount"`
 	FairMarketValue     *float64 `json:"fairMarketValue"`
-	InvestmentAccountID *uint    `json:"investmentAccountId"`
+	// used for stock vest
+	VestingPrice *float64 `json:"vestingPrice"`
+
+	InvestmentAccountID *uint `json:"investmentAccountId"`
 	CashAccountID       *uint    `json:"cashAccountId"`
 
 	// used for stock sell manual lot selection
@@ -341,10 +376,6 @@ func (h *Handler) UpdateTx(Id uint) http.Handler {
 				CashAccountID:       payload.CashAccountID,
 			}
 		case accounting.StockSell:
-			var lotSelections []accounting.LotSelection
-			for _, a := range payload.LotAllocations {
-				lotSelections = append(lotSelections, accounting.LotSelection{LotID: a.LotID, Quantity: a.Quantity})
-			}
 			entry = accounting.StockSellUpdate{
 				Description:         payload.Description,
 				Notes:               payload.Notes,
@@ -355,7 +386,7 @@ func (h *Handler) UpdateTx(Id uint) http.Handler {
 				Fees:                payload.Fees,
 				InvestmentAccountID: payload.InvestmentAccountID,
 				CashAccountID:       payload.CashAccountID,
-				LotSelections:       lotSelections,
+				LotSelections:       parseLotSelections(payload.LotAllocations),
 			}
 		case accounting.StockGrant:
 			entry = accounting.StockGrantUpdate{
@@ -376,6 +407,27 @@ func (h *Handler) UpdateTx(Id uint) http.Handler {
 				Quantity:        payload.Quantity,
 				SourceAccountID: payload.OriginAccountID,
 				TargetAccountID: payload.TargetAccountID,
+			}
+		case accounting.StockVest:
+			entry = accounting.StockVestUpdate{
+				Description:     payload.Description,
+				Notes:           payload.Notes,
+				Date:            datePtr,
+				InstrumentID:    payload.InstrumentID,
+				VestingPrice:    payload.VestingPrice,
+				CategoryID:      payload.CategoryId,
+				SourceAccountID: payload.OriginAccountID,
+				TargetAccountID: payload.TargetAccountID,
+				LotSelections:   parseLotSelections(payload.LotAllocations),
+			}
+		case accounting.StockForfeit:
+			entry = accounting.StockForfeitUpdate{
+				Description:   payload.Description,
+				Notes:         payload.Notes,
+				Date:          datePtr,
+				AccountID:     payload.AccountId,
+				InstrumentID:  payload.InstrumentID,
+				LotSelections: parseLotSelections(payload.LotAllocations),
 			}
 		case accounting.BalanceStatus:
 			entry = accounting.BalanceStatusUpdate{
@@ -415,8 +467,10 @@ func (h *Handler) DeleteTx(Id uint) http.Handler {
 
 		err = h.Store.DeleteTransaction(r.Context(), Id)
 		if err != nil {
-			if errors.Is(err, accounting.ErrEntryNotFound) {
+			if errors.Is(err, accounting.ErrEntryNotFound) || errors.Is(err, accounting.ErrTransactionNotFound) {
 				http.Error(w, "entry not found", http.StatusNotFound)
+			} else if errors.As(err, &validationErr) {
+				http.Error(w, err.Error(), http.StatusBadRequest)
 			} else {
 				http.Error(w, fmt.Sprintf("unable to delete entry: %s", err.Error()), http.StatusInternalServerError)
 			}
@@ -538,6 +592,47 @@ func transactionToPayload(entry accounting.Transaction) transactionPayload {
 			Quantity:        entry.Quantity,
 			AttachmentID:    entry.AttachmentID,
 		}
+	case accounting.StockVest:
+		payload := transactionPayload{
+			Id:              entry.Id,
+			Description:     entry.Description,
+			Notes:           entry.Notes,
+			Date:            dateOnlyTime{Time: entry.Date},
+			Type:            stockVestTxStr,
+			OriginAccountID: entry.SourceAccountID,
+			TargetAccountID: entry.TargetAccountID,
+			InstrumentID:    entry.InstrumentID,
+			Quantity:        entry.Quantity,
+			VestingPrice:    entry.VestingPrice,
+			CategoryId:      entry.CategoryID,
+			AttachmentID:    entry.AttachmentID,
+		}
+		for _, ls := range entry.LotSelections {
+			payload.LotAllocations = append(payload.LotAllocations, struct {
+				LotID    uint    `json:"lotId"`
+				Quantity float64 `json:"quantity"`
+			}{LotID: ls.LotID, Quantity: ls.Quantity})
+		}
+		return payload
+	case accounting.StockForfeit:
+		payload := transactionPayload{
+			Id:           entry.Id,
+			Description:  entry.Description,
+			Notes:        entry.Notes,
+			Date:         dateOnlyTime{Time: entry.Date},
+			Type:         stockForfeitTxStr,
+			AccountId:    entry.AccountID,
+			InstrumentID: entry.InstrumentID,
+			Quantity:     entry.Quantity,
+			AttachmentID: entry.AttachmentID,
+		}
+		for _, ls := range entry.LotSelections {
+			payload.LotAllocations = append(payload.LotAllocations, struct {
+				LotID    uint    `json:"lotId"`
+				Quantity float64 `json:"quantity"`
+			}{LotID: ls.LotID, Quantity: ls.Quantity})
+		}
+		return payload
 	case accounting.BalanceStatus:
 		return transactionPayload{
 			Id:           entry.Id,
@@ -751,7 +846,9 @@ const (
 	stockSellTxStr     = "stocksell"
 	stockGrantTxStr    = "stockgrant"
 	stockTransferTxStr = "stocktransfer"
-	balanceStatusTxStr = "balancestatus"
+	balanceStatusTxStr  = "balancestatus"
+	stockVestTxStr      = "stockvest"
+	stockForfeitTxStr   = "stockforfeit"
 )
 
 const investmentGroupStr = "investment"
@@ -767,6 +864,8 @@ func expandTypeGroups(groups []string) []accounting.TxType {
 				accounting.StockSellTransaction,
 				accounting.StockGrantTransaction,
 				accounting.StockTransferTransaction,
+				accounting.StockVestTransaction,
+				accounting.StockForfeitTransaction,
 			)
 		default:
 			if t := parseTxType(g); t != accounting.UnknownTransaction {
@@ -795,6 +894,10 @@ func parseTxType(in string) accounting.TxType {
 		return accounting.StockTransferTransaction
 	case balanceStatusTxStr:
 		return accounting.BalanceStatusTransaction
+	case stockVestTxStr:
+		return accounting.StockVestTransaction
+	case stockForfeitTxStr:
+		return accounting.StockForfeitTransaction
 	default:
 		return accounting.UnknownTransaction
 	}
