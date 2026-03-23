@@ -364,14 +364,16 @@ func TestExpandTypeGroups(t *testing.T) {
 		want  []accounting.TxType
 	}{
 		{"single type", []string{"income"}, []accounting.TxType{accounting.IncomeTransaction}},
-		{"investment expands to 4", []string{"investment"}, []accounting.TxType{
+		{"investment expands to 5", []string{"investment"}, []accounting.TxType{
 			accounting.StockBuyTransaction, accounting.StockSellTransaction,
 			accounting.StockGrantTransaction, accounting.StockTransferTransaction,
+			accounting.StockVestTransaction, accounting.StockForfeitTransaction,
 		}},
 		{"mixed groups", []string{"income", "investment"}, []accounting.TxType{
 			accounting.IncomeTransaction,
 			accounting.StockBuyTransaction, accounting.StockSellTransaction,
 			accounting.StockGrantTransaction, accounting.StockTransferTransaction,
+			accounting.StockVestTransaction, accounting.StockForfeitTransaction,
 		}},
 		{"unknown ignored", []string{"bogus"}, nil},
 		{"empty input", []string{}, nil},
@@ -379,6 +381,7 @@ func TestExpandTypeGroups(t *testing.T) {
 			accounting.IncomeTransaction,
 			accounting.StockBuyTransaction, accounting.StockSellTransaction,
 			accounting.StockGrantTransaction, accounting.StockTransferTransaction,
+			accounting.StockVestTransaction, accounting.StockForfeitTransaction,
 		}},
 	}
 

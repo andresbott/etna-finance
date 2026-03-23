@@ -162,3 +162,52 @@ export const createStockTransfer = async (
     const { data } = await apiClient.post('/fin/entries', payload)
     return data
 }
+
+/**
+ * Payload for creating a stock forfeit (unvested shares forfeited on departure)
+ */
+export interface CreateStockForfeitPayload {
+    type: 'stockforfeit'
+    description: string
+    date: string
+    instrumentId: number
+    accountId: number
+    lotAllocations: Array<{ lotId: number; quantity: number }>
+    notes?: string
+}
+
+/**
+ * Creates a stock forfeit transaction
+ */
+export const createStockForfeit = async (
+    payload: CreateStockForfeitPayload
+): Promise<unknown> => {
+    const { data } = await apiClient.post('/fin/entries', payload)
+    return data
+}
+
+/**
+ * Payload for creating a stock vest (shares vesting from unvested to investment account)
+ */
+export interface CreateStockVestPayload {
+    type: 'stockvest'
+    description: string
+    notes?: string
+    date: string
+    instrumentId: number
+    vestingPrice: number
+    categoryId: number
+    originAccountId: number
+    targetAccountId: number
+    lotAllocations: Array<{ lotId: number; quantity: number }>
+}
+
+/**
+ * Creates a stock vest transaction
+ */
+export const createStockVest = async (
+    payload: CreateStockVestPayload
+): Promise<unknown> => {
+    const { data } = await apiClient.post('/fin/entries', payload)
+    return data
+}

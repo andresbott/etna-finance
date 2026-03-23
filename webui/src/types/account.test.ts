@@ -133,13 +133,12 @@ describe('getAllowedOperations', () => {
         ])
     })
 
-    it('returns investment operations for UNVESTED', () => {
+    it('returns grant, vest, and forfeit operations for UNVESTED', () => {
         const result = getAllowedOperations(ACCOUNT_TYPES.UNVESTED)
         expect(result).toEqual([
-            ENTRY_OPERATIONS.BUY_STOCK,
-            ENTRY_OPERATIONS.SELL_STOCK,
             ENTRY_OPERATIONS.GRANT_STOCK,
-            ENTRY_OPERATIONS.TRANSFER_INSTRUMENT,
+            ENTRY_OPERATIONS.VEST_STOCK,
+            ENTRY_OPERATIONS.FORFEIT_STOCK,
         ])
     })
 
@@ -201,22 +200,28 @@ describe('isOperationAllowed', () => {
     })
 
     it('returns true for allowed operations on investment accounts', () => {
-        const investmentLike: AccountType[] = [
-            ACCOUNT_TYPES.INVESTMENT,
-            ACCOUNT_TYPES.UNVESTED,
-        ]
-        const allowedOps: EntryOperation[] = [
+        const investmentOps: EntryOperation[] = [
             ENTRY_OPERATIONS.BUY_STOCK,
             ENTRY_OPERATIONS.SELL_STOCK,
             ENTRY_OPERATIONS.GRANT_STOCK,
             ENTRY_OPERATIONS.TRANSFER_INSTRUMENT,
         ]
-
-        for (const acctType of investmentLike) {
-            for (const op of allowedOps) {
-                expect(isOperationAllowed(op, acctType)).toBe(true)
-            }
+        for (const op of investmentOps) {
+            expect(isOperationAllowed(op, ACCOUNT_TYPES.INVESTMENT)).toBe(true)
         }
+
+        // Unvested accounts only allow grant, vest, and forfeit
+        const unvestedOps: EntryOperation[] = [
+            ENTRY_OPERATIONS.GRANT_STOCK,
+            ENTRY_OPERATIONS.VEST_STOCK,
+            ENTRY_OPERATIONS.FORFEIT_STOCK,
+        ]
+        for (const op of unvestedOps) {
+            expect(isOperationAllowed(op, ACCOUNT_TYPES.UNVESTED)).toBe(true)
+        }
+        expect(isOperationAllowed(ENTRY_OPERATIONS.BUY_STOCK, ACCOUNT_TYPES.UNVESTED)).toBe(false)
+        expect(isOperationAllowed(ENTRY_OPERATIONS.SELL_STOCK, ACCOUNT_TYPES.UNVESTED)).toBe(false)
+        expect(isOperationAllowed(ENTRY_OPERATIONS.TRANSFER_INSTRUMENT, ACCOUNT_TYPES.UNVESTED)).toBe(false)
     })
 
     it('returns false for disallowed operations on investment accounts', () => {

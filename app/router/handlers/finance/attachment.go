@@ -201,6 +201,10 @@ func transactionDate(tx accounting.Transaction) time.Time {
 		return t.Date
 	case accounting.StockTransfer:
 		return t.Date
+	case accounting.StockVest:
+		return t.Date
+	case accounting.StockForfeit:
+		return t.Date
 	case accounting.BalanceStatus:
 		return t.Date
 	default:
@@ -224,6 +228,10 @@ func transactionAttachmentID(tx accounting.Transaction) *uint {
 	case accounting.StockGrant:
 		return t.AttachmentID
 	case accounting.StockTransfer:
+		return t.AttachmentID
+	case accounting.StockVest:
+		return t.AttachmentID
+	case accounting.StockForfeit:
 		return t.AttachmentID
 	case accounting.BalanceStatus:
 		return t.AttachmentID

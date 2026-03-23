@@ -27,6 +27,8 @@ const (
 	StockTransferTransaction
 	LoanTransaction
 	BalanceStatusTransaction
+	StockVestTransaction
+	StockForfeitTransaction
 )
 
 type dbTransaction struct {
@@ -163,6 +165,41 @@ type StockTransfer struct {
 	baseTx
 }
 
+// StockVest represents a vesting event: shares move from an Unvested account to an
+// Investment account, lot cost basis is updated to the market price at vesting, and
+// compensation income is recorded for category reporting.
+type StockVest struct {
+	Id              uint
+	Description     string
+	Notes           string
+	Date            time.Time
+	SourceAccountID uint           // Unvested account
+	TargetAccountID uint           // Investment account
+	InstrumentID    uint
+	Quantity        float64        // total shares vested (derived from trades, authoritative)
+	VestingPrice    float64        // market price per share at vesting
+	CategoryID      uint           // income category for reporting
+	LotSelections   []LotSelection // manual lot selection from unvested lots
+	AttachmentID    *uint
+	baseTx
+}
+
+// StockForfeit represents a forfeiture of unvested shares. When an employee leaves,
+// remaining unvested RSUs are forfeited. This simply closes/reduces lots in the
+// unvested account. No target account, no income entry, just closing lots.
+type StockForfeit struct {
+	Id            uint
+	Description   string
+	Notes         string
+	Date          time.Time
+	AccountID     uint           // unvested account
+	InstrumentID  uint
+	Quantity      float64        // total forfeited (derived from trade)
+	LotSelections []LotSelection
+	AttachmentID  *uint
+	baseTx
+}
+
 // BalanceStatus records the real bank statement balance at a point in time.
 // It does NOT affect the running balance calculation.
 type BalanceStatus struct {
@@ -196,6 +233,10 @@ func (store *Store) CreateTransaction(ctx context.Context, input Transaction) (u
 		return store.CreateStockTransfer(ctx, item)
 	case BalanceStatus:
 		return store.CreateBalanceStatus(ctx, item)
+	case StockVest:
+		return store.CreateStockVest(ctx, item)
+	case StockForfeit:
+		return store.CreateStockForfeit(ctx, item)
 	default:
 		return 0, errors.New("invalid transaction type")
 	}
@@ -506,8 +547,8 @@ func (store *Store) CreateStockBuy(ctx context.Context, item StockBuy) (uint, er
 	if err != nil {
 		return 0, fmt.Errorf("error creating stock buy: %w", err)
 	}
-	if !slices.Contains(allowedPositionAccountTypes, invAcc.Type) {
-		return 0, NewValidationErr("investment account must be Investment or Unvested for stock buy")
+	if invAcc.Type != InvestmentAccountType {
+		return 0, NewValidationErr("investment account must be an Investment account for stock buy")
 	}
 
 	cashAcc, err := store.GetAccount(ctx, item.CashAccountID)
@@ -620,8 +661,8 @@ func (store *Store) validateStockSell(ctx context.Context, item StockSell) (mark
 	if err != nil {
 		return marketdata.Instrument{}, 0, fmt.Errorf("error creating stock sell: %w", err)
 	}
-	if !slices.Contains(allowedPositionAccountTypes, invAcc.Type) {
-		return marketdata.Instrument{}, 0, NewValidationErr("investment account must be Investment or Unvested for stock sell")
+	if invAcc.Type != InvestmentAccountType {
+		return marketdata.Instrument{}, 0, NewValidationErr("investment account must be an Investment account for stock sell")
 	}
 
 	cashAcc, err := store.GetAccount(ctx, item.CashAccountID)
@@ -867,16 +908,16 @@ func (store *Store) validateStockTransfer(ctx context.Context, item StockTransfe
 	if err != nil {
 		return fmt.Errorf("error creating stock transfer: %w", err)
 	}
-	if !slices.Contains(allowedPositionAccountTypes, srcAcc.Type) {
-		return NewValidationErr("source account must be Investment or Unvested for stock transfer")
+	if srcAcc.Type != InvestmentAccountType {
+		return NewValidationErr("source account must be an Investment account for stock transfer (use vest for unvested to investment)")
 	}
 
 	tgtAcc, err := store.GetAccount(ctx, item.TargetAccountID)
 	if err != nil {
 		return fmt.Errorf("error creating stock transfer: %w", err)
 	}
-	if !slices.Contains(allowedPositionAccountTypes, tgtAcc.Type) {
-		return NewValidationErr("target account must be Investment or Unvested for stock transfer")
+	if tgtAcc.Type != InvestmentAccountType {
+		return NewValidationErr("target account must be an Investment account for stock transfer (use vest for unvested to investment)")
 	}
 
 	instrument, err := store.GetInstrument(ctx, item.InstrumentID)
@@ -897,6 +938,106 @@ func (store *Store) validateStockTransfer(ctx context.Context, item StockTransfe
 			"instrument currency %s does not match target account currency %s",
 			instrument.Currency, tgtAcc.Currency))
 	}
+	return nil
+}
+
+// validateStockVest validates all inputs for a stock vest transaction.
+func (store *Store) validateStockVest(ctx context.Context, item StockVest) error {
+	if item.SourceAccountID == 0 {
+		return ErrValidation("source account is required")
+	}
+	if item.TargetAccountID == 0 {
+		return ErrValidation("target account is required")
+	}
+	if item.SourceAccountID == item.TargetAccountID {
+		return ErrValidation("source and target must be different accounts")
+	}
+	if item.InstrumentID == 0 {
+		return ErrValidation("instrument is required")
+	}
+	if len(item.LotSelections) == 0 {
+		return ErrValidation("lot selections are required")
+	}
+	if item.VestingPrice <= 0 {
+		return ErrValidation("vesting price must be greater than 0")
+	}
+	if item.CategoryID == 0 {
+		return ErrValidation("category is required")
+	}
+
+	cat, err := store.GetCategory(ctx, item.CategoryID)
+	if err != nil {
+		return fmt.Errorf("error validating stock vest: %w", err)
+	}
+	if cat.Type != IncomeCategory {
+		return ErrValidation("category must be an income category for stock vest")
+	}
+
+	sourceAccount, err := store.GetAccount(ctx, item.SourceAccountID)
+	if err != nil {
+		return err
+	}
+	if sourceAccount.Type != UnvestedAccountType {
+		return ErrValidation("source account must be an unvested account")
+	}
+
+	targetAccount, err := store.GetAccount(ctx, item.TargetAccountID)
+	if err != nil {
+		return err
+	}
+	if targetAccount.Type != InvestmentAccountType {
+		return ErrValidation("target account must be an investment account")
+	}
+
+	return nil
+}
+
+// validateStockVestFields validates all StockVest fields except LotSelections.
+// Used by UpdateStockVest where lot selections are reconstructed later if not provided.
+func (store *Store) validateStockVestFields(ctx context.Context, item StockVest) error {
+	if item.SourceAccountID == 0 {
+		return ErrValidation("source account is required")
+	}
+	if item.TargetAccountID == 0 {
+		return ErrValidation("target account is required")
+	}
+	if item.SourceAccountID == item.TargetAccountID {
+		return ErrValidation("source and target must be different accounts")
+	}
+	if item.InstrumentID == 0 {
+		return ErrValidation("instrument is required")
+	}
+	if item.VestingPrice <= 0 {
+		return ErrValidation("vesting price must be greater than 0")
+	}
+	if item.CategoryID == 0 {
+		return ErrValidation("category is required")
+	}
+
+	cat, err := store.GetCategory(ctx, item.CategoryID)
+	if err != nil {
+		return fmt.Errorf("error validating stock vest: %w", err)
+	}
+	if cat.Type != IncomeCategory {
+		return ErrValidation("category must be an income category for stock vest")
+	}
+
+	sourceAccount, err := store.GetAccount(ctx, item.SourceAccountID)
+	if err != nil {
+		return err
+	}
+	if sourceAccount.Type != UnvestedAccountType {
+		return ErrValidation("source account must be an unvested account")
+	}
+
+	targetAccount, err := store.GetAccount(ctx, item.TargetAccountID)
+	if err != nil {
+		return err
+	}
+	if targetAccount.Type != InvestmentAccountType {
+		return ErrValidation("target account must be an investment account")
+	}
+
 	return nil
 }
 
@@ -961,6 +1102,89 @@ func (store *Store) CreateStockTransfer(ctx context.Context, item StockTransfer)
 	return txID, nil
 }
 
+func (store *Store) CreateStockVest(ctx context.Context, item StockVest) (uint, error) {
+	if err := store.validateStockVest(ctx, item); err != nil {
+		return 0, err
+	}
+
+	totalQuantity := 0.0
+	for _, sel := range item.LotSelections {
+		totalQuantity += sel.Quantity
+	}
+
+	if totalQuantity <= 0 {
+		return 0, ErrValidation("total vesting quantity must be greater than 0")
+	}
+
+	tx := dbTransaction{
+		Description: item.Description,
+		Notes:       item.Notes,
+		Date:        item.Date,
+		Type:        StockVestTransaction,
+	}
+
+	var txID uint
+	err := store.db.WithContext(ctx).Transaction(func(dbTx *gorm.DB) error {
+		if err := dbTx.Create(&tx).Error; err != nil {
+			return err
+		}
+		txID = tx.Id
+
+		// Create income entry for category tracking
+		incomeAmount := roundMoney(item.VestingPrice * totalQuantity)
+		entry := dbEntry{
+			TransactionID: tx.Id,
+			AccountID:     item.TargetAccountID,
+			Amount:        incomeAmount,
+			EntryType:     stockVestIncomeEntry,
+			CategoryID:    item.CategoryID,
+		}
+		if err := dbTx.Create(&entry).Error; err != nil {
+			return err
+		}
+
+		// Create trade records for metadata
+		outTrade := dbTrade{
+			TransactionID: tx.Id,
+			AccountID:     item.SourceAccountID,
+			InstrumentID:  item.InstrumentID,
+			TradeType:     TransferOutTrade,
+			Quantity:      totalQuantity,
+			Date:          item.Date,
+		}
+		if err := dbTx.Create(&outTrade).Error; err != nil {
+			return err
+		}
+		inTrade := dbTrade{
+			TransactionID: tx.Id,
+			AccountID:     item.TargetAccountID,
+			InstrumentID:  item.InstrumentID,
+			TradeType:     TransferInTrade,
+			Quantity:      totalQuantity,
+			PricePerShare: item.VestingPrice,
+			Date:          item.Date,
+		}
+		if err := dbTx.Create(&inTrade).Error; err != nil {
+			return err
+		}
+
+		// Vest lots: close/reduce source, create new with vesting price
+		if err := store.vestLots(ctx, dbTx, item.LotSelections, item.VestingPrice, item.Date, inTrade.Id, item.SourceAccountID, item.TargetAccountID, item.InstrumentID); err != nil {
+			return err
+		}
+
+		// Update positions for both accounts
+		if err := store.updatePosition(ctx, dbTx, item.SourceAccountID, item.InstrumentID); err != nil {
+			return err
+		}
+		return store.updatePosition(ctx, dbTx, item.TargetAccountID, item.InstrumentID)
+	})
+	if err != nil {
+		return 0, err
+	}
+	return txID, nil
+}
+
 func validateTransaction(tx dbTransaction) error {
 	if tx.Description == "" {
 		return NewValidationErr("description cannot be empty")
@@ -999,19 +1223,22 @@ func (store *Store) GetTransaction(ctx context.Context, Id uint) (Transaction, e
 	if err != nil {
 		return nil, err
 	}
-	// Populate lot selections for sell transactions from stored disposals
-	if sell, ok := tr.(StockSell); ok {
-		for _, t := range payload.Trades {
-			if t.TradeType == SellTrade {
-				var disposals []dbLotDisposal
-				if dbErr := store.db.WithContext(ctx).Where("sell_trade_id = ?", t.Id).Find(&disposals).Error; dbErr == nil && len(disposals) > 0 {
-					for _, d := range disposals {
-						sell.LotSelections = append(sell.LotSelections, LotSelection{LotID: d.LotID, Quantity: d.Quantity})
-					}
-					tr = sell
-				}
-				break
-			}
+	// Populate lot selections from stored disposals for sell/vest/forfeit.
+	switch v := tr.(type) {
+	case StockSell:
+		if sels := store.populateLotSelectionsFromDisposals(ctx, payload.Trades, SellTrade); sels != nil {
+			v.LotSelections = sels
+			tr = v
+		}
+	case StockVest:
+		if sels := store.populateLotSelectionsFromDisposals(ctx, payload.Trades, TransferInTrade); sels != nil {
+			v.LotSelections = sels
+			tr = v
+		}
+	case StockForfeit:
+		if sels := store.populateLotSelectionsFromDisposals(ctx, payload.Trades, ForfeitTrade); sels != nil {
+			v.LotSelections = sels
+			tr = v
 		}
 	}
 	return tr, nil
@@ -1036,6 +1263,10 @@ func publicTransactions(in dbTransaction) (Transaction, error) {
 		return stockTransferFromDb(in)
 	case BalanceStatusTransaction:
 		return balanceStatusFromDb(in)
+	case StockVestTransaction:
+		return stockVestFromDb(in)
+	case StockForfeitTransaction:
+		return stockForfeitFromDb(in)
 	default:
 		return EmptyTransaction{}, ErrTransactionTypeNotFound
 	}
@@ -1266,8 +1497,315 @@ func stockTransferFromDb(in dbTransaction) (Transaction, error) {
 	}, nil
 }
 
+func stockVestFromDb(in dbTransaction) (Transaction, error) {
+	var outTrade, inTrade *dbTrade
+	for i := range in.Trades {
+		t := &in.Trades[i]
+		switch t.TradeType {
+		case TransferOutTrade:
+			outTrade = t
+		case TransferInTrade:
+			inTrade = t
+		}
+	}
+	if outTrade == nil || inTrade == nil {
+		return nil, fmt.Errorf("stock vest transaction must have out and in trade records")
+	}
+
+	var categoryID uint
+	for _, e := range in.Entries {
+		if e.EntryType == stockVestIncomeEntry {
+			categoryID = e.CategoryID
+			break
+		}
+	}
+
+	return StockVest{
+		Id:              in.Id,
+		Description:     in.Description,
+		Notes:           in.Notes,
+		Date:            in.Date,
+		SourceAccountID: outTrade.AccountID,
+		TargetAccountID: inTrade.AccountID,
+		InstrumentID:    outTrade.InstrumentID,
+		Quantity:        outTrade.Quantity,
+		VestingPrice:    inTrade.PricePerShare,
+		CategoryID:      categoryID,
+		AttachmentID:    in.AttachmentID,
+	}, nil
+}
+
+// guardGrantHasDownstream blocks deletion/update of a grant when any of its lots
+// have been partially or fully consumed by downstream operations (vests, transfers, sells).
+// A lot is considered "consumed" when its current Quantity is less than its OriginalQty.
+func (store *Store) guardGrantHasDownstream(ctx context.Context, tx *gorm.DB, transactionID uint) error {
+	var trades []dbTrade
+	if err := tx.WithContext(ctx).Where("transaction_id = ?", transactionID).Find(&trades).Error; err != nil {
+		return err
+	}
+	for _, trade := range trades {
+		if trade.TradeType != GrantTrade {
+			continue
+		}
+		var lots []dbLot
+		if err := tx.WithContext(ctx).Where("trade_id = ?", trade.Id).Find(&lots).Error; err != nil {
+			return err
+		}
+		for _, lot := range lots {
+			if lot.Quantity < lot.OriginalQty-0.0001 {
+				return ErrValidation("cannot delete grant: some shares have been used by downstream transactions (vests, transfers, or sells)")
+			}
+		}
+	}
+	return nil
+}
+
+// guardVestHasDownstream blocks deletion/update of a vest when any of the
+// vested (target) lots have been consumed by downstream operations: sells
+// (lot disposals) or transfers (Quantity < OriginalQty).
+func (store *Store) guardVestHasDownstream(ctx context.Context, tx *gorm.DB, transactionID uint) error {
+	var trades []dbTrade
+	if err := tx.WithContext(ctx).Where("transaction_id = ?", transactionID).Find(&trades).Error; err != nil {
+		return err
+	}
+	for _, trade := range trades {
+		if trade.TradeType != TransferInTrade {
+			continue
+		}
+		var targetLots []dbLot
+		if err := tx.WithContext(ctx).Where("trade_id = ?", trade.Id).Find(&targetLots).Error; err != nil {
+			return err
+		}
+		if len(targetLots) == 0 {
+			continue
+		}
+		targetLotIDs := make([]uint, len(targetLots))
+		for i, tl := range targetLots {
+			targetLotIDs[i] = tl.Id
+		}
+		// Check for sells (lot disposals)
+		var disposalCount int64
+		if err := tx.WithContext(ctx).Model(&dbLotDisposal{}).
+			Where("lot_id IN ?", targetLotIDs).
+			Count(&disposalCount).Error; err != nil {
+			return err
+		}
+		if disposalCount > 0 {
+			return ErrValidation("cannot modify vest: some vested shares have been sold")
+		}
+		// Check for transfers or other consumption (Quantity < OriginalQty)
+		for _, tl := range targetLots {
+			if tl.Quantity < tl.OriginalQty-0.0001 {
+				return ErrValidation("cannot modify vest: some vested shares have been used by downstream transactions (transfers or sells)")
+			}
+		}
+	}
+	return nil
+}
+
+// guardTransferHasDownstream blocks deletion/update of a stock transfer when
+// any of the transferred (target) lots have been consumed by downstream
+// operations: sells (lot disposals) or further transfers (Quantity < OriginalQty).
+func (store *Store) guardTransferHasDownstream(ctx context.Context, tx *gorm.DB, transactionID uint) error {
+	var trades []dbTrade
+	if err := tx.WithContext(ctx).Where("transaction_id = ?", transactionID).Find(&trades).Error; err != nil {
+		return err
+	}
+	for _, trade := range trades {
+		if trade.TradeType != TransferInTrade {
+			continue
+		}
+		var targetLots []dbLot
+		if err := tx.WithContext(ctx).Where("trade_id = ?", trade.Id).Find(&targetLots).Error; err != nil {
+			return err
+		}
+		for _, tl := range targetLots {
+			if tl.Quantity < tl.OriginalQty-0.0001 {
+				return ErrValidation("cannot modify transfer: some transferred shares have been used by downstream transactions")
+			}
+		}
+		if len(targetLots) == 0 {
+			continue
+		}
+		targetLotIDs := make([]uint, len(targetLots))
+		for i, tl := range targetLots {
+			targetLotIDs[i] = tl.Id
+		}
+		var disposalCount int64
+		if err := tx.WithContext(ctx).Model(&dbLotDisposal{}).
+			Where("lot_id IN ?", targetLotIDs).
+			Count(&disposalCount).Error; err != nil {
+			return err
+		}
+		if disposalCount > 0 {
+			return ErrValidation("cannot modify transfer: some transferred shares have been sold")
+		}
+	}
+	return nil
+}
+
+// restoreSourceLots adds back quantities from target lots (created by a TransferInTrade)
+// to the original source lots in FIFO order.
+func restoreSourceLots(ctx context.Context, dbTx *gorm.DB, inTradeID, sourceAccountID, instrumentID uint) error {
+	var targetLots []dbLot
+	if err := dbTx.WithContext(ctx).Where("trade_id = ?", inTradeID).Find(&targetLots).Error; err != nil {
+		return err
+	}
+	restoreQty := 0.0
+	for _, tl := range targetLots {
+		restoreQty += tl.Quantity
+	}
+	if restoreQty <= 0 {
+		return nil
+	}
+	var srcLots []dbLot
+	if err := dbTx.WithContext(ctx).
+		Where("account_id = ? AND instrument_id = ?", sourceAccountID, instrumentID).
+		Order("open_date ASC, id ASC").
+		Find(&srcLots).Error; err != nil {
+		return err
+	}
+	remaining := restoreQty
+	for i := range srcLots {
+		if remaining <= 0 {
+			break
+		}
+		lot := &srcLots[i]
+		addBack := math.Min(remaining, lot.OriginalQty-lot.Quantity)
+		if addBack <= 0 {
+			continue
+		}
+		lot.Quantity += addBack
+		lot.CostBasis = roundMoney(lot.Quantity * lot.CostPerShare)
+		lot.ClosedDate = nil
+		if lot.Quantity >= lot.OriginalQty {
+			lot.Status = LotOpen
+		} else {
+			lot.Status = LotPartial
+		}
+		if err := dbTx.WithContext(ctx).Save(lot).Error; err != nil {
+			return fmt.Errorf("failed to restore source lot: %w", err)
+		}
+		remaining -= addBack
+	}
+	return nil
+}
+
+// restoreTransferSourceLots loads the trades for the given transaction and restores
+// source lots consumed by a transfer-in trade.
+func (store *Store) restoreTransferSourceLots(ctx context.Context, tx *gorm.DB, txID uint) error {
+	var trades []dbTrade
+	if err := tx.WithContext(ctx).Where("transaction_id = ?", txID).Find(&trades).Error; err != nil {
+		return err
+	}
+	inTrade := findInTrade(trades)
+	outTrade := findOutTrade(trades)
+	if inTrade != nil && outTrade != nil {
+		return restoreSourceLots(ctx, tx, inTrade.Id, outTrade.AccountID, outTrade.InstrumentID)
+	}
+	return nil
+}
+
+// findInTrade finds the TransferInTrade from a slice of trades.
+func findInTrade(trades []dbTrade) *dbTrade {
+	for i := range trades {
+		if trades[i].TradeType == TransferInTrade {
+			return &trades[i]
+		}
+	}
+	return nil
+}
+
+// findOutTrade finds the TransferOutTrade from a slice of trades.
+func findOutTrade(trades []dbTrade) *dbTrade {
+	for i := range trades {
+		if trades[i].TradeType == TransferOutTrade {
+			return &trades[i]
+		}
+	}
+	return nil
+}
+
+// reconstructLotSelectionsFIFO builds lot selections from available source lots using FIFO order.
+func reconstructLotSelectionsFIFO(ctx context.Context, dbTx *gorm.DB, accountID, instrumentID uint, totalQty float64) ([]LotSelection, error) {
+	var srcLots []dbLot
+	if err := dbTx.WithContext(ctx).
+		Where("account_id = ? AND instrument_id = ? AND status IN ?",
+			accountID, instrumentID, []LotStatus{LotOpen, LotPartial}).
+		Order("open_date ASC, id ASC").
+		Find(&srcLots).Error; err != nil {
+		return nil, err
+	}
+	var selections []LotSelection
+	rem := totalQty
+	for _, sl := range srcLots {
+		if rem <= 0 {
+			break
+		}
+		take := math.Min(sl.Quantity, rem)
+		selections = append(selections, LotSelection{LotID: sl.Id, Quantity: take})
+		rem -= take
+	}
+	return selections, nil
+}
+
+// populateLotSelectionsFromDisposals loads lot selections from stored disposals for a
+// given trade type on a transaction.
+func (store *Store) populateLotSelectionsFromDisposals(ctx context.Context, trades []dbTrade, tradeType TradeType) []LotSelection {
+	for _, t := range trades {
+		if t.TradeType == tradeType {
+			var disposals []dbLotDisposal
+			if dbErr := store.db.WithContext(ctx).Where("sell_trade_id = ?", t.Id).Find(&disposals).Error; dbErr == nil && len(disposals) > 0 {
+				selections := make([]LotSelection, 0, len(disposals))
+				for _, d := range disposals {
+					selections = append(selections, LotSelection{LotID: d.LotID, Quantity: d.Quantity})
+				}
+				return selections
+			}
+			break
+		}
+	}
+	return nil
+}
+
+// guardBeforeDelete applies the appropriate guard checks before deleting a transaction,
+// based on the transaction type.
+func (store *Store) guardBeforeDelete(ctx context.Context, tx *gorm.DB, txType TxType, id uint) error {
+	switch txType {
+	case StockGrantTransaction:
+		return store.guardGrantHasDownstream(ctx, tx, id)
+	case StockVestTransaction:
+		return store.guardVestHasDownstream(ctx, tx, id)
+	case StockTransferTransaction:
+		return store.guardTransferHasDownstream(ctx, tx, id)
+	}
+	return nil
+}
+
 func (store *Store) DeleteTransaction(ctx context.Context, Id uint) error {
 	return store.db.Transaction(func(tx *gorm.DB) error {
+		var dbTx dbTransaction
+		if err := tx.WithContext(ctx).Where("id = ?", Id).First(&dbTx).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrTransactionNotFound
+			}
+			return err
+		}
+
+		// Guard: block deletion if downstream operations depend on this transaction's lots.
+		if err := store.guardBeforeDelete(ctx, tx, dbTx.Type, Id); err != nil {
+			return err
+		}
+
+		// For vest and transfer transactions, restore source lots before deleting trades.
+		// The generic deleteTrade does not handle TransferOut/In lot restoration,
+		// so we must do it explicitly here.
+		if dbTx.Type == StockVestTransaction || dbTx.Type == StockTransferTransaction {
+			if err := store.restoreTransferSourceLots(ctx, tx, Id); err != nil {
+				return err
+			}
+		}
+
 		// Delete trades (and cascading lots/disposals/positions) for stock transactions
 		if err := store.deleteTradesByTransactionID(ctx, tx, Id); err != nil {
 			return err
@@ -1409,6 +1947,31 @@ type StockTransferUpdate struct {
 	txUpdate
 }
 
+type StockVestUpdate struct {
+	Description     *string
+	Notes           *string
+	Date            *time.Time
+	InstrumentID    *uint
+	VestingPrice    *float64
+	CategoryID      *uint
+	SourceAccountID *uint
+	TargetAccountID *uint
+	LotSelections   []LotSelection
+
+	txUpdate
+}
+
+type StockForfeitUpdate struct {
+	Description   *string
+	Notes         *string
+	Date          *time.Time
+	AccountID     *uint
+	InstrumentID  *uint
+	LotSelections []LotSelection
+
+	txUpdate
+}
+
 type BalanceStatusUpdate struct {
 	Description *string
 	Notes       *string
@@ -1437,6 +2000,10 @@ func (store *Store) UpdateTransaction(ctx context.Context, input TransactionUpda
 		return store.UpdateStockGrant(ctx, item, Id)
 	case StockTransferUpdate:
 		return store.UpdateStockTransfer(ctx, item, Id)
+	case StockVestUpdate:
+		return store.UpdateStockVest(ctx, item, Id)
+	case StockForfeitUpdate:
+		return store.UpdateStockForfeit(ctx, item, Id)
 	case BalanceStatusUpdate:
 		return store.UpdateBalanceStatus(ctx, item, Id)
 	default:
@@ -2169,6 +2736,11 @@ func (store *Store) UpdateStockGrant(ctx context.Context, input StockGrantUpdate
 
 	// Delete and recreate trades/lots
 	return store.db.WithContext(ctx).Transaction(func(dbTx *gorm.DB) error {
+		// Guard: block update if lots have been consumed by downstream operations
+		if err := store.guardGrantHasDownstream(ctx, dbTx, id); err != nil {
+			return err
+		}
+
 		if err := store.deleteTradesByTransactionID(ctx, dbTx, id); err != nil {
 			return err
 		}
@@ -2262,6 +2834,37 @@ func (store *Store) mergeStockTransferFields(ctx context.Context, transfer *Stoc
 	return nil
 }
 
+func (store *Store) mergeStockVestFields(ctx context.Context, existing *StockVest, input StockVestUpdate) error {
+	if input.Description != nil {
+		existing.Description = *input.Description
+	}
+	if input.Notes != nil {
+		existing.Notes = *input.Notes
+	}
+	if input.Date != nil {
+		existing.Date = *input.Date
+	}
+	if input.InstrumentID != nil {
+		existing.InstrumentID = *input.InstrumentID
+	}
+	if input.VestingPrice != nil {
+		existing.VestingPrice = *input.VestingPrice
+	}
+	if input.CategoryID != nil {
+		existing.CategoryID = *input.CategoryID
+	}
+	if input.SourceAccountID != nil {
+		existing.SourceAccountID = *input.SourceAccountID
+	}
+	if input.TargetAccountID != nil {
+		existing.TargetAccountID = *input.TargetAccountID
+	}
+	if input.LotSelections != nil {
+		existing.LotSelections = input.LotSelections
+	}
+	return nil
+}
+
 func (store *Store) UpdateStockTransfer(ctx context.Context, input StockTransferUpdate, id uint) error {
 	existing, err := store.GetTransaction(ctx, id)
 	if err != nil {
@@ -2272,12 +2875,33 @@ func (store *Store) UpdateStockTransfer(ctx context.Context, input StockTransfer
 		return ErrTransactionNotFound
 	}
 
+	// Remember old account/instrument IDs for proper lot restoration and position updates
+	oldSourceAccountID := transfer.SourceAccountID
+	oldTargetAccountID := transfer.TargetAccountID
+	oldInstrumentID := transfer.InstrumentID
+
 	if err := store.mergeStockTransferFields(ctx, &transfer, input); err != nil {
 		return err
 	}
 
 	// Delete and recreate
 	return store.db.WithContext(ctx).Transaction(func(dbTx *gorm.DB) error {
+		// Guard: block update if transferred lots have been consumed downstream
+		if err := store.guardTransferHasDownstream(ctx, dbTx, id); err != nil {
+			return err
+		}
+
+		// Restore source lots before deleting trades
+		var trades []dbTrade
+		if err := dbTx.WithContext(ctx).Where("transaction_id = ?", id).Find(&trades).Error; err != nil {
+			return err
+		}
+		if oldInTrade := findInTrade(trades); oldInTrade != nil {
+			if err := restoreSourceLots(ctx, dbTx, oldInTrade.Id, oldSourceAccountID, oldInstrumentID); err != nil {
+				return err
+			}
+		}
+
 		if err := store.deleteTradesByTransactionID(ctx, dbTx, id); err != nil {
 			return err
 		}
@@ -2320,11 +2944,402 @@ func (store *Store) UpdateStockTransfer(ctx context.Context, input StockTransfer
 			return err
 		}
 
-		// Update positions
-		if err := store.updatePosition(ctx, dbTx, transfer.SourceAccountID, transfer.InstrumentID); err != nil {
+		// Update positions for both new and old accounts/instruments
+		return store.updateTransferPositions(ctx, dbTx,
+			transfer.SourceAccountID, transfer.TargetAccountID, transfer.InstrumentID,
+			oldSourceAccountID, oldTargetAccountID, oldInstrumentID)
+	})
+}
+
+func (store *Store) UpdateStockVest(ctx context.Context, input StockVestUpdate, id uint) error {
+	existing, err := store.GetTransaction(ctx, id)
+	if err != nil {
+		return err
+	}
+	vest, ok := existing.(StockVest)
+	if !ok {
+		return ErrTransactionNotFound
+	}
+
+	// Remember old account/instrument IDs for proper lot restoration and position updates
+	oldSourceAccountID := vest.SourceAccountID
+	oldTargetAccountID := vest.TargetAccountID
+	oldInstrumentID := vest.InstrumentID
+
+	if err := store.mergeStockVestFields(ctx, &vest, input); err != nil {
+		return err
+	}
+
+	if err := store.validateStockVestFields(ctx, vest); err != nil {
+		return err
+	}
+
+	return store.db.WithContext(ctx).Transaction(func(dbTx *gorm.DB) error {
+		// Guard: block update if vested lots have been consumed downstream
+		if err := store.guardVestHasDownstream(ctx, dbTx, id); err != nil {
 			return err
 		}
-		return store.updatePosition(ctx, dbTx, transfer.TargetAccountID, transfer.InstrumentID)
+
+		// Find existing trades so we can restore source lots before deletion.
+		var trades []dbTrade
+		if err := dbTx.WithContext(ctx).Where("transaction_id = ?", id).Find(&trades).Error; err != nil {
+			return err
+		}
+		oldInTrade := findInTrade(trades)
+
+		// Restore source lots using the OLD source account and instrument,
+		// since those are the lots that were originally consumed.
+		if oldInTrade != nil {
+			if err := restoreSourceLots(ctx, dbTx, oldInTrade.Id, oldSourceAccountID, oldInstrumentID); err != nil {
+				return err
+			}
+		}
+
+		// If LotSelections were not provided in the update, reconstruct from source lots (FIFO).
+		if len(vest.LotSelections) == 0 && oldInTrade != nil {
+			selections, err := reconstructLotSelectionsFIFO(ctx, dbTx, vest.SourceAccountID, vest.InstrumentID, oldInTrade.Quantity)
+			if err != nil {
+				return err
+			}
+			vest.LotSelections = selections
+		}
+
+		totalQuantity := 0.0
+		for _, sel := range vest.LotSelections {
+			totalQuantity += sel.Quantity
+		}
+
+		// Delete existing trades, lots, and entries
+		if err := store.deleteTradesByTransactionID(ctx, dbTx, id); err != nil {
+			return err
+		}
+		if err := dbTx.Where("transaction_id = ?", id).Delete(&dbEntry{}).Error; err != nil {
+			return err
+		}
+
+		// Update transaction fields
+		if err := dbTx.Model(&dbTransaction{}).Where("id = ?", id).Updates(map[string]interface{}{
+			"description": vest.Description,
+			"notes":       vest.Notes,
+			"date":        vest.Date,
+		}).Error; err != nil {
+			return err
+		}
+
+		// Recreate income entry
+		incomeAmount := roundMoney(vest.VestingPrice * totalQuantity)
+		entry := dbEntry{
+			TransactionID: id,
+			AccountID:     vest.TargetAccountID,
+			Amount:        incomeAmount,
+			EntryType:     stockVestIncomeEntry,
+			CategoryID:    vest.CategoryID,
+		}
+		if err := dbTx.Create(&entry).Error; err != nil {
+			return err
+		}
+
+		// Recreate trades
+		outTrade := dbTrade{
+			TransactionID: id, AccountID: vest.SourceAccountID,
+			InstrumentID: vest.InstrumentID, TradeType: TransferOutTrade,
+			Quantity: totalQuantity, Date: vest.Date,
+		}
+		if err := dbTx.Create(&outTrade).Error; err != nil {
+			return err
+		}
+		inTrade := dbTrade{
+			TransactionID: id, AccountID: vest.TargetAccountID,
+			InstrumentID: vest.InstrumentID, TradeType: TransferInTrade,
+			Quantity: totalQuantity, PricePerShare: vest.VestingPrice, Date: vest.Date,
+		}
+		if err := dbTx.Create(&inTrade).Error; err != nil {
+			return err
+		}
+
+		if err := store.vestLots(ctx, dbTx, vest.LotSelections, vest.VestingPrice, vest.Date, inTrade.Id, vest.SourceAccountID, vest.TargetAccountID, vest.InstrumentID); err != nil {
+			return err
+		}
+
+		// Update positions for both old and new accounts/instruments
+		return store.updateTransferPositions(ctx, dbTx,
+			vest.SourceAccountID, vest.TargetAccountID, vest.InstrumentID,
+			oldSourceAccountID, oldTargetAccountID, oldInstrumentID)
+	})
+}
+
+// updateTransferPositions updates positions for the current and old source/target accounts.
+func (store *Store) updateTransferPositions(ctx context.Context, dbTx *gorm.DB,
+	srcAccountID, tgtAccountID, instrumentID uint,
+	oldSrcAccountID, oldTgtAccountID, oldInstrumentID uint,
+) error {
+	if err := store.updatePosition(ctx, dbTx, srcAccountID, instrumentID); err != nil {
+		return err
+	}
+	if err := store.updatePosition(ctx, dbTx, tgtAccountID, instrumentID); err != nil {
+		return err
+	}
+	if oldSrcAccountID != srcAccountID || oldInstrumentID != instrumentID {
+		if err := store.updatePosition(ctx, dbTx, oldSrcAccountID, oldInstrumentID); err != nil {
+			return err
+		}
+	}
+	if oldTgtAccountID != tgtAccountID || oldInstrumentID != instrumentID {
+		if err := store.updatePosition(ctx, dbTx, oldTgtAccountID, oldInstrumentID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validateStockForfeit validates all inputs for a stock forfeit transaction.
+func (store *Store) validateStockForfeit(ctx context.Context, item StockForfeit) error {
+	if item.AccountID == 0 {
+		return ErrValidation("account is required")
+	}
+	if item.InstrumentID == 0 {
+		return ErrValidation("instrument is required")
+	}
+	if len(item.LotSelections) == 0 {
+		return ErrValidation("lot selections are required")
+	}
+	if item.Description == "" {
+		return NewValidationErr("description cannot be empty")
+	}
+	if item.Date.IsZero() {
+		return NewValidationErr("date cannot be zero")
+	}
+
+	acc, err := store.GetAccount(ctx, item.AccountID)
+	if err != nil {
+		return fmt.Errorf("error validating stock forfeit: %w", err)
+	}
+	if acc.Type != UnvestedAccountType {
+		return ErrValidation("account must be an unvested account")
+	}
+
+	return nil
+}
+
+// validateStockForfeitFields validates all StockForfeit fields except LotSelections.
+// Used by UpdateStockForfeit where lot selections are reconstructed later if not provided.
+func (store *Store) validateStockForfeitFields(ctx context.Context, item StockForfeit) error {
+	if item.AccountID == 0 {
+		return ErrValidation("account is required")
+	}
+	if item.InstrumentID == 0 {
+		return ErrValidation("instrument is required")
+	}
+	if item.Description == "" {
+		return NewValidationErr("description cannot be empty")
+	}
+	if item.Date.IsZero() {
+		return NewValidationErr("date cannot be zero")
+	}
+
+	acc, err := store.GetAccount(ctx, item.AccountID)
+	if err != nil {
+		return fmt.Errorf("error validating stock forfeit: %w", err)
+	}
+	if acc.Type != UnvestedAccountType {
+		return ErrValidation("account must be an unvested account")
+	}
+
+	return nil
+}
+
+func (store *Store) CreateStockForfeit(ctx context.Context, item StockForfeit) (uint, error) {
+	if err := store.validateStockForfeit(ctx, item); err != nil {
+		return 0, err
+	}
+
+	totalQuantity := 0.0
+	for _, sel := range item.LotSelections {
+		totalQuantity += sel.Quantity
+	}
+
+	if totalQuantity <= 0 {
+		return 0, ErrValidation("total forfeit quantity must be greater than 0")
+	}
+
+	tx := dbTransaction{
+		Description: item.Description,
+		Notes:       item.Notes,
+		Date:        item.Date,
+		Type:        StockForfeitTransaction,
+	}
+
+	var txID uint
+	err := store.db.WithContext(ctx).Transaction(func(dbTx *gorm.DB) error {
+		if err := dbTx.Create(&tx).Error; err != nil {
+			return err
+		}
+		txID = tx.Id
+
+		// Create a single forfeit trade
+		trade := dbTrade{
+			TransactionID: tx.Id,
+			AccountID:     item.AccountID,
+			InstrumentID:  item.InstrumentID,
+			TradeType:     ForfeitTrade,
+			Quantity:      totalQuantity,
+			Date:          item.Date,
+		}
+		if err := dbTx.Create(&trade).Error; err != nil {
+			return err
+		}
+
+		// Forfeit lots: close/reduce source lots
+		if err := store.forfeitLots(ctx, dbTx, item.LotSelections, item.Date, trade.Id, item.AccountID, item.InstrumentID); err != nil {
+			return err
+		}
+
+		// Update position
+		return store.updatePosition(ctx, dbTx, item.AccountID, item.InstrumentID)
+	})
+	if err != nil {
+		return 0, err
+	}
+	return txID, nil
+}
+
+func stockForfeitFromDb(in dbTransaction) (Transaction, error) {
+	var trade *dbTrade
+	for i := range in.Trades {
+		if in.Trades[i].TradeType == ForfeitTrade {
+			trade = &in.Trades[i]
+			break
+		}
+	}
+	if trade == nil {
+		return nil, fmt.Errorf("stock forfeit transaction must have a forfeit trade")
+	}
+	return StockForfeit{
+		Id:           in.Id,
+		Description:  in.Description,
+		Notes:        in.Notes,
+		Date:         in.Date,
+		AccountID:    trade.AccountID,
+		InstrumentID: trade.InstrumentID,
+		Quantity:     trade.Quantity,
+		AttachmentID: in.AttachmentID,
+	}, nil
+}
+
+func (store *Store) mergeStockForfeitFields(ctx context.Context, existing *StockForfeit, input StockForfeitUpdate) error {
+	if input.Description != nil {
+		existing.Description = *input.Description
+	}
+	if input.Notes != nil {
+		existing.Notes = *input.Notes
+	}
+	if input.Date != nil {
+		existing.Date = *input.Date
+	}
+	if input.AccountID != nil {
+		existing.AccountID = *input.AccountID
+	}
+	if input.InstrumentID != nil {
+		existing.InstrumentID = *input.InstrumentID
+	}
+	if input.LotSelections != nil {
+		existing.LotSelections = input.LotSelections
+	}
+	return nil
+}
+
+func (store *Store) UpdateStockForfeit(ctx context.Context, input StockForfeitUpdate, id uint) error {
+	existing, err := store.GetTransaction(ctx, id)
+	if err != nil {
+		return err
+	}
+	forfeit, ok := existing.(StockForfeit)
+	if !ok {
+		return ErrTransactionNotFound
+	}
+
+	// Remember old account/instrument IDs for position updates
+	oldAccountID := forfeit.AccountID
+	oldInstrumentID := forfeit.InstrumentID
+
+	if err := store.mergeStockForfeitFields(ctx, &forfeit, input); err != nil {
+		return err
+	}
+
+	if err := store.validateStockForfeitFields(ctx, forfeit); err != nil {
+		return err
+	}
+
+	return store.db.WithContext(ctx).Transaction(func(dbTx *gorm.DB) error {
+		// Remember old forfeit trade quantity for FIFO reconstruction
+		var trades []dbTrade
+		if err := dbTx.WithContext(ctx).Where("transaction_id = ?", id).Find(&trades).Error; err != nil {
+			return err
+		}
+		var oldForfeitQty float64
+		for i := range trades {
+			if trades[i].TradeType == ForfeitTrade {
+				oldForfeitQty = trades[i].Quantity
+			}
+		}
+
+		// Delete existing trades (this also restores forfeited lots via deleteTrade)
+		if err := store.deleteTradesByTransactionID(ctx, dbTx, id); err != nil {
+			return err
+		}
+
+		// If LotSelections were not provided in the update, reconstruct from source lots (FIFO).
+		// Lots have been restored at this point by deleteTradesByTransactionID.
+		if len(forfeit.LotSelections) == 0 && oldForfeitQty > 0 {
+			selections, err := reconstructLotSelectionsFIFO(ctx, dbTx, forfeit.AccountID, forfeit.InstrumentID, oldForfeitQty)
+			if err != nil {
+				return err
+			}
+			forfeit.LotSelections = selections
+		}
+
+		totalQuantity := 0.0
+		for _, sel := range forfeit.LotSelections {
+			totalQuantity += sel.Quantity
+		}
+
+		// Update transaction fields
+		if err := dbTx.Model(&dbTransaction{}).Where("id = ?", id).Updates(map[string]interface{}{
+			"description": forfeit.Description,
+			"notes":       forfeit.Notes,
+			"date":        forfeit.Date,
+		}).Error; err != nil {
+			return err
+		}
+
+		// Recreate forfeit trade
+		trade := dbTrade{
+			TransactionID: id,
+			AccountID:     forfeit.AccountID,
+			InstrumentID:  forfeit.InstrumentID,
+			TradeType:     ForfeitTrade,
+			Quantity:      totalQuantity,
+			Date:          forfeit.Date,
+		}
+		if err := dbTx.Create(&trade).Error; err != nil {
+			return err
+		}
+
+		if err := store.forfeitLots(ctx, dbTx, forfeit.LotSelections, forfeit.Date, trade.Id, forfeit.AccountID, forfeit.InstrumentID); err != nil {
+			return err
+		}
+
+		// Update position
+		if err := store.updatePosition(ctx, dbTx, forfeit.AccountID, forfeit.InstrumentID); err != nil {
+			return err
+		}
+		// If account or instrument changed, also update old position
+		if oldAccountID != forfeit.AccountID || oldInstrumentID != forfeit.InstrumentID {
+			if err := store.updatePosition(ctx, dbTx, oldAccountID, oldInstrumentID); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 
@@ -2388,6 +3403,16 @@ type intermediate struct {
 	TradeTransferQuantity     float64
 
 	BalanceStatusAmount float64
+
+	// Stock vest fields
+	VestingPrice     float64
+	VestCategoryId   uint
+	VestIncomeAmount float64
+
+	// Stock forfeit fields
+	ForfeitAccountId    uint
+	ForfeitInstrumentId uint
+	ForfeitQuantity     float64
 }
 
 func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Transaction, int64, error) {
@@ -2444,6 +3469,16 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
         CAST(MAX(CASE WHEN db_trades.trade_type = 5 THEN db_trades.account_id END) AS INTEGER) AS trade_transfer_target_id,
         CAST(MAX(CASE WHEN db_trades.trade_type IN (4, 5) THEN db_trades.instrument_id END) AS INTEGER) AS trade_transfer_instrument_id,
         CAST(MAX(CASE WHEN db_trades.trade_type IN (4, 5) THEN db_trades.quantity END) AS REAL) AS trade_transfer_quantity,
+
+        -- stock vest
+        COALESCE(MAX(CASE WHEN db_trades.trade_type = 5 THEN db_trades.price_per_share END), 0) AS vesting_price,
+        COALESCE(CAST(MAX(CASE WHEN db_entries.entry_type = 13 THEN db_entries.category_id END) AS INTEGER), 0) AS vest_category_id,
+        COALESCE(MAX(CASE WHEN db_entries.entry_type = 13 THEN db_entries.amount END), 0) AS vest_income_amount,
+
+        -- stock forfeit (trade_type = 6)
+        CAST(MAX(CASE WHEN db_trades.trade_type = 6 THEN db_trades.account_id END) AS INTEGER) AS forfeit_account_id,
+        CAST(MAX(CASE WHEN db_trades.trade_type = 6 THEN db_trades.instrument_id END) AS INTEGER) AS forfeit_instrument_id,
+        CAST(MAX(CASE WHEN db_trades.trade_type = 6 THEN db_trades.quantity END) AS REAL) AS forfeit_quantity,
 
         -- balance status
         CAST(SUM(CASE WHEN db_entries.entry_type = 12 THEN db_entries.amount ELSE 0 END) AS REAL) AS balance_status_amount
@@ -2517,7 +3552,7 @@ func applyListFilters(db *gorm.DB, startDate, endDate time.Time, opts ListOpts) 
 			"EXISTS (SELECT 1 FROM db_entries AS ce WHERE ce.transaction_id = db_transactions.id AND ce.category_id IN (?))",
 			opts.CategoryIds)
 		if len(opts.Types) == 0 {
-			db = db.Where("db_transactions.type IN (?)", []TxType{IncomeTransaction, ExpenseTransaction})
+			db = db.Where("db_transactions.type IN (?)", []TxType{IncomeTransaction, ExpenseTransaction, StockVestTransaction})
 		}
 	}
 	if opts.HasAttachment != nil && *opts.HasAttachment {
@@ -2588,6 +3623,24 @@ func intermediateToTransaction(item intermediate) Transaction {
 			TargetAccountID: item.TradeTransferTargetId,
 			InstrumentID: item.TradeTransferInstrumentId,
 			Quantity: item.TradeTransferQuantity, AttachmentID: item.AttachmentID,
+		}
+	case StockVestTransaction:
+		return StockVest{
+			Id: item.TransactionId, Description: item.Description, Notes: item.Notes,
+			Date: item.Date, SourceAccountID: item.TradeTransferSourceId,
+			TargetAccountID: item.TradeTransferTargetId,
+			InstrumentID: item.TradeTransferInstrumentId,
+			Quantity: item.TradeTransferQuantity,
+			VestingPrice: item.VestingPrice, CategoryID: item.VestCategoryId,
+			AttachmentID: item.AttachmentID,
+		}
+	case StockForfeitTransaction:
+		return StockForfeit{
+			Id: item.TransactionId, Description: item.Description, Notes: item.Notes,
+			Date: item.Date, AccountID: item.ForfeitAccountId,
+			InstrumentID: item.ForfeitInstrumentId,
+			Quantity: item.ForfeitQuantity,
+			AttachmentID: item.AttachmentID,
 		}
 	case BalanceStatusTransaction:
 		return BalanceStatus{

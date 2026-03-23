@@ -56,7 +56,7 @@ func (store *Store) getCategoryReport(ctx context.Context, startDate, endDate ti
 	if err != nil {
 		return nil, err
 	}
-	entrytype := mustCategory2Entry(catType)
+	entryTypes := mustCategory2EntryTypes(catType)
 	reportItems := make([]CategoryReportItem, len(categories)+1)
 
 	accounts, err := store.ListAccounts(ctx)
@@ -75,7 +75,7 @@ func (store *Store) getCategoryReport(ctx context.Context, startDate, endDate ti
 				endDate:     endDate,
 				categoryIds: item.childrenIds,
 				accountIds:  accountIds,
-				entryTypes:  []entryType{entrytype},
+				entryTypes:  entryTypes,
 			}
 			sum, err := store.sumEntries(ctx, opts)
 			if err != nil {
@@ -109,7 +109,7 @@ func (store *Store) getCategoryReport(ctx context.Context, startDate, endDate ti
 			endDate:     endDate,
 			categoryIds: []uint{0},
 			accountIds:  accountIds,
-			entryTypes:  []entryType{entrytype},
+			entryTypes:  entryTypes,
 		}
 		sum, err := store.sumEntries(ctx, opts)
 		if err != nil {
@@ -134,19 +134,17 @@ func (store *Store) getCategoryReport(ctx context.Context, startDate, endDate ti
 	return reportItems, nil
 }
 
-// mustCategory2Entry is an internal functino to convert category tipes into entry types
-// note that it will panic on wong category type
-func mustCategory2Entry(catType CategoryType) entryType {
-	var entrytype entryType
+// mustCategory2EntryTypes is an internal function to convert category types into entry types
+// note that it will panic on wrong category type
+func mustCategory2EntryTypes(catType CategoryType) []entryType {
 	switch catType {
 	case IncomeCategory:
-		entrytype = incomeEntry
+		return []entryType{incomeEntry, stockVestIncomeEntry}
 	case ExpenseCategory:
-		entrytype = expenseEntry
+		return []entryType{expenseEntry}
 	default:
 		panic("wrong category type")
 	}
-	return entrytype
 }
 
 // getAccountIdsCurrencyMap takes a list of accounts and organizes them per currency

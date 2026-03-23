@@ -23,6 +23,7 @@ const (
 	GrantTrade       TradeType = 3
 	TransferOutTrade TradeType = 4
 	TransferInTrade  TradeType = 5
+	ForfeitTrade     TradeType = 6
 )
 
 // dbTrade records a single stock operation (buy, sell, or grant).
@@ -196,9 +197,9 @@ func (store *Store) deleteTrade(ctx context.Context, tx *gorm.DB, tradeID uint) 
 		return err
 	}
 
-	// For sell trades: restore the quantity back to each lot consumed by this sell
+	// For sell and forfeit trades: restore the quantity back to each lot consumed
 	// before deleting the disposal records.
-	if trade.TradeType == SellTrade {
+	if trade.TradeType == SellTrade || trade.TradeType == ForfeitTrade {
 		if err := restoreSellTradeLots(ctx, tx, tradeID); err != nil {
 			return err
 		}
@@ -563,6 +564,155 @@ func (store *Store) transferLots(ctx context.Context, tx *gorm.DB, sourceAccount
 		}
 
 		remaining -= moveQty
+	}
+
+	return nil
+}
+
+// vestLots moves shares from source lots to a target account, overriding cost basis
+// with the vesting price. Unlike transferLots which preserves cost basis, this function
+// sets the new lot's CostPerShare to vestingPrice and OpenDate to vestDate.
+func (store *Store) vestLots(ctx context.Context, tx *gorm.DB,
+	selections []LotSelection, vestingPrice float64, vestDate time.Time,
+	tradeID, sourceAccountID, targetAccountID, instrumentID uint) error {
+
+	for _, sel := range selections {
+		if sel.Quantity <= 0 {
+			continue
+		}
+
+		var lot dbLot
+		if err := tx.WithContext(ctx).Where("id = ?", sel.LotID).First(&lot).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrValidation(fmt.Sprintf("lot %d not found", sel.LotID))
+			}
+			return fmt.Errorf("failed to load lot %d: %w", sel.LotID, err)
+		}
+
+		if lot.AccountID != sourceAccountID {
+			return ErrValidation(fmt.Sprintf("lot %d does not belong to the source account", sel.LotID))
+		}
+
+		if lot.InstrumentID != instrumentID {
+			return ErrValidation(fmt.Sprintf("lot %d instrument does not match the vest instrument", sel.LotID))
+		}
+
+		if lot.Status == LotClosed {
+			return ErrValidation(fmt.Sprintf("lot %d is already closed", lot.Id))
+		}
+		if sel.Quantity > lot.Quantity+0.0001 {
+			return ErrValidation(fmt.Sprintf(
+				"lot %d has only %.4f shares available, requested %.4f",
+				lot.Id, lot.Quantity, sel.Quantity))
+		}
+
+		// Reduce source lot
+		lot.Quantity -= sel.Quantity
+		if lot.Quantity <= 0 {
+			lot.Quantity = 0
+			lot.Status = LotClosed
+			lot.ClosedDate = &vestDate
+		} else {
+			lot.Status = LotPartial
+		}
+		lot.CostBasis = roundMoney(lot.Quantity * lot.CostPerShare)
+		if err := tx.WithContext(ctx).Save(&lot).Error; err != nil {
+			return fmt.Errorf("failed to update source lot: %w", err)
+		}
+
+		// Record which source lot was consumed (reuse dbLotDisposal for traceability).
+		// This allows GetTransaction to reconstruct LotSelections with correct source lot IDs.
+		disposal := dbLotDisposal{
+			LotID:       lot.Id,
+			SellTradeID: tradeID, // reuse field: points to the vest's InTrade
+			Quantity:    sel.Quantity,
+			Date:        vestDate,
+		}
+		if err := tx.WithContext(ctx).Create(&disposal).Error; err != nil {
+			return fmt.Errorf("failed to create vest disposal: %w", err)
+		}
+
+		// Create new lot in target with vesting price as cost basis
+		newLot := dbLot{
+			TradeID:      tradeID,
+			AccountID:    targetAccountID,
+			InstrumentID: instrumentID,
+			OpenDate:     vestDate,
+			Quantity:     sel.Quantity,
+			OriginalQty:  sel.Quantity,
+			CostPerShare: vestingPrice,
+			CostBasis:    roundMoney(sel.Quantity * vestingPrice),
+			Status:       LotOpen,
+		}
+		if err := tx.WithContext(ctx).Create(&newLot).Error; err != nil {
+			return fmt.Errorf("failed to create vested lot: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// forfeitLots closes/reduces source lots for a stock forfeit. Unlike vestLots,
+// no new lots are created (the shares simply disappear). dbLotDisposal records
+// are created so that the operation can be reversed on delete.
+func (store *Store) forfeitLots(ctx context.Context, tx *gorm.DB,
+	selections []LotSelection, forfeitDate time.Time,
+	tradeID, sourceAccountID, instrumentID uint) error {
+
+	for _, sel := range selections {
+		if sel.Quantity <= 0 {
+			continue
+		}
+
+		var lot dbLot
+		if err := tx.WithContext(ctx).Where("id = ?", sel.LotID).First(&lot).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrValidation(fmt.Sprintf("lot %d not found", sel.LotID))
+			}
+			return fmt.Errorf("failed to load lot %d: %w", sel.LotID, err)
+		}
+
+		if lot.AccountID != sourceAccountID {
+			return ErrValidation(fmt.Sprintf("lot %d does not belong to the source account", sel.LotID))
+		}
+
+		if lot.InstrumentID != instrumentID {
+			return ErrValidation(fmt.Sprintf("lot %d instrument does not match the forfeit instrument", sel.LotID))
+		}
+
+		if lot.Status == LotClosed {
+			return ErrValidation(fmt.Sprintf("lot %d is already closed", lot.Id))
+		}
+		if sel.Quantity > lot.Quantity+0.0001 {
+			return ErrValidation(fmt.Sprintf(
+				"lot %d has only %.4f shares available, requested %.4f",
+				lot.Id, lot.Quantity, sel.Quantity))
+		}
+
+		// Reduce source lot
+		lot.Quantity -= sel.Quantity
+		if lot.Quantity <= 0 {
+			lot.Quantity = 0
+			lot.Status = LotClosed
+			lot.ClosedDate = &forfeitDate
+		} else {
+			lot.Status = LotPartial
+		}
+		lot.CostBasis = roundMoney(lot.Quantity * lot.CostPerShare)
+		if err := tx.WithContext(ctx).Save(&lot).Error; err != nil {
+			return fmt.Errorf("failed to update source lot: %w", err)
+		}
+
+		// Record disposal so we can restore on delete
+		disposal := dbLotDisposal{
+			LotID:       lot.Id,
+			SellTradeID: tradeID, // reuse field: points to the forfeit trade
+			Quantity:    sel.Quantity,
+			Date:        forfeitDate,
+		}
+		if err := tx.WithContext(ctx).Create(&disposal).Error; err != nil {
+			return fmt.Errorf("failed to create forfeit disposal: %w", err)
+		}
 	}
 
 	return nil

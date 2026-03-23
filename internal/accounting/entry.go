@@ -22,6 +22,7 @@ const (
 	stockTransferOutEntry
 	stockTransferInEntry
 	balanceStatusEntry
+	stockVestIncomeEntry
 )
 
 type dbEntry struct {

@@ -111,6 +111,7 @@ const getRowClass = (data) => ({
     'stocksell-row': data.type === 'stocksell',
     'stockgrant-row': data.type === 'stockgrant',
     'stocktransfer-row': data.type === 'stocktransfer',
+    'stockforfeit-row': data.type === 'stockforfeit',
     'balancestatus-row': data.type === 'balancestatus'
 })
 
@@ -187,12 +188,15 @@ const openAttachment = (data) => {
                                 <i class="ti ti-arrow-right" style="font-size: 0.9rem; margin: 0 8px" />
                                 {{ getAccountName(data.investmentAccountId) }}
                             </span>
-                            <span v-else-if="data.type === 'stocktransfer'">
+                            <span v-else-if="data.type === 'stocktransfer' || data.type === 'stockvest'">
                                 {{ getAccountName(data.originAccountId) }}
                                 <i class="ti ti-arrow-right" style="font-size: 0.9rem; margin: 0 8px" />
                                 {{ getAccountName(data.targetAccountId) }}
                             </span>
                             <span v-else-if="data.type === 'stockgrant'">
+                                {{ getAccountName(data.accountId) }}
+                            </span>
+                            <span v-else-if="data.type === 'stockforfeit'">
                                 {{ getAccountName(data.accountId) }}
                             </span>
                             <span v-else>—</span>
@@ -223,6 +227,13 @@ const openAttachment = (data) => {
                             </div>
                             <div v-else-if="data.type === 'stocktransfer'" class="amount">
                                 {{ data.quantity ?? 0 }} (transfer)
+                            </div>
+                            <div v-else-if="data.type === 'stockvest'" class="amount amount-positive">
+                                +{{ formatAmount((data.vestingPrice ?? 0) * (data.quantity ?? 0)) }}
+                                {{ getInstrumentCurrency(data.instrumentId) }}
+                            </div>
+                            <div v-else-if="data.type === 'stockforfeit'" class="amount amount-negative">
+                                −{{ data.quantity ?? 0 }} shares
                             </div>
                             <div v-else class="amount">—</div>
                         </template>
@@ -300,12 +311,15 @@ const openAttachment = (data) => {
                                     style="font-size: 0.9rem; margin: 0 8px"
                                 />{{ getAccountName(data.investmentAccountId) }}
                             </span>
-                            <span v-else-if="data.type === 'stocktransfer'">
+                            <span v-else-if="data.type === 'stocktransfer' || data.type === 'stockvest'">
                                 {{ getAccountName(data.originAccountId)
                                 }}<i
                                     class="ti ti-arrow-right"
                                     style="font-size: 0.9rem; margin: 0 8px"
                                 />{{ getAccountName(data.targetAccountId) }}
+                            </span>
+                            <span v-else-if="data.type === 'stockforfeit'">
+                                {{ getAccountName(data.accountId) }}
                             </span>
                             <span v-else-if="data.type === 'balancestatus'">
                                 {{ getAccountName(data.accountId) }}
@@ -372,6 +386,13 @@ const openAttachment = (data) => {
                         </div>
                         <div v-else-if="data.type === 'stocktransfer'" class="amount">
                             {{ data.quantity }} (transfer)
+                        </div>
+                        <div v-else-if="data.type === 'stockvest'" class="amount amount-positive">
+                            +{{ formatAmount((data.vestingPrice ?? 0) * (data.quantity ?? 0)) }}
+                            {{ getInstrumentCurrency(data.instrumentId) }}
+                        </div>
+                        <div v-else-if="data.type === 'stockforfeit'" class="amount amount-negative">
+                            −{{ data.quantity ?? 0 }} shares
                         </div>
                         <div v-else-if="data.type === 'balancestatus'" class="amount balance-status">
                             {{ formatAmount(data.Amount ?? 0) }}
