@@ -80,6 +80,12 @@ Settings:
   # Automatically enabled if the database already contains investment accounts.
   Instruments: false
 
+  # Enable RSU (Restricted Stock Units) features: vest and forfeit operations,
+  # and unvested account type. Automatically enabled if the database already
+  # contains unvested accounts or vest/forfeit transactions.
+  # Enabling RSU also enables Instruments (required dependency).
+  Rsu: false
+
   # Enable financial simulation tools (portfolio simulator, real-estate simulator, etc.).
   Tools: false
 

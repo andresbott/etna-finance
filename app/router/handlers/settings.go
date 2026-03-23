@@ -10,6 +10,7 @@ type AppSettings struct {
 	MainCurrency        string   `json:"mainCurrency"`
 	Currencies          []string `json:"currencies"`
 	Instruments         bool     `json:"instruments"`
+	Rsu                 bool     `json:"rsu"`
 	Tools               bool     `json:"tools"`
 	MaxAttachmentSizeMB float64  `json:"maxAttachmentSizeMB"`
 	Version             string   `json:"version"`

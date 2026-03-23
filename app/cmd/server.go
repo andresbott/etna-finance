@@ -120,7 +120,10 @@ func runServer(configFile string) error {
 		return err
 	}
 
-	// ——— Instruments config vs DB consistency ———
+	// ——— Instruments and RSU config vs DB consistency ———
+	if err := reconcileRsuSetting(cfg, finStore, l); err != nil {
+		return err
+	}
 	if err := reconcileInstrumentsSetting(cfg, finStore, l); err != nil {
 		return err
 	}
@@ -153,6 +156,7 @@ func runServer(configFile string) error {
 			MainCurrency:        cfg.Settings.MainCurrency,
 			Currencies:          cfg.Settings.AllCurrencies(),
 			Instruments:         cfg.Settings.Instruments,
+			Rsu:                 cfg.Settings.Rsu,
 			Tools:               cfg.Settings.Tools,
 			MaxAttachmentSizeMB: cfg.Settings.MaxAttachmentSizeMB,
 			Version:             metainfo.Version,
@@ -241,8 +245,15 @@ func initStores(db *gorm.DB, cfg AppCfg) (*marketdata.Store, *accounting.Store, 
 	return marketStore, finStore, csvImportStore, attachmentStore, toolsDataStore, nil
 }
 
-// reconcileInstrumentsSetting enables Instruments if the DB contains investment/unvested accounts.
+// reconcileInstrumentsSetting enables Instruments if the DB contains investment/unvested accounts,
+// or if RSU is enabled (RSU requires instruments).
 func reconcileInstrumentsSetting(cfg AppCfg, finStore *accounting.Store, l *slog.Logger) error {
+	if cfg.Settings.Rsu && !cfg.Settings.Instruments {
+		cfg.Settings.Instruments = true
+		l.Warn("config discrepancy: Settings.Rsu is true but Settings.Instruments is false; enabling Instruments (required by RSU)",
+			slog.String("component", "startup"),
+			slog.String("reason", "rsu_requires_instruments"))
+	}
 	ctx := context.Background()
 	accounts, err := finStore.ListAccounts(ctx)
 	if err != nil {
@@ -258,6 +269,45 @@ func reconcileInstrumentsSetting(cfg AppCfg, finStore *accounting.Store, l *slog
 			}
 			break
 		}
+	}
+	return nil
+}
+
+// reconcileRsuSetting enables RSU if the DB contains unvested accounts or vest/forfeit transactions.
+func reconcileRsuSetting(cfg AppCfg, finStore *accounting.Store, l *slog.Logger) error {
+	if cfg.Settings.Rsu {
+		return nil
+	}
+	ctx := context.Background()
+
+	// Check for unvested accounts.
+	accounts, err := finStore.ListAccounts(ctx)
+	if err != nil {
+		return fmt.Errorf("listing accounts at startup: %w", err)
+	}
+	for _, acc := range accounts {
+		if acc.Type == accounting.UnvestedAccountType {
+			cfg.Settings.Rsu = true
+			l.Warn("config discrepancy: Settings.Rsu is false but database contains unvested accounts; enabling Rsu",
+				slog.String("component", "startup"),
+				slog.String("reason", "db_has_unvested_accounts"))
+			return nil
+		}
+	}
+
+	// Check for vest/forfeit transactions.
+	vestTxs, _, err := finStore.ListTransactions(ctx, accounting.ListOpts{
+		Types: []accounting.TxType{accounting.StockVestTransaction, accounting.StockForfeitTransaction},
+		Limit: 1,
+	})
+	if err != nil {
+		return fmt.Errorf("checking vest/forfeit transactions at startup: %w", err)
+	}
+	if len(vestTxs) > 0 {
+		cfg.Settings.Rsu = true
+		l.Warn("config discrepancy: Settings.Rsu is false but database contains vest/forfeit transactions; enabling Rsu",
+			slog.String("component", "startup"),
+			slog.String("reason", "db_has_vest_forfeit_transactions"))
 	}
 	return nil
 }

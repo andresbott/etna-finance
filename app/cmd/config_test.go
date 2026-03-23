@@ -10,6 +10,7 @@ func TestValidateSettings(t *testing.T) {
 		MainCurrency:         "CHF",
 		AdditionalCurrencies: nil,
 		Instruments:          false,
+		Rsu:                  false,
 	}
 
 	tests := []struct {

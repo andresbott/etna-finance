@@ -129,6 +129,7 @@ const allDropdownOptions = [
 ]
 
 const instrumentOperations = ['buyStock', 'sellStock', 'grantStock', 'transferInstrument', 'vestStock', 'forfeitStock']
+const rsuOperations = ['vestStock', 'forfeitStock']
 
 /* Filtered dropdown options based on account type and instrument settings */
 const dropdownOptions = computed(() => {
@@ -137,6 +138,7 @@ const dropdownOptions = computed(() => {
         .filter(option => {
             if (!allowedOps.includes(option.value)) return false
             if (!settings.instruments && instrumentOperations.includes(option.value)) return false
+            if (!settings.rsu && rsuOperations.includes(option.value)) return false
             if (option.value === 'importCsv' && !props.defaultAccountId) return false
             return true
         })
