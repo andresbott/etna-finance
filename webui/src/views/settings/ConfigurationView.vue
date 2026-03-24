@@ -82,12 +82,25 @@ const settings = useSettingsStore()
                         <div class="setting-item">
                             <div class="setting-label">
                                 <i class="ti ti-chart-line mr-2"></i>
-                                <span>Investment Products</span>
+                                <span>Investment Instruments</span>
                             </div>
                             <div class="setting-value">
                                 <Tag
-                                    :value="settings.instruments ? 'Enabled' : 'Disabled'"
-                                    :severity="settings.instruments ? 'success' : 'secondary'"
+                                    :value="settings.investmentInstruments ? 'Enabled' : 'Disabled'"
+                                    :severity="settings.investmentInstruments ? 'success' : 'secondary'"
+                                />
+                            </div>
+                        </div>
+
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <i class="ti ti-gift mr-2"></i>
+                                <span>RSU (Restricted Stock Units)</span>
+                            </div>
+                            <div class="setting-value">
+                                <Tag
+                                    :value="settings.rsu ? 'Enabled' : 'Disabled'"
+                                    :severity="settings.rsu ? 'success' : 'secondary'"
                                 />
                             </div>
                         </div>
@@ -95,12 +108,12 @@ const settings = useSettingsStore()
                         <div class="setting-item">
                             <div class="setting-label">
                                 <i class="ti ti-calculator mr-2"></i>
-                                <span>Financial Tools</span>
+                                <span>Financial Simulator</span>
                             </div>
                             <div class="setting-value">
                                 <Tag
-                                    :value="settings.tools ? 'Enabled' : 'Disabled'"
-                                    :severity="settings.tools ? 'success' : 'secondary'"
+                                    :value="settings.financialSimulator ? 'Enabled' : 'Disabled'"
+                                    :severity="settings.financialSimulator ? 'success' : 'secondary'"
                                 />
                             </div>
                         </div>

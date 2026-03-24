@@ -111,7 +111,7 @@ export function useHoldings() {
                 for (const account of provider.accounts ?? []) {
                     if (
                         account.type !== ACCOUNT_TYPES.INVESTMENT &&
-                        account.type !== ACCOUNT_TYPES.UNVESTED
+                        account.type !== ACCOUNT_TYPES.RESTRICTED_STOCK
                     ) continue
 
                     const accPos = positions.get(account.id)

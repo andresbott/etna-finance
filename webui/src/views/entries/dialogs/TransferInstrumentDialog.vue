@@ -280,8 +280,8 @@ const handleSubmit = async (e) => {
                         <AccountSelector
                             v-model="formValues.OriginAccountId"
                             name="OriginAccountId"
-                            placeholder="Select investment or unvested account"
-                            :accountTypes="['investment']"
+                            placeholder="Select investment or restricted stock account"
+                            :accountTypes="['investment', 'restrictedstock']"
                         />
                         <Message v-if="$form.OriginAccountId?.invalid" severity="error" size="small">
                             {{ $form.OriginAccountId?.error?.message }}
@@ -295,8 +295,8 @@ const handleSubmit = async (e) => {
                         <AccountSelector
                             v-model="formValues.TargetAccountId"
                             name="TargetAccountId"
-                            placeholder="Select investment or unvested account"
-                            :accountTypes="['investment']"
+                            placeholder="Select investment or restricted stock account"
+                            :accountTypes="['investment', 'restrictedstock']"
                         />
                         <Message v-if="$form.TargetAccountId?.invalid" severity="error" size="small">
                             {{ $form.TargetAccountId?.error?.message }}

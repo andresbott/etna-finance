@@ -17,6 +17,7 @@ defineProps({
     dialogs: { type: Object, required: true },
     deleteDialogVisible: { type: Boolean, default: false },
     entryToDelete: { type: Object, default: null },
+    deleteError: { type: String, default: null },
     transformDeleteId: { type: Number, default: null }
 })
 
@@ -177,6 +178,7 @@ const emit = defineEmits(['update:deleteDialogVisible', 'confirmDelete', 'transf
         :visible="deleteDialogVisible"
         :name="entryToDelete?.description"
         message="Are you sure you want to delete this entry?"
+        :error="deleteError"
         @update:visible="emit('update:deleteDialogVisible', $event)"
         @confirm="emit('confirmDelete')"
     />

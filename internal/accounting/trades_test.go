@@ -914,7 +914,7 @@ func setupVestLotsTest(t *testing.T, ctx context.Context, store *Store, mktStore
 	}
 	unvestedID, err = store.CreateAccount(ctx, Account{
 		AccountProviderID: provID, Name: "RSU Unvested",
-		Currency: currency.USD, Type: UnvestedAccountType,
+		Currency: currency.USD, Type: RestrictedStockAccountType,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -1060,7 +1060,7 @@ func TestForfeitLots(t *testing.T) {
 				AccountProviderID: provID,
 				Name:              "RSU Unvested",
 				Currency:          currency.USD,
-				Type:              UnvestedAccountType,
+				Type:              RestrictedStockAccountType,
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -1175,7 +1175,7 @@ func TestVestLots_RejectsCrossAccountLot(t *testing.T) {
 				AccountProviderID: provID,
 				Name:              "Unvested A",
 				Currency:          currency.USD,
-				Type:              UnvestedAccountType,
+				Type:              RestrictedStockAccountType,
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -1184,7 +1184,7 @@ func TestVestLots_RejectsCrossAccountLot(t *testing.T) {
 				AccountProviderID: provID,
 				Name:              "Unvested B",
 				Currency:          currency.USD,
-				Type:              UnvestedAccountType,
+				Type:              RestrictedStockAccountType,
 			})
 			if err != nil {
 				t.Fatal(err)

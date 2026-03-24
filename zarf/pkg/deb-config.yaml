@@ -40,14 +40,15 @@ Settings:
   DateFormat:           "YYYY-MM-DD"  # tokens: YYYY, YY, MM, DD; separators: - / .
   MainCurrency:         "CHF"         # main currency is implicit; do not repeat in AdditionalCurrencies
   AdditionalCurrencies: []             # extra currencies to track, e.g. ["USD", "EUR"]
-  Instruments:          false
-  Tools:                false
+  InvestmentInstruments: false
+  Rsu:                  false
+  FinancialSimulator:   false
   # MaxAttachmentSizeMB: 10   # max file upload size in MB; 0 or omitted = default (10 MB)
   # Alternatives:
   # DateFormat: "DD/MM/YYYY"
   # AdditionalCurrencies: ["USD", "EUR"]
-  # Instruments: true
-  # Tools: true
+  # InvestmentInstruments: true
+  # FinancialSimulator: true
 
 # Market data importers (e.g. Massive). Prefer API keys via .env: ETNA_MARKETDATAIMPORTERS_MASSIVE_APIKEYS_0=key
 # MarketDataImporters:

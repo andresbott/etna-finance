@@ -144,7 +144,7 @@ const dropdownOptions = computed(() => {
     return allDropdownOptions
         .filter(option => {
             if (!allowedOps.includes(option.value)) return false
-            if (!settings.instruments && instrumentOperations.includes(option.value)) return false
+            if (!settings.investmentInstruments && instrumentOperations.includes(option.value)) return false
             if (!settings.rsu && rsuOperations.includes(option.value)) return false
             if (option.value === 'importCsv' && !props.defaultAccountId) return false
             return true

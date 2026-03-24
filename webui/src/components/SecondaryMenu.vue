@@ -35,7 +35,7 @@ const sections = computed(() => {
         { label: 'Account Setup', icon: 'ti ti-wallet', route: '/accounts' },
     ]
 
-    if (settings.instruments) {
+    if (settings.investmentInstruments) {
         appDataItems.push({ label: 'Investment Products', icon: 'ti ti-chart-bar', route: '/instruments' })
     }
 

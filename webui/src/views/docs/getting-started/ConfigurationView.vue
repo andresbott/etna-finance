@@ -77,8 +77,8 @@ import Message from 'primevue/message'
                             <li><code>MainCurrency</code> — Your primary currency as an ISO 4217 code (e.g. <code>EUR</code>, <code>USD</code>). Default: <code>CHF</code>.</li>
                             <li><code>AdditionalCurrencies</code> — A list of extra currencies to track alongside the main one.</li>
                             <li><code>DateFormat</code> — Display format for dates using <code>YYYY</code>, <code>MM</code>, <code>DD</code> tokens separated by <code>-</code>, <code>/</code>, or <code>.</code>. Default: <code>YYYY-MM-DD</code>.</li>
-                            <li><code>Instruments</code> — Enable investment tracking (stocks, ETFs, unvested assets). Default: <code>false</code>.</li>
-                            <li><code>Tools</code> — Enable financial simulation tools. Default: <code>false</code>.</li>
+                            <li><code>InvestmentInstruments</code> — Enable investment tracking (stocks, ETFs, restricted stock assets). Default: <code>false</code>.</li>
+                            <li><code>FinancialSimulator</code> — Enable financial simulator (portfolio simulator, real-estate simulator, etc.). Default: <code>false</code>.</li>
                             <li><code>MaxAttachmentSizeMB</code> — Maximum upload size for attachments in MB. Default: <code>10</code>.</li>
                         </ul>
 

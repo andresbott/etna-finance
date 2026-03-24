@@ -57,7 +57,7 @@ import Message from 'primevue/message'
                             <li><strong>Lent</strong> — Money you have lent to others. This money is still yours, but it is not held in any of your bank or brokerage accounts. Use this to track outstanding loans and repayments.</li>
                         </ul>
 
-                        <h4>Investment accounts: Investment and Unvested</h4>
+                        <h4>Investment accounts: Investment and Restricted stocks</h4>
                         <p>
                             These two account types track investment assets such as stocks, ETFs, or mutual funds.
                             Both work together with
@@ -66,14 +66,14 @@ import Message from 'primevue/message'
                         </p>
                         <ul>
                             <li><strong>Investment</strong> — Vested assets you own and can sell at any time.</li>
-                            <li><strong>Unvested</strong> — Assets promised to you but not yet accessible, such as unvested RSUs (Restricted Stock Units) from an employer grant. Once they vest, they are typically transferred to an Investment account.</li>
+                            <li><strong>Restricted stocks</strong> — Assets promised to you but not yet accessible, such as restricted stock / RSUs (Restricted Stock Units) from an employer grant. Once they vest, they are typically transferred to an Investment account.</li>
                         </ul>
                         <p>
                             See the <router-link to="/docs/guides/handling-rsus">Handling RSUs</router-link> guide
-                            for a detailed walkthrough of the unvested-to-investment workflow.
+                            for a detailed walkthrough of the restricted stock-to-investment workflow.
                         </p>
                         <Message severity="info" :closable="false" icon="ti ti-info-circle">
-                            Unvested assets are not included in financial reports. Only
+                            Restricted stock assets are not included in financial reports. Only
                             once they are transferred to an Investment account do they count towards your portfolio
                             value and performance.
                         </Message>

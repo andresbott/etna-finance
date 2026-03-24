@@ -69,9 +69,9 @@ var Accounts = []Provider{
 			},
 			{
 				Name:        "RSUs",
-				Description: "Unvested restricted stock units",
+				Description: "Restricted stock units",
 				Currency:    "USD",
-				Type:        "unvested",
+				Type:        "restrictedstock",
 			},
 		},
 	},
@@ -128,7 +128,7 @@ type StockEntryDefinition struct {
 var StockEntries = []StockEntryDefinition{
 	// ── RSU grants (no cash impact) ──────────────────────────────────────
 	{
-		Description:        "RSU grant MSFT (unvested)",
+		Description:        "RSU grant MSFT (restricted)",
 		DaysDelta:          -110,
 		Type:               "stockgrant",
 		Instrument:         "MSFT",
@@ -137,7 +137,7 @@ var StockEntries = []StockEntryDefinition{
 		InvestmentAccount:  "RSUs",
 	},
 	{
-		Description:        "RSU grant GOOGL (unvested)",
+		Description:        "RSU grant GOOGL (restricted)",
 		DaysDelta:          -100,
 		Type:               "stockgrant",
 		Instrument:         "GOOGL",
@@ -154,7 +154,7 @@ var StockEntries = []StockEntryDefinition{
 		Type:               "stockbuy",
 		Instrument:         "AAPL",
 		Quantity:           5,
-		TotalAmount:        900.00,  // 5 × $180
+		TotalAmount:        900.00, // 5 × $180
 		StockAmount:        900.00,
 		InvestmentProvider: "Broker",
 		InvestmentAccount:  "Brokerage (USD)",

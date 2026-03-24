@@ -19,7 +19,7 @@ const ACCOUNTS_DOCS_URL = 'https://github.com/andresbott/etna-finance#readme'
 // Composables
 const { accounts, isLoading, deleteAccount, deleteAccountProvider } = useAccounts()
 const settings = useSettingsStore()
-const instrumentAccountTypes = [ACCOUNT_TYPES.INVESTMENT, ACCOUNT_TYPES.UNVESTED]
+const instrumentAccountTypes = [ACCOUNT_TYPES.INVESTMENT, ACCOUNT_TYPES.RESTRICTED_STOCK]
 
 // Reactive State
 const expandedKeys = ref({})
@@ -55,7 +55,7 @@ const treeTableData = computed(() => {
             }
         })) || []
 
-        const children = settings.instruments
+        const children = settings.investmentInstruments
             ? allChildren
             : allChildren.filter(child => !instrumentAccountTypes.includes(child.data.type))
 

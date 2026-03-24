@@ -18,7 +18,7 @@ export function useAccountTypesData() {
     const mainCurrency = computed(() => settingsStore.mainCurrency || 'CHF')
     const { providersWithHoldings } = useHoldings()
 
-    // Map accountId -> totalValue (market value) for investment/unvested accounts
+    // Map accountId -> totalValue (market value) for investment/restricted stock accounts
     const holdingsTotalMap = computed(() => {
         const map = new Map<number, number>()
         for (const provider of providersWithHoldings.value) {
@@ -70,8 +70,8 @@ export function useAccountTypesData() {
             const currency = account.currency || 'CHF'
             let balance: number
 
-            if (type === ACCOUNT_TYPES.INVESTMENT || type === ACCOUNT_TYPES.UNVESTED) {
-                // Use current market value from holdings for investment/unvested accounts
+            if (type === ACCOUNT_TYPES.INVESTMENT || type === ACCOUNT_TYPES.RESTRICTED_STOCK) {
+                // Use current market value from holdings for investment/restricted stock accounts
                 balance = holdingsTotalMap.value.get(account.id) ?? 0
             } else {
                 // Use balance report for cash/other accounts

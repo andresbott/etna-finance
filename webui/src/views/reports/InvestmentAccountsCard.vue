@@ -37,7 +37,7 @@ const missingPriceSymbols = computed(() => {
         </template>
         <template #content>
             <div v-if="providersWithHoldings.length === 0 && !isLoading" class="text-center p-3 text-500">
-                No investment or unvested accounts
+                No investment or restricted stock accounts
             </div>
             <div v-else-if="isLoading" class="text-center p-3 text-500">
                 Loading holdings…

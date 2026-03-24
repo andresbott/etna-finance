@@ -1,5 +1,6 @@
 import { ref, nextTick, watch } from 'vue'
 import { getEntry } from '@/lib/api/Entry'
+import { getApiErrorMessage } from '@/utils/apiError'
 
 export function useEntryDialogs(deleteEntryFn: (id: string) => Promise<void>) {
     const selectedEntry = ref<Record<string, unknown> | null>(null)
@@ -8,6 +9,7 @@ export function useEntryDialogs(deleteEntryFn: (id: string) => Promise<void>) {
 
     const deleteDialogVisible = ref(false)
     const entryToDelete = ref<Record<string, unknown> | null>(null)
+    const deleteError = ref<string | null>(null)
     const transformDeleteId = ref<number | null>(null)
 
     const dialogs = {
@@ -75,15 +77,17 @@ export function useEntryDialogs(deleteEntryFn: (id: string) => Promise<void>) {
 
     const openDeleteDialog = (entry: Record<string, unknown>) => {
         entryToDelete.value = entry
+        deleteError.value = null
         deleteDialogVisible.value = true
     }
 
     const handleDeleteEntry = async () => {
+        deleteError.value = null
         try {
             await deleteEntryFn(entryToDelete.value?.id as string)
             deleteDialogVisible.value = false
         } catch (error) {
-            console.error('Failed to delete entry:', error)
+            deleteError.value = getApiErrorMessage(error)
         }
     }
 
@@ -144,6 +148,7 @@ export function useEntryDialogs(deleteEntryFn: (id: string) => Promise<void>) {
         dialogs,
         deleteDialogVisible,
         entryToDelete,
+        deleteError,
         openEditEntryDialog,
         openDuplicateEntryDialog,
         openDeleteDialog,

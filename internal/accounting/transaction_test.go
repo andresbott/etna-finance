@@ -2257,7 +2257,7 @@ func setupStockGrantTransferTest(t *testing.T, ctx context.Context, store *Store
 		AccountProviderID: providerID,
 		Name:              "RSU Unvested",
 		Currency:          currency.USD,
-		Type:              UnvestedAccountType,
+		Type:              RestrictedStockAccountType,
 	})
 	if err != nil {
 		t.Fatal(err)

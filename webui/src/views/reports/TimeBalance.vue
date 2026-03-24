@@ -76,8 +76,8 @@ const providerData = computed(() => {
                 unconverted: accountReports.some((a) => a.reportData[i]?.unconverted)
             }))
 
-            // Check if provider has any non-unvested accounts
-            const hasVestedAccounts = provider.accounts.some((a) => a.type !== 'unvested')
+            // Check if provider has any non-restricted-stock accounts
+            const hasVestedAccounts = provider.accounts.some((a) => a.type !== 'restrictedstock')
 
             return {
                 id: provider.id,

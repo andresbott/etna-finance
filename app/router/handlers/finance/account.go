@@ -248,7 +248,7 @@ func (h *Handler) CreateAccount() http.Handler {
 			}
 			account.Currency = cur
 		}
-		// Investment/Unvested: ignore any currency in the request
+		// Investment/RestrictedStock: ignore any currency in the request
 
 		accID, err := h.Store.CreateAccount(r.Context(), account)
 		if err != nil {
@@ -271,7 +271,7 @@ func (h *Handler) CreateAccount() http.Handler {
 			Icon:            account.Icon,
 			Notes:           account.Notes,
 			Currency:        currencyStr,
-			Type:            account.Type.String(),
+			Type:            strings.ToLower(account.Type.String()),
 			ImportProfileId: account.ImportProfileID,
 		}
 
@@ -352,7 +352,7 @@ func (h *Handler) UpdateAccount(Id uint) http.Handler {
 			}
 			account.Currency = &cur
 		}
-		// Investment/Unvested: ignore currency in request (handler does not set it; store will clear if needed)
+		// Investment/RestrictedStock: ignore currency in request (handler does not set it; store will clear if needed)
 
 		if payload.Type != "" {
 			t := parseAccountType(payload.Type)
@@ -402,7 +402,7 @@ const (
 	checkinAccountStr    = "checkin"
 	savingsAccountStr    = "savings"
 	investmentAccountStr = "investment"
-	unvestedAccountStr   = "unvested"
+	restrictedstockAccountStr = "restrictedstock"
 	lentAccountStr       = "lent"
 	pensionAccountStr    = "pension"
 )
@@ -419,8 +419,8 @@ func parseAccountType(in string) accounting.AccountType {
 		return accounting.SavingsAccountType
 	case investmentAccountStr:
 		return accounting.InvestmentAccountType
-	case unvestedAccountStr:
-		return accounting.UnvestedAccountType
+	case restrictedstockAccountStr:
+		return accounting.RestrictedStockAccountType
 	case lentAccountStr:
 		return accounting.LentAccountType
 	case pensionAccountStr:

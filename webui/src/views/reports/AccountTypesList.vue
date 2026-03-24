@@ -9,15 +9,15 @@ import { getAccountTypeIcon, getAccountTypeLabel, ACCOUNT_TYPES } from '@/types/
 
 const { accountsByType, totalInMainCurrency, mainCurrency } = useAccountTypesData()
 
-// Sum of all account types except unvested (converted to main currency)
-const totalExcludingUnvested = computed(() => {
+// Sum of all account types except restricted stock (converted to main currency)
+const totalExcludingRestrictedStock = computed(() => {
     const rows = accountsByType.value ?? []
     return rows
-        .filter((row) => row.type !== ACCOUNT_TYPES.UNVESTED)
+        .filter((row) => row.type !== ACCOUNT_TYPES.RESTRICTED_STOCK)
         .reduce((sum, row) => sum + totalInMainCurrency(row), 0)
 })
 
-const totalTooltipText = 'Values are converted to the main currency. Unvested (e.g. RSUs not yet accessible) is not included in this total.'
+const totalTooltipText = 'Values are converted to the main currency. Restricted stock (e.g. RSUs not yet accessible) is not included in this total.'
 </script>
 
 <template>
@@ -60,8 +60,8 @@ const totalTooltipText = 'Values are converted to the main currency. Unvested (e
                 </Column>
             </DataTable>
             <div v-if="accountsByType.length > 0" class="total-row mt-3 pt-3">
-                <span class="total-label">Total (excl. unvested)</span>
-                <span class="total-value">{{ formatAmount(totalExcludingUnvested) }} {{ mainCurrency }}</span>
+                <span class="total-label">Total (excl. restricted stock)</span>
+                <span class="total-value">{{ formatAmount(totalExcludingRestrictedStock) }} {{ mainCurrency }}</span>
             </div>
         </template>
     </Card>

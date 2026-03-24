@@ -34,7 +34,7 @@ const sections = computed(() => {
         },
     ]
 
-    if (settings.instruments) {
+    if (settings.investmentInstruments) {
         result.push({
             title: 'Investments',
             items: [

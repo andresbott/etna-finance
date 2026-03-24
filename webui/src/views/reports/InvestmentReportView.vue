@@ -8,9 +8,11 @@ import Column from 'primevue/column'
 import Button from 'primevue/button'
 import { useInvestmentReport } from '@/composables/useInvestmentReport'
 import { formatAmount } from '@/utils/currency'
+import { useDateFormat } from '@/composables/useDateFormat'
 
 const leftSidebarCollapsed = ref(true)
 const { productPositions, treeNodes, totalByCurrency, totalInMainCurrency, mainCurrency, isLoading } = useInvestmentReport()
+const { formatDate } = useDateFormat()
 
 const expandedKeys = ref({})
 
@@ -74,7 +76,7 @@ const toggleExpand = () => {
                                             </span>
                                         </template>
                                         <template v-else>
-                                            <span class="text-sm">{{ node.data.openDate }}</span>
+                                            <span class="text-sm">{{ formatDate(node.data.openDate) }}</span>
                                             <span v-if="node.data.accountName" class="text-500 text-sm ml-1">
                                                 {{ node.data.accountName }}
                                             </span>

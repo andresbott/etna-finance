@@ -25,7 +25,7 @@
                             <span class="menu-label">Income/Expense</span>
                         </router-link>
                     </li>
-                    <li v-if="settings.instruments">
+                    <li v-if="settings.investmentInstruments">
                         <router-link to="/reports/investment" class="menu-item">
                             <i class="ti ti-chart-pie menu-icon"></i>
                             <span class="menu-label">Open Positions</span>
@@ -83,7 +83,7 @@
                             <span class="menu-label">Financial Transactions</span>
                         </router-link>
                     </li>
-                    <li v-if="settings.instruments">
+                    <li v-if="settings.investmentInstruments">
                         <a
                             @click="expandAllInvestment"
                             class="menu-item"
@@ -130,17 +130,17 @@
                             <span class="menu-label">Currency Exchange</span>
                         </router-link>
                     </li>
-                    <li v-if="settings.instruments">
+                    <li v-if="settings.investmentInstruments">
                         <router-link to="/market-data/stock-market" class="menu-item">
                             <i class="ti ti-chart-line menu-icon"></i>
                             <span class="menu-label">Stock Market</span>
                         </router-link>
                     </li>
 
-                    <li class="menu-spacer"></li>
+                    <template v-if="settings.financialSimulator">
+                        <li class="menu-spacer"></li>
 
-                    <!-- TOOLS SECTION -->
-                    <template v-if="settings.tools">
+                        <!-- TOOLS SECTION -->
                         <li class="menu-section">
                             <div class="menu-section-label">Tools</div>
                         </li>
@@ -190,7 +190,7 @@ const settings = useSettingsStore()
 const { accounts } = useAccounts()
 
 const CASH_ACCOUNT_TYPES = [ACCOUNT_TYPES.CASH, ACCOUNT_TYPES.CHECKING, ACCOUNT_TYPES.SAVINGS, ACCOUNT_TYPES.LENT, ACCOUNT_TYPES.PENSION]
-const INVESTMENT_ACCOUNT_TYPES = [ACCOUNT_TYPES.INVESTMENT, ACCOUNT_TYPES.UNVESTED]
+const INVESTMENT_ACCOUNT_TYPES = [ACCOUNT_TYPES.INVESTMENT, ACCOUNT_TYPES.RESTRICTED_STOCK]
 
 // By Account tree: only cash accounts (cash, checking, savings)
 const accountsCashOnly = computed(() => {
@@ -206,7 +206,7 @@ const accountsCashOnly = computed(() => {
         .filter(provider => provider.accounts.length > 0)
 })
 
-// Investment section: only financial investment accounts (investment, unvested)
+// Investment section: only financial investment accounts (investment, restricted stock)
 const accountsInvestmentOnly = computed(() => {
     const list = accounts.value
     if (!list) return []

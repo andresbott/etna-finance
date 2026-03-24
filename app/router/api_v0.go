@@ -397,7 +397,7 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 	// Instruments
 	// ==========================================================================
 
-	if h.appSettings.Instruments { //nolint:nestif // route registration for optional features is inherently nested
+	if h.appSettings.InvestmentInstruments { //nolint:nestif // route registration for optional features is inherently nested
 		r.Path(finInstrumentPath).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			_, err := sessionauth.CtxGetUserData(r)
 			if err != nil {
@@ -466,7 +466,7 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 	// Portfolio
 	// ==========================================================================
 
-	if h.appSettings.Instruments {
+	if h.appSettings.InvestmentInstruments {
 		r.Path(fmt.Sprintf("%s/positions", finPortfolio)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if _, err := sessionauth.CtxGetUserData(r); err != nil {
 				http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
@@ -957,8 +957,8 @@ type httpError struct {
 const toolsDataPath = "/tools/{toolType:[a-z0-9-]+}/cases"
 
 func (h *MainAppHandler) toolsDataAPI(r *mux.Router) {
-	if h.toolsDataStore == nil || !h.appSettings.Tools {
-		toolsDisabled := StatusErrText(http.StatusForbidden, "financial tools are disabled")
+	if h.toolsDataStore == nil || !h.appSettings.FinancialSimulator {
+		toolsDisabled := StatusErrText(http.StatusForbidden, "financial simulator is disabled")
 		r.PathPrefix("/tools/").HandlerFunc(toolsDisabled)
 		return
 	}

@@ -76,18 +76,18 @@ Settings:
   # Example: ["USD", "EUR"]
   AdditionalCurrencies: []
 
-  # Enable investment / instruments tracking (portfolio, stocks, unvested assets).
+  # Enable investment instruments tracking (portfolio, stocks, restricted stock assets).
   # Automatically enabled if the database already contains investment accounts.
-  Instruments: false
+  InvestmentInstruments: false
 
   # Enable RSU (Restricted Stock Units) features: vest and forfeit operations,
-  # and unvested account type. Automatically enabled if the database already
-  # contains unvested accounts or vest/forfeit transactions.
-  # Enabling RSU also enables Instruments (required dependency).
+  # and restricted stock account type. Automatically enabled if the database already
+  # contains restricted stock accounts or vest/forfeit transactions.
+  # Enabling RSU also enables InvestmentInstruments (required dependency).
   Rsu: false
 
-  # Enable financial simulation tools (portfolio simulator, real-estate simulator, etc.).
-  Tools: false
+  # Enable financial simulator (portfolio simulator, real-estate simulator, etc.).
+  FinancialSimulator: false
 
   # Maximum file upload size for transaction attachments, in MB.
   # 0 or omitted = default (10 MB).

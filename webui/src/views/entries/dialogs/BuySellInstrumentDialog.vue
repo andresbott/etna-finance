@@ -628,8 +628,8 @@ const handleSellSave = async () => {
                                 <AccountSelector
                                     v-model="formValues.InvestmentAccountId"
                                     name="InvestmentAccountId"
-                                    placeholder="Select investment or unvested account"
-                                    :accountTypes="['investment', 'unvested']"
+                                    placeholder="Select investment or restricted stock account"
+                                    :accountTypes="['investment', 'restrictedstock']"
                                 />
                                 <Message v-if="$form.InvestmentAccountId?.invalid" severity="error" size="small">
                                     {{ $form.InvestmentAccountId?.error?.message }}
@@ -653,8 +653,8 @@ const handleSellSave = async () => {
                             <AccountSelector
                                 v-model="formValues.InvestmentAccountId"
                                 name="InvestmentAccountId"
-                                placeholder="Select investment or unvested account"
-                                :accountTypes="['investment', 'unvested']"
+                                placeholder="Select investment or restricted stock account"
+                                :accountTypes="['investment', 'restrictedstock']"
                                 @update:modelValue="delete step2Errors.InvestmentAccountId"
                             />
                             <Message v-if="step2Errors.InvestmentAccountId" severity="error" size="small">

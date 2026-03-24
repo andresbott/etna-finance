@@ -144,7 +144,7 @@ type StockGrant struct {
 	Description     string
 	Notes           string
 	Date            time.Time
-	AccountID       uint // Investment or Unvested account that receives the shares
+	AccountID       uint // Investment or Restricted Stock account that receives the shares
 	InstrumentID    uint
 	Quantity        float64
 	FairMarketValue float64 // per-share FMV at grant/vest; 0 if omitted (cost basis = 0 for those shares)
@@ -152,21 +152,21 @@ type StockGrant struct {
 	baseTx
 }
 
-// StockTransfer represents a transfer of shares between two position accounts (e.g. Unvested → Investment).
+// StockTransfer represents a transfer of shares between two position accounts (e.g. RestrictedStock → Investment).
 type StockTransfer struct {
 	Id              uint
 	Description     string
 	Notes           string
 	Date            time.Time
-	SourceAccountID uint // Investment or Unvested
-	TargetAccountID uint // Investment or Unvested
+	SourceAccountID uint // Investment or RestrictedStock
+	TargetAccountID uint // Investment or RestrictedStock
 	InstrumentID    uint
 	Quantity        float64
 	AttachmentID    *uint
 	baseTx
 }
 
-// StockVest represents a vesting event: shares move from an Unvested account to an
+// StockVest represents a vesting event: shares move from a Restricted Stock account to an
 // Investment account, lot cost basis is updated to the market price at vesting, and
 // compensation income is recorded for category reporting.
 type StockVest struct {
@@ -174,26 +174,26 @@ type StockVest struct {
 	Description     string
 	Notes           string
 	Date            time.Time
-	SourceAccountID uint           // Unvested account
+	SourceAccountID uint           // Restricted Stock account
 	TargetAccountID uint           // Investment account
 	InstrumentID    uint
 	Quantity        float64        // total shares vested (derived from trades, authoritative)
 	VestingPrice    float64        // market price per share at vesting
 	CategoryID      uint           // income category for reporting
-	LotSelections   []LotSelection // manual lot selection from unvested lots
+	LotSelections   []LotSelection // manual lot selection from restricted stock lots
 	AttachmentID    *uint
 	baseTx
 }
 
-// StockForfeit represents a forfeiture of unvested shares. When an employee leaves,
+// StockForfeit represents a forfeiture of restricted stock shares. When an employee leaves,
 // remaining unvested RSUs are forfeited. This simply closes/reduces lots in the
-// unvested account. No target account, no income entry, just closing lots.
+// restricted stock account. No target account, no income entry, just closing lots.
 type StockForfeit struct {
 	Id            uint
 	Description   string
 	Notes         string
 	Date          time.Time
-	AccountID     uint           // unvested account
+	AccountID     uint           // restricted stock account
 	InstrumentID  uint
 	Quantity      float64        // total forfeited (derived from trade)
 	LotSelections []LotSelection
@@ -488,7 +488,7 @@ func (store *Store) CreateTransfer(ctx context.Context, item Transfer) (uint, er
 }
 
 var allowedCashAccountTypes = []AccountType{CashAccountType, CheckinAccountType, SavingsAccountType, LentAccountType, PensionAccountType}
-var allowedPositionAccountTypes = []AccountType{InvestmentAccountType, UnvestedAccountType}
+var allowedPositionAccountTypes = []AccountType{InvestmentAccountType, RestrictedStockAccountType}
 
 // resolveInstrumentCurrencyFromTx fetches the instrument currency from the existing transaction.
 func (store *Store) resolveInstrumentCurrencyFromTx(ctx context.Context, txID uint) (currency.Unit, error) {
@@ -881,7 +881,7 @@ func (store *Store) CreateStockGrant(ctx context.Context, item StockGrant) (uint
 		return 0, fmt.Errorf("error creating stock grant: %w", err)
 	}
 	if !slices.Contains(allowedPositionAccountTypes, acc.Type) {
-		return 0, NewValidationErr("account must be Investment or Unvested for stock grant")
+		return 0, NewValidationErr("account must be Investment or RestrictedStock for stock grant")
 	}
 
 	instrument, err := store.GetInstrument(ctx, item.InstrumentID)
@@ -970,16 +970,16 @@ func (store *Store) validateStockTransfer(ctx context.Context, item StockTransfe
 	if err != nil {
 		return fmt.Errorf("error creating stock transfer: %w", err)
 	}
-	if srcAcc.Type != InvestmentAccountType {
-		return NewValidationErr("source account must be an Investment account for stock transfer (use vest for unvested to investment)")
+	if !slices.Contains(allowedPositionAccountTypes, srcAcc.Type) {
+		return NewValidationErr("source account must be Investment or RestrictedStock for stock transfer")
 	}
 
 	tgtAcc, err := store.GetAccount(ctx, item.TargetAccountID)
 	if err != nil {
 		return fmt.Errorf("error creating stock transfer: %w", err)
 	}
-	if tgtAcc.Type != InvestmentAccountType {
-		return NewValidationErr("target account must be an Investment account for stock transfer (use vest for unvested to investment)")
+	if !slices.Contains(allowedPositionAccountTypes, tgtAcc.Type) {
+		return NewValidationErr("target account must be Investment or RestrictedStock for stock transfer")
 	}
 
 	instrument, err := store.GetInstrument(ctx, item.InstrumentID)
@@ -1039,8 +1039,8 @@ func (store *Store) validateStockVest(ctx context.Context, item StockVest) error
 	if err != nil {
 		return err
 	}
-	if sourceAccount.Type != UnvestedAccountType {
-		return ErrValidation("source account must be an unvested account")
+	if sourceAccount.Type != RestrictedStockAccountType {
+		return ErrValidation("source account must be a restricted stock account")
 	}
 
 	targetAccount, err := store.GetAccount(ctx, item.TargetAccountID)
@@ -1088,8 +1088,8 @@ func (store *Store) validateStockVestFields(ctx context.Context, item StockVest)
 	if err != nil {
 		return err
 	}
-	if sourceAccount.Type != UnvestedAccountType {
-		return ErrValidation("source account must be an unvested account")
+	if sourceAccount.Type != RestrictedStockAccountType {
+		return ErrValidation("source account must be a restricted stock account")
 	}
 
 	targetAccount, err := store.GetAccount(ctx, item.TargetAccountID)
@@ -2526,7 +2526,7 @@ func (store *Store) mergeStockBuyFields(ctx context.Context, buy *StockBuy, inpu
 			return fmt.Errorf("error updating stock buy: %w", err)
 		}
 		if !slices.Contains(allowedPositionAccountTypes, acc.Type) {
-			return NewValidationErr("investment account must be Investment or Unvested")
+			return NewValidationErr("investment account must be Investment or RestrictedStock")
 		}
 		buy.InvestmentAccountID = *input.InvestmentAccountID
 	}
@@ -2682,7 +2682,7 @@ func (store *Store) mergeStockSellFields(ctx context.Context, sell *StockSell, i
 			return fmt.Errorf("error updating stock sell: %w", err)
 		}
 		if !slices.Contains(allowedPositionAccountTypes, acc.Type) {
-			return NewValidationErr("investment account must be Investment or Unvested")
+			return NewValidationErr("investment account must be Investment or RestrictedStock")
 		}
 		sell.InvestmentAccountID = *input.InvestmentAccountID
 	}
@@ -2860,7 +2860,7 @@ func (store *Store) mergeStockGrantFields(ctx context.Context, grant *StockGrant
 			return fmt.Errorf("error updating stock grant: %w", err)
 		}
 		if !slices.Contains(allowedPositionAccountTypes, acc.Type) {
-			return NewValidationErr("account must be Investment or Unvested")
+			return NewValidationErr("account must be Investment or RestrictedStock")
 		}
 		grant.AccountID = *input.AccountID
 	}
@@ -2967,7 +2967,7 @@ func (store *Store) mergeStockTransferFields(ctx context.Context, transfer *Stoc
 			return fmt.Errorf("error updating stock transfer: %w", err)
 		}
 		if !slices.Contains(allowedPositionAccountTypes, acc.Type) {
-			return NewValidationErr("source account must be Investment or Unvested")
+			return NewValidationErr("source account must be Investment or RestrictedStock")
 		}
 		transfer.SourceAccountID = *input.SourceAccountID
 	}
@@ -2980,7 +2980,7 @@ func (store *Store) mergeStockTransferFields(ctx context.Context, transfer *Stoc
 			return fmt.Errorf("error updating stock transfer: %w", err)
 		}
 		if !slices.Contains(allowedPositionAccountTypes, acc.Type) {
-			return NewValidationErr("target account must be Investment or Unvested")
+			return NewValidationErr("target account must be Investment or RestrictedStock")
 		}
 		transfer.TargetAccountID = *input.TargetAccountID
 	}
@@ -3285,8 +3285,8 @@ func (store *Store) validateStockForfeit(ctx context.Context, item StockForfeit)
 	if err != nil {
 		return fmt.Errorf("error validating stock forfeit: %w", err)
 	}
-	if acc.Type != UnvestedAccountType {
-		return ErrValidation("account must be an unvested account")
+	if acc.Type != RestrictedStockAccountType {
+		return ErrValidation("account must be a restricted stock account")
 	}
 
 	return nil
@@ -3312,8 +3312,8 @@ func (store *Store) validateStockForfeitFields(ctx context.Context, item StockFo
 	if err != nil {
 		return fmt.Errorf("error validating stock forfeit: %w", err)
 	}
-	if acc.Type != UnvestedAccountType {
-		return ErrValidation("account must be an unvested account")
+	if acc.Type != RestrictedStockAccountType {
+		return ErrValidation("account must be a restricted stock account")
 	}
 
 	return nil
