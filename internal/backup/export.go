@@ -225,6 +225,7 @@ func writeTransactions(ctx context.Context, zw *zipWriter, store *accounting.Sto
 			accounting.StockGrantTransaction,
 			accounting.StockTransferTransaction,
 			accounting.LoanTransaction,
+			accounting.RevaluationTransaction,
 		},
 		Limit: entriesLimit,
 		Page:  1,
@@ -327,6 +328,17 @@ func writeTransactions(ctx context.Context, zw *zipWriter, store *accounting.Sto
 					Quantity:        item.Quantity,
 					Date:            item.Date,
 					Type:            txTypeStockTransfer,
+				})
+			case accounting.Revaluation:
+				jsonData = append(jsonData, TransactionV1{
+					Id:          item.Id,
+					Description: item.Description,
+					Notes:       item.Notes,
+					Amount:      item.Amount,
+					Balance:     item.Balance,
+					AccountID:   item.AccountID,
+					Date:        item.Date,
+					Type:        txTypeRevaluation,
 				})
 			}
 		}

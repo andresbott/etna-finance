@@ -13,6 +13,7 @@ const ENTRY_TYPE_ICONS: Record<string, string> = {
     stockvest: 'ti ti-certificate text-teal-500',
     stockforfeit: 'ti ti-circle-x text-red-400',
     balancestatus: 'ti ti-calculator text-gray-500',
+    revaluation: 'ti ti-adjustments text-cyan-500',
     'opening-balance': 'ti ti-calculator text-gray-500'
 }
 

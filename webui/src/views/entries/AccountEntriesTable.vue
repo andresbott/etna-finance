@@ -84,7 +84,8 @@ const getRowClass = (data) => ({
     'stockvest-row': data.type === 'stockvest',
     'stockforfeit-row': data.type === 'stockforfeit',
     'opening-balance-row': data.type === 'opening-balance',
-    'balancestatus-row': data.type === 'balancestatus'
+    'balancestatus-row': data.type === 'balancestatus',
+    'revaluation-row': data.type === 'revaluation'
 })
 
 /* --- Event Handlers --- */
@@ -120,6 +121,7 @@ const entriesWithBalance = computed(() => {
         let entryAmount = 0
         if (entry.type === 'opening-balance') entryAmount = 0
         else if (entry.type === 'balancestatus') entryAmount = 0
+        else if (entry.type === 'revaluation') entryAmount = entry.Amount || 0
         else if (entry.type === 'expense') entryAmount = -(entry.Amount || 0)
         else if (entry.type === 'income') entryAmount = entry.Amount || 0
         else if (entry.type === 'transfer') {
@@ -133,7 +135,7 @@ const entriesWithBalance = computed(() => {
             else if (String(entry.investmentAccountId) === String(props.accountId)) entryAmount = -(entry.costBasis || entry.StockAmount || 0)
         }
         if (entry.type !== 'opening-balance') balance += entryAmount
-        return { ...entry, balance }
+        return { ...entry, runningBalance: balance }
     })
     return result.reverse()
 })
@@ -307,6 +309,10 @@ const tableEntries = computed(() =>
                                 {{ formatAmount(data.Amount) }}
                                 {{ getAccountCurrency(data.accountId) }}
                             </div>
+                            <div v-else-if="data.type === 'revaluation'" :class="['amount', (data.Amount ?? 0) >= 0 ? 'amount-positive' : 'amount-negative']">
+                                {{ (data.Amount ?? 0) >= 0 ? '+' : '' }}{{ formatAmount(data.Amount ?? 0) }}
+                                {{ getAccountCurrency(data.accountId) }}
+                            </div>
                             <div v-else class="amount">
                                 {{ formatAmount(data.totalAmount ?? data.targetAmount ?? 0) }}
                             </div>
@@ -385,10 +391,10 @@ const tableEntries = computed(() =>
                     </template>
                 </Column>
 
-                <Column v-if="!isInstrumentAccount" field="balance" header="Balance" bodyStyle="text-align: right" class="balance-column">
+                <Column v-if="!isInstrumentAccount" field="runningBalance" header="Balance" bodyStyle="text-align: right" class="balance-column">
                     <template #body="{ data }">
-                        <div class="balance" :class="{ 'balance-negative': data.balance < 0 && !Object.is(data.balance, -0) }">
-                            {{ formatAmount(data.balance) }}
+                        <div class="balance" :class="{ 'balance-negative': data.runningBalance < 0 && !Object.is(data.runningBalance, -0) }">
+                            {{ formatAmount(data.runningBalance) }}
                         </div>
                     </template>
                 </Column>

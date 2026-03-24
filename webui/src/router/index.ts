@@ -70,6 +70,14 @@ const router = createRouter({
             component: () => import('@/views/reports/InvestmentReportView.vue')
         },
         {
+            path: '/reports/balances',
+            name: 'reports-balances',
+            meta: {
+                requiresAuth: true
+            },
+            component: () => import('@/views/reports/BalancesView.vue')
+        },
+        {
             path: '/reports',
             redirect: '/reports/income-expense' // Redirect old reports to new route
         },

@@ -20,6 +20,7 @@ describe('getAccountTypeLabel', () => {
         expect(getAccountTypeLabel(ACCOUNT_TYPES.INVESTMENT)).toBe('Investment')
         expect(getAccountTypeLabel(ACCOUNT_TYPES.UNVESTED)).toBe('Unvested products')
         expect(getAccountTypeLabel(ACCOUNT_TYPES.LENT)).toBe('Lent money')
+        expect(getAccountTypeLabel(ACCOUNT_TYPES.PENSION)).toBe('Pension')
     })
 
     it('returns "Unknown" for null', () => {
@@ -47,6 +48,7 @@ describe('getAccountTypeIcon', () => {
         expect(getAccountTypeIcon(ACCOUNT_TYPES.INVESTMENT)).toBe('chart-line')
         expect(getAccountTypeIcon(ACCOUNT_TYPES.UNVESTED)).toBe('gift')
         expect(getAccountTypeIcon(ACCOUNT_TYPES.LENT)).toBe('send')
+        expect(getAccountTypeIcon(ACCOUNT_TYPES.PENSION)).toBe('building-bank')
     })
 
     it('returns fallback "wallet" for null', () => {
@@ -108,6 +110,7 @@ describe('getAllowedOperations', () => {
             ENTRY_OPERATIONS.EXPENSE,
             ENTRY_OPERATIONS.TRANSFER,
             ENTRY_OPERATIONS.BALANCE_STATUS,
+            ENTRY_OPERATIONS.REVALUATION,
             ENTRY_OPERATIONS.IMPORT_CSV,
         ])
     })
@@ -139,6 +142,14 @@ describe('getAllowedOperations', () => {
             ENTRY_OPERATIONS.GRANT_STOCK,
             ENTRY_OPERATIONS.VEST_STOCK,
             ENTRY_OPERATIONS.FORFEIT_STOCK,
+        ])
+    })
+
+    it('returns transfer and revaluation operations for PENSION', () => {
+        const result = getAllowedOperations(ACCOUNT_TYPES.PENSION)
+        expect(result).toEqual([
+            ENTRY_OPERATIONS.TRANSFER,
+            ENTRY_OPERATIONS.REVALUATION,
         ])
     })
 

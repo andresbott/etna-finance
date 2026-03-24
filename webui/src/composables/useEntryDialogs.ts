@@ -21,7 +21,8 @@ export function useEntryDialogs(deleteEntryFn: (id: string) => Promise<void>) {
         transferInstrument: ref(false),
         vestStock: ref(false),
         forfeitStock: ref(false),
-        balanceStatus: ref(false)
+        balanceStatus: ref(false),
+        revaluation: ref(false)
     }
 
     const ENTRY_TYPE_TO_DIALOG: Record<string, keyof typeof dialogs> = {
@@ -34,7 +35,8 @@ export function useEntryDialogs(deleteEntryFn: (id: string) => Promise<void>) {
         stocktransfer: 'transferInstrument',
         stockvest: 'vestStock',
         stockforfeit: 'forfeitStock',
-        balancestatus: 'balanceStatus'
+        balancestatus: 'balanceStatus',
+        revaluation: 'revaluation'
     }
 
     function openDialogForType(type: string) {

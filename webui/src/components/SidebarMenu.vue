@@ -14,6 +14,12 @@
                         </router-link>
                     </li>
                     <li>
+                        <router-link to="/reports/balances" class="menu-item">
+                            <i class="ti ti-wallet menu-icon"></i>
+                            <span class="menu-label">Balances</span>
+                        </router-link>
+                    </li>
+                    <li>
                         <router-link to="/reports/income-expense" class="menu-item">
                             <i class="ti ti-chart-line menu-icon"></i>
                             <span class="menu-label">Income/Expense</span>
@@ -22,10 +28,9 @@
                     <li v-if="settings.instruments">
                         <router-link to="/reports/investment" class="menu-item">
                             <i class="ti ti-chart-pie menu-icon"></i>
-                            <span class="menu-label">Investment Report</span>
+                            <span class="menu-label">Open Positions</span>
                         </router-link>
                     </li>
-
                     <li class="menu-spacer"></li>
 
                     <!-- TRANSACTIONS SECTION -->
@@ -184,7 +189,7 @@ const uiStore = useUiStore()
 const settings = useSettingsStore()
 const { accounts } = useAccounts()
 
-const CASH_ACCOUNT_TYPES = [ACCOUNT_TYPES.CASH, ACCOUNT_TYPES.CHECKING, ACCOUNT_TYPES.SAVINGS, ACCOUNT_TYPES.LENT]
+const CASH_ACCOUNT_TYPES = [ACCOUNT_TYPES.CASH, ACCOUNT_TYPES.CHECKING, ACCOUNT_TYPES.SAVINGS, ACCOUNT_TYPES.LENT, ACCOUNT_TYPES.PENSION]
 const INVESTMENT_ACCOUNT_TYPES = [ACCOUNT_TYPES.INVESTMENT, ACCOUNT_TYPES.UNVESTED]
 
 // By Account tree: only cash accounts (cash, checking, savings)

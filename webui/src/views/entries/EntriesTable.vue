@@ -112,7 +112,8 @@ const getRowClass = (data) => ({
     'stockgrant-row': data.type === 'stockgrant',
     'stocktransfer-row': data.type === 'stocktransfer',
     'stockforfeit-row': data.type === 'stockforfeit',
-    'balancestatus-row': data.type === 'balancestatus'
+    'balancestatus-row': data.type === 'balancestatus',
+    'revaluation-row': data.type === 'revaluation'
 })
 
 /* --- Event Handlers --- */
@@ -324,6 +325,9 @@ const openAttachment = (data) => {
                             <span v-else-if="data.type === 'balancestatus'">
                                 {{ getAccountName(data.accountId) }}
                             </span>
+                            <span v-else-if="data.type === 'revaluation'">
+                                {{ getAccountName(data.accountId) }}
+                            </span>
                             <span v-else>
                                 {{ getAccountName(data.accountId) }}
                             </span>
@@ -396,6 +400,10 @@ const openAttachment = (data) => {
                         </div>
                         <div v-else-if="data.type === 'balancestatus'" class="amount balance-status">
                             {{ formatAmount(data.Amount ?? 0) }}
+                            {{ getAccountCurrency(data.accountId) }}
+                        </div>
+                        <div v-else-if="data.type === 'revaluation'" :class="['amount', (data.Amount ?? 0) >= 0 ? 'amount-positive' : 'amount-negative']">
+                            {{ (data.Amount ?? 0) >= 0 ? '+' : '' }}{{ formatAmount(data.Amount ?? 0) }}
                             {{ getAccountCurrency(data.accountId) }}
                         </div>
                         <div v-else class="amount">

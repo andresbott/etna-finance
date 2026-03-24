@@ -59,6 +59,7 @@ const txTypeStockBuy = "stockbuy"
 const txTypeStockSell = "stocksell"
 const txTypeStockGrant = "stockgrant"
 const txTypeStockTransfer = "stocktransfer"
+const txTypeRevaluation = "revaluation"
 
 type TransactionV1 struct {
 	Id          uint   `json:"id"`
@@ -89,6 +90,9 @@ type TransactionV1 struct {
 
 	// for stock transfer
 	SourceAccountID uint `json:"sourceAccountId,omitempty"`
+
+	// for revaluation (informative target balance)
+	Balance float64 `json:"balance,omitempty"`
 
 	Date time.Time `json:"date"`
 	Type string    `json:"type"`

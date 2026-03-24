@@ -40,6 +40,7 @@ export const ACCOUNT_TYPES = {
     INVESTMENT: 'investment',
     UNVESTED: 'unvested', // not yet accessible (e.g. unvested RSUs); can transfer to Investment
     LENT: 'lent', // money lent to others; owned but not in any account
+    PENSION: 'pension', // pension/retirement fund
 } as const
 
 export type AccountType = typeof ACCOUNT_TYPES[keyof typeof ACCOUNT_TYPES]
@@ -54,6 +55,7 @@ export const ACCOUNT_TYPE_ICONS: Record<AccountType, string> = {
     [ACCOUNT_TYPES.INVESTMENT]: 'chart-line',
     [ACCOUNT_TYPES.UNVESTED]: 'gift',
     [ACCOUNT_TYPES.LENT]: 'send',
+    [ACCOUNT_TYPES.PENSION]: 'building-bank',
 }
 
 /**
@@ -66,6 +68,7 @@ export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
     [ACCOUNT_TYPES.INVESTMENT]: 'Investment',
     [ACCOUNT_TYPES.UNVESTED]: 'Unvested products',
     [ACCOUNT_TYPES.LENT]: 'Lent money',
+    [ACCOUNT_TYPES.PENSION]: 'Pension',
 }
 
 /**
@@ -98,6 +101,7 @@ export const ENTRY_OPERATIONS = {
     VEST_STOCK: 'vestStock',
     FORFEIT_STOCK: 'forfeitStock',
     BALANCE_STATUS: 'balanceStatus',
+    REVALUATION: 'revaluation',
     IMPORT_CSV: 'importCsv',
 } as const
 
@@ -132,6 +136,7 @@ export const ALLOWED_OPERATIONS_BY_ACCOUNT_TYPE: Record<AccountType, EntryOperat
         ENTRY_OPERATIONS.EXPENSE,
         ENTRY_OPERATIONS.TRANSFER,
         ENTRY_OPERATIONS.BALANCE_STATUS,
+        ENTRY_OPERATIONS.REVALUATION,
         ENTRY_OPERATIONS.IMPORT_CSV,
     ],
     [ACCOUNT_TYPES.INVESTMENT]: [
@@ -151,6 +156,10 @@ export const ALLOWED_OPERATIONS_BY_ACCOUNT_TYPE: Record<AccountType, EntryOperat
         ENTRY_OPERATIONS.TRANSFER,
         ENTRY_OPERATIONS.BALANCE_STATUS,
         ENTRY_OPERATIONS.IMPORT_CSV,
+    ],
+    [ACCOUNT_TYPES.PENSION]: [
+        ENTRY_OPERATIONS.TRANSFER,
+        ENTRY_OPERATIONS.REVALUATION,
     ],
 }
 

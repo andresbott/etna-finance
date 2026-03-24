@@ -207,6 +207,8 @@ func transactionDate(tx accounting.Transaction) time.Time {
 		return t.Date
 	case accounting.BalanceStatus:
 		return t.Date
+	case accounting.Revaluation:
+		return t.Date
 	default:
 		return time.Now()
 	}
@@ -234,6 +236,8 @@ func transactionAttachmentID(tx accounting.Transaction) *uint {
 	case accounting.StockForfeit:
 		return t.AttachmentID
 	case accounting.BalanceStatus:
+		return t.AttachmentID
+	case accounting.Revaluation:
 		return t.AttachmentID
 	default:
 		return nil

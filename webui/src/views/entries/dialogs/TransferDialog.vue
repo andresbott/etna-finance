@@ -352,7 +352,7 @@ const emit = defineEmits(['update:visible'])
                                 v-model="formValues.originAccountId"
                                 name="originAccountId"
                                 @update:modelValue="handleOriginAccountSelection"
-                                :account-types="['cash', 'checkin', 'bank', 'savings', 'lent']"
+                                :account-types="['cash', 'checkin', 'bank', 'savings', 'lent', 'pension']"
                             />
                             <Message
                                 v-if="$form.originAccountId?.invalid"
@@ -400,7 +400,7 @@ const emit = defineEmits(['update:visible'])
                                 v-model="formValues.targetAccountId"
                                 name="targetAccountId"
                                 @update:modelValue="handleTargetAccountSelection"
-                                :account-types="['cash', 'checkin', 'bank', 'savings', 'lent']"
+                                :account-types="['cash', 'checkin', 'bank', 'savings', 'lent', 'pension']"
                             />
                             <Message
                                 v-if="$form.targetAccountId?.invalid"
