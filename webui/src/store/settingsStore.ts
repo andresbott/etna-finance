@@ -13,9 +13,9 @@ export const useSettingsStore = defineStore('settings', () => {
     const dateFormat = ref<string>('')
     const mainCurrency = ref<string>('')
     const currencies = ref<string[]>([])
-    const instruments = ref<boolean>(false)
+    const investmentInstruments = ref<boolean>(false)
     const rsu = ref<boolean>(false)
-    const tools = ref<boolean>(false)
+    const financialSimulator = ref<boolean>(false)
     const marketDataSymbols = ref<string[]>([])
     const version = ref<string>('')
 
@@ -29,9 +29,9 @@ export const useSettingsStore = defineStore('settings', () => {
             dateFormat.value = res.data.dateFormat
             mainCurrency.value = res.data.mainCurrency
             currencies.value = res.data.currencies ?? []
-            instruments.value = res.data.instruments
+            investmentInstruments.value = res.data.investmentInstruments
             rsu.value = res.data.rsu
-            tools.value = res.data.tools
+            financialSimulator.value = res.data.financialSimulator
             marketDataSymbols.value = res.data.marketDataSymbols ?? []
             version.value = res.data.version ?? ''
             isLoaded.value = true
@@ -50,9 +50,9 @@ export const useSettingsStore = defineStore('settings', () => {
         dateFormat.value = ''
         mainCurrency.value = ''
         currencies.value = []
-        instruments.value = false
+        investmentInstruments.value = false
         rsu.value = false
-        tools.value = false
+        financialSimulator.value = false
         marketDataSymbols.value = []
         version.value = ''
     }
@@ -65,9 +65,9 @@ export const useSettingsStore = defineStore('settings', () => {
         dateFormat,
         mainCurrency,
         currencies,
-        instruments,
+        investmentInstruments,
         rsu,
-        tools,
+        financialSimulator,
         marketDataSymbols,
         version,
         hasMultipleCurrencies,

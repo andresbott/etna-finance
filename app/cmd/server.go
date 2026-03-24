@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"log/slog"
 	"net"
 	"net/http"
@@ -89,8 +88,8 @@ func runServer(configFile string) error {
 	l.Info("using data directory", slog.String("path", cfg.DataDir))
 
 	// ——— Database ———
-	gormLogger := gormlogger.New(
-		log.New(os.Stdout, "\r\n", log.LstdFlags),
+	gormLogger := gormlogger.NewSlogLogger(
+		l.With(slog.String("component", "gorm")),
 		gormlogger.Config{
 			IgnoreRecordNotFoundError: true,
 			LogLevel:                  gormlogger.Warn, // only warnings and errors, not every SQL
@@ -120,11 +119,11 @@ func runServer(configFile string) error {
 		return err
 	}
 
-	// ——— Instruments and RSU config vs DB consistency ———
-	if err := reconcileRsuSetting(cfg, finStore, l); err != nil {
+	// ——— InvestmentInstruments and RSU config vs DB consistency ———
+	if err := reconcileRsuSetting(&cfg, finStore, l); err != nil {
 		return err
 	}
-	if err := reconcileInstrumentsSetting(cfg, finStore, l); err != nil {
+	if err := reconcileInvestmentInstrumentsSetting(&cfg, finStore, l); err != nil {
 		return err
 	}
 
@@ -155,9 +154,9 @@ func runServer(configFile string) error {
 			DateFormat:          cfg.Settings.DateFormat,
 			MainCurrency:        cfg.Settings.MainCurrency,
 			Currencies:          cfg.Settings.AllCurrencies(),
-			Instruments:         cfg.Settings.Instruments,
+			InvestmentInstruments: cfg.Settings.InvestmentInstruments,
 			Rsu:                 cfg.Settings.Rsu,
-			Tools:               cfg.Settings.Tools,
+			FinancialSimulator:  cfg.Settings.FinancialSimulator,
 			MaxAttachmentSizeMB: cfg.Settings.MaxAttachmentSizeMB,
 			Version:             metainfo.Version,
 		},
@@ -245,12 +244,12 @@ func initStores(db *gorm.DB, cfg AppCfg) (*marketdata.Store, *accounting.Store, 
 	return marketStore, finStore, csvImportStore, attachmentStore, toolsDataStore, nil
 }
 
-// reconcileInstrumentsSetting enables Instruments if the DB contains investment/unvested accounts,
-// or if RSU is enabled (RSU requires instruments).
-func reconcileInstrumentsSetting(cfg AppCfg, finStore *accounting.Store, l *slog.Logger) error {
-	if cfg.Settings.Rsu && !cfg.Settings.Instruments {
-		cfg.Settings.Instruments = true
-		l.Warn("config discrepancy: Settings.Rsu is true but Settings.Instruments is false; enabling Instruments (required by RSU)",
+// reconcileInvestmentInstrumentsSetting enables InvestmentInstruments if the DB contains investment/restricted-stock accounts,
+// or if RSU is enabled (RSU requires investment instruments).
+func reconcileInvestmentInstrumentsSetting(cfg *AppCfg, finStore *accounting.Store, l *slog.Logger) error {
+	if cfg.Settings.Rsu && !cfg.Settings.InvestmentInstruments {
+		cfg.Settings.InvestmentInstruments = true
+		l.Warn("config discrepancy: Settings.Rsu is true but Settings.InvestmentInstruments is false; enabling InvestmentInstruments (required by RSU)",
 			slog.String("component", "startup"),
 			slog.String("reason", "rsu_requires_instruments"))
 	}
@@ -260,10 +259,10 @@ func reconcileInstrumentsSetting(cfg AppCfg, finStore *accounting.Store, l *slog
 		return fmt.Errorf("listing accounts at startup: %w", err)
 	}
 	for _, acc := range accounts {
-		if acc.Type == accounting.InvestmentAccountType || acc.Type == accounting.UnvestedAccountType {
-			if !cfg.Settings.Instruments {
-				cfg.Settings.Instruments = true
-				l.Warn("config discrepancy: Settings.Instruments is false but database contains investment or unvested accounts; enabling Instruments",
+		if acc.Type == accounting.InvestmentAccountType || acc.Type == accounting.RestrictedStockAccountType {
+			if !cfg.Settings.InvestmentInstruments {
+				cfg.Settings.InvestmentInstruments = true
+				l.Warn("config discrepancy: Settings.InvestmentInstruments is false but database contains investment or restricted-stock accounts; enabling InvestmentInstruments",
 					slog.String("component", "startup"),
 					slog.String("reason", "db_has_investment_accounts"))
 			}
@@ -273,24 +272,24 @@ func reconcileInstrumentsSetting(cfg AppCfg, finStore *accounting.Store, l *slog
 	return nil
 }
 
-// reconcileRsuSetting enables RSU if the DB contains unvested accounts or vest/forfeit transactions.
-func reconcileRsuSetting(cfg AppCfg, finStore *accounting.Store, l *slog.Logger) error {
+// reconcileRsuSetting enables RSU if the DB contains restricted-stock accounts or vest/forfeit transactions.
+func reconcileRsuSetting(cfg *AppCfg, finStore *accounting.Store, l *slog.Logger) error {
 	if cfg.Settings.Rsu {
 		return nil
 	}
 	ctx := context.Background()
 
-	// Check for unvested accounts.
+	// Check for restricted-stock accounts.
 	accounts, err := finStore.ListAccounts(ctx)
 	if err != nil {
 		return fmt.Errorf("listing accounts at startup: %w", err)
 	}
 	for _, acc := range accounts {
-		if acc.Type == accounting.UnvestedAccountType {
+		if acc.Type == accounting.RestrictedStockAccountType {
 			cfg.Settings.Rsu = true
-			l.Warn("config discrepancy: Settings.Rsu is false but database contains unvested accounts; enabling Rsu",
+			l.Warn("config discrepancy: Settings.Rsu is false but database contains restricted-stock accounts; enabling Rsu",
 				slog.String("component", "startup"),
-				slog.String("reason", "db_has_unvested_accounts"))
+				slog.String("reason", "db_has_restricted_stock_accounts"))
 			return nil
 		}
 	}

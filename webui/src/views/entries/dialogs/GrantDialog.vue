@@ -283,8 +283,8 @@ const handleSubmit = async (e) => {
                     <AccountSelector
                         v-model="formValues.AccountId"
                         name="AccountId"
-                        placeholder="Select investment or unvested account"
-                        :accountTypes="['investment', 'unvested']"
+                        placeholder="Select investment or restricted stock account"
+                        :accountTypes="['investment', 'restrictedstock']"
                     />
                     <Message v-if="$form.AccountId?.invalid" severity="error" size="small">
                         {{ $form.AccountId?.error?.message }}

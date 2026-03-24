@@ -16,7 +16,7 @@ const router = useRouter()
 const leftSidebarCollapsed = ref(true)
 
 const CASH_TYPES = [ACCOUNT_TYPES.CASH, ACCOUNT_TYPES.CHECKING, ACCOUNT_TYPES.SAVINGS, ACCOUNT_TYPES.LENT]
-const INVESTMENT_TYPES = [ACCOUNT_TYPES.INVESTMENT, ACCOUNT_TYPES.UNVESTED]
+const INVESTMENT_TYPES = [ACCOUNT_TYPES.INVESTMENT, ACCOUNT_TYPES.RESTRICTED_STOCK]
 const PENSION_TYPES = [ACCOUNT_TYPES.PENSION]
 
 const { accounts: accountProviders } = useAccounts()
@@ -43,7 +43,7 @@ watch(
     { immediate: true }
 )
 
-// Map accountId -> totalValue from holdings (for investment/unvested)
+// Map accountId -> totalValue from holdings (for investment/restricted stock)
 const holdingsTotalMap = computed(() => {
     const map = new Map()
     for (const provider of providersWithHoldings.value) {

@@ -201,7 +201,7 @@ const (
 	CheckinAccountType                // where the salary goes
 	SavingsAccountType                // where you save money and get dividends
 	InvestmentAccountType             // stocks and others (vested)
-	UnvestedAccountType               // not yet accessible (e.g. unvested RSUs); can transfer to Investment
+	RestrictedStockAccountType         // restricted stock (e.g. unvested RSUs); can transfer to Investment
 	LentAccountType                   // money lent to others; owned but not in any account
 	PensionAccountType                // pension/retirement fund; contributions via transfer, value changes via revaluation
 )
@@ -216,8 +216,8 @@ func (t AccountType) String() string {
 		return "Savings"
 	case InvestmentAccountType:
 		return "Investment"
-	case UnvestedAccountType:
-		return "Unvested"
+	case RestrictedStockAccountType:
+		return "RestrictedStock"
 	case LentAccountType:
 		return "Lent"
 	case PensionAccountType:
@@ -230,7 +230,7 @@ func (t AccountType) String() string {
 // RequiresCurrency returns true for account types that require a currency (all except Unknown).
 func (t AccountType) RequiresCurrency() bool {
 	switch t {
-	case CashAccountType, CheckinAccountType, SavingsAccountType, InvestmentAccountType, UnvestedAccountType, LentAccountType, PensionAccountType:
+	case CashAccountType, CheckinAccountType, SavingsAccountType, InvestmentAccountType, RestrictedStockAccountType, LentAccountType, PensionAccountType:
 		return true
 	default:
 		return false
@@ -386,7 +386,7 @@ func (store *Store) UpdateAccount(ctx context.Context, item AccountUpdatePayload
 		selectedFields = append(selectedFields, "Type")
 	}
 
-	// Currency: required for Cash/Checkin/Savings/Investment/Unvested; store when provided
+	// Currency: required for Cash/Checkin/Savings/Investment/RestrictedStock; store when provided
 	if item.Currency != nil {
 		if targetType.RequiresCurrency() {
 			updateStruct.Currency = item.Currency.String()

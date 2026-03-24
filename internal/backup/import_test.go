@@ -160,16 +160,16 @@ func assertImportedTransactions(t *testing.T, store *accounting.Store) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	want := []accounting.Transaction{
-		accounting.Income{Id: 2, Description: "i1", Amount: 12.5, AccountID: 2, CategoryID: 2, Date: getDate("2022-01-20")},
-		accounting.Expense{Id: 3, Description: "e1", Amount: 22.6, AccountID: 2, CategoryID: 5, Date: getDate("2022-01-19")},
-		accounting.Transfer{Id: 4, Description: "tr1", OriginAmount: 36.6, OriginAccountID: 2, TargetAmount: 1.5, TargetAccountID: 3, Date: getDate("2022-01-18")},
-		accounting.Income{Id: 5, Description: "i1", Amount: 10.5, AccountID: 5, CategoryID: 0, Date: getDate("2022-01-17")},
+		accounting.Income{Description: "i1", Amount: 12.5, AccountID: 2, CategoryID: 2, Date: getDate("2022-01-20")},
+		accounting.Expense{Description: "e1", Amount: 22.6, AccountID: 2, CategoryID: 5, Date: getDate("2022-01-19")},
+		accounting.Transfer{Description: "tr1", OriginAmount: 36.6, OriginAccountID: 2, TargetAmount: 1.5, TargetAccountID: 3, Date: getDate("2022-01-18")},
+		accounting.Income{Description: "i1", Amount: 10.5, AccountID: 5, CategoryID: 0, Date: getDate("2022-01-17")},
 	}
 	if diff := cmp.Diff(want, got,
 		cmpopts.EquateComparable(currency.Unit{}),
-		cmpopts.IgnoreFields(accounting.Income{}, "baseTx"),
-		cmpopts.IgnoreFields(accounting.Expense{}, "baseTx"),
-		cmpopts.IgnoreFields(accounting.Transfer{}, "baseTx"),
+		cmpopts.IgnoreFields(accounting.Income{}, "Id", "baseTx"),
+		cmpopts.IgnoreFields(accounting.Expense{}, "Id", "baseTx"),
+		cmpopts.IgnoreFields(accounting.Transfer{}, "Id", "baseTx"),
 	); diff != "" {
 		t.Errorf("unexpected result (-want +got):\n%s", diff)
 	}

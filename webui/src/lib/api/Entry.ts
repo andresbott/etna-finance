@@ -127,7 +127,7 @@ export interface CreateStockGrantPayload {
     instrumentId: number
     quantity: number
     fairMarketValue?: number
-    accountId: number // Investment or Unvested account that receives the shares
+    accountId: number // Investment or RestrictedStock account that receives the shares
 }
 
 /**
@@ -141,7 +141,7 @@ export const createStockGrant = async (
 }
 
 /**
- * Payload for creating a stock transfer (instruments moved between two position accounts, e.g. Unvested → Investment)
+ * Payload for creating a stock transfer (instruments moved between two position accounts, e.g. RestrictedStock → Investment)
  */
 export interface CreateStockTransferPayload {
     type: 'stocktransfer'
@@ -149,8 +149,8 @@ export interface CreateStockTransferPayload {
     date: string
     instrumentId: number
     quantity: number
-    originAccountId: number  // source (investment or unvested)
-    targetAccountId: number // target (investment or unvested)
+    originAccountId: number  // source (investment or restricted stock)
+    targetAccountId: number // target (investment or restricted stock)
 }
 
 /**
@@ -164,7 +164,7 @@ export const createStockTransfer = async (
 }
 
 /**
- * Payload for creating a stock forfeit (unvested shares forfeited on departure)
+ * Payload for creating a stock forfeit (restricted stock shares forfeited on departure)
  */
 export interface CreateStockForfeitPayload {
     type: 'stockforfeit'
@@ -187,7 +187,7 @@ export const createStockForfeit = async (
 }
 
 /**
- * Payload for creating a stock vest (shares vesting from unvested to investment account)
+ * Payload for creating a stock vest (shares vesting from restricted stock to investment account)
  */
 export interface CreateStockVestPayload {
     type: 'stockvest'

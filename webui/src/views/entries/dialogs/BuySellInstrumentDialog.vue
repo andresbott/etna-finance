@@ -113,6 +113,9 @@ function validateStep1() {
 function goToStep2() {
     step1Errors.value = validateStep1()
     if (Object.keys(step1Errors.value).length === 0) {
+        if (totalAmount.value != null && !Number.isNaN(totalAmount.value)) {
+            formValues.value.targetAmount = totalAmount.value
+        }
         step.value = 2
         step1Errors.value = {}
     }
@@ -625,8 +628,8 @@ const handleSellSave = async () => {
                                 <AccountSelector
                                     v-model="formValues.InvestmentAccountId"
                                     name="InvestmentAccountId"
-                                    placeholder="Select investment or unvested account"
-                                    :accountTypes="['investment', 'unvested']"
+                                    placeholder="Select investment or restricted stock account"
+                                    :accountTypes="['investment', 'restrictedstock']"
                                 />
                                 <Message v-if="$form.InvestmentAccountId?.invalid" severity="error" size="small">
                                     {{ $form.InvestmentAccountId?.error?.message }}
@@ -650,17 +653,13 @@ const handleSellSave = async () => {
                             <AccountSelector
                                 v-model="formValues.InvestmentAccountId"
                                 name="InvestmentAccountId"
-                                placeholder="Select investment or unvested account"
-                                :accountTypes="['investment', 'unvested']"
+                                placeholder="Select investment or restricted stock account"
+                                :accountTypes="['investment', 'restrictedstock']"
                                 @update:modelValue="delete step2Errors.InvestmentAccountId"
                             />
                             <Message v-if="step2Errors.InvestmentAccountId" severity="error" size="small">
                                 {{ step2Errors.InvestmentAccountId }}
                             </Message>
-                        </div>
-                        <div>
-                            <span class="form-label">Total</span>
-                            <p class="amount-display mt-1 mb-0">{{ totalAmountDisplay || '—' }}</p>
                         </div>
                         <!-- Lot selection -->
                         <div v-if="showLotTable" class="lot-selection">

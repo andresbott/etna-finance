@@ -34,7 +34,7 @@ describe('settingsStore', () => {
             expect(store.dateFormat).toBe('')
             expect(store.mainCurrency).toBe('')
             expect(store.currencies).toEqual([])
-            expect(store.instruments).toBe(false)
+            expect(store.investmentInstruments).toBe(false)
             expect(store.rsu).toBe(false)
             expect(store.marketDataSymbols).toEqual([])
             expect(store.version).toBe('')
@@ -52,7 +52,7 @@ describe('settingsStore', () => {
                 dateFormat: 'YYYY-MM-DD',
                 mainCurrency: 'USD',
                 currencies: ['USD', 'EUR', 'GBP'],
-                instruments: true,
+                investmentInstruments: true,
                 rsu: true,
                 marketDataSymbols: ['AAPL', 'GOOGL'],
                 version: '1.2.3',
@@ -71,7 +71,7 @@ describe('settingsStore', () => {
             expect(store.dateFormat).toBe('YYYY-MM-DD')
             expect(store.mainCurrency).toBe('USD')
             expect(store.currencies).toEqual(['USD', 'EUR', 'GBP'])
-            expect(store.instruments).toBe(true)
+            expect(store.investmentInstruments).toBe(true)
             expect(store.rsu).toBe(true)
             expect(store.marketDataSymbols).toEqual(['AAPL', 'GOOGL'])
             expect(store.version).toBe('1.2.3')
@@ -114,7 +114,7 @@ describe('settingsStore', () => {
                 data: {
                     dateFormat: 'DD/MM/YYYY',
                     mainCurrency: 'EUR',
-                    instruments: false,
+                    investmentInstruments: false,
                 },
             })
             const store = await importStore()
@@ -132,7 +132,7 @@ describe('settingsStore', () => {
                     dateFormat: 'DD/MM/YYYY',
                     mainCurrency: 'EUR',
                     currencies: ['EUR'],
-                    instruments: false,
+                    investmentInstruments: false,
                 },
             })
             const store = await importStore()
@@ -148,7 +148,7 @@ describe('settingsStore', () => {
                     dateFormat: 'DD/MM/YYYY',
                     mainCurrency: 'EUR',
                     currencies: ['EUR'],
-                    instruments: false,
+                    investmentInstruments: false,
                     marketDataSymbols: [],
                 },
             })
@@ -228,7 +228,7 @@ describe('settingsStore', () => {
                     dateFormat: '',
                     mainCurrency: 'USD',
                     currencies: ['USD'],
-                    instruments: false,
+                    investmentInstruments: false,
                 },
             })
             const store = await importStore()
@@ -244,7 +244,7 @@ describe('settingsStore', () => {
                     dateFormat: '',
                     mainCurrency: 'USD',
                     currencies: ['USD', 'EUR'],
-                    instruments: false,
+                    investmentInstruments: false,
                 },
             })
             const store = await importStore()
@@ -262,7 +262,7 @@ describe('settingsStore', () => {
                     dateFormat: 'YYYY-MM-DD',
                     mainCurrency: 'USD',
                     currencies: ['USD', 'EUR'],
-                    instruments: true,
+                    investmentInstruments: true,
                     rsu: true,
                     marketDataSymbols: ['AAPL'],
                     version: '2.0.0',
@@ -282,7 +282,7 @@ describe('settingsStore', () => {
             expect(store.dateFormat).toBe('')
             expect(store.mainCurrency).toBe('')
             expect(store.currencies).toEqual([])
-            expect(store.instruments).toBe(false)
+            expect(store.investmentInstruments).toBe(false)
             expect(store.rsu).toBe(false)
             expect(store.marketDataSymbols).toEqual([])
             expect(store.version).toBe('')

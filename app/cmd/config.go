@@ -37,9 +37,9 @@ type AppSettings struct {
 	DateFormat           string
 	MainCurrency         string
 	AdditionalCurrencies []string // currencies to track; main currency is implicit, do not repeat
-	Instruments          bool
+	InvestmentInstruments          bool
 	Rsu                  bool
-	Tools                bool
+	FinancialSimulator                bool
 	MaxAttachmentSizeMB  float64 // max upload size in MB; 0 = default (10 MB)
 }
 
@@ -129,9 +129,9 @@ var defaultCfg = AppCfg{
 		DateFormat:           "YYYY-MM-DD",
 		MainCurrency:         "CHF",
 		AdditionalCurrencies: nil, // empty = main currency only
-		Instruments:          false,
+		InvestmentInstruments:          false,
 		Rsu:                  false,
-		Tools:                false,
+		FinancialSimulator:                false,
 	},
 	MarketDataImporters: MarketDataImportersCfg{}, // set Massive with ApiKeys in YAML to enable backfill
 }

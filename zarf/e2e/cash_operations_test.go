@@ -22,7 +22,7 @@ func TestOperateBasic(t *testing.T) {
 		}
 	}()
 	cfg := instance.DefaultEnvCfg()
-	cfg.Settings.Instruments = true
+	cfg.Settings.InvestmentInstruments = true
 	inst, nav := SetupE2E(t, &cfg)
 	var page *rod.Page
 	var err error
@@ -408,7 +408,7 @@ func TestOperateBasic(t *testing.T) {
 
 		totalText := strings.TrimSpace(page.MustElement(".total-value").MustText())
 		if !strings.Contains(totalText, "10,064.50") {
-			t.Errorf("Total (excl. unvested): got %q, want substring %q", totalText, "10,064.50")
+			t.Errorf("Total (excl. restricted stock): got %q, want substring %q", totalText, "10,064.50")
 		}
 
 		// --- Verify Cash Accounts card ---

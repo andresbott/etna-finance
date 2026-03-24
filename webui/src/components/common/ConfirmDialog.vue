@@ -1,8 +1,9 @@
 <script setup>
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
+import Message from 'primevue/message'
 
-defineProps({
+const props = defineProps({
     name: {
         type: String,
         default: ''
@@ -14,6 +15,10 @@ defineProps({
     message: {
         type: String,
         default: 'Are you sure you want to delete this item?'
+    },
+    error: {
+        type: String,
+        default: null
     }
 })
 
@@ -36,6 +41,7 @@ function handleConfirm() {
         @keydown.enter="handleConfirm"
     >
         <span class="block mb-4">{{ message }} {{ name ? `"${name}"` : '' }}</span>
+        <Message v-if="props.error" severity="error" :closable="false" class="mb-2">{{ props.error }}</Message>
         <div class="flex justify-content-end gap-3">
             <Button type="button" label="Ok" icon="ti ti-check" @click="handleConfirm"></Button>
             <Button

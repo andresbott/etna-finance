@@ -829,7 +829,7 @@ func TestAccountTypeString(t *testing.T) {
 		{CheckinAccountType, "Checkin"},
 		{SavingsAccountType, "Savings"},
 		{InvestmentAccountType, "Investment"},
-		{UnvestedAccountType, "Unvested"},
+		{RestrictedStockAccountType, "RestrictedStock"},
 		{AccountType(99), "Unknown"}, // unknown value falls to default
 	}
 

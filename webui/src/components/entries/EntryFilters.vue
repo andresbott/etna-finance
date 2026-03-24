@@ -16,7 +16,7 @@ const expanded = defineModel<boolean>('expanded', { default: false })
 const props = defineProps<{ accountType?: string | null }>()
 
 const isInvestmentAccount = computed(() =>
-    props.accountType === 'investment' || props.accountType === 'unvested'
+    props.accountType === 'investment' || props.accountType === 'restrictedstock'
 )
 
 const hasActiveFilters = computed(() =>

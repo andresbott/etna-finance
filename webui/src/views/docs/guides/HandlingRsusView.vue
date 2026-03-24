@@ -33,9 +33,9 @@ import Message from 'primevue/message'
                         </p>
                         <ul>
                             <li>
-                                <strong>Unvested products</strong> account — Holds the granted shares that haven't vested yet.
+                                <strong>Restricted stocks</strong> account — Holds the granted shares that haven't vested yet.
                                 Create an account with type
-                                <router-link to="/settings/accounts">Unvested products</router-link>.
+                                <router-link to="/settings/accounts">Restricted stocks</router-link>.
                             </li>
                             <li>
                                 <strong>Investment</strong> account — Holds the vested shares you actually own.
@@ -54,7 +54,7 @@ import Message from 'primevue/message'
                         <h3>Step 1: Record the grant</h3>
                         <p>
                             When your employer grants you RSUs, record a <strong>Grant instrument</strong> transaction
-                            in your <strong>Unvested products</strong> account. This captures the number of shares
+                            in your <strong>Restricted stocks</strong> account. This captures the number of shares
                             granted and the fair market value at grant time.
                         </p>
                         <p>
@@ -68,7 +68,7 @@ import Message from 'primevue/message'
                         <p>
                             When a batch of RSUs vests, the shares move from being "promised" to being "owned".
                             Record a <strong>Transfer instrument</strong> transaction to move the vested shares
-                            from your <strong>Unvested products</strong> account to your <strong>Investment</strong> account.
+                            from your <strong>Restricted stocks</strong> account to your <strong>Investment</strong> account.
                         </p>
                         <p>
                             This reflects that those shares are now yours — they sit in your investment account

@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/andresbott/etna/internal/accounting"
@@ -167,8 +168,8 @@ func parseAccountType(in string) accounting.AccountType {
 		return accounting.SavingsAccountType
 	case "Investment":
 		return accounting.InvestmentAccountType
-	case "Unvested":
-		return accounting.UnvestedAccountType
+	case "RestrictedStock", "Unvested":
+		return accounting.RestrictedStockAccountType
 	case "Lent":
 		return accounting.LentAccountType
 	case "Pension":
@@ -237,6 +238,15 @@ func importTransactions(ctx context.Context, store *accounting.Store, r *zip.Rea
 	if err != nil {
 		return err
 	}
+
+	// Sort transactions by date ASC (then by original ID) so that buys/grants
+	// create lots before sells/transfers try to consume them.
+	sort.Slice(txs, func(i, j int) bool {
+		if txs[i].Date.Equal(txs[j].Date) {
+			return txs[i].Id < txs[j].Id
+		}
+		return txs[i].Date.Before(txs[j].Date)
+	})
 
 	for _, tx := range txs {
 		var item accounting.Transaction

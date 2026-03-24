@@ -9,7 +9,7 @@ func TestValidateSettings(t *testing.T) {
 		DateFormat:           "YYYY-MM-DD",
 		MainCurrency:         "CHF",
 		AdditionalCurrencies: nil,
-		Instruments:          false,
+		InvestmentInstruments: false,
 		Rsu:                  false,
 	}
 

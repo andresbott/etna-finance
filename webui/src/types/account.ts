@@ -38,7 +38,7 @@ export const ACCOUNT_TYPES = {
     CHECKING: 'checkin',
     SAVINGS: 'savings',
     INVESTMENT: 'investment',
-    UNVESTED: 'unvested', // not yet accessible (e.g. unvested RSUs); can transfer to Investment
+    RESTRICTED_STOCK: 'restrictedstock', // not yet accessible (e.g. restricted stock / RSUs); can transfer to Investment
     LENT: 'lent', // money lent to others; owned but not in any account
     PENSION: 'pension', // pension/retirement fund
 } as const
@@ -53,7 +53,7 @@ export const ACCOUNT_TYPE_ICONS: Record<AccountType, string> = {
     [ACCOUNT_TYPES.CHECKING]: 'credit-card',
     [ACCOUNT_TYPES.SAVINGS]: 'box',
     [ACCOUNT_TYPES.INVESTMENT]: 'chart-line',
-    [ACCOUNT_TYPES.UNVESTED]: 'gift',
+    [ACCOUNT_TYPES.RESTRICTED_STOCK]: 'gift',
     [ACCOUNT_TYPES.LENT]: 'send',
     [ACCOUNT_TYPES.PENSION]: 'building-bank',
 }
@@ -66,7 +66,7 @@ export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
     [ACCOUNT_TYPES.CHECKING]: 'Checking',
     [ACCOUNT_TYPES.SAVINGS]: 'Savings',
     [ACCOUNT_TYPES.INVESTMENT]: 'Investment',
-    [ACCOUNT_TYPES.UNVESTED]: 'Unvested products',
+    [ACCOUNT_TYPES.RESTRICTED_STOCK]: 'Restricted stocks',
     [ACCOUNT_TYPES.LENT]: 'Lent money',
     [ACCOUNT_TYPES.PENSION]: 'Pension',
 }
@@ -114,7 +114,7 @@ export type EntryOperation = typeof ENTRY_OPERATIONS[keyof typeof ENTRY_OPERATIO
  * 
  * Current configuration:
  * - cash, checking, savings: income, expense, transfer
- * - investment, unvested: buy/sell stock (unvested = not yet accessible, e.g. RSUs)
+ * - investment, restricted stock: buy/sell stock (restricted stock = not yet accessible, e.g. RSUs)
  */
 export const ALLOWED_OPERATIONS_BY_ACCOUNT_TYPE: Record<AccountType, EntryOperation[]> = {
     [ACCOUNT_TYPES.CASH]: [
@@ -145,8 +145,9 @@ export const ALLOWED_OPERATIONS_BY_ACCOUNT_TYPE: Record<AccountType, EntryOperat
         ENTRY_OPERATIONS.GRANT_STOCK,
         ENTRY_OPERATIONS.TRANSFER_INSTRUMENT,
     ],
-    [ACCOUNT_TYPES.UNVESTED]: [
+    [ACCOUNT_TYPES.RESTRICTED_STOCK]: [
         ENTRY_OPERATIONS.GRANT_STOCK,
+        ENTRY_OPERATIONS.TRANSFER_INSTRUMENT,
         ENTRY_OPERATIONS.VEST_STOCK,
         ENTRY_OPERATIONS.FORFEIT_STOCK,
     ],

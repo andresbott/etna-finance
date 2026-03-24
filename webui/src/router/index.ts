@@ -282,9 +282,9 @@ router.beforeEach((to, from, next) => {
         if (to.matched.some((record) => record.meta.requiresAuth)) {
             if (!user.isLoggedIn) {
                 next({ name: 'login' })
-            } else if (to.matched.some((record) => record.meta.requiresInstruments) && !settings.instruments) {
+            } else if (to.matched.some((record) => record.meta.requiresInstruments) && !settings.investmentInstruments) {
                 next({ name: 'reports-overview' })
-            } else if (to.matched.some((record) => record.meta.requiresTools) && !settings.tools) {
+            } else if (to.matched.some((record) => record.meta.requiresTools) && !settings.financialSimulator) {
                 next({ name: 'reports-overview' })
             } else {
                 next() // go to wherever I'm going

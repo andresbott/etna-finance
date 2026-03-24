@@ -21,10 +21,10 @@ type EnvCfg struct {
 }
 
 type EnvSettings struct {
-	DateFormat           string   // e.g. "YYYY-MM-DD"
-	MainCurrency         string   // e.g. "CHF"
-	AdditionalCurrencies []string // e.g. ["EUR", "USD"]
-	Instruments          bool
+	DateFormat            string   // e.g. "YYYY-MM-DD"
+	MainCurrency          string   // e.g. "CHF"
+	AdditionalCurrencies  []string // e.g. ["EUR", "USD"]
+	InvestmentInstruments bool
 }
 
 type EnvMarketDataImporters struct {
@@ -39,10 +39,10 @@ type EnvMassiveConfig struct {
 func DefaultEnvCfg() EnvCfg {
 	return EnvCfg{
 		Settings: EnvSettings{
-			DateFormat:           "YYYY-MM-DD",
-			MainCurrency:         "CHF",
-			AdditionalCurrencies: nil,
-			Instruments:          false,
+			DateFormat:            "YYYY-MM-DD",
+			MainCurrency:          "CHF",
+			AdditionalCurrencies:  nil,
+			InvestmentInstruments: false,
 		},
 		MarketDataImporters: EnvMarketDataImporters{
 			Massive: EnvMassiveConfig{ApiKeys: nil},
@@ -55,7 +55,7 @@ func ApplyEnv(cfg EnvCfg) {
 	unset := []string{
 		"ETNA_SETTINGS_DATEFORMAT",
 		"ETNA_SETTINGS_MAINCURRENCY",
-		"ETNA_SETTINGS_INSTRUMENTS",
+		"ETNA_SETTINGS_INVESTMENTINSTRUMENTS",
 		"ETNA_SETTINGS_ADDITIONALCURRENCIES_0",
 		"ETNA_SETTINGS_ADDITIONALCURRENCIES_1",
 		"ETNA_SETTINGS_ADDITIONALCURRENCIES_2",
@@ -87,7 +87,7 @@ func ApplyEnv(cfg EnvCfg) {
 	if cfg.Settings.MainCurrency != "" {
 		_ = os.Setenv("ETNA_SETTINGS_MAINCURRENCY", cfg.Settings.MainCurrency)
 	}
-	_ = os.Setenv("ETNA_SETTINGS_INSTRUMENTS", strconv.FormatBool(cfg.Settings.Instruments))
+	_ = os.Setenv("ETNA_SETTINGS_INVESTMENTINSTRUMENTS", strconv.FormatBool(cfg.Settings.InvestmentInstruments))
 	for i, c := range cfg.Settings.AdditionalCurrencies {
 		_ = os.Setenv(fmt.Sprintf("ETNA_SETTINGS_ADDITIONALCURRENCIES_%d", i), c)
 	}

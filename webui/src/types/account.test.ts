@@ -18,7 +18,7 @@ describe('getAccountTypeLabel', () => {
         expect(getAccountTypeLabel(ACCOUNT_TYPES.CHECKING)).toBe('Checking')
         expect(getAccountTypeLabel(ACCOUNT_TYPES.SAVINGS)).toBe('Savings')
         expect(getAccountTypeLabel(ACCOUNT_TYPES.INVESTMENT)).toBe('Investment')
-        expect(getAccountTypeLabel(ACCOUNT_TYPES.UNVESTED)).toBe('Unvested products')
+        expect(getAccountTypeLabel(ACCOUNT_TYPES.RESTRICTED_STOCK)).toBe('Restricted stocks')
         expect(getAccountTypeLabel(ACCOUNT_TYPES.LENT)).toBe('Lent money')
         expect(getAccountTypeLabel(ACCOUNT_TYPES.PENSION)).toBe('Pension')
     })
@@ -46,7 +46,7 @@ describe('getAccountTypeIcon', () => {
         expect(getAccountTypeIcon(ACCOUNT_TYPES.CHECKING)).toBe('credit-card')
         expect(getAccountTypeIcon(ACCOUNT_TYPES.SAVINGS)).toBe('box')
         expect(getAccountTypeIcon(ACCOUNT_TYPES.INVESTMENT)).toBe('chart-line')
-        expect(getAccountTypeIcon(ACCOUNT_TYPES.UNVESTED)).toBe('gift')
+        expect(getAccountTypeIcon(ACCOUNT_TYPES.RESTRICTED_STOCK)).toBe('gift')
         expect(getAccountTypeIcon(ACCOUNT_TYPES.LENT)).toBe('send')
         expect(getAccountTypeIcon(ACCOUNT_TYPES.PENSION)).toBe('building-bank')
     })
@@ -136,10 +136,11 @@ describe('getAllowedOperations', () => {
         ])
     })
 
-    it('returns grant, vest, and forfeit operations for UNVESTED', () => {
-        const result = getAllowedOperations(ACCOUNT_TYPES.UNVESTED)
+    it('returns grant, vest, and forfeit operations for RESTRICTED_STOCK', () => {
+        const result = getAllowedOperations(ACCOUNT_TYPES.RESTRICTED_STOCK)
         expect(result).toEqual([
             ENTRY_OPERATIONS.GRANT_STOCK,
+            ENTRY_OPERATIONS.TRANSFER_INSTRUMENT,
             ENTRY_OPERATIONS.VEST_STOCK,
             ENTRY_OPERATIONS.FORFEIT_STOCK,
         ])
@@ -155,7 +156,7 @@ describe('getAllowedOperations', () => {
 
     it('does not include expense in investment accounts', () => {
         expect(getAllowedOperations(ACCOUNT_TYPES.INVESTMENT)).not.toContain(ENTRY_OPERATIONS.EXPENSE)
-        expect(getAllowedOperations(ACCOUNT_TYPES.UNVESTED)).not.toContain(ENTRY_OPERATIONS.EXPENSE)
+        expect(getAllowedOperations(ACCOUNT_TYPES.RESTRICTED_STOCK)).not.toContain(ENTRY_OPERATIONS.EXPENSE)
     })
 
     it('does not include buyStock in cash-like accounts', () => {
@@ -221,24 +222,24 @@ describe('isOperationAllowed', () => {
             expect(isOperationAllowed(op, ACCOUNT_TYPES.INVESTMENT)).toBe(true)
         }
 
-        // Unvested accounts only allow grant, vest, and forfeit
-        const unvestedOps: EntryOperation[] = [
+        // Restricted stock accounts allow grant, transfer, vest, and forfeit
+        const restrictedStockOps: EntryOperation[] = [
             ENTRY_OPERATIONS.GRANT_STOCK,
+            ENTRY_OPERATIONS.TRANSFER_INSTRUMENT,
             ENTRY_OPERATIONS.VEST_STOCK,
             ENTRY_OPERATIONS.FORFEIT_STOCK,
         ]
-        for (const op of unvestedOps) {
-            expect(isOperationAllowed(op, ACCOUNT_TYPES.UNVESTED)).toBe(true)
+        for (const op of restrictedStockOps) {
+            expect(isOperationAllowed(op, ACCOUNT_TYPES.RESTRICTED_STOCK)).toBe(true)
         }
-        expect(isOperationAllowed(ENTRY_OPERATIONS.BUY_STOCK, ACCOUNT_TYPES.UNVESTED)).toBe(false)
-        expect(isOperationAllowed(ENTRY_OPERATIONS.SELL_STOCK, ACCOUNT_TYPES.UNVESTED)).toBe(false)
-        expect(isOperationAllowed(ENTRY_OPERATIONS.TRANSFER_INSTRUMENT, ACCOUNT_TYPES.UNVESTED)).toBe(false)
+        expect(isOperationAllowed(ENTRY_OPERATIONS.BUY_STOCK, ACCOUNT_TYPES.RESTRICTED_STOCK)).toBe(false)
+        expect(isOperationAllowed(ENTRY_OPERATIONS.SELL_STOCK, ACCOUNT_TYPES.RESTRICTED_STOCK)).toBe(false)
     })
 
     it('returns false for disallowed operations on investment accounts', () => {
         const investmentLike: AccountType[] = [
             ACCOUNT_TYPES.INVESTMENT,
-            ACCOUNT_TYPES.UNVESTED,
+            ACCOUNT_TYPES.RESTRICTED_STOCK,
         ]
         const disallowedOps: EntryOperation[] = [
             ENTRY_OPERATIONS.INCOME,

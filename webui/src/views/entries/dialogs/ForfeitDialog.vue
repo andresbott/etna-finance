@@ -339,12 +339,12 @@ const dialogTitle = computed(() =>
                     </Message>
                 </div>
                 <div>
-                    <label for="AccountId" class="form-label">Unvested account</label>
+                    <label for="AccountId" class="form-label">Restricted stock account</label>
                     <AccountSelector
                         v-model="formValues.AccountId"
                         name="AccountId"
-                        placeholder="Select unvested account"
-                        :accountTypes="['unvested']"
+                        placeholder="Select restricted stock account"
+                        :accountTypes="['restrictedstock']"
                     />
                     <Message v-if="formErrors.AccountId" severity="error" size="small">
                         {{ formErrors.AccountId }}

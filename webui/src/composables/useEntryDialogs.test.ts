@@ -172,6 +172,40 @@ describe('useEntryDialogs', () => {
         })
     })
 
+    describe('handleDeleteEntry', () => {
+        it('closes dialog on success', async () => {
+            result.openDeleteDialog({ id: '1', description: 'test' })
+            expect(result.deleteDialogVisible.value).toBe(true)
+
+            await result.handleDeleteEntry()
+            expect(result.deleteDialogVisible.value).toBe(false)
+            expect(result.deleteError.value).toBeNull()
+        })
+
+        it('shows error and keeps dialog open on failure', async () => {
+            const error = { response: { data: { error: 'cannot modify transfer: some transferred shares have been used by downstream transactions' } } }
+            deleteEntryFn.mockRejectedValueOnce(error)
+
+            result.openDeleteDialog({ id: '1', description: 'test' })
+            await result.handleDeleteEntry()
+
+            expect(result.deleteDialogVisible.value).toBe(true)
+            expect(result.deleteError.value).toBe('cannot modify transfer: some transferred shares have been used by downstream transactions')
+        })
+
+        it('clears error when opening a new delete dialog', async () => {
+            const error = { response: { data: { error: 'some error' } } }
+            deleteEntryFn.mockRejectedValueOnce(error)
+
+            result.openDeleteDialog({ id: '1', description: 'test' })
+            await result.handleDeleteEntry()
+            expect(result.deleteError.value).not.toBeNull()
+
+            result.openDeleteDialog({ id: '2', description: 'other' })
+            expect(result.deleteError.value).toBeNull()
+        })
+    })
+
     describe('transformDeleteId watcher', () => {
         it('clears transformDeleteId when transfer dialog closes', async () => {
             await result.openTransformToTransfer({

@@ -338,9 +338,9 @@ func TestCreateAccount(t *testing.T) {
 			expectCode: http.StatusOK,
 		},
 		{
-			name:       "successful request with type unvested",
+			name:       "successful request with type restrictedstock",
 			tenant:     tenant1,
-			payload:    bytes.NewBuffer([]byte(`{ "name":"RSU account", "type":"unvested", "currency":"USD", "providerId":1 }`)),
+			payload:    bytes.NewBuffer([]byte(`{ "name":"RSU account", "type":"restrictedstock", "currency":"USD", "providerId":1 }`)),
 			expectCode: http.StatusOK,
 		},
 		{
@@ -427,9 +427,9 @@ func TestUpdateAccount(t *testing.T) {
 			expectCode: http.StatusOK,
 		},
 		{
-			name:       "successful request with type unvested",
+			name:       "successful request with type restrictedstock",
 			user:       tenant1,
-			payload:    bytes.NewBuffer([]byte(`{"type":"unvested"}`)),
+			payload:    bytes.NewBuffer([]byte(`{"type":"restrictedstock"}`)),
 			expectCode: http.StatusOK,
 		},
 		{

@@ -453,12 +453,12 @@ const dialogTitle = computed(() =>
 
                     <div class="flex flex-row gap-3 align-items-start">
                         <div class="flex flex-column gap-2 flex-1" style="min-width: 0">
-                            <label for="OriginAccountId" class="form-label">Source (unvested) account</label>
+                            <label for="OriginAccountId" class="form-label">Source (restricted stock) account</label>
                             <AccountSelector
                                 v-model="formValues.OriginAccountId"
                                 name="OriginAccountId"
-                                placeholder="Select unvested account"
-                                :accountTypes="['unvested']"
+                                placeholder="Select restricted stock account"
+                                :accountTypes="['restrictedstock']"
                             />
                             <Message v-if="step1Errors.OriginAccountId" severity="error" size="small">
                                 {{ step1Errors.OriginAccountId }}

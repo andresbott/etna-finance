@@ -52,7 +52,7 @@ const props = defineProps({
 const isInstrumentAccount = computed(
     () =>
         props.accountType === ACCOUNT_TYPES.INVESTMENT ||
-        props.accountType === ACCOUNT_TYPES.UNVESTED
+        props.accountType === ACCOUNT_TYPES.RESTRICTED_STOCK
 )
 
 /* --- Emits --- */
