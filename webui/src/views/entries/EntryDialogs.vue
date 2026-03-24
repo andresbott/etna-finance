@@ -7,6 +7,7 @@ import TransferInstrumentDialog from './dialogs/TransferInstrumentDialog.vue'
 import VestingDialog from './dialogs/VestingDialog.vue'
 import ForfeitDialog from './dialogs/ForfeitDialog.vue'
 import BalanceStatusDialog from '@/views/entries/dialogs/BalanceStatusDialog.vue'
+import RevaluationDialog from '@/views/entries/dialogs/RevaluationDialog.vue'
 import DeleteDialog from '@/components/common/ConfirmDialog.vue'
 
 defineProps({
@@ -153,6 +154,19 @@ const emit = defineEmits(['update:deleteDialogVisible', 'confirmDelete', 'transf
         :entry-id="selectedEntry?.id"
         :description="selectedEntry?.description"
         :amount="selectedEntry?.Amount"
+        :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
+        :account-id="selectedEntry?.accountId"
+        :attachment-id="isDuplicateMode ? undefined : selectedEntry?.attachmentId"
+        :notes="selectedEntry?.notes ?? ''"
+    />
+
+    <RevaluationDialog
+        v-model:visible="dialogs.revaluation.value"
+        :is-edit="isEditMode"
+        :entry-id="selectedEntry?.id"
+        :description="selectedEntry?.description"
+        :amount="selectedEntry?.Amount"
+        :balance="selectedEntry?.balance ?? 0"
         :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
         :account-id="selectedEntry?.accountId"
         :attachment-id="isDuplicateMode ? undefined : selectedEntry?.attachmentId"

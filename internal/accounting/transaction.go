@@ -29,6 +29,7 @@ const (
 	BalanceStatusTransaction
 	StockVestTransaction
 	StockForfeitTransaction
+	RevaluationTransaction
 )
 
 type dbTransaction struct {
@@ -213,6 +214,23 @@ type BalanceStatus struct {
 	baseTx
 }
 
+// Revaluation adjusts an account's balance to reflect gains/losses (e.g. pension fund value change).
+// Amount is the delta (positive = gain, negative = loss). It IS included in balance calculations
+// but NOT in category reports.
+type Revaluation struct {
+	Id           uint
+	Description  string
+	Notes        string
+	Amount       float64 // delta: positive = gain, negative = loss
+	Balance      float64 // informative: the target balance the user entered
+	AccountID    uint
+	Date         time.Time
+	AttachmentID *uint
+	baseTx
+}
+
+var allowedRevaluationAccountTypes = []AccountType{PensionAccountType, SavingsAccountType}
+
 // CreateTransaction creates a new transaction in the DB.
 // It delegates to the appropriate CreateX function depending on the input type.
 func (store *Store) CreateTransaction(ctx context.Context, input Transaction) (uint, error) {
@@ -237,6 +255,8 @@ func (store *Store) CreateTransaction(ctx context.Context, input Transaction) (u
 		return store.CreateStockVest(ctx, item)
 	case StockForfeit:
 		return store.CreateStockForfeit(ctx, item)
+	case Revaluation:
+		return store.CreateRevaluation(ctx, item)
 	default:
 		return 0, errors.New("invalid transaction type")
 	}
@@ -374,10 +394,52 @@ func (store *Store) CreateBalanceStatus(ctx context.Context, item BalanceStatus)
 	return tx.Id, nil
 }
 
+func (store *Store) CreateRevaluation(ctx context.Context, item Revaluation) (uint, error) {
+	if item.AccountID == 0 {
+		return 0, ErrValidation("account id is required")
+	}
+
+	acc, err := store.GetAccount(ctx, item.AccountID)
+	if err != nil {
+		return 0, fmt.Errorf("error creating revaluation: %w", err)
+	}
+	if !slices.Contains(allowedRevaluationAccountTypes, acc.Type) {
+		return 0, NewValidationErr(fmt.Sprintf("incompatible account type %s for revaluation transaction", acc.Type.String()))
+	}
+
+	tx := dbTransaction{
+		Description: item.Description,
+		Notes:       item.Notes,
+		Date:        item.Date,
+		Type:        RevaluationTransaction,
+		Entries: []dbEntry{
+			{
+				AccountID: item.AccountID,
+				Amount:    item.Amount,
+				Balance:   item.Balance,
+				EntryType: revaluationEntry,
+			},
+		},
+	}
+
+	if err := validateTransaction(tx); err != nil {
+		return 0, err
+	}
+
+	if err := store.db.WithContext(ctx).Create(&tx).Error; err != nil {
+		return 0, err
+	}
+	return tx.Id, nil
+}
+
 func (store *Store) CreateTransfer(ctx context.Context, item Transfer) (uint, error) {
 
 	if item.OriginAccountID == 0 || item.TargetAccountID == 0 {
 		return 0, ErrValidation("origin and target account IDs are required")
+	}
+
+	if item.OriginAccountID == item.TargetAccountID {
+		return 0, ErrValidation("origin and target account must be different")
 	}
 
 	originAcc, err := store.GetAccount(ctx, item.OriginAccountID)
@@ -425,7 +487,7 @@ func (store *Store) CreateTransfer(ctx context.Context, item Transfer) (uint, er
 	return tx.Id, nil
 }
 
-var allowedCashAccountTypes = []AccountType{CashAccountType, CheckinAccountType, SavingsAccountType, LentAccountType}
+var allowedCashAccountTypes = []AccountType{CashAccountType, CheckinAccountType, SavingsAccountType, LentAccountType, PensionAccountType}
 var allowedPositionAccountTypes = []AccountType{InvestmentAccountType, UnvestedAccountType}
 
 // resolveInstrumentCurrencyFromTx fetches the instrument currency from the existing transaction.
@@ -1263,6 +1325,8 @@ func publicTransactions(in dbTransaction) (Transaction, error) {
 		return stockTransferFromDb(in)
 	case BalanceStatusTransaction:
 		return balanceStatusFromDb(in)
+	case RevaluationTransaction:
+		return revaluationFromDb(in)
 	case StockVestTransaction:
 		return stockVestFromDb(in)
 	case StockForfeitTransaction:
@@ -1291,6 +1355,19 @@ func balanceStatusFromDb(in dbTransaction) (Transaction, error) {
 		Notes:        in.Notes,
 		Date:         in.Date,
 		Amount:       in.Entries[0].Amount,
+		AccountID:    in.Entries[0].AccountID,
+		AttachmentID: in.AttachmentID,
+	}, nil
+}
+
+func revaluationFromDb(in dbTransaction) (Transaction, error) {
+	return Revaluation{
+		Id:           in.Id,
+		Description:  in.Description,
+		Notes:        in.Notes,
+		Date:         in.Date,
+		Amount:       in.Entries[0].Amount,
+		Balance:      in.Entries[0].Balance,
 		AccountID:    in.Entries[0].AccountID,
 		AttachmentID: in.AttachmentID,
 	}, nil
@@ -1982,6 +2059,17 @@ type BalanceStatusUpdate struct {
 	txUpdate
 }
 
+type RevaluationUpdate struct {
+	Description *string
+	Notes       *string
+	Date        *time.Time
+	Amount      *float64
+	Balance     *float64
+	AccountID   *uint
+
+	txUpdate
+}
+
 // TODO: there is nothing preventing an income category to be tagged with an expense entry
 
 func (store *Store) UpdateTransaction(ctx context.Context, input TransactionUpdate, Id uint) error {
@@ -2006,6 +2094,8 @@ func (store *Store) UpdateTransaction(ctx context.Context, input TransactionUpda
 		return store.UpdateStockForfeit(ctx, item, Id)
 	case BalanceStatusUpdate:
 		return store.UpdateBalanceStatus(ctx, item, Id)
+	case RevaluationUpdate:
+		return store.UpdateRevaluation(ctx, item, Id)
 	default:
 		return errors.New("invalid baseTx type")
 	}
@@ -2057,22 +2147,51 @@ func (store *Store) UpdateBalanceStatus(ctx context.Context, input BalanceStatus
 	return store.updateIncomeExpense(ctx, params, id)
 }
 
+func (store *Store) UpdateRevaluation(ctx context.Context, input RevaluationUpdate, id uint) error {
+	params := updateIncomeExpenseParams{
+		description:         input.Description,
+		notes:               input.Notes,
+		date:                input.Date,
+		amount:              input.Amount,
+		balance:             input.Balance,
+		accountID:           input.AccountID,
+		amountMultiplier:    1,
+		txType:              RevaluationTransaction,
+		entryType:           revaluationEntry,
+		allowedAccountTypes: allowedRevaluationAccountTypes,
+	}
+	return store.updateIncomeExpense(ctx, params, id)
+}
+
 type updateIncomeExpenseParams struct {
 	description          *string
 	notes                *string
 	date                 *time.Time
 	amount               *float64
+	balance              *float64
 	accountID            *uint
 	categoryID           *uint
 	amountMultiplier     int
 	expectedCategoryType CategoryType
 	txType               TxType
 	entryType            entryType
+	allowedAccountTypes  []AccountType // if set, overrides allowedCashAccountTypes for account validation
+}
+
+func (store *Store) validateCategory(ctx context.Context, categoryID uint, expectedType CategoryType) error {
+	if categoryID != 0 {
+		cat, err := store.GetCategory(ctx, categoryID)
+		if err != nil {
+			return fmt.Errorf("error updating transaction: %w", err)
+		}
+		if cat.Type != expectedType {
+			return NewValidationErr("incompatible category type for transaction")
+		}
+	}
+	return nil
 }
 
 // updateIncomeExpense is a common function to update incomes and expenses
-//
-//nolint:nestif// the linter flags it but the code is simple enough to follow it without refactoring
 func (store *Store) updateIncomeExpense(ctx context.Context, params updateIncomeExpenseParams, id uint) error {
 	var selectedFields []string
 	var updateStruct dbTransaction
@@ -2112,6 +2231,12 @@ func (store *Store) updateIncomeExpense(ctx context.Context, params updateIncome
 		selectedEntryFields = append(selectedEntryFields, "Amount")
 	}
 
+	// Balance (informative, for revaluation)
+	if params.balance != nil {
+		updateEntry.Balance = *params.balance
+		selectedEntryFields = append(selectedEntryFields, "Balance")
+	}
+
 	// Account
 	if params.accountID != nil {
 		if *params.accountID == 0 {
@@ -2122,7 +2247,11 @@ func (store *Store) updateIncomeExpense(ctx context.Context, params updateIncome
 			return fmt.Errorf("error updating transaction: %w", err)
 		}
 
-		if !slices.Contains(allowedCashAccountTypes, acc.Type) {
+		allowed := allowedCashAccountTypes
+		if params.allowedAccountTypes != nil {
+			allowed = params.allowedAccountTypes
+		}
+		if !slices.Contains(allowed, acc.Type) {
 			return NewValidationErr(fmt.Sprintf("incompatible account type '%s' for transaction", acc.Type.String()))
 		}
 
@@ -2132,14 +2261,8 @@ func (store *Store) updateIncomeExpense(ctx context.Context, params updateIncome
 
 	// Category
 	if params.categoryID != nil {
-		if *params.categoryID != 0 {
-			cat, err := store.GetCategory(ctx, *params.categoryID)
-			if err != nil {
-				return fmt.Errorf("error updating transaction: %w", err)
-			}
-			if cat.Type != params.expectedCategoryType {
-				return NewValidationErr("incompatible category type for transaction")
-			}
+		if err := store.validateCategory(ctx, *params.categoryID, params.expectedCategoryType); err != nil {
+			return err
 		}
 		updateEntry.CategoryID = *params.categoryID
 		selectedEntryFields = append(selectedEntryFields, "CategoryID")
@@ -2310,6 +2433,11 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 		return ErrNoChanges
 	}
 
+	// Prevent same origin and target account
+	if err := store.validateTransferAccounts(ctx, input, Id); err != nil {
+		return err
+	}
+
 	wParams := writeTxUpdateParams{
 		selectedFields: selectedFields,
 		updateStruct:   updateStruct,
@@ -2325,6 +2453,49 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 	}
 	if err := store.writeTxUpdate(wParams, Id); err != nil {
 		return fmt.Errorf("error updating transaction: %w", err)
+	}
+	return nil
+}
+
+func (store *Store) validateTransferAccounts(ctx context.Context, input TransferUpdate, id uint) error {
+	if input.OriginAccountID == nil && input.TargetAccountID == nil {
+		return nil
+	}
+
+	effectiveOrigin := uint(0)
+	effectiveTarget := uint(0)
+	if input.OriginAccountID != nil {
+		effectiveOrigin = *input.OriginAccountID
+	}
+	if input.TargetAccountID != nil {
+		effectiveTarget = *input.TargetAccountID
+	}
+
+	// If only one side is changing, resolve the other from the existing transaction
+	if effectiveOrigin != 0 && effectiveTarget != 0 {
+		if effectiveOrigin == effectiveTarget {
+			return NewValidationErr("origin and target account must be different")
+		}
+		return nil
+	}
+
+	existing, err := store.GetTransaction(ctx, id)
+	if err != nil {
+		return fmt.Errorf("error fetching existing transfer: %w", err)
+	}
+	t, ok := existing.(Transfer)
+	if !ok {
+		return nil
+	}
+	if effectiveOrigin == 0 {
+		effectiveOrigin = t.OriginAccountID
+	}
+	if effectiveTarget == 0 {
+		effectiveTarget = t.TargetAccountID
+	}
+
+	if effectiveOrigin != 0 && effectiveTarget != 0 && effectiveOrigin == effectiveTarget {
+		return NewValidationErr("origin and target account must be different")
 	}
 	return nil
 }
@@ -3413,6 +3584,9 @@ type intermediate struct {
 	ForfeitAccountId    uint
 	ForfeitInstrumentId uint
 	ForfeitQuantity     float64
+
+	RevaluationAmount  float64
+	RevaluationBalance float64
 }
 
 func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Transaction, int64, error) {
@@ -3481,7 +3655,11 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
         CAST(MAX(CASE WHEN db_trades.trade_type = 6 THEN db_trades.quantity END) AS REAL) AS forfeit_quantity,
 
         -- balance status
-        CAST(SUM(CASE WHEN db_entries.entry_type = 12 THEN db_entries.amount ELSE 0 END) AS REAL) AS balance_status_amount
+        CAST(SUM(CASE WHEN db_entries.entry_type = 12 THEN db_entries.amount ELSE 0 END) AS REAL) AS balance_status_amount,
+
+        -- revaluation
+        CAST(SUM(CASE WHEN db_entries.entry_type = 14 THEN db_entries.amount ELSE 0 END) AS REAL) AS revaluation_amount,
+        CAST(MAX(CASE WHEN db_entries.entry_type = 14 THEN db_entries.balance ELSE 0 END) AS REAL) AS revaluation_balance
     `).
 		Joins("LEFT JOIN db_entries ON db_entries.transaction_id = db_transactions.id").
 		Joins("LEFT JOIN db_trades ON db_trades.transaction_id = db_transactions.id")
@@ -3646,6 +3824,12 @@ func intermediateToTransaction(item intermediate) Transaction {
 		return BalanceStatus{
 			Id: item.TransactionId, Description: item.Description, Notes: item.Notes,
 			Date: item.Date, Amount: item.BalanceStatusAmount,
+			AccountID: item.AccountId, AttachmentID: item.AttachmentID,
+		}
+	case RevaluationTransaction:
+		return Revaluation{
+			Id: item.TransactionId, Description: item.Description, Notes: item.Notes,
+			Date: item.Date, Amount: item.RevaluationAmount, Balance: item.RevaluationBalance,
 			AccountID: item.AccountId, AttachmentID: item.AttachmentID,
 		}
 	default:

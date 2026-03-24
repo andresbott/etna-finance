@@ -23,6 +23,7 @@ const (
 	stockTransferInEntry
 	balanceStatusEntry
 	stockVestIncomeEntry
+	revaluationEntry
 )
 
 type dbEntry struct {
@@ -34,6 +35,7 @@ type dbEntry struct {
 
 	Amount   float64 `gorm:"not null"` // Amount in account currency; for stock position entries (buy/sell) is 0; for stock cash entries signed (out negative, in positive)
 	Quantity float64 // for stock position entries: shares; unused for stock cash entries
+	Balance  float64 // informative: for revaluation entries, the target balance the user entered
 
 	EntryType entryType
 

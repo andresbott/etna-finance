@@ -76,6 +76,9 @@ type transactionPayload struct {
 		Quantity float64 `json:"quantity"`
 	} `json:"lotAllocations,omitempty"`
 
+	// used for revaluation (informative target balance)
+	Balance float64 `json:"balance"`
+
 	AttachmentID *uint `json:"attachmentId,omitempty"`
 }
 
@@ -209,6 +212,15 @@ func (h *Handler) CreateTx() http.Handler {
 				Amount:      payload.Amount,
 				AccountID:   payload.AccountId,
 			}
+		case accounting.RevaluationTransaction:
+			entry = accounting.Revaluation{
+				Description: payload.Description,
+				Notes:       payload.Notes,
+				Date:        payload.Date.Time,
+				Amount:      payload.Amount,
+				Balance:     payload.Balance,
+				AccountID:   payload.AccountId,
+			}
 		default:
 			http.Error(w, fmt.Sprintf("unknown entry type: %s", payload.Type), http.StatusBadRequest)
 			return
@@ -304,6 +316,9 @@ type entryUpdatePayload struct {
 
 	InvestmentAccountID *uint `json:"investmentAccountId"`
 	CashAccountID       *uint    `json:"cashAccountId"`
+
+	// used for revaluation (informative target balance)
+	Balance *float64 `json:"balance"`
 
 	// used for stock sell manual lot selection
 	LotAllocations []struct {
@@ -435,6 +450,15 @@ func (h *Handler) UpdateTx(Id uint) http.Handler {
 				Notes:       payload.Notes,
 				Date:        datePtr,
 				Amount:      payload.Amount,
+				AccountID:   payload.AccountId,
+			}
+		case accounting.Revaluation:
+			entry = accounting.RevaluationUpdate{
+				Description: payload.Description,
+				Notes:       payload.Notes,
+				Date:        datePtr,
+				Amount:      payload.Amount,
+				Balance:     payload.Balance,
 				AccountID:   payload.AccountId,
 			}
 		default:
@@ -644,6 +668,18 @@ func transactionToPayload(entry accounting.Transaction) transactionPayload {
 			AccountId:    entry.AccountID,
 			AttachmentID: entry.AttachmentID,
 		}
+	case accounting.Revaluation:
+		return transactionPayload{
+			Id:           entry.Id,
+			Description:  entry.Description,
+			Notes:        entry.Notes,
+			Date:         dateOnlyTime{Time: entry.Date},
+			Type:         revaluationTxStr,
+			Amount:       entry.Amount,
+			Balance:      entry.Balance,
+			AccountId:    entry.AccountID,
+			AttachmentID: entry.AttachmentID,
+		}
 	default:
 		return transactionPayload{Type: unknownTxStr}
 	}
@@ -849,6 +885,7 @@ const (
 	balanceStatusTxStr  = "balancestatus"
 	stockVestTxStr      = "stockvest"
 	stockForfeitTxStr   = "stockforfeit"
+	revaluationTxStr    = "revaluation"
 )
 
 const investmentGroupStr = "investment"
@@ -898,6 +935,8 @@ func parseTxType(in string) accounting.TxType {
 		return accounting.StockVestTransaction
 	case stockForfeitTxStr:
 		return accounting.StockForfeitTransaction
+	case revaluationTxStr:
+		return accounting.RevaluationTransaction
 	default:
 		return accounting.UnknownTransaction
 	}

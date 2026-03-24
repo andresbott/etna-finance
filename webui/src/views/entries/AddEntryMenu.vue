@@ -9,6 +9,7 @@ import VestingDialog from '@/views/entries/dialogs/VestingDialog.vue'
 import ForfeitDialog from '@/views/entries/dialogs/ForfeitDialog.vue'
 import TransferDialog from '@/views/entries/dialogs/TransferDialog.vue'
 import BalanceStatusDialog from '@/views/entries/dialogs/BalanceStatusDialog.vue'
+import RevaluationDialog from '@/views/entries/dialogs/RevaluationDialog.vue'
 import CsvUploadDialog from '@/views/csvimport/CsvUploadDialog.vue'
 import { getAllowedOperations } from '@/types/account'
 import { useSettingsStore } from '@/store/settingsStore.js'
@@ -52,6 +53,7 @@ const dialogs = ref({
     vestStock: false,
     forfeitStock: false,
     balanceStatus: false,
+    revaluation: false,
     importCsv: false
 })
 
@@ -120,6 +122,11 @@ const allDropdownOptions = [
         label: 'Balance Status',
         value: 'balanceStatus',
         icon: 'ti ti-calculator'
+    },
+    {
+        label: 'Revaluation',
+        value: 'revaluation',
+        icon: 'ti ti-adjustments'
     },
     {
         label: 'Import CSV',
@@ -237,6 +244,14 @@ const dropdownOptions = computed(() => {
             :isEdit="false"
             :account-id="defaultAccountId"
             @update:visible="dialogs.balanceStatus = $event"
+        />
+
+        <!-- Revaluation Dialog -->
+        <RevaluationDialog
+            v-model:visible="dialogs.revaluation"
+            :isEdit="false"
+            :account-id="defaultAccountId"
+            @update:visible="dialogs.revaluation = $event"
         />
 
         <!-- Transfer instrument Dialog -->

@@ -99,6 +99,14 @@ export interface BalanceStatusEntry extends BaseEntry {
     Amount: number
 }
 
+export interface RevaluationEntry extends BaseEntry {
+    type: 'revaluation'
+    accountId: string
+    amount: number
+    Amount: number
+    balance: number
+}
+
 export type Entry =
     | IncomeEntry
     | ExpenseEntry
@@ -110,6 +118,7 @@ export type Entry =
     | StockVestEntry
     | StockForfeitEntry
     | BalanceStatusEntry
+    | RevaluationEntry
 
 export interface CreateEntryDTO {
     date: string

@@ -146,6 +146,7 @@ describe('useEntryDialogs', () => {
                 stockvest: 'vestStock',
                 stockforfeit: 'forfeitStock',
                 balancestatus: 'balanceStatus',
+                revaluation: 'revaluation',
             }
             for (const [type, dialogKey] of Object.entries(typeToDialog)) {
                 // Reset all dialogs

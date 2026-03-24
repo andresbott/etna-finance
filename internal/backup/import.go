@@ -171,6 +171,8 @@ func parseAccountType(in string) accounting.AccountType {
 		return accounting.UnvestedAccountType
 	case "Lent":
 		return accounting.LentAccountType
+	case "Pension":
+		return accounting.PensionAccountType
 	default:
 		return accounting.UnknownAccountType
 	}
@@ -305,6 +307,15 @@ func importTransactions(ctx context.Context, store *accounting.Store, r *zip.Rea
 				TargetAccountID: accountsMap[tx.TargetAccountID],
 				InstrumentID:    instrumentsMap[tx.InstrumentID],
 				Quantity:        tx.Quantity,
+			}
+		case txTypeRevaluation:
+			item = accounting.Revaluation{
+				Description: tx.Description,
+				Notes:       tx.Notes,
+				Date:        tx.Date,
+				Amount:      tx.Amount,
+				Balance:     tx.Balance,
+				AccountID:   accountsMap[tx.AccountID],
 			}
 		}
 

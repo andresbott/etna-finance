@@ -1,15 +1,40 @@
 <script setup>
+import { computed } from 'vue'
 import Card from 'primevue/card'
 import { useHoldings } from '@/composables/useHoldings'
 import { formatAmount } from '@/utils/currency'
 import { getAccountTypeLabel } from '@/types/account'
 
 const { providersWithHoldings, isLoading } = useHoldings()
+
+const missingPriceSymbols = computed(() => {
+    const symbols = new Set()
+    for (const provider of providersWithHoldings.value) {
+        for (const account of provider.accounts) {
+            for (const h of account.holdings) {
+                if (h.lastPrice == null) {
+                    symbols.add(h.symbol || `#${h.instrumentId}`)
+                }
+            }
+        }
+    }
+    return Array.from(symbols)
+})
 </script>
 
 <template>
     <Card>
-        <template #title>Investment Products</template>
+        <template #title>
+            <div class="flex align-items-center gap-2">
+                <span>Investment Products</span>
+                <i
+                    v-if="missingPriceSymbols.length > 0"
+                    class="ti ti-alert-triangle text-orange-500"
+                    style="font-size: 1.1rem"
+                    v-tooltip.bottom="`Missing market data for: ${missingPriceSymbols.join(', ')}. Import or create price data to see accurate values.`"
+                />
+            </div>
+        </template>
         <template #content>
             <div v-if="providersWithHoldings.length === 0 && !isLoading" class="text-center p-3 text-500">
                 No investment or unvested accounts

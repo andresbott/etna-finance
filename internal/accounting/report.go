@@ -167,7 +167,7 @@ type AccountBalance struct {
 // entry types used when calling sum entries for balance purposes
 // balanceEntryTypes lists entry types that affect cash balance.
 // Position entries (stockBuyEntry, stockSellEntry) are no longer in db_entries — they are tracked via db_trades.
-var balanceEntryTypes = []entryType{incomeEntry, expenseEntry, transferInEntry, transferOutEntry, stockCashOutEntry, stockCashInEntry}
+var balanceEntryTypes = []entryType{incomeEntry, expenseEntry, transferInEntry, transferOutEntry, stockCashOutEntry, stockCashInEntry, revaluationEntry}
 
 // AccountBalanceSingle get the balance of a single account on a given point in time
 func (store *Store) AccountBalanceSingle(ctx context.Context, accountID uint, endDate time.Time) (AccountBalance, error) {

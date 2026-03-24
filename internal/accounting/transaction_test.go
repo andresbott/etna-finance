@@ -707,6 +707,33 @@ func TestStore_UpdateExpense(t *testing.T) {
 	}
 }
 
+func TestStore_CreateTransfer_SameAccount(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			dbCon := db.ConnDbName("TestCreateTransferSameAccount")
+			store, _ := newAccountingStoreWithMarketData(t, dbCon)
+			accountSampleData(t, store)
+
+			in := Transfer{
+				Description:     "self transfer",
+				OriginAmount:    10,
+				OriginAccountID: 1,
+				TargetAmount:    10,
+				TargetAccountID: 1, // same as origin
+				Date:            getDate("2025-01-02"),
+			}
+			_, err := store.CreateTransaction(t.Context(), in)
+			if err == nil {
+				t.Fatal("expected error but got none")
+			}
+			wantErr := "origin and target account must be different"
+			if err.Error() != wantErr {
+				t.Errorf("expected error %q but got %q", wantErr, err.Error())
+			}
+		})
+	}
+}
+
 func TestStore_UpdateTransfer(t *testing.T) {
 	tcs := []struct {
 		name         string
@@ -843,6 +870,24 @@ func TestStore_UpdateTransfer(t *testing.T) {
 			updateTenant: tenant1,
 			updateInput:  TransferUpdate{OriginAccountID: ptr(uint(5))},
 			wantErr:      "incompatible account type 'Investment' for transaction",
+		},
+		{
+			name:         "same origin and target account error (both changed)",
+			updateTenant: tenant1,
+			updateInput:  TransferUpdate{OriginAccountID: ptr(uint(3)), TargetAccountID: ptr(uint(3))},
+			wantErr:      "origin and target account must be different",
+		},
+		{
+			name:         "same origin and target account error (target changed to match origin)",
+			updateTenant: tenant1,
+			updateInput:  TransferUpdate{TargetAccountID: ptr(uint(1))}, // origin is 1
+			wantErr:      "origin and target account must be different",
+		},
+		{
+			name:         "same origin and target account error (origin changed to match target)",
+			updateTenant: tenant1,
+			updateInput:  TransferUpdate{OriginAccountID: ptr(uint(2))}, // target is 2
+			wantErr:      "origin and target account must be different",
 		},
 
 		// 🚨 No-op

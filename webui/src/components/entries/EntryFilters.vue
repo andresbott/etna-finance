@@ -34,7 +34,8 @@ const defaultTypeOptions = [
     { label: 'Expense', value: 'expense' },
     { label: 'Transfer', value: 'transfer' },
     { label: 'Investment', value: 'investment' },
-    { label: 'Balance Status', value: 'balancestatus' }
+    { label: 'Balance Status', value: 'balancestatus' },
+    { label: 'Revaluation', value: 'revaluation' }
 ]
 
 const investmentTypeOptions = [

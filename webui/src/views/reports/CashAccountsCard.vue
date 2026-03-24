@@ -6,7 +6,7 @@ import { useBalance } from '@/composables/useGetBalanceReport'
 import { formatAmount } from '@/utils/currency'
 import { ACCOUNT_TYPES } from '@/types/account'
 
-const CASH_ACCOUNT_TYPES = [ACCOUNT_TYPES.CASH, ACCOUNT_TYPES.CHECKING, ACCOUNT_TYPES.SAVINGS, ACCOUNT_TYPES.LENT]
+const CASH_ACCOUNT_TYPES = [ACCOUNT_TYPES.CASH, ACCOUNT_TYPES.CHECKING, ACCOUNT_TYPES.SAVINGS, ACCOUNT_TYPES.LENT, ACCOUNT_TYPES.PENSION]
 
 const { accounts: accountProviders } = useAccounts()
 const { balanceReport: balanceReportMutation } = useBalance()

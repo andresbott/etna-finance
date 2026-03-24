@@ -404,6 +404,7 @@ const (
 	investmentAccountStr = "investment"
 	unvestedAccountStr   = "unvested"
 	lentAccountStr       = "lent"
+	pensionAccountStr    = "pension"
 )
 
 func parseAccountType(in string) accounting.AccountType {
@@ -422,6 +423,8 @@ func parseAccountType(in string) accounting.AccountType {
 		return accounting.UnvestedAccountType
 	case lentAccountStr:
 		return accounting.LentAccountType
+	case pensionAccountStr:
+		return accounting.PensionAccountType
 	default:
 		return accounting.UnknownAccountType
 	}
