@@ -121,10 +121,10 @@ func runServer(configFile string) error {
 	}
 
 	// ——— Instruments and RSU config vs DB consistency ———
-	if err := reconcileRsuSetting(cfg, finStore, l); err != nil {
+	if err := reconcileRsuSetting(&cfg, finStore, l); err != nil {
 		return err
 	}
-	if err := reconcileInstrumentsSetting(cfg, finStore, l); err != nil {
+	if err := reconcileInstrumentsSetting(&cfg, finStore, l); err != nil {
 		return err
 	}
 
@@ -247,7 +247,7 @@ func initStores(db *gorm.DB, cfg AppCfg) (*marketdata.Store, *accounting.Store, 
 
 // reconcileInstrumentsSetting enables Instruments if the DB contains investment/unvested accounts,
 // or if RSU is enabled (RSU requires instruments).
-func reconcileInstrumentsSetting(cfg AppCfg, finStore *accounting.Store, l *slog.Logger) error {
+func reconcileInstrumentsSetting(cfg *AppCfg, finStore *accounting.Store, l *slog.Logger) error {
 	if cfg.Settings.Rsu && !cfg.Settings.Instruments {
 		cfg.Settings.Instruments = true
 		l.Warn("config discrepancy: Settings.Rsu is true but Settings.Instruments is false; enabling Instruments (required by RSU)",
@@ -274,7 +274,7 @@ func reconcileInstrumentsSetting(cfg AppCfg, finStore *accounting.Store, l *slog
 }
 
 // reconcileRsuSetting enables RSU if the DB contains unvested accounts or vest/forfeit transactions.
-func reconcileRsuSetting(cfg AppCfg, finStore *accounting.Store, l *slog.Logger) error {
+func reconcileRsuSetting(cfg *AppCfg, finStore *accounting.Store, l *slog.Logger) error {
 	if cfg.Settings.Rsu {
 		return nil
 	}
