@@ -1,6 +1,7 @@
 import { useQuery, keepPreviousData } from '@tanstack/vue-query'
 import { unref, computed, Ref, ref } from 'vue'
 import { getEntries } from '@/lib/api/Entry'
+import { toLocalDateString } from '@/utils/date'
 import type { PaginatedEntriesResponse } from '@/types/entry'
 import { useEntryMutations } from './useEntryMutations'
 
@@ -41,7 +42,7 @@ export function useEntries(options: UseEntriesOptions = {}) {
         const key: (string | number)[] = ['entries']
 
         if (start && end) {
-            key.push(start.toISOString(), end.toISOString())
+            key.push(toLocalDateString(start), toLocalDateString(end))
         } else {
             key.push('invalid') // fallback key to avoid undefined
         }

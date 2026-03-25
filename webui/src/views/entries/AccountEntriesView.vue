@@ -15,6 +15,7 @@ import AddEntryMenu from '@/views/entries/AddEntryMenu.vue'
 import { useAccounts } from '@/composables/useAccounts'
 import { findAccountById } from '@/utils/accountUtils'
 import { useBalance } from '@/composables/useGetBalanceReport'
+import { toLocalDateString } from '@/utils/date'
 
 /* --- Route --- */
 const route = useRoute()
@@ -126,7 +127,7 @@ watch(
             // entries that will already appear in the visible entries list.
             const dayBefore = new Date(newStartDate)
             dayBefore.setDate(dayBefore.getDate() - 1)
-            const dateStr = dayBefore.toISOString().split('T')[0]
+            const dateStr = toLocalDateString(dayBefore)
             const balance = await accountBalance.mutateAsync({
                 accountId: Number(newAccountId),
                 date: dateStr
@@ -210,6 +211,7 @@ const filtersExpanded = ref(
                     :totalRecords="paginationTotal"
                     :rows="paginationRows"
                     :first="paginationFirst"
+                    :filtersActive="categoryIds.length > 0 || types.length > 0 || hasAttachment || search !== ''"
                     @edit="openEditEntryDialog"
                     @duplicate="openDuplicateEntryDialog"
                     @delete="openDeleteDialog"

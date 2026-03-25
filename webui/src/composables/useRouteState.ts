@@ -64,6 +64,12 @@ export function useRouteState(defaults: {
         updating = true
         needsResync = false
 
+        // Guard against null dates (e.g. DatePicker "Clear" or intermediate typing state)
+        if (!startDate.value || !endDate.value) {
+            updating = false
+            return
+        }
+
         const query: Record<string, string> = {
             ...route.query as Record<string, string>,
             from: formatDate(startDate.value),

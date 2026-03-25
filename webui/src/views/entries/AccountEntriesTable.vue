@@ -46,6 +46,10 @@ const props = defineProps({
     first: {
         type: Number,
         default: 0
+    },
+    filtersActive: {
+        type: Boolean,
+        default: false
     }
 })
 
@@ -115,27 +119,33 @@ const adhocDialogRef = ref(null)
 const entriesWithBalance = computed(() => {
     if (!props.entries || props.entries.length === 0 || isInstrumentAccount.value) return props.entries ?? []
     const openingBalanceEntry = props.entries.find((e) => e.type === 'opening-balance')
-    let balance = openingBalanceEntry?.Amount || 0
+    let balance = openingBalanceEntry?.Amount ?? 0
     const entriesReversed = [...props.entries].reverse()
     const result = entriesReversed.map((entry) => {
         let entryAmount = 0
+        let balanceDrift = null
         if (entry.type === 'opening-balance') entryAmount = 0
-        else if (entry.type === 'balancestatus') entryAmount = 0
-        else if (entry.type === 'revaluation') entryAmount = entry.Amount || 0
-        else if (entry.type === 'expense') entryAmount = -(entry.Amount || 0)
-        else if (entry.type === 'income') entryAmount = entry.Amount || 0
-        else if (entry.type === 'transfer') {
-            if (String(entry.originAccountId) === String(props.accountId)) entryAmount = -(entry.originAmount || 0)
-            else if (String(entry.targetAccountId) === String(props.accountId)) entryAmount = entry.targetAmount || 0
-        } else if (entry.type === 'stockbuy') {
-            if (String(entry.cashAccountId) === String(props.accountId)) entryAmount = -(entry.totalAmount || 0)
-            else if (String(entry.investmentAccountId) === String(props.accountId)) entryAmount = entry.StockAmount || 0
-        } else if (entry.type === 'stocksell') {
-            if (String(entry.cashAccountId) === String(props.accountId)) entryAmount = (entry.totalAmount || 0) - (entry.fees || 0)
-            else if (String(entry.investmentAccountId) === String(props.accountId)) entryAmount = -(entry.costBasis || entry.StockAmount || 0)
+        else if (entry.type === 'balancestatus') {
+            const statedBalance = entry.Amount ?? 0
+            balanceDrift = Math.abs(balance - statedBalance) > 0.005 ? balance - statedBalance : null
+            balance = statedBalance
+            entryAmount = 0
         }
-        if (entry.type !== 'opening-balance') balance += entryAmount
-        return { ...entry, runningBalance: balance }
+        else if (entry.type === 'revaluation') entryAmount = entry.Amount ?? 0
+        else if (entry.type === 'expense') entryAmount = -(entry.Amount ?? 0)
+        else if (entry.type === 'income') entryAmount = entry.Amount ?? 0
+        else if (entry.type === 'transfer') {
+            if (String(entry.originAccountId) === String(props.accountId)) entryAmount = -(entry.originAmount ?? 0)
+            else if (String(entry.targetAccountId) === String(props.accountId)) entryAmount = entry.targetAmount ?? 0
+        } else if (entry.type === 'stockbuy') {
+            if (String(entry.cashAccountId) === String(props.accountId)) entryAmount = -(entry.totalAmount ?? 0)
+            else if (String(entry.investmentAccountId) === String(props.accountId)) entryAmount = entry.StockAmount ?? 0
+        } else if (entry.type === 'stocksell') {
+            if (String(entry.cashAccountId) === String(props.accountId)) entryAmount = (entry.totalAmount ?? 0) - (entry.fees ?? 0)
+            else if (String(entry.investmentAccountId) === String(props.accountId)) entryAmount = -(entry.costBasis ?? entry.StockAmount ?? 0)
+        }
+        if (entry.type !== 'opening-balance' && entry.type !== 'balancestatus') balance += entryAmount
+        return { ...entry, runningBalance: balance, balanceDrift }
     })
     return result.reverse()
 })
@@ -250,17 +260,17 @@ const tableEntries = computed(() =>
                                     <template v-if="data.quantity > 0 && (data.pricePerShare || data.costBasis != null || data.StockAmount != null)">
                                         ({{ getInstrumentSymbol(data.instrumentId) }}) {{ data.quantity }} @ {{ formatPrice(data.pricePerShare || (data.costBasis ?? data.StockAmount) / data.quantity) }} {{ getInstrumentCurrency(data.instrumentId) }}
                                         <template v-if="String(data.cashAccountId) === String(accountId)">
-                                            +{{ formatAmount(data.totalAmount) }}{{ data.fees ? ` (−${formatAmount(data.fees)} fee)` : '' }}
+                                            +{{ formatAmount((data.totalAmount ?? 0) - (data.fees ?? 0)) }}{{ data.fees ? ` (−${formatAmount(data.fees)} fee)` : '' }}
                                         </template>
                                         <template v-else>−{{ formatAmount(data.costBasis ?? data.StockAmount) }}</template>
                                     </template>
                                     <template v-else>
-                                        <template v-if="String(data.cashAccountId) === String(accountId)">+{{ formatAmount(data.totalAmount) }}</template>
+                                        <template v-if="String(data.cashAccountId) === String(accountId)">+{{ formatAmount((data.totalAmount ?? 0) - (data.fees ?? 0)) }}</template>
                                         <template v-else>−{{ formatAmount(data.costBasis ?? data.StockAmount) }}</template>
                                     </template>
                                 </template>
                                 <template v-else>
-                                    <template v-if="String(data.cashAccountId) === String(accountId)">+{{ formatAmount(data.totalAmount) }}</template>
+                                    <template v-if="String(data.cashAccountId) === String(accountId)">+{{ formatAmount((data.totalAmount ?? 0) - (data.fees ?? 0)) }}</template>
                                     <template v-else>−{{ formatAmount(data.costBasis ?? data.StockAmount) }}</template>
                                 </template>
                             </div>
@@ -305,9 +315,16 @@ const tableEntries = computed(() =>
                                 </template>
                                 <template v-else>−{{ data.quantity }}</template>
                             </div>
-                            <div v-else-if="data.type === 'balancestatus'" class="amount balance-status">
-                                {{ formatAmount(data.Amount) }}
-                                {{ getAccountCurrency(data.accountId) }}
+                            <div v-else-if="data.type === 'balancestatus'" class="amount balance-status" :class="{ 'balance-drift': data.balanceDrift != null }">
+                                <template v-if="data.balanceDrift != null">
+                                    <i class="ti ti-alert-triangle balance-drift-icon" v-tooltip.bottom="`Statement: ${formatAmount(data.Amount)} ${getAccountCurrency(data.accountId)}`"></i>
+                                    {{ formatAmount(data.Amount + data.balanceDrift) }}
+                                    ({{ data.balanceDrift > 0 ? '+' : '' }}{{ formatAmount(data.balanceDrift) }})
+                                </template>
+                                <template v-else>
+                                    {{ formatAmount(data.Amount) }}
+                                    {{ getAccountCurrency(data.accountId) }}
+                                </template>
                             </div>
                             <div v-else-if="data.type === 'revaluation'" :class="['amount', (data.Amount ?? 0) >= 0 ? 'amount-positive' : 'amount-negative']">
                                 {{ (data.Amount ?? 0) >= 0 ? '+' : '' }}{{ formatAmount(data.Amount ?? 0) }}
@@ -393,7 +410,8 @@ const tableEntries = computed(() =>
 
                 <Column v-if="!isInstrumentAccount" field="runningBalance" header="Balance" bodyStyle="text-align: right" class="balance-column">
                     <template #body="{ data }">
-                        <div class="balance" :class="{ 'balance-negative': data.runningBalance < -0.005 }">
+                        <div v-if="filtersActive" class="balance balance-disabled">--</div>
+                        <div v-else class="balance" :class="{ 'balance-negative': data.runningBalance < -0.005 }">
                             {{ formatAmount(data.runningBalance) }}
                         </div>
                     </template>
@@ -488,5 +506,15 @@ const tableEntries = computed(() =>
 }
 :deep(.no-hover:hover) {
     background: transparent !important;
+}
+.balance-disabled {
+    opacity: 0.35;
+}
+.balance-drift {
+    font-weight: bold;
+}
+.balance-drift-icon {
+    color: var(--p-orange-500);
+    margin-right: 0.3rem;
 }
 </style>

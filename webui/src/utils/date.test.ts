@@ -1,5 +1,26 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { toLocalDateString } from './date'
+import { parseLocalDate, toLocalDateString } from './date'
+
+describe('parseLocalDate', () => {
+    it('parses date-only string as local midnight', () => {
+        const d = parseLocalDate('2024-01-15')
+        expect(d.getFullYear()).toBe(2024)
+        expect(d.getMonth()).toBe(0) // January
+        expect(d.getDate()).toBe(15)
+    })
+
+    it('preserves date in any timezone for date-only strings', () => {
+        // The key invariant: getDate() should always match the input day
+        const d = parseLocalDate('2024-03-01')
+        expect(d.getDate()).toBe(1)
+        expect(d.getMonth()).toBe(2) // March
+    })
+
+    it('falls back to new Date() for non-date-only strings', () => {
+        const d = parseLocalDate('2024-01-15T10:30:00Z')
+        expect(d.getTime()).toBe(new Date('2024-01-15T10:30:00Z').getTime())
+    })
+})
 
 describe('toLocalDateString', () => {
     afterEach(() => {
@@ -41,38 +62,31 @@ describe('toLocalDateString', () => {
         expect(result).toBe(expected)
     })
 
-    it('formats string input "2024-03-01" correctly', () => {
-        // Note: new Date("2024-03-01") is parsed as UTC midnight, which may
-        // shift to the previous day in negative-offset timezones.
-        // We verify the function produces the same result as manually constructing.
-        const result = toLocalDateString('2024-03-01')
-        const parsed = new Date('2024-03-01')
-        const y = parsed.getFullYear()
-        const m = String(parsed.getMonth() + 1).padStart(2, '0')
-        const d = String(parsed.getDate()).padStart(2, '0')
-        expect(result).toBe(`${y}-${m}-${d}`)
+    it('formats date-only string "2024-03-01" as local date without UTC shift', () => {
+        // parseLocalDate detects date-only strings and parses as local midnight,
+        // so the result should always be the same date regardless of timezone.
+        expect(toLocalDateString('2024-03-01')).toBe('2024-03-01')
     })
 
-    it('returns today (UTC) for null input', () => {
+    it('returns today (local) for null input', () => {
         const now = new Date()
-        const expected = now.toISOString().slice(0, 10)
-        // Pin time to avoid midnight race
+        const expected = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
         vi.useFakeTimers({ now })
         expect(toLocalDateString(null)).toBe(expected)
         vi.useRealTimers()
     })
 
-    it('returns today (UTC) for undefined input', () => {
+    it('returns today (local) for undefined input', () => {
         const now = new Date()
-        const expected = now.toISOString().slice(0, 10)
+        const expected = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
         vi.useFakeTimers({ now })
         expect(toLocalDateString(undefined)).toBe(expected)
         vi.useRealTimers()
     })
 
-    it('returns today (UTC) for invalid date string', () => {
+    it('returns today (local) for invalid date string', () => {
         const now = new Date()
-        const expected = now.toISOString().slice(0, 10)
+        const expected = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
         vi.useFakeTimers({ now })
         expect(toLocalDateString('not-a-date')).toBe(expected)
         vi.useRealTimers()

@@ -3802,14 +3802,22 @@ func intermediateToTransaction(item intermediate) Transaction {
 			StockAmount: item.TradeBuyAmount, AttachmentID: item.AttachmentID,
 		}
 	case StockSellTransaction:
-		realizedGainLoss := item.IncomeAmount + item.ExpenseAmount // ExpenseAmount is negative (consistent with expense convention)
-		costBasis := roundMoney(item.TradeSellAmount - roundMoney(item.IncomeAmount+item.ExpenseAmount))
+		// StockCashAmount is the net cash-in entry (totalAmount - fees).
+		// Derive fees from the difference; the cash-in entry is always non-negative.
+		fees := roundMoney(item.TradeSellAmount - item.StockCashAmount)
+		if fees < 0 {
+			fees = 0
+		}
+		// ExpenseAmount (negative) includes both realized-loss and fees expenses.
+		// Exclude the fee portion to get the true P&L.
+		realizedGainLoss := roundMoney(item.IncomeAmount + item.ExpenseAmount + fees)
+		costBasis := roundMoney(item.TradeSellAmount - fees - realizedGainLoss)
 		return StockSell{
 			Id: item.TransactionId, Description: item.Description, Notes: item.Notes,
 			Date: item.Date, InvestmentAccountID: item.TradeSellAccountId,
 			CashAccountID: item.StockCashAccountId, InstrumentID: item.TradeSellInstrumentId,
 			Quantity: item.TradeSellQuantity, PricePerShare: item.TradeSellPricePerShare,
-			TotalAmount: item.TradeSellAmount,
+			TotalAmount: item.TradeSellAmount, Fees: fees,
 			CostBasis: costBasis, RealizedGainLoss: realizedGainLoss,
 			AttachmentID: item.AttachmentID,
 		}

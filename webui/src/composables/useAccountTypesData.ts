@@ -4,6 +4,7 @@ import { useAccounts } from '@/composables/useAccounts'
 import { useSettingsStore } from '@/store/settingsStore'
 import { getLatestRate } from '@/lib/api/CurrencyRates'
 import { getBalanceReport } from '@/lib/api/report'
+import { toLocalDateString } from '@/utils/date'
 import { useHoldings } from '@/composables/useHoldings'
 import { ACCOUNT_TYPES } from '@/types/account'
 
@@ -49,7 +50,7 @@ export function useAccountTypesData() {
             const accountIds = allAccounts.value.map((a) => a.id).filter(Boolean)
             const oneYearAgo = new Date()
             oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
-            return getBalanceReport(accountIds, 30, oneYearAgo.toISOString().split('T')[0])
+            return getBalanceReport(accountIds, 30, toLocalDateString(oneYearAgo))
         },
         enabled: computed(() => allAccounts.value.length > 0)
     })
