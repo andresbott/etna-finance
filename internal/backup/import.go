@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/andresbott/etna/internal/accounting"
 	"github.com/andresbott/etna/internal/csvimport"
@@ -174,6 +175,8 @@ func parseAccountType(in string) accounting.AccountType {
 		return accounting.LentAccountType
 	case "Pension":
 		return accounting.PensionAccountType
+	case "PrepaidExpense":
+		return accounting.PrepaidExpenseAccountType
 	default:
 		return accounting.UnknownAccountType
 	}
@@ -295,6 +298,7 @@ func importTransactions(ctx context.Context, store *accounting.Store, r *zip.Rea
 				CashAccountID:       accountsMap[tx.CashAccountID],
 				InstrumentID:        instrumentsMap[tx.InstrumentID],
 				Quantity:            tx.Quantity,
+				PricePerShare:       tx.PricePerShare,
 				TotalAmount:         tx.TotalAmount,
 				Fees:                tx.Fees,
 			}
@@ -318,6 +322,47 @@ func importTransactions(ctx context.Context, store *accounting.Store, r *zip.Rea
 				InstrumentID:    instrumentsMap[tx.InstrumentID],
 				Quantity:        tx.Quantity,
 			}
+		case txTypeStockVest:
+			sourceAccID := accountsMap[tx.SourceAccountID]
+			instID := instrumentsMap[tx.InstrumentID]
+			lotSels, err := fifoLotSelections(ctx, store, sourceAccID, instID, tx.Quantity, tx.Date)
+			if err != nil {
+				return fmt.Errorf("failed to build lot selections for vest %q: %w", tx.Description, err)
+			}
+			item = accounting.StockVest{
+				Description:     tx.Description,
+				Notes:           tx.Notes,
+				Date:            tx.Date,
+				SourceAccountID: sourceAccID,
+				TargetAccountID: accountsMap[tx.TargetAccountID],
+				InstrumentID:    instID,
+				VestingPrice:    tx.VestingPrice,
+				CategoryID:      incomeMap[tx.CategoryID],
+				LotSelections:   lotSels,
+			}
+		case txTypeStockForfeit:
+			accID := accountsMap[tx.AccountID]
+			instID := instrumentsMap[tx.InstrumentID]
+			lotSels, err := fifoLotSelections(ctx, store, accID, instID, tx.Quantity, tx.Date)
+			if err != nil {
+				return fmt.Errorf("failed to build lot selections for forfeit %q: %w", tx.Description, err)
+			}
+			item = accounting.StockForfeit{
+				Description:   tx.Description,
+				Notes:         tx.Notes,
+				Date:          tx.Date,
+				AccountID:     accID,
+				InstrumentID:  instID,
+				LotSelections: lotSels,
+			}
+		case txTypeBalanceStatus:
+			item = accounting.BalanceStatus{
+				Description: tx.Description,
+				Notes:       tx.Notes,
+				Date:        tx.Date,
+				Amount:      tx.Amount,
+				AccountID:   accountsMap[tx.AccountID],
+			}
 		case txTypeRevaluation:
 			item = accounting.Revaluation{
 				Description: tx.Description,
@@ -338,6 +383,35 @@ func importTransactions(ctx context.Context, store *accounting.Store, r *zip.Rea
 		}
 	}
 	return nil
+}
+
+// fifoLotSelections builds lot selections by picking open lots in FIFO order
+// until the requested quantity is fulfilled. Only lots opened on or before txDate are considered.
+func fifoLotSelections(ctx context.Context, store *accounting.Store, accountID, instrumentID uint, quantity float64, txDate time.Time) ([]accounting.LotSelection, error) {
+	lots, err := store.ListLots(ctx, accounting.ListLotsOpts{AccountID: accountID, InstrumentID: instrumentID, BeforeDate: &txDate})
+	if err != nil {
+		return nil, err
+	}
+	var sels []accounting.LotSelection
+	remaining := quantity
+	for _, lot := range lots {
+		if remaining <= 0 {
+			break
+		}
+		if lot.Quantity <= 0 {
+			continue
+		}
+		take := lot.Quantity
+		if take > remaining {
+			take = remaining
+		}
+		sels = append(sels, accounting.LotSelection{LotID: lot.Id, Quantity: take})
+		remaining -= take
+	}
+	if remaining > 0 {
+		return nil, fmt.Errorf("not enough lots: need %.2f more shares", remaining)
+	}
+	return sels, nil
 }
 
 // Load V1 data from json files

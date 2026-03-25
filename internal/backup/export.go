@@ -224,7 +224,9 @@ func writeTransactions(ctx context.Context, zw *zipWriter, store *accounting.Sto
 			accounting.StockSellTransaction,
 			accounting.StockGrantTransaction,
 			accounting.StockTransferTransaction,
-			accounting.LoanTransaction,
+			accounting.StockVestTransaction,
+			accounting.StockForfeitTransaction,
+			accounting.BalanceStatusTransaction,
 			accounting.RevaluationTransaction,
 		},
 		Limit: entriesLimit,
@@ -298,6 +300,7 @@ func writeTransactions(ctx context.Context, zw *zipWriter, store *accounting.Sto
 					Notes:               item.Notes,
 					InstrumentID:        item.InstrumentID,
 					Quantity:            item.Quantity,
+					PricePerShare:       item.PricePerShare,
 					TotalAmount:         item.TotalAmount,
 					Fees:                item.Fees,
 					InvestmentAccountID: item.InvestmentAccountID,
@@ -328,6 +331,41 @@ func writeTransactions(ctx context.Context, zw *zipWriter, store *accounting.Sto
 					Quantity:        item.Quantity,
 					Date:            item.Date,
 					Type:            txTypeStockTransfer,
+				})
+			case accounting.StockVest:
+				jsonData = append(jsonData, TransactionV1{
+					Id:              item.Id,
+					Description:     item.Description,
+					Notes:           item.Notes,
+					SourceAccountID: item.SourceAccountID,
+					TargetAccountID: item.TargetAccountID,
+					InstrumentID:    item.InstrumentID,
+					Quantity:        item.Quantity,
+					VestingPrice:    item.VestingPrice,
+					CategoryID:      item.CategoryID,
+					Date:            item.Date,
+					Type:            txTypeStockVest,
+				})
+			case accounting.StockForfeit:
+				jsonData = append(jsonData, TransactionV1{
+					Id:           item.Id,
+					Description:  item.Description,
+					Notes:        item.Notes,
+					AccountID:    item.AccountID,
+					InstrumentID: item.InstrumentID,
+					Quantity:     item.Quantity,
+					Date:         item.Date,
+					Type:         txTypeStockForfeit,
+				})
+			case accounting.BalanceStatus:
+				jsonData = append(jsonData, TransactionV1{
+					Id:          item.Id,
+					Description: item.Description,
+					Notes:       item.Notes,
+					Amount:      item.Amount,
+					AccountID:   item.AccountID,
+					Date:        item.Date,
+					Type:        txTypeBalanceStatus,
 				})
 			case accounting.Revaluation:
 				jsonData = append(jsonData, TransactionV1{

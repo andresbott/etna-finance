@@ -59,6 +59,9 @@ const txTypeStockBuy = "stockbuy"
 const txTypeStockSell = "stocksell"
 const txTypeStockGrant = "stockgrant"
 const txTypeStockTransfer = "stocktransfer"
+const txTypeStockVest = "stockvest"
+const txTypeStockForfeit = "stockforfeit"
+const txTypeBalanceStatus = "balancestatus"
 const txTypeRevaluation = "revaluation"
 
 type TransactionV1 struct {
@@ -79,6 +82,7 @@ type TransactionV1 struct {
 	// for stock buy/sell
 	InstrumentID        uint    `json:"instrumentId,omitempty"`
 	Quantity            float64 `json:"quantity,omitempty"`
+	PricePerShare       float64 `json:"pricePerShare,omitempty"`
 	TotalAmount         float64 `json:"totalAmount,omitempty"`
 	StockAmount         float64 `json:"stockAmount,omitempty"`
 	InvestmentAccountID uint    `json:"investmentAccountId,omitempty"`
@@ -88,7 +92,10 @@ type TransactionV1 struct {
 	// for stock grant
 	FairMarketValue float64 `json:"fairMarketValue,omitempty"`
 
-	// for stock transfer
+	// for stock vest
+	VestingPrice float64 `json:"vestingPrice,omitempty"`
+
+	// for stock transfer / vest
 	SourceAccountID uint `json:"sourceAccountId,omitempty"`
 
 	// for revaluation (informative target balance)

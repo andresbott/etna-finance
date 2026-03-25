@@ -186,6 +186,14 @@ func (h *Handler) ListLots() http.Handler {
 			}
 			opts.InstrumentID = uint(id)
 		}
+		if s := r.URL.Query().Get("beforeDate"); s != "" {
+			t, err := time.Parse("2006-01-02", s)
+			if err != nil {
+				http.Error(w, "invalid beforeDate", http.StatusBadRequest)
+				return
+			}
+			opts.BeforeDate = &t
+		}
 
 		lots, err := h.Store.ListLots(r.Context(), opts)
 		if err != nil {

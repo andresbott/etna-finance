@@ -127,6 +127,7 @@ type StockSell struct {
 	CashAccountID       uint
 	InstrumentID        uint
 	Quantity            float64
+	PricePerShare       float64  // user-supplied sale price per share
 	TotalAmount         float64  // gross proceeds (positive)
 	Fees                float64  // sell-side fees (optional, default 0)
 	CostBasis           float64  // allocated cost from replay (computed)
@@ -271,7 +272,7 @@ func (store *Store) CreateIncome(ctx context.Context, item Income) (uint, error)
 	if err != nil {
 		return 0, fmt.Errorf("error creating income: %w", err)
 	}
-	if !slices.Contains(allowedCashAccountTypes, acc.Type) {
+	if !slices.Contains(allowedIncomeAccountTypes, acc.Type) {
 		return 0, NewValidationErr(fmt.Sprintf("incompatible account type %s for income transaction", acc.Type.String()))
 	}
 
@@ -318,7 +319,7 @@ func (store *Store) CreateExpense(ctx context.Context, item Expense) (uint, erro
 	if err != nil {
 		return 0, fmt.Errorf("error creating expense: %w", err)
 	}
-	if !slices.Contains(allowedCashAccountTypes, acc.Type) {
+	if !slices.Contains(allowedExpenseAccountTypes, acc.Type) {
 		return 0, NewValidationErr(fmt.Sprintf("incompatible account type %s for expense transaction", acc.Type.String()))
 	}
 
@@ -366,7 +367,7 @@ func (store *Store) CreateBalanceStatus(ctx context.Context, item BalanceStatus)
 	if err != nil {
 		return 0, fmt.Errorf("error creating balance status: %w", err)
 	}
-	if !slices.Contains(allowedCashAccountTypes, acc.Type) {
+	if !slices.Contains(allowedBalanceStatusAccountTypes, acc.Type) {
 		return 0, NewValidationErr(fmt.Sprintf("incompatible account type %s for balance status transaction", acc.Type.String()))
 	}
 
@@ -447,14 +448,14 @@ func (store *Store) CreateTransfer(ctx context.Context, item Transfer) (uint, er
 		return 0, fmt.Errorf("error creating transfer: %w", err)
 	}
 
-	if !slices.Contains(allowedCashAccountTypes, originAcc.Type) {
+	if !slices.Contains(allowedTransferAccountTypes, originAcc.Type) {
 		return 0, NewValidationErr(fmt.Sprintf("incompatible account type %s for transfer transaction", originAcc.Type.String()))
 	}
 	targetAcc, err := store.GetAccount(ctx, item.TargetAccountID)
 	if err != nil {
 		return 0, fmt.Errorf("error creating transfer: %w", err)
 	}
-	if !slices.Contains(allowedCashAccountTypes, targetAcc.Type) {
+	if !slices.Contains(allowedTransferAccountTypes, targetAcc.Type) {
 		return 0, NewValidationErr(fmt.Sprintf("incompatible account type %s for transfer transaction", targetAcc.Type.String()))
 	}
 
@@ -487,7 +488,21 @@ func (store *Store) CreateTransfer(ctx context.Context, item Transfer) (uint, er
 	return tx.Id, nil
 }
 
-var allowedCashAccountTypes = []AccountType{CashAccountType, CheckinAccountType, SavingsAccountType, LentAccountType, PensionAccountType}
+// allowedIncomeAccountTypes lists account types that can receive income transactions.
+var allowedIncomeAccountTypes = []AccountType{CashAccountType, CheckinAccountType, SavingsAccountType, LentAccountType, PrepaidExpenseAccountType}
+
+// allowedExpenseAccountTypes lists account types that can have expense transactions.
+var allowedExpenseAccountTypes = []AccountType{CashAccountType, CheckinAccountType, SavingsAccountType, LentAccountType, PrepaidExpenseAccountType}
+
+// allowedBalanceStatusAccountTypes lists account types that can have balance status transactions.
+var allowedBalanceStatusAccountTypes = []AccountType{CashAccountType, CheckinAccountType, SavingsAccountType, LentAccountType, PrepaidExpenseAccountType}
+
+// allowedTransferAccountTypes lists account types that can participate in transfers.
+var allowedTransferAccountTypes = []AccountType{CashAccountType, CheckinAccountType, SavingsAccountType, LentAccountType, PensionAccountType, PrepaidExpenseAccountType}
+
+// allowedStockCashAccountTypes lists account types that can be the cash side of stock buy/sell.
+var allowedStockCashAccountTypes = []AccountType{CashAccountType, CheckinAccountType, SavingsAccountType}
+
 var allowedPositionAccountTypes = []AccountType{InvestmentAccountType, RestrictedStockAccountType}
 
 // resolveInstrumentCurrencyFromTx fetches the instrument currency from the existing transaction.
@@ -617,8 +632,8 @@ func (store *Store) CreateStockBuy(ctx context.Context, item StockBuy) (uint, er
 	if err != nil {
 		return 0, fmt.Errorf("error creating stock buy: %w", err)
 	}
-	if !slices.Contains(allowedCashAccountTypes, cashAcc.Type) {
-		return 0, NewValidationErr("cash account must be Cash, Checkin, Savings or Lent for stock buy")
+	if !slices.Contains(allowedStockCashAccountTypes, cashAcc.Type) {
+		return 0, NewValidationErr("cash account must be Cash, Checkin or Savings for stock buy")
 	}
 
 	instrument, err := store.GetInstrument(ctx, item.InstrumentID)
@@ -731,8 +746,8 @@ func (store *Store) validateStockSell(ctx context.Context, item StockSell) (mark
 	if err != nil {
 		return marketdata.Instrument{}, 0, fmt.Errorf("error creating stock sell: %w", err)
 	}
-	if !slices.Contains(allowedCashAccountTypes, cashAcc.Type) {
-		return marketdata.Instrument{}, 0, NewValidationErr("cash account must be Cash, Checkin, Savings or Lent for stock sell")
+	if !slices.Contains(allowedStockCashAccountTypes, cashAcc.Type) {
+		return marketdata.Instrument{}, 0, NewValidationErr("cash account must be Cash, Checkin or Savings for stock sell")
 	}
 
 	instrument, err := store.GetInstrument(ctx, item.InstrumentID)
@@ -765,8 +780,8 @@ func (store *Store) CreateStockSell(ctx context.Context, item StockSell) (uint, 
 	var txID uint
 	err = store.db.WithContext(ctx).Transaction(func(dbTx *gorm.DB) error {
 		// Create the sell trade first (to get its ID for lot disposals)
-		pricePerShare := 0.0
-		if item.Quantity > 0 {
+		pricePerShare := item.PricePerShare
+		if pricePerShare == 0 && item.Quantity > 0 {
 			pricePerShare = item.TotalAmount / item.Quantity
 		}
 		trade := dbTrade{
@@ -816,14 +831,14 @@ func (store *Store) CreateStockSell(ctx context.Context, item StockSell) (uint, 
 		} else if realizedGainLoss < 0 {
 			entries = append(entries, dbEntry{
 				AccountID: item.CashAccountID,
-				Amount:    -realizedGainLoss,
+				Amount:    realizedGainLoss, // negative, consistent with regular expense convention
 				EntryType: expenseEntry,
 			})
 		}
 		if fees > 0 {
 			entries = append(entries, dbEntry{
 				AccountID: item.CashAccountID,
-				Amount:    fees,
+				Amount:    -fees, // negative, consistent with regular expense convention
 				EntryType: expenseEntry,
 			})
 		}
@@ -1487,7 +1502,7 @@ func stockSellFromDb(in dbTransaction) (Transaction, error) {
 		case incomeEntry:
 			incomeAmount += e.Amount
 		case expenseEntry:
-			expenseAmounts = append(expenseAmounts, e.Amount)
+			expenseAmounts = append(expenseAmounts, math.Abs(e.Amount))
 		}
 	}
 
@@ -1515,6 +1530,7 @@ func stockSellFromDb(in dbTransaction) (Transaction, error) {
 		CashAccountID:       cashAccountID,
 		InstrumentID:        trade.InstrumentID,
 		Quantity:            trade.Quantity,
+		PricePerShare:       trade.PricePerShare,
 		TotalAmount:         totalAmount,
 		CostBasis:           costBasis,
 		RealizedGainLoss:    realizedGainLoss,
@@ -1991,6 +2007,7 @@ type StockSellUpdate struct {
 	Date                *time.Time
 	InstrumentID        *uint
 	Quantity            *float64
+	PricePerShare       *float64
 	TotalAmount         *float64
 	Fees                *float64
 	InvestmentAccountID *uint
@@ -2113,6 +2130,7 @@ func (store *Store) UpdateIncome(ctx context.Context, input IncomeUpdate, id uin
 		expectedCategoryType: IncomeCategory,
 		txType:               IncomeTransaction,
 		entryType:            incomeEntry,
+		allowedAccountTypes:  allowedIncomeAccountTypes,
 	}
 	return store.updateIncomeExpense(ctx, params, id)
 }
@@ -2129,20 +2147,22 @@ func (store *Store) UpdateExpense(ctx context.Context, input ExpenseUpdate, id u
 		expectedCategoryType: ExpenseCategory,
 		txType:               ExpenseTransaction,
 		entryType:            expenseEntry,
+		allowedAccountTypes:  allowedExpenseAccountTypes,
 	}
 	return store.updateIncomeExpense(ctx, params, id)
 }
 
 func (store *Store) UpdateBalanceStatus(ctx context.Context, input BalanceStatusUpdate, id uint) error {
 	params := updateIncomeExpenseParams{
-		description:      input.Description,
-		notes:            input.Notes,
-		date:             input.Date,
-		amount:           input.Amount,
-		accountID:        input.AccountID,
-		amountMultiplier: 1,
-		txType:           BalanceStatusTransaction,
-		entryType:        balanceStatusEntry,
+		description:         input.Description,
+		notes:               input.Notes,
+		date:                input.Date,
+		amount:              input.Amount,
+		accountID:           input.AccountID,
+		amountMultiplier:    1,
+		txType:              BalanceStatusTransaction,
+		entryType:           balanceStatusEntry,
+		allowedAccountTypes: allowedBalanceStatusAccountTypes,
 	}
 	return store.updateIncomeExpense(ctx, params, id)
 }
@@ -2175,7 +2195,7 @@ type updateIncomeExpenseParams struct {
 	expectedCategoryType CategoryType
 	txType               TxType
 	entryType            entryType
-	allowedAccountTypes  []AccountType // if set, overrides allowedCashAccountTypes for account validation
+	allowedAccountTypes  []AccountType // if set, overrides the default for account validation
 }
 
 func (store *Store) validateCategory(ctx context.Context, categoryID uint, expectedType CategoryType) error {
@@ -2247,7 +2267,7 @@ func (store *Store) updateIncomeExpense(ctx context.Context, params updateIncome
 			return fmt.Errorf("error updating transaction: %w", err)
 		}
 
-		allowed := allowedCashAccountTypes
+		allowed := allowedTransferAccountTypes
 		if params.allowedAccountTypes != nil {
 			allowed = params.allowedAccountTypes
 		}
@@ -2395,8 +2415,8 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 		if err != nil {
 			return fmt.Errorf("error creating transaction: %w", err)
 		}
-		if !slices.Contains(allowedCashAccountTypes, acc.Type) {
-			return NewValidationErr(fmt.Sprintf("incompatible account type '%s' for transaction", acc.Type.String()))
+		if !slices.Contains(allowedTransferAccountTypes, acc.Type) {
+			return NewValidationErr(fmt.Sprintf("incompatible account type '%s' for transfer transaction", acc.Type.String()))
 		}
 		targetEntry.AccountID = *input.TargetAccountID
 		targetFields = append(targetFields, "AccountID")
@@ -2422,8 +2442,8 @@ func (store *Store) UpdateTransfer(ctx context.Context, input TransferUpdate, Id
 		if err != nil {
 			return fmt.Errorf("error creating transaction: %w", err)
 		}
-		if !slices.Contains(allowedCashAccountTypes, acc.Type) {
-			return NewValidationErr(fmt.Sprintf("incompatible account type '%s' for transaction", acc.Type.String()))
+		if !slices.Contains(allowedTransferAccountTypes, acc.Type) {
+			return NewValidationErr(fmt.Sprintf("incompatible account type '%s' for transfer transaction", acc.Type.String()))
 		}
 		originEntry.AccountID = *input.OriginAccountID
 		originFields = append(originFields, "AccountID")
@@ -2550,7 +2570,7 @@ func (store *Store) mergeStockBuyFields(ctx context.Context, buy *StockBuy, inpu
 		if err != nil {
 			return fmt.Errorf("error updating stock buy: %w", err)
 		}
-		if !slices.Contains(allowedCashAccountTypes, acc.Type) {
+		if !slices.Contains(allowedStockCashAccountTypes, acc.Type) {
 			return NewValidationErr("cash account must be Cash, Checkin, Savings or Lent")
 		}
 		buy.CashAccountID = *input.CashAccountID
@@ -2694,7 +2714,7 @@ func (store *Store) mergeStockSellFields(ctx context.Context, sell *StockSell, i
 		if err != nil {
 			return fmt.Errorf("error updating stock sell: %w", err)
 		}
-		if !slices.Contains(allowedCashAccountTypes, acc.Type) {
+		if !slices.Contains(allowedStockCashAccountTypes, acc.Type) {
 			return NewValidationErr("cash account must be Cash, Checkin, Savings or Lent")
 		}
 		sell.CashAccountID = *input.CashAccountID
@@ -2716,6 +2736,9 @@ func (store *Store) mergeStockSellFields(ctx context.Context, sell *StockSell, i
 			return NewValidationErr("quantity must be positive")
 		}
 		sell.Quantity = *input.Quantity
+	}
+	if input.PricePerShare != nil {
+		sell.PricePerShare = *input.PricePerShare
 	}
 	if input.TotalAmount != nil {
 		if *input.TotalAmount <= 0 {
@@ -2777,8 +2800,8 @@ func (store *Store) recreateStockSell(ctx context.Context, id uint, sell StockSe
 		}
 
 		// Create sell trade
-		pricePerShare := 0.0
-		if sell.Quantity > 0 {
+		pricePerShare := sell.PricePerShare
+		if pricePerShare == 0 && sell.Quantity > 0 {
 			pricePerShare = sell.TotalAmount / sell.Quantity
 		}
 		trade := dbTrade{
@@ -2817,10 +2840,10 @@ func (store *Store) recreateStockSell(ctx context.Context, id uint, sell StockSe
 		if realizedGainLoss > 0 {
 			entries = append(entries, dbEntry{TransactionID: id, AccountID: sell.CashAccountID, Amount: realizedGainLoss, EntryType: incomeEntry})
 		} else if realizedGainLoss < 0 {
-			entries = append(entries, dbEntry{TransactionID: id, AccountID: sell.CashAccountID, Amount: -realizedGainLoss, EntryType: expenseEntry})
+			entries = append(entries, dbEntry{TransactionID: id, AccountID: sell.CashAccountID, Amount: realizedGainLoss, EntryType: expenseEntry})
 		}
 		if fees > 0 {
-			entries = append(entries, dbEntry{TransactionID: id, AccountID: sell.CashAccountID, Amount: fees, EntryType: expenseEntry})
+			entries = append(entries, dbEntry{TransactionID: id, AccountID: sell.CashAccountID, Amount: -fees, EntryType: expenseEntry})
 		}
 		// Investment account entry: cost basis leaving the position
 		if costBasis != 0 {
@@ -3562,6 +3585,7 @@ type intermediate struct {
 	TradeSellAccountId     uint
 	TradeSellInstrumentId  uint
 	TradeSellQuantity      float64
+	TradeSellPricePerShare float64
 	TradeSellAmount        float64
 	TradeGrantAccountId    uint
 	TradeGrantInstrumentId uint
@@ -3634,6 +3658,7 @@ func (store *Store) ListTransactions(ctx context.Context, opts ListOpts) ([]Tran
         CAST(MAX(CASE WHEN db_trades.trade_type = 2 THEN db_trades.account_id END) AS INTEGER) AS trade_sell_account_id,
         CAST(MAX(CASE WHEN db_trades.trade_type = 2 THEN db_trades.instrument_id END) AS INTEGER) AS trade_sell_instrument_id,
         CAST(MAX(CASE WHEN db_trades.trade_type = 2 THEN db_trades.quantity END) AS REAL) AS trade_sell_quantity,
+        COALESCE(MAX(CASE WHEN db_trades.trade_type = 2 THEN db_trades.price_per_share END), 0) AS trade_sell_price_per_share,
         CAST(MAX(CASE WHEN db_trades.trade_type = 2 THEN db_trades.total_amount END) AS REAL) AS trade_sell_amount,
         CAST(MAX(CASE WHEN db_trades.trade_type = 3 THEN db_trades.account_id END) AS INTEGER) AS trade_grant_account_id,
         CAST(MAX(CASE WHEN db_trades.trade_type = 3 THEN db_trades.instrument_id END) AS INTEGER) AS trade_grant_instrument_id,
@@ -3777,13 +3802,14 @@ func intermediateToTransaction(item intermediate) Transaction {
 			StockAmount: item.TradeBuyAmount, AttachmentID: item.AttachmentID,
 		}
 	case StockSellTransaction:
-		realizedGainLoss := item.IncomeAmount - item.ExpenseAmount
-		costBasis := roundMoney(item.TradeSellAmount - roundMoney(item.IncomeAmount-item.ExpenseAmount))
+		realizedGainLoss := item.IncomeAmount + item.ExpenseAmount // ExpenseAmount is negative (consistent with expense convention)
+		costBasis := roundMoney(item.TradeSellAmount - roundMoney(item.IncomeAmount+item.ExpenseAmount))
 		return StockSell{
 			Id: item.TransactionId, Description: item.Description, Notes: item.Notes,
 			Date: item.Date, InvestmentAccountID: item.TradeSellAccountId,
 			CashAccountID: item.StockCashAccountId, InstrumentID: item.TradeSellInstrumentId,
-			Quantity: item.TradeSellQuantity, TotalAmount: item.TradeSellAmount,
+			Quantity: item.TradeSellQuantity, PricePerShare: item.TradeSellPricePerShare,
+			TotalAmount: item.TradeSellAmount,
 			CostBasis: costBasis, RealizedGainLoss: realizedGainLoss,
 			AttachmentID: item.AttachmentID,
 		}
@@ -3879,13 +3905,19 @@ func (store *Store) PriorPageBalance(ctx context.Context, opts ListOpts, account
 		Offset(priorOffset)
 
 	// Sum balance-relevant entries for those older transactions, filtered to the specific account.
+	// Exclude income/expense entries from stock sell transactions: they record
+	// realized gain/loss and fees for P&L but the cash flow is already captured
+	// by the stockCashInEntry, so including them would double-count.
 	var result float64
 	err := store.db.WithContext(ctx).
 		Table("db_entries").
-		Select("COALESCE(SUM(amount), 0)").
-		Where("transaction_id IN (?)", subQ).
-		Where("account_id = ?", accountID).
-		Where("entry_type IN (?)", balanceEntryTypes).
+		Joins("JOIN db_transactions AS pbt ON pbt.id = db_entries.transaction_id").
+		Select("COALESCE(SUM(db_entries.amount), 0)").
+		Where("db_entries.transaction_id IN (?)", subQ).
+		Where("db_entries.account_id = ?", accountID).
+		Where("db_entries.entry_type IN (?)", balanceEntryTypes).
+		Where("NOT (db_entries.entry_type IN (?) AND pbt.type = ?)",
+			[]entryType{incomeEntry, expenseEntry}, StockSellTransaction).
 		Scan(&result).Error
 
 	if err != nil {

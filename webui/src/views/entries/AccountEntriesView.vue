@@ -122,7 +122,11 @@ watch(
         
         try {
             isLoadingBalance.value = true
-            const dateStr = new Date(newStartDate).toISOString().split('T')[0]
+            // Use the day before startDate so the opening balance excludes
+            // entries that will already appear in the visible entries list.
+            const dayBefore = new Date(newStartDate)
+            dayBefore.setDate(dayBefore.getDate() - 1)
+            const dateStr = dayBefore.toISOString().split('T')[0]
             const balance = await accountBalance.mutateAsync({
                 accountId: Number(newAccountId),
                 date: dateStr

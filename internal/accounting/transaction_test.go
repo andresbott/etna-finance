@@ -863,13 +863,13 @@ func TestStore_UpdateTransfer(t *testing.T) {
 			name:         "non-cash target account error",
 			updateTenant: tenant1,
 			updateInput:  TransferUpdate{TargetAccountID: ptr(uint(5))},
-			wantErr:      "incompatible account type 'Investment' for transaction",
+			wantErr:      "incompatible account type 'Investment' for transfer transaction",
 		},
 		{
 			name:         "non-cash origin account error",
 			updateTenant: tenant1,
 			updateInput:  TransferUpdate{OriginAccountID: ptr(uint(5))},
-			wantErr:      "incompatible account type 'Investment' for transaction",
+			wantErr:      "incompatible account type 'Investment' for transfer transaction",
 		},
 		{
 			name:         "same origin and target account error (both changed)",
@@ -1466,6 +1466,9 @@ func verifyStockSellResult(t *testing.T, got Transaction, want StockSell, invest
 		t.Errorf("got StockSell Quantity=%v TotalAmount=%v, want Quantity=%v TotalAmount=%v",
 			gotStockSell.Quantity, gotStockSell.TotalAmount, want.Quantity, want.TotalAmount)
 	}
+	if want.PricePerShare != 0 && math.Abs(gotStockSell.PricePerShare-want.PricePerShare) > 0.0001 {
+		t.Errorf("got StockSell PricePerShare=%v, want %v", gotStockSell.PricePerShare, want.PricePerShare)
+	}
 	if gotStockSell.InvestmentAccountID != investmentAccountID || gotStockSell.CashAccountID != cashAccountID {
 		t.Errorf("got StockSell InvestmentAccountID=%v CashAccountID=%v, want %v %v",
 			gotStockSell.InvestmentAccountID, gotStockSell.CashAccountID, investmentAccountID, cashAccountID)
@@ -1516,6 +1519,7 @@ func TestStore_CreateStockBuy_CreateStockSell(t *testing.T) {
 				CashAccountID:       cashAccountID,
 				InstrumentID:        instrumentID,
 				Quantity:            3,
+				PricePerShare:       156.0,
 				TotalAmount:         465.0,
 			}
 			sellID, err := store.CreateStockSell(ctx, sell)
@@ -2406,7 +2410,7 @@ func TestStore_CreateStockBuy_validationErrors(t *testing.T) {
 				wantErr string
 			}{
 				{"investment account must be Investment", StockBuy{Description: "x", Date: getDate("2025-01-01"), InvestmentAccountID: cashAccountID, CashAccountID: cashAccountID, InstrumentID: instrumentID, Quantity: 1, TotalAmount: 1, StockAmount: 1}, "Investment"},
-				{"cash account must be Cash/Checkin/Savings", StockBuy{Description: "x", Date: getDate("2025-01-01"), InvestmentAccountID: accountID, CashAccountID: accountID, InstrumentID: instrumentID, Quantity: 1, TotalAmount: 1, StockAmount: 1}, "Cash, Checkin, Savings or Lent"},
+				{"cash account must be Cash/Checkin/Savings", StockBuy{Description: "x", Date: getDate("2025-01-01"), InvestmentAccountID: accountID, CashAccountID: accountID, InstrumentID: instrumentID, Quantity: 1, TotalAmount: 1, StockAmount: 1}, "Cash, Checkin or Savings"},
 				{"instrument not found", StockBuy{Description: "x", Date: getDate("2025-01-01"), InvestmentAccountID: accountID, CashAccountID: cashAccountID, InstrumentID: 99999, Quantity: 1, TotalAmount: 1, StockAmount: 1}, "instrument not found"},
 				{"quantity must be positive", StockBuy{Description: "x", Date: getDate("2025-01-01"), InvestmentAccountID: accountID, CashAccountID: cashAccountID, InstrumentID: instrumentID, Quantity: 0, TotalAmount: 1, StockAmount: 1}, "quantity must be positive"},
 				{"total amount must be positive", StockBuy{Description: "x", Date: getDate("2025-01-01"), InvestmentAccountID: accountID, CashAccountID: cashAccountID, InstrumentID: instrumentID, Quantity: 1, TotalAmount: 0, StockAmount: 1}, "total amount must be positive"},
@@ -2792,6 +2796,142 @@ func TestStore_PriorPageBalance_IgnoresNewFilters(t *testing.T) {
 
 			if basePrior != filteredPrior {
 				t.Errorf("PriorPageBalance should ignore new filters: base=%f filtered=%f", basePrior, filteredPrior)
+			}
+		})
+	}
+}
+
+// TestStore_BalanceConsistentAcrossDateRanges verifies that the account balance
+// is deterministic regardless of the date-range window chosen.  Concretely it
+// checks the invariant:
+//
+//	AccountBalanceSingle(splitDate) + entries(splitDate+1 … endDate) == AccountBalanceSingle(endDate)
+//
+// This catches two classes of bugs:
+//  1. Stock-sell P&L entries (gain/loss/fees) double-counting cash flow.
+//  2. Date-boundary overlap between the opening-balance query and the entries list.
+func TestStore_BalanceConsistentAcrossDateRanges(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			dbCon := db.ConnDbName("TestBalanceConsistent")
+			store, mktStore := newAccountingStoreWithMarketData(t, dbCon)
+			accountSampleData(t, store)
+			ctx := t.Context()
+
+			// Account 1 = cash EUR, Account 5 = investment CHF.
+			// We need matching currencies, so create a CHF cash account and
+			// a CHF instrument for stock buy/sell.
+			chfCashID, err := store.CreateAccount(ctx, Account{
+				Name: "CHF Cash", Currency: currency.CHF,
+				Type: CashAccountType, AccountProviderID: 1,
+			})
+			if err != nil {
+				t.Fatalf("create CHF cash account: %v", err)
+			}
+			instID, err := mktStore.CreateInstrument(ctx, marketdata.Instrument{
+				Symbol: "TST", Name: "Test Stock", Currency: currency.CHF,
+			})
+			if err != nil {
+				t.Fatalf("create instrument: %v", err)
+			}
+			investmentAccID := uint(5) // acc5, investment CHF
+
+			// --- Build a transaction history on chfCashID ---
+			// Jan: salary income
+			if _, err := store.CreateTransaction(ctx, Income{
+				Description: "salary jan", Amount: 5000,
+				AccountID: chfCashID, Date: getDate("2025-01-15"),
+			}); err != nil {
+				t.Fatal(err)
+			}
+			// Feb: expense
+			if _, err := store.CreateTransaction(ctx, Expense{
+				Description: "rent feb", Amount: 1500,
+				AccountID: chfCashID, Date: getDate("2025-02-01"),
+			}); err != nil {
+				t.Fatal(err)
+			}
+			// Mar: buy stock (cash leaves account)
+			if _, err := store.CreateTransaction(ctx, StockBuy{
+				Description: "buy TST", TotalAmount: 1000, StockAmount: 1000,
+				Quantity: 10, InstrumentID: instID,
+				InvestmentAccountID: investmentAccID, CashAccountID: chfCashID,
+				Date: getDate("2025-03-01"),
+			}); err != nil {
+				t.Fatal(err)
+			}
+			// Apr: sell stock with gain (cash enters account)
+			if _, err := store.CreateTransaction(ctx, StockSell{
+				Description: "sell TST", TotalAmount: 1500,
+				Quantity: 10, InstrumentID: instID,
+				InvestmentAccountID: investmentAccID, CashAccountID: chfCashID,
+				Date: getDate("2025-04-01"),
+			}); err != nil {
+				t.Fatal(err)
+			}
+			// May: transfer out
+			if _, err := store.CreateTransaction(ctx, Transfer{
+				Description: "transfer out", OriginAmount: 500, TargetAmount: 500,
+				OriginAccountID: chfCashID, TargetAccountID: 1,
+				Date: getDate("2025-05-01"),
+			}); err != nil {
+				t.Fatal(err)
+			}
+
+			// Expected cash balance at 2025-12-31:
+			// +5000 (income) -1500 (expense) -1000 (buy) +1500 (sell net) -500 (transfer) = 3500
+			// The sell net cash = TotalAmount - fees = 1500 - 0 = 1500.
+
+			endDate := getDate("2025-12-31")
+			finalBalance, err := store.AccountBalanceSingle(ctx, chfCashID, endDate)
+			if err != nil {
+				t.Fatalf("final balance: %v", err)
+			}
+
+			// Verify the final balance is correct.
+			wantBalance := 3500.0
+			if math.Abs(finalBalance.Sum-wantBalance) > 0.01 {
+				t.Fatalf("final balance = %v, want %v", finalBalance.Sum, wantBalance)
+			}
+
+			// Now verify the split invariant for various split dates.
+			splitDates := []string{
+				"2025-01-01", // before any entries
+				"2025-01-15", // on an entry date (income)
+				"2025-02-15", // between entries
+				"2025-03-01", // on stock buy date
+				"2025-04-01", // on stock sell date (the critical case)
+				"2025-05-01", // on transfer date
+				"2025-06-01", // after all entries
+			}
+
+			for _, sd := range splitDates {
+				t.Run("split_"+sd, func(t *testing.T) {
+					splitDate := getDate(sd)
+					splitBal, err := store.AccountBalanceSingle(ctx, chfCashID, splitDate)
+					if err != nil {
+						t.Fatalf("balance at %s: %v", sd, err)
+					}
+
+					// Sum entries AFTER splitDate up to endDate.
+					nextDay := splitDate.AddDate(0, 0, 1)
+					remainder, err := store.sumBalanceEntries(ctx, sumEntriesOpts{
+						startDate:  nextDay,
+						endDate:    endDate,
+						accountIds: []uint{chfCashID},
+						entryTypes: balanceEntryTypes,
+					})
+					if err != nil {
+						t.Fatalf("sum entries after %s: %v", sd, err)
+					}
+
+					got := splitBal.Sum + remainder.Sum
+					if math.Abs(got-finalBalance.Sum) > 0.01 {
+						t.Errorf("balance(%s) + entries(%s..%s) = %v, want %v (balance(%s)=%v, entries=%v)",
+							sd, sd, "2025-12-31", got, finalBalance.Sum,
+							sd, splitBal.Sum, remainder.Sum)
+					}
+				})
 			}
 		})
 	}

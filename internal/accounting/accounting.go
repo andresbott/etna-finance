@@ -63,6 +63,16 @@ func NewStore(db *gorm.DB, marketStore *marketdata.Store, opts ...Option) (*Stor
 		}
 	}
 
+	// Migration: flip sign of expense entries in stock sell transactions.
+	// Previously these were stored with positive amounts, but regular expenses use negative amounts.
+	// This makes them consistent with the expense convention (Amount < 0).
+	if err := db.Exec(`UPDATE db_entries SET amount = -amount
+		WHERE entry_type = ? AND amount > 0
+		AND transaction_id IN (SELECT id FROM db_transactions WHERE type = ?)`,
+		expenseEntry, StockSellTransaction).Error; err != nil {
+		return nil, fmt.Errorf("migrate stock sell expense sign: %w", err)
+	}
+
 	categoryTree, err := closuretree.New(db, dbCategory{}) // init the closure tree, this includes gorm automigrate
 	if err != nil {
 		return nil, err

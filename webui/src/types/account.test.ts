@@ -122,7 +122,6 @@ describe('getAllowedOperations', () => {
             ENTRY_OPERATIONS.EXPENSE,
             ENTRY_OPERATIONS.TRANSFER,
             ENTRY_OPERATIONS.BALANCE_STATUS,
-            ENTRY_OPERATIONS.IMPORT_CSV,
         ])
     })
 
@@ -180,7 +179,6 @@ describe('isOperationAllowed', () => {
             ENTRY_OPERATIONS.EXPENSE,
             ENTRY_OPERATIONS.TRANSFER,
             ENTRY_OPERATIONS.BALANCE_STATUS,
-            ENTRY_OPERATIONS.IMPORT_CSV,
         ]
 
         for (const acctType of cashLike) {

@@ -45,7 +45,7 @@ const createMutation = useMutation({
 })
 
 const isSaving = computed(() => createMutation.isPending.value)
-const { pickerDateFormat, dateValidation } = useDateFormat()
+const { pickerDateFormat, dateValidation, formatDate } = useDateFormat()
 
 const instruments = computed(() => instrumentsData.value ?? [])
 
@@ -113,7 +113,7 @@ function validateStep1() {
 function goToStep2() {
     step1Errors.value = validateStep1()
     if (Object.keys(step1Errors.value).length === 0) {
-        if (totalAmount.value != null && !Number.isNaN(totalAmount.value)) {
+        if (!props.isEdit && totalAmount.value != null && !Number.isNaN(totalAmount.value)) {
             formValues.value.targetAmount = totalAmount.value
         }
         step.value = 2
@@ -270,8 +270,9 @@ const lotAllocations = ref([])
 
 const investmentAccountIdRef = computed(() => extractAccountId(formValues.value.InvestmentAccountId))
 const instrumentIdRef = computed(() => formValues.value.instrumentId ?? null)
+const beforeDateRef = computed(() => formValues.value.date ? toDateString(formValues.value.date) : null)
 
-const { lots } = useLots(investmentAccountIdRef, instrumentIdRef)
+const { lots } = useLots(investmentAccountIdRef, instrumentIdRef, beforeDateRef)
 
 const visibleLots = computed(() =>
     lots.value.filter(l => getLotAvailable(l) > 0)
@@ -428,7 +429,7 @@ const doSave = async () => {
                 totalAmount: total,
                 investmentAccountId: invId,
                 cashAccountId: cashId,
-                ...(props.operationType === 'buy' ? { StockAmount: stockAmount } : { fees }),
+                ...(props.operationType === 'buy' ? { StockAmount: stockAmount } : { fees, pricePerShare }),
                 ...(lotAllocationsPayload ? { lotAllocations: lotAllocationsPayload } : {})
             }
             await updateEntry(updatePayload)
@@ -445,7 +446,7 @@ const doSave = async () => {
                 totalAmount: total,
                 investmentAccountId: invId,
                 cashAccountId: cashId,
-                ...(props.operationType === 'buy' ? { StockAmount: stockAmount } : { fees }),
+                ...(props.operationType === 'buy' ? { StockAmount: stockAmount } : { fees, pricePerShare }),
                 ...(lotAllocationsPayload ? { lotAllocations: lotAllocationsPayload } : {})
             }
             await createMutation.mutateAsync(payload)
@@ -683,9 +684,9 @@ const handleSellSave = async () => {
                                 </thead>
                                 <tbody>
                                     <tr v-for="lot in visibleLots" :key="lot.id">
-                                        <td>{{ lot.openDate?.split('T')[0] ?? lot.openDate }}</td>
-                                        <td class="text-right">{{ getLotAvailable(lot) }}</td>
-                                        <td class="text-right">{{ lot.costPerShare?.toFixed(4) }}</td>
+                                        <td>{{ formatDate(lot.openDate) }}</td>
+                                        <td class="text-right">{{ getLotAvailable(lot).toFixed(3) }}</td>
+                                        <td class="text-right">{{ lot.costPerShare?.toFixed(3) }}</td>
                                         <td class="text-right">
                                             <InputNumber
                                                 :modelValue="getLotQty(lot.id)"

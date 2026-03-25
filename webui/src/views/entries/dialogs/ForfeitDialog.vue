@@ -42,7 +42,7 @@ const createMutation = useMutation({
 })
 
 const isSaving = computed(() => createMutation.isPending.value)
-const { pickerDateFormat, dateValidation } = useDateFormat()
+const { pickerDateFormat, dateValidation, formatDate } = useDateFormat()
 
 const instruments = computed(() => instrumentsData.value ?? [])
 
@@ -130,8 +130,9 @@ const lotAllocations = ref([])
 
 const accountIdRef = computed(() => extractAccountId(formValues.value.AccountId))
 const instrumentIdRef = computed(() => formValues.value.instrumentId ?? null)
+const beforeDateRef = computed(() => formValues.value.date ? toDateString(formValues.value.date) : null)
 
-const { lots } = useLots(accountIdRef, instrumentIdRef)
+const { lots } = useLots(accountIdRef, instrumentIdRef, beforeDateRef)
 
 const visibleLots = computed(() =>
     lots.value.filter(l => getLotAvailable(l) > 0)
@@ -372,9 +373,9 @@ const dialogTitle = computed(() =>
                             </thead>
                             <tbody>
                                 <tr v-for="lot in visibleLots" :key="lot.id">
-                                    <td>{{ lot.openDate?.split('T')[0] ?? lot.openDate }}</td>
-                                    <td class="text-right">{{ getLotAvailable(lot) }}</td>
-                                    <td class="text-right">{{ lot.costPerShare?.toFixed(4) }}</td>
+                                    <td>{{ formatDate(lot.openDate) }}</td>
+                                    <td class="text-right">{{ getLotAvailable(lot).toFixed(3) }}</td>
+                                    <td class="text-right">{{ lot.costPerShare?.toFixed(3) }}</td>
                                     <td class="text-right">
                                         <InputNumber
                                             :modelValue="getLotQty(lot.id)"

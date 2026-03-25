@@ -204,6 +204,7 @@ const (
 	RestrictedStockAccountType         // restricted stock (e.g. unvested RSUs); can transfer to Investment
 	LentAccountType                   // money lent to others; owned but not in any account
 	PensionAccountType                // pension/retirement fund; contributions via transfer, value changes via revaluation
+	PrepaidExpenseAccountType          // prepaid obligations (e.g. tax pre-payments); owned but not liquid
 )
 
 func (t AccountType) String() string {
@@ -222,6 +223,8 @@ func (t AccountType) String() string {
 		return "Lent"
 	case PensionAccountType:
 		return "Pension"
+	case PrepaidExpenseAccountType:
+		return "PrepaidExpense"
 	default:
 		return "Unknown"
 	}
@@ -230,7 +233,7 @@ func (t AccountType) String() string {
 // RequiresCurrency returns true for account types that require a currency (all except Unknown).
 func (t AccountType) RequiresCurrency() bool {
 	switch t {
-	case CashAccountType, CheckinAccountType, SavingsAccountType, InvestmentAccountType, RestrictedStockAccountType, LentAccountType, PensionAccountType:
+	case CashAccountType, CheckinAccountType, SavingsAccountType, InvestmentAccountType, RestrictedStockAccountType, LentAccountType, PensionAccountType, PrepaidExpenseAccountType:
 		return true
 	default:
 		return false
