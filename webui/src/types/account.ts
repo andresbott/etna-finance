@@ -17,6 +17,7 @@ export interface Account {
     icon?: string
     notes?: string
     importProfileId?: number
+    favorite?: boolean
 }
 
 /**

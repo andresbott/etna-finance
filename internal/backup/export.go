@@ -166,6 +166,7 @@ func writeAccounts(ctx context.Context, zw *zipWriter, store *accounting.Store) 
 			Currency:          acc.Currency.String(),
 			Type:              acc.Type.String(),
 			ImportProfileID:   acc.ImportProfileID,
+			Favorite:          acc.Favorite,
 		}
 	}
 	return zw.writeJsonFile(accountsFile, jsonData)

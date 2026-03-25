@@ -40,82 +40,20 @@
                     <li>
                         <router-link to="/entries" class="menu-item">
                             <i class="ti ti-layout-grid menu-icon"></i>
-                            <span class="menu-label">All Transactions</span>
+                            <span class="menu-label">All Accounts</span>
+                        </router-link>
+                    </li>
+                    <li v-for="fav in favoriteAccounts" :key="'fav-' + fav.id">
+                        <router-link :to="`/entries/${fav.id}`" class="menu-item favorite-item">
+                            <i :class="['ti', `ti-${fav.icon || 'wallet'}`, 'menu-icon']"></i>
+                            <span class="menu-label">{{ fav.name }}</span>
                         </router-link>
                     </li>
                     <li>
-                        <a
-                            @click="expandAllAccounts"
-                            class="menu-item"
-                        >
-                            <i class="ti ti-filter menu-icon"></i>
-                            <span class="menu-label">Cash accounts</span>
-                            <i
-                                class="ti ti-chevron-down menu-toggle"
-                                :class="{ 'rotate-180': isMyAccountsExpanded }"
-                            ></i>
-                        </a>
-
-                        <ul class="menu-submenu" :class="{ hidden: !isMyAccountsExpanded }">
-                            <li v-for="provider in accountsCashOnly" :key="provider.id">
-                                <div class="menu-item submenu-item menu-item-label">
-                                    <i :class="['ti', `ti-${provider.icon || 'building-bank'}`, 'menu-icon']"></i>
-                                    <span class="menu-label">{{ provider.name }}</span>
-                                </div>
-
-                                <ul class="menu-submenu">
-                                    <li v-for="account in provider.accounts" :key="account.id">
-                                        <router-link
-                                            :to="`/entries/${account.id}`"
-                                            class="menu-item submenu-item"
-                                        >
-                                            <i :class="['ti', `ti-${account.icon || 'wallet'}`, 'menu-icon']"></i>
-                                            <span class="menu-label">{{ account.name }}</span>
-                                        </router-link>
-                                    </li>
-                                </ul>
-                            </li>
-                        </ul>
-                    </li>
-                    <li>
-                        <router-link to="/financial-transactions" class="menu-item">
-                            <i class="ti ti-wallet menu-icon"></i>
-                            <span class="menu-label">Financial Transactions</span>
+                        <router-link to="/nav/account-browser" class="menu-item">
+                            <i class="ti ti-list-search menu-icon"></i>
+                            <span class="menu-label">Account Browser</span>
                         </router-link>
-                    </li>
-                    <li v-if="settings.investmentInstruments">
-                        <a
-                            @click="expandAllInvestment"
-                            class="menu-item"
-                        >
-                            <i class="ti ti-chart-line menu-icon"></i>
-                            <span class="menu-label">Investment</span>
-                            <i
-                                class="ti ti-chevron-down menu-toggle"
-                                :class="{ 'rotate-180': isInvestmentExpanded }"
-                            ></i>
-                        </a>
-
-                        <ul class="menu-submenu" :class="{ hidden: !isInvestmentExpanded }">
-                            <li v-for="provider in accountsInvestmentOnly" :key="provider.id">
-                                <div class="menu-item submenu-item menu-item-label">
-                                    <i :class="['ti', `ti-${provider.icon || 'building-bank'}`, 'menu-icon']"></i>
-                                    <span class="menu-label">{{ provider.name }}</span>
-                                </div>
-
-                                <ul class="menu-submenu">
-                                    <li v-for="account in provider.accounts" :key="account.id">
-                                        <router-link
-                                            :to="`/entries/${account.id}`"
-                                            class="menu-item submenu-item"
-                                        >
-                                            <i :class="['ti', `ti-${account.icon || 'wallet'}`, 'menu-icon']"></i>
-                                            <span class="menu-label">{{ account.name }}</span>
-                                        </router-link>
-                                    </li>
-                                </ul>
-                            </li>
-                        </ul>
                     </li>
 
                     <li class="menu-spacer"></li>
@@ -177,77 +115,25 @@
 </template>
 
 <script setup>
-import { ref, watch, computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed } from 'vue'
 import { useUiStore } from '@/store/uiStore.js'
 import { useAccounts } from '@/composables/useAccounts'
 import { useSettingsStore } from '@/store/settingsStore.js'
-import { ACCOUNT_TYPES } from '@/types/account'
 
-const route = useRoute()
 const uiStore = useUiStore()
 const settings = useSettingsStore()
 const { accounts } = useAccounts()
 
-const CASH_ACCOUNT_TYPES = [ACCOUNT_TYPES.CASH, ACCOUNT_TYPES.CHECKING, ACCOUNT_TYPES.SAVINGS, ACCOUNT_TYPES.LENT, ACCOUNT_TYPES.PENSION, ACCOUNT_TYPES.PREPAID_EXPENSE]
-const INVESTMENT_ACCOUNT_TYPES = [ACCOUNT_TYPES.INVESTMENT, ACCOUNT_TYPES.RESTRICTED_STOCK]
-
-// By Account tree: only cash accounts (cash, checking, savings)
-const accountsCashOnly = computed(() => {
+// Flat list of all favorited accounts across all providers
+const favoriteAccounts = computed(() => {
     const list = accounts.value
     if (!list) return []
-    return list
-        .map(provider => ({
-            ...provider,
-            accounts: (provider.accounts || []).filter(acc =>
-                CASH_ACCOUNT_TYPES.includes(acc.type)
-            )
-        }))
-        .filter(provider => provider.accounts.length > 0)
-})
-
-// Investment section: only financial investment accounts (investment, restricted stock)
-const accountsInvestmentOnly = computed(() => {
-    const list = accounts.value
-    if (!list) return []
-    return list
-        .map(provider => ({
-            ...provider,
-            accounts: (provider.accounts || []).filter(acc =>
-                INVESTMENT_ACCOUNT_TYPES.includes(acc.type)
-            )
-        }))
-        .filter(provider => provider.accounts.length > 0)
-})
-
-const isMyAccountsExpanded = ref(false)
-const isInvestmentExpanded = ref(false)
-
-// Watch route to auto-expand when viewing account entries
-watch(() => route.path, (newPath) => {
-    const accountEntriesMatch = newPath.match(/^\/entries\/(\d+)$/)
-    if (!accountEntriesMatch) return
-
-    const accountId = accountEntriesMatch[1]
-
-    const inCash = accountsCashOnly.value.some(provider =>
-        provider.accounts.some(account => String(account.id) === accountId)
+    return list.flatMap(provider =>
+        (provider.accounts || [])
+            .filter(acc => acc.favorite)
+            .map(acc => ({ ...acc, providerIcon: provider.icon }))
     )
-    if (inCash) isMyAccountsExpanded.value = true
-
-    const inInvestment = accountsInvestmentOnly.value.some(provider =>
-        provider.accounts.some(account => String(account.id) === accountId)
-    )
-    if (inInvestment) isInvestmentExpanded.value = true
-}, { immediate: true })
-
-const expandAllAccounts = () => {
-    isMyAccountsExpanded.value = !isMyAccountsExpanded.value
-}
-
-const expandAllInvestment = () => {
-    isInvestmentExpanded.value = !isInvestmentExpanded.value
-}
+})
 </script>
 
 <style scoped>

@@ -167,6 +167,7 @@ func (h *Handler) ListAccountProviders() http.Handler {
 					Currency:        currencyStr,
 					Type:            strings.ToLower(account.Type.String()),
 					ImportProfileId: account.ImportProfileID,
+					Favorite:        account.Favorite,
 				}
 			}
 
@@ -210,6 +211,7 @@ type accountPayload struct {
 	Currency        string `json:"currency"`
 	Type            string `json:"type"` // enum of type
 	ImportProfileId uint   `json:"importProfileId,omitempty"`
+	Favorite        bool   `json:"favorite"`
 }
 
 func (h *Handler) CreateAccount() http.Handler {
@@ -239,6 +241,7 @@ func (h *Handler) CreateAccount() http.Handler {
 			AccountProviderID: payload.ProviderId,
 			Type:              t,
 			ImportProfileID:   payload.ImportProfileId,
+			Favorite:          payload.Favorite,
 		}
 		if t.RequiresCurrency() {
 			cur, err := currency.ParseISO(payload.Currency)
@@ -273,6 +276,7 @@ func (h *Handler) CreateAccount() http.Handler {
 			Currency:        currencyStr,
 			Type:            strings.ToLower(account.Type.String()),
 			ImportProfileId: account.ImportProfileID,
+			Favorite:        account.Favorite,
 		}
 
 		respJson, err := json.Marshal(responsePayload)
@@ -295,6 +299,7 @@ type accountUpdatePayload struct {
 	Type            string  `json:"type"`
 	ProviderId      *uint   `json:"providerId"`
 	ImportProfileId *uint   `json:"importProfileId"`
+	Favorite        *bool   `json:"favorite"`
 }
 
 func (h *Handler) UpdateAccount(Id uint) http.Handler {
@@ -329,6 +334,10 @@ func (h *Handler) UpdateAccount(Id uint) http.Handler {
 
 		if payload.ImportProfileId != nil {
 			account.ImportProfileID = payload.ImportProfileId
+		}
+
+		if payload.Favorite != nil {
+			account.Favorite = payload.Favorite
 		}
 
 		// Resolve target type for currency: from payload or current account

@@ -140,7 +140,7 @@ func importAccounts(ctx context.Context, store *accounting.Store, r *zip.ReadClo
 	// map the accountIds from the zip to the one created in the DB
 	accountsMap := map[uint]uint{}
 	for _, account := range accounts {
-		item := accounting.Account{Name: account.Name, Description: account.Description, Icon: account.Icon, Notes: account.Notes}
+		item := accounting.Account{Name: account.Name, Description: account.Description, Icon: account.Icon, Notes: account.Notes, Favorite: account.Favorite}
 		item.AccountProviderID = providersMap[account.AccountProviderID]
 		if account.ImportProfileID != 0 {
 			item.ImportProfileID = profilesMap[account.ImportProfileID]

@@ -196,15 +196,15 @@ var ErrAccountContainsEntries = errors.New("account still contains referenced tr
 type AccountType int
 
 const (
-	UnknownAccountType    AccountType = iota
-	CashAccountType                   // e.g. wallet
-	CheckinAccountType                // where the salary goes
-	SavingsAccountType                // where you save money and get dividends
-	InvestmentAccountType             // stocks and others (vested)
-	RestrictedStockAccountType         // restricted stock (e.g. unvested RSUs); can transfer to Investment
-	LentAccountType                   // money lent to others; owned but not in any account
-	PensionAccountType                // pension/retirement fund; contributions via transfer, value changes via revaluation
-	PrepaidExpenseAccountType          // prepaid obligations (e.g. tax pre-payments); owned but not liquid
+	UnknownAccountType         AccountType = iota
+	CashAccountType                        // e.g. wallet
+	CheckinAccountType                     // where the salary goes
+	SavingsAccountType                     // where you save money and get dividends
+	InvestmentAccountType                  // stocks and others (vested)
+	RestrictedStockAccountType             // restricted stock (e.g. unvested RSUs); can transfer to Investment
+	LentAccountType                        // money lent to others; owned but not in any account
+	PensionAccountType                     // pension/retirement fund; contributions via transfer, value changes via revaluation
+	PrepaidExpenseAccountType              // prepaid obligations (e.g. tax pre-payments); owned but not liquid
 )
 
 func (t AccountType) String() string {
@@ -250,6 +250,7 @@ type Account struct {
 	Currency          currency.Unit
 	Type              AccountType
 	ImportProfileID   uint // 0 = no linked import profile
+	Favorite          bool
 }
 
 // dbAccount is the DB internal representation of an Account
@@ -263,6 +264,7 @@ type dbAccount struct {
 	Type            AccountType
 	Currency        string
 	ImportProfileID uint `gorm:"default:null"`
+	Favorite        bool
 
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -285,6 +287,7 @@ func dbToAccount(in dbAccount) Account {
 		Currency:          cur,
 		Type:              in.Type,
 		ImportProfileID:   in.ImportProfileID,
+		Favorite:          in.Favorite,
 	}
 }
 
@@ -316,6 +319,7 @@ func (store *Store) CreateAccount(ctx context.Context, item Account) (uint, erro
 		Type:            item.Type,
 		Currency:        currencyStr,
 		ImportProfileID: item.ImportProfileID,
+		Favorite:        item.Favorite,
 	}
 
 	d := store.db.WithContext(ctx).Create(&payload)
@@ -347,6 +351,7 @@ type AccountUpdatePayload struct {
 	ProviderID      *uint
 	Type            AccountType
 	ImportProfileID *uint
+	Favorite        *bool
 }
 
 func (store *Store) UpdateAccount(ctx context.Context, item AccountUpdatePayload, Id uint) error {
@@ -405,6 +410,11 @@ func (store *Store) UpdateAccount(ctx context.Context, item AccountUpdatePayload
 	if item.ImportProfileID != nil {
 		updateStruct.ImportProfileID = *item.ImportProfileID
 		selectedFields = append(selectedFields, "ImportProfileID")
+	}
+
+	if item.Favorite != nil {
+		updateStruct.Favorite = *item.Favorite
+		selectedFields = append(selectedFields, "Favorite")
 	}
 
 	if len(selectedFields) == 0 {

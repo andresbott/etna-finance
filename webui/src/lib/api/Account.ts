@@ -20,6 +20,7 @@ export interface AccountItem {
     notes?: string
     providerId?: number
     importProfileId?: number
+    favorite?: boolean
 }
 
 export async function getProviders(): Promise<ProviderItem[]> {
