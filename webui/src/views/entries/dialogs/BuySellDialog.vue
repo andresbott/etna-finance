@@ -21,6 +21,7 @@ import { useQueryClient } from '@tanstack/vue-query'
 import AccountSelector from '@/components/AccountSelector.vue'
 import { useInstruments } from '@/composables/useInstruments'
 import { useDateFormat } from '@/composables/useDateFormat'
+import { toLocalDateString } from '@/utils/date'
 import { useMutation } from '@tanstack/vue-query'
 import { createStockTransaction } from '@/lib/api/Entry'
 import { getApiErrorMessage } from '@/utils/apiError'
@@ -135,7 +136,7 @@ const handleSubmit = async (e) => {
     const payload = {
         type: props.operationType === 'sell' ? 'stocksell' : 'stockbuy',
         description: e.values.description,
-        date: new Date(e.values.date).toISOString().slice(0, 10),
+        date: toLocalDateString(e.values.date),
         instrumentId: e.values.instrumentId,
         quantity: q,
         totalAmount: total,

@@ -171,9 +171,9 @@ describe('toDateString', () => {
         expect(toDateString(date)).toBe('2023-01-05')
     })
 
-    it('handles null by returning today in UTC ISO format', () => {
+    it('handles null by returning today in local date format', () => {
         const now = new Date()
-        const expected = now.toISOString().slice(0, 10)
+        const expected = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
         vi.useFakeTimers({ now })
         expect(toDateString(null)).toBe(expected)
         vi.useRealTimers()
@@ -181,7 +181,7 @@ describe('toDateString', () => {
 
     it('handles undefined by returning today', () => {
         const now = new Date()
-        const expected = now.toISOString().slice(0, 10)
+        const expected = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
         vi.useFakeTimers({ now })
         expect(toDateString(undefined)).toBe(expected)
         vi.useRealTimers()
