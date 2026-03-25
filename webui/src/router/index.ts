@@ -28,21 +28,18 @@ const router = createRouter({
             redirect: { name: 'settings-accounts' }
         },
         {
+            path: '/nav/account-browser',
+            name: 'nav-account-browser',
+            meta: { requiresAuth: true },
+            component: () => import('@/views/nav/AccountBrowserView.vue')
+        },
+        {
             path: '/entries',
             name: 'entries',
             meta: {
                 requiresAuth: true
             },
             component: () => import('@/views/entries/EntriesView.vue')
-        },
-        {
-            path: '/financial-transactions',
-            name: 'financial-transactions',
-            meta: {
-                requiresAuth: true
-            },
-            component: () => import('@/views/entries/EntriesView.vue'),
-            props: { financialOnly: true }
         },
         {
             path: '/entries/:id',

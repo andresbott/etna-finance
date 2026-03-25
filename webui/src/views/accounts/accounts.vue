@@ -17,7 +17,7 @@ import { useSettingsStore } from '@/store/settingsStore.js'
 const ACCOUNTS_DOCS_URL = 'https://github.com/andresbott/etna-finance#readme'
 
 // Composables
-const { accounts, isLoading, deleteAccount, deleteAccountProvider } = useAccounts()
+const { accounts, isLoading, deleteAccount, deleteAccountProvider, updateAccount } = useAccounts()
 const settings = useSettingsStore()
 const instrumentAccountTypes = [ACCOUNT_TYPES.INVESTMENT, ACCOUNT_TYPES.RESTRICTED_STOCK]
 
@@ -51,7 +51,8 @@ const treeTableData = computed(() => {
                 icon: account.icon || 'ti-wallet',
                 notes: account.notes,
                 providerId: provider.id,
-                importProfileId: account.importProfileId
+                importProfileId: account.importProfileId,
+                favorite: account.favorite || false
             }
         })) || []
 
@@ -123,6 +124,13 @@ const handleDeleteAccount = async () => {
         await deleteAccount(selectedItem.value.id)
         deleteAccountDialogVisible.value = false
     }
+}
+
+const toggleFavorite = async (account) => {
+    await updateAccount({
+        id: account.id,
+        favorite: !account.favorite,
+    })
 }
 
 const handleDeleteProvider = async () => {
@@ -210,6 +218,16 @@ const handleDeleteProvider = async () => {
                                     :class="{ 'actions-row--indent': !node.children }"
                                 >
                                     <Button
+                                        :icon="node.data.favorite ? 'ti ti-filled ti-star' : 'ti ti-star'"
+                                        v-if="!node.children"
+                                        text
+                                        rounded
+                                        class="p-1"
+                                        :class="{ 'favorite-active': node.data.favorite }"
+                                        @click="toggleFavorite(node.data)"
+                                        v-tooltip.top="node.data.favorite ? 'Remove from favorites' : 'Add to favorites'"
+                                    />
+                                    <Button
                                         icon="ti ti-plus"
                                         v-if="node.children"
                                         text
@@ -290,3 +308,9 @@ const handleDeleteProvider = async () => {
         :icon="selectedProvider?.icon"
     />
 </template>
+
+<style scoped>
+.favorite-active {
+    color: #fbbf24 !important;
+}
+</style>

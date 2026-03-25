@@ -54,8 +54,8 @@ export function useAccounts() {
     })
 
     const updateAccountMutation = useMutation({
-        mutationFn: (data: { id: number; name?: string; currency?: string; type?: string; icon?: string; notes?: string; providerId?: number; importProfileId?: number }) =>
-            updateAccountApi(data.id, { name: data.name, currency: data.currency, type: data.type, icon: data.icon, notes: data.notes, providerId: data.providerId, importProfileId: data.importProfileId }),
+        mutationFn: (data: { id: number; name?: string; currency?: string; type?: string; icon?: string; notes?: string; providerId?: number; importProfileId?: number; favorite?: boolean }) =>
+            updateAccountApi(data.id, { name: data.name, currency: data.currency, type: data.type, icon: data.icon, notes: data.notes, providerId: data.providerId, importProfileId: data.importProfileId, favorite: data.favorite }),
         onSuccess: doInvalidateAndRefetch
     })
 

@@ -37,6 +37,7 @@ type accountV1 struct {
 	Currency          string `json:"currency"`
 	Type              string `json:"accountType"`
 	ImportProfileID   uint   `json:"importProfileId"`
+	Favorite          bool   `json:"favorite,omitempty"`
 }
 
 const incomeCategoriesFile = "income_categories.json"

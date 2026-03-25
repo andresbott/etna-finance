@@ -1,0 +1,24 @@
+/* Tabler Icons - Filled variant overrides
+ * Maps .ti-filled.ti-{name} to the filled font codepoints.
+ * The filled font uses different unicode codepoints than the outline font,
+ * so we need both the font-family switch AND the content override.
+ *
+ * To find a codepoint, check:
+ *   node_modules/@tabler/icons-webfont/dist/tabler-icons-filled.css
+ *
+ * Add new icons here as needed.
+ */
+
+@font-face {
+  font-family: "tabler-icons-filled";
+  font-style: normal;
+  font-weight: 400;
+  src: url("@tabler/icons-webfont/dist/fonts/tabler-icons-filled.woff2") format("woff2"),
+       url("@tabler/icons-webfont/dist/fonts/tabler-icons-filled.woff") format("woff");
+}
+
+.ti.ti-filled {
+  font-family: "tabler-icons-filled" !important;
+}
+
+.ti-filled.ti-star:before { content: "\f6a6"; }
