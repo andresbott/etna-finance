@@ -1,18 +1,21 @@
 <script setup>
 import { ref, computed } from 'vue'
 import Button from 'primevue/button'
+import Message from 'primevue/message'
 
 const props = defineProps({
     accept: { type: String, default: '' },
     modelValue: { type: [File, null], default: null },
     label: { type: String, default: 'Choose file' },
     icon: { type: String, default: 'ti ti-upload' },
-    disabled: { type: Boolean, default: false }
+    disabled: { type: Boolean, default: false },
+    maxSizeBytes: { type: Number, default: 0 }
 })
 
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue', 'error'])
 
 const fileInputRef = ref(null)
+const sizeError = ref('')
 
 const fileName = computed(() => props.modelValue?.name || null)
 
@@ -22,12 +25,24 @@ const triggerFileInput = () => {
 
 const onFileChange = (event) => {
     const file = event.target.files?.[0] || null
+    sizeError.value = ''
+    if (file && props.maxSizeBytes > 0 && file.size > props.maxSizeBytes) {
+        const maxMB = (props.maxSizeBytes / (1024 * 1024)).toFixed(0)
+        const fileMB = (file.size / (1024 * 1024)).toFixed(1)
+        sizeError.value = `File is too large (${fileMB} MB). Maximum allowed size is ${maxMB} MB.`
+        emit('error', sizeError.value)
+        event.target.value = ''
+        return
+    }
+    emit('error', '')
     emit('update:modelValue', file)
     // Reset so the same file can be re-selected
     event.target.value = ''
 }
 
 const clearFile = () => {
+    sizeError.value = ''
+    emit('error', '')
     emit('update:modelValue', null)
 }
 </script>
@@ -65,6 +80,7 @@ const clearFile = () => {
             @click="triggerFileInput"
             class="file-input-button"
         />
+        <Message v-if="sizeError" severity="error" size="small" :closable="false" class="mt-1">{{ sizeError }}</Message>
     </div>
 </template>
 

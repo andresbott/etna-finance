@@ -11,6 +11,7 @@ import (
 
 	"github.com/andresbott/etna/internal/accounting"
 	"github.com/andresbott/etna/internal/csvimport"
+	"github.com/andresbott/etna/internal/filestore"
 	"github.com/andresbott/etna/internal/marketdata"
 	"github.com/andresbott/etna/internal/toolsdata"
 )
@@ -36,15 +37,15 @@ func verifyZipPath(zipFile string) error {
 	return nil
 }
 
-func ExportToFile(ctx context.Context, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, tdStore *toolsdata.Store, zipFile string) error {
+func ExportToFile(ctx context.Context, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, fileStore *filestore.Store, tdStore *toolsdata.Store, zipFile string) error {
 	err := verifyZipPath(zipFile)
 	if err != nil {
 		return err
 	}
-	return export(ctx, store, mdStore, csvStore, tdStore, zipFile)
+	return export(ctx, store, mdStore, csvStore, fileStore, tdStore, zipFile)
 }
 
-func export(ctx context.Context, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, tdStore *toolsdata.Store, fullPath string) error {
+func export(ctx context.Context, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, fileStore *filestore.Store, tdStore *toolsdata.Store, fullPath string) error {
 	if store == nil {
 		return errors.New("finance store was not initialized")
 	}
@@ -80,7 +81,12 @@ func export(ctx context.Context, store *accounting.Store, mdStore *marketdata.St
 		return err
 	}
 
-	err = writeTransactions(ctx, zw, store)
+	attachmentIDs, err := writeTransactions(ctx, zw, store)
+	if err != nil {
+		return err
+	}
+
+	err = writeAttachments(ctx, zw, fileStore, attachmentIDs)
 	if err != nil {
 		return err
 	}
@@ -212,7 +218,98 @@ func dataFuture() time.Time {
 
 var entriesLimit = 100
 
-func writeTransactions(ctx context.Context, zw *zipWriter, store *accounting.Store) error {
+func txToV1(tx accounting.Transaction) (TransactionV1, bool) {
+	switch item := tx.(type) {
+	case accounting.Transfer:
+		if item.OriginAccountID == 0 || item.TargetAccountID == 0 {
+			return TransactionV1{}, false
+		}
+		return TransactionV1{
+			Id: item.Id, Description: item.Description, Notes: item.Notes,
+			OriginAmount: item.OriginAmount, OriginAccountID: item.OriginAccountID,
+			TargetAmount: item.TargetAmount, TargetAccountID: item.TargetAccountID,
+			Date: item.Date, Type: txTypeTransfer, AttachmentID: item.AttachmentID,
+		}, true
+	case accounting.Income:
+		if item.AccountID == 0 {
+			return TransactionV1{}, false
+		}
+		return TransactionV1{
+			Id: item.Id, Description: item.Description, Notes: item.Notes,
+			Amount: item.Amount, AccountID: item.AccountID, CategoryID: item.CategoryID,
+			Date: item.Date, Type: txTypeIncome, AttachmentID: item.AttachmentID,
+		}, true
+	case accounting.Expense:
+		if item.AccountID == 0 {
+			return TransactionV1{}, false
+		}
+		return TransactionV1{
+			Id: item.Id, Description: item.Description, Notes: item.Notes,
+			Amount: item.Amount, AccountID: item.AccountID, CategoryID: item.CategoryID,
+			Date: item.Date, Type: txTypeExpense, AttachmentID: item.AttachmentID,
+		}, true
+	case accounting.StockBuy:
+		return TransactionV1{
+			Id: item.Id, Description: item.Description, Notes: item.Notes,
+			InstrumentID: item.InstrumentID, Quantity: item.Quantity,
+			TotalAmount: item.TotalAmount, StockAmount: item.StockAmount,
+			InvestmentAccountID: item.InvestmentAccountID, CashAccountID: item.CashAccountID,
+			Date: item.Date, Type: txTypeStockBuy, AttachmentID: item.AttachmentID,
+		}, true
+	case accounting.StockSell:
+		return TransactionV1{
+			Id: item.Id, Description: item.Description, Notes: item.Notes,
+			InstrumentID: item.InstrumentID, Quantity: item.Quantity,
+			PricePerShare: item.PricePerShare, TotalAmount: item.TotalAmount, Fees: item.Fees,
+			InvestmentAccountID: item.InvestmentAccountID, CashAccountID: item.CashAccountID,
+			Date: item.Date, Type: txTypeStockSell, AttachmentID: item.AttachmentID,
+		}, true
+	case accounting.StockGrant:
+		return TransactionV1{
+			Id: item.Id, Description: item.Description, Notes: item.Notes,
+			AccountID: item.AccountID, InstrumentID: item.InstrumentID,
+			Quantity: item.Quantity, FairMarketValue: item.FairMarketValue,
+			Date: item.Date, Type: txTypeStockGrant, AttachmentID: item.AttachmentID,
+		}, true
+	case accounting.StockTransfer:
+		return TransactionV1{
+			Id: item.Id, Description: item.Description, Notes: item.Notes,
+			SourceAccountID: item.SourceAccountID, TargetAccountID: item.TargetAccountID,
+			InstrumentID: item.InstrumentID, Quantity: item.Quantity,
+			Date: item.Date, Type: txTypeStockTransfer, AttachmentID: item.AttachmentID,
+		}, true
+	case accounting.StockVest:
+		return TransactionV1{
+			Id: item.Id, Description: item.Description, Notes: item.Notes,
+			SourceAccountID: item.SourceAccountID, TargetAccountID: item.TargetAccountID,
+			InstrumentID: item.InstrumentID, Quantity: item.Quantity,
+			VestingPrice: item.VestingPrice, CategoryID: item.CategoryID,
+			Date: item.Date, Type: txTypeStockVest, AttachmentID: item.AttachmentID,
+		}, true
+	case accounting.StockForfeit:
+		return TransactionV1{
+			Id: item.Id, Description: item.Description, Notes: item.Notes,
+			AccountID: item.AccountID, InstrumentID: item.InstrumentID, Quantity: item.Quantity,
+			Date: item.Date, Type: txTypeStockForfeit, AttachmentID: item.AttachmentID,
+		}, true
+	case accounting.BalanceStatus:
+		return TransactionV1{
+			Id: item.Id, Description: item.Description, Notes: item.Notes,
+			Amount: item.Amount, AccountID: item.AccountID,
+			Date: item.Date, Type: txTypeBalanceStatus, AttachmentID: item.AttachmentID,
+		}, true
+	case accounting.Revaluation:
+		return TransactionV1{
+			Id: item.Id, Description: item.Description, Notes: item.Notes,
+			Amount: item.Amount, Balance: item.Balance, AccountID: item.AccountID,
+			Date: item.Date, Type: txTypeRevaluation, AttachmentID: item.AttachmentID,
+		}, true
+	default:
+		return TransactionV1{}, false
+	}
+}
+
+func writeTransactions(ctx context.Context, zw *zipWriter, store *accounting.Store) ([]uint, error) {
 	jsonData := []TransactionV1{}
 	opts := accounting.ListOpts{
 		EndDate: dataFuture(),
@@ -236,7 +333,7 @@ func writeTransactions(ctx context.Context, zw *zipWriter, store *accounting.Sto
 	for {
 		transactions, _, err := store.ListTransactions(ctx, opts)
 		if err != nil {
-			return fmt.Errorf("failed to list transactions (page %d): %w", opts.Page, err)
+			return nil, fmt.Errorf("failed to list transactions (page %d): %w", opts.Page, err)
 		}
 
 		if len(transactions) == 0 {
@@ -244,140 +341,8 @@ func writeTransactions(ctx context.Context, zw *zipWriter, store *accounting.Sto
 		}
 
 		for _, tx := range transactions {
-			switch item := tx.(type) {
-			case accounting.Transfer:
-				jsonData = append(jsonData, TransactionV1{
-					Id:              item.Id,
-					Description:     item.Description,
-					Notes:           item.Notes,
-					OriginAmount:    item.OriginAmount,
-					OriginAccountID: item.OriginAccountID,
-					TargetAmount:    item.TargetAmount,
-					TargetAccountID: item.TargetAccountID,
-					Date:            item.Date,
-					Type:            txTypeTransfer,
-				})
-			case accounting.Income:
-				jsonData = append(jsonData, TransactionV1{
-					Id:          item.Id,
-					Description: item.Description,
-					Notes:       item.Notes,
-					Amount:      item.Amount,
-					AccountID:   item.AccountID,
-					CategoryID:  item.CategoryID,
-					Date:        item.Date,
-					Type:        txTypeIncome,
-				})
-			case accounting.Expense:
-				jsonData = append(jsonData, TransactionV1{
-					Id:          item.Id,
-					Description: item.Description,
-					Notes:       item.Notes,
-					Amount:      item.Amount,
-					AccountID:   item.AccountID,
-					CategoryID:  item.CategoryID,
-					Date:        item.Date,
-					Type:        txTypeExpense,
-				})
-			case accounting.StockBuy:
-				jsonData = append(jsonData, TransactionV1{
-					Id:                  item.Id,
-					Description:         item.Description,
-					Notes:               item.Notes,
-					InstrumentID:        item.InstrumentID,
-					Quantity:            item.Quantity,
-					TotalAmount:         item.TotalAmount,
-					StockAmount:         item.StockAmount,
-					InvestmentAccountID: item.InvestmentAccountID,
-					CashAccountID:       item.CashAccountID,
-					Date:                item.Date,
-					Type:                txTypeStockBuy,
-				})
-			case accounting.StockSell:
-				jsonData = append(jsonData, TransactionV1{
-					Id:                  item.Id,
-					Description:         item.Description,
-					Notes:               item.Notes,
-					InstrumentID:        item.InstrumentID,
-					Quantity:            item.Quantity,
-					PricePerShare:       item.PricePerShare,
-					TotalAmount:         item.TotalAmount,
-					Fees:                item.Fees,
-					InvestmentAccountID: item.InvestmentAccountID,
-					CashAccountID:       item.CashAccountID,
-					Date:                item.Date,
-					Type:                txTypeStockSell,
-				})
-			case accounting.StockGrant:
-				jsonData = append(jsonData, TransactionV1{
-					Id:              item.Id,
-					Description:     item.Description,
-					Notes:           item.Notes,
-					AccountID:       item.AccountID,
-					InstrumentID:    item.InstrumentID,
-					Quantity:        item.Quantity,
-					FairMarketValue: item.FairMarketValue,
-					Date:            item.Date,
-					Type:            txTypeStockGrant,
-				})
-			case accounting.StockTransfer:
-				jsonData = append(jsonData, TransactionV1{
-					Id:              item.Id,
-					Description:     item.Description,
-					Notes:           item.Notes,
-					SourceAccountID: item.SourceAccountID,
-					TargetAccountID: item.TargetAccountID,
-					InstrumentID:    item.InstrumentID,
-					Quantity:        item.Quantity,
-					Date:            item.Date,
-					Type:            txTypeStockTransfer,
-				})
-			case accounting.StockVest:
-				jsonData = append(jsonData, TransactionV1{
-					Id:              item.Id,
-					Description:     item.Description,
-					Notes:           item.Notes,
-					SourceAccountID: item.SourceAccountID,
-					TargetAccountID: item.TargetAccountID,
-					InstrumentID:    item.InstrumentID,
-					Quantity:        item.Quantity,
-					VestingPrice:    item.VestingPrice,
-					CategoryID:      item.CategoryID,
-					Date:            item.Date,
-					Type:            txTypeStockVest,
-				})
-			case accounting.StockForfeit:
-				jsonData = append(jsonData, TransactionV1{
-					Id:           item.Id,
-					Description:  item.Description,
-					Notes:        item.Notes,
-					AccountID:    item.AccountID,
-					InstrumentID: item.InstrumentID,
-					Quantity:     item.Quantity,
-					Date:         item.Date,
-					Type:         txTypeStockForfeit,
-				})
-			case accounting.BalanceStatus:
-				jsonData = append(jsonData, TransactionV1{
-					Id:          item.Id,
-					Description: item.Description,
-					Notes:       item.Notes,
-					Amount:      item.Amount,
-					AccountID:   item.AccountID,
-					Date:        item.Date,
-					Type:        txTypeBalanceStatus,
-				})
-			case accounting.Revaluation:
-				jsonData = append(jsonData, TransactionV1{
-					Id:          item.Id,
-					Description: item.Description,
-					Notes:       item.Notes,
-					Amount:      item.Amount,
-					Balance:     item.Balance,
-					AccountID:   item.AccountID,
-					Date:        item.Date,
-					Type:        txTypeRevaluation,
-				})
+			if v1, ok := txToV1(tx); ok {
+				jsonData = append(jsonData, v1)
 			}
 		}
 		opts.Page++
@@ -386,7 +351,19 @@ func writeTransactions(ctx context.Context, zw *zipWriter, store *accounting.Sto
 			break
 		}
 	}
-	return zw.writeJsonFile(transactionsFile, jsonData)
+	seen := map[uint]bool{}
+	var attachmentIDs []uint
+	for _, tx := range jsonData {
+		if tx.AttachmentID != nil && !seen[*tx.AttachmentID] {
+			seen[*tx.AttachmentID] = true
+			attachmentIDs = append(attachmentIDs, *tx.AttachmentID)
+		}
+	}
+
+	if err := zw.writeJsonFile(transactionsFile, jsonData); err != nil {
+		return nil, err
+	}
+	return attachmentIDs, nil
 }
 
 func writeInstruments(ctx context.Context, zw *zipWriter, mdStore *marketdata.Store) error {
@@ -532,4 +509,63 @@ func writeCaseStudies(ctx context.Context, zw *zipWriter, tdStore *toolsdata.Sto
 		}
 	}
 	return zw.writeJsonFile(caseStudiesFile, jsonData)
+}
+
+func writeAttachments(ctx context.Context, zw *zipWriter, fileStore *filestore.Store, attachmentIDs []uint) error {
+	if fileStore == nil || len(attachmentIDs) == 0 {
+		return zw.writeJsonFile(attachmentsFile, []attachmentV1{})
+	}
+
+	var manifest []attachmentV1
+	for _, id := range attachmentIDs {
+		att, err := fileStore.Get(ctx, id)
+		if err != nil {
+			continue // skip missing attachments
+		}
+
+		filePath, err := fileStore.GetFilePath(ctx, id)
+		if err != nil {
+			continue
+		}
+
+		content, err := os.ReadFile(filePath) //nolint:gosec // path from trusted filestore
+		if err != nil {
+			continue
+		}
+
+		ext := attachmentMimeToExt(att.MimeType)
+		zipPath := fmt.Sprintf("%s%d%s", attachmentsDir, att.Id, ext)
+
+		if err := zw.writeBinaryFile(zipPath, content); err != nil {
+			return fmt.Errorf("failed to write attachment %d: %w", id, err)
+		}
+
+		manifest = append(manifest, attachmentV1{
+			ID:           att.Id,
+			OriginalName: att.OriginalName,
+			MimeType:     att.MimeType,
+			FileSize:     att.FileSize,
+			ZipPath:      zipPath,
+		})
+	}
+
+	if manifest == nil {
+		manifest = []attachmentV1{}
+	}
+	return zw.writeJsonFile(attachmentsFile, manifest)
+}
+
+func attachmentMimeToExt(mime string) string {
+	switch mime {
+	case "image/jpeg":
+		return ".jpg"
+	case "image/png":
+		return ".png"
+	case "image/webp":
+		return ".webp"
+	case "application/pdf":
+		return ".pdf"
+	default:
+		return ".bin"
+	}
 }

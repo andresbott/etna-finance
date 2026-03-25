@@ -645,7 +645,7 @@ func generateTestBackup(t *testing.T) []byte {
 
 	tmpDir := t.TempDir()
 	backupFile := filepath.Join(tmpDir, "test-backup.zip")
-	if err := backup.ExportToFile(context.Background(), store, mdStore, csvStore, tdStore, backupFile); err != nil {
+	if err := backup.ExportToFile(context.Background(), store, mdStore, csvStore, nil, tdStore, backupFile); err != nil {
 		t.Fatalf("failed to generate test backup: %v", err)
 	}
 	content, err := os.ReadFile(filepath.Clean(backupFile))

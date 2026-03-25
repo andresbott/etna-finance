@@ -1,11 +1,14 @@
 package backup
 
 import (
+	"context"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/andresbott/etna/internal/accounting"
 	"github.com/andresbott/etna/internal/csvimport"
+	"github.com/andresbott/etna/internal/filestore"
 	"github.com/andresbott/etna/internal/marketdata"
 	"github.com/andresbott/etna/internal/toolsdata"
 	"github.com/glebarez/sqlite"
@@ -20,6 +23,7 @@ type testStores struct {
 	accounting *accounting.Store
 	marketdata *marketdata.Store
 	csvimport  *csvimport.Store
+	filestore  *filestore.Store
 	toolsdata  *toolsdata.Store
 }
 
@@ -31,13 +35,13 @@ func setupImportTest(t *testing.T) testStores {
 	if err != nil {
 		t.Fatalf("unable to connect to sqlite: %v", err)
 	}
-	store, err := accounting.NewStore(db, nil)
-	if err != nil {
-		t.Fatalf("unable to connect to finance: %v", err)
-	}
 	mdStore, err := marketdata.NewStore(db)
 	if err != nil {
 		t.Fatalf("unable to create marketdata store: %v", err)
+	}
+	store, err := accounting.NewStore(db, mdStore)
+	if err != nil {
+		t.Fatalf("unable to connect to finance: %v", err)
 	}
 	csvStore, err := csvimport.NewStore(db)
 	if err != nil {
@@ -47,16 +51,20 @@ func setupImportTest(t *testing.T) testStores {
 	if err != nil {
 		t.Fatalf("unable to create toolsdata store: %v", err)
 	}
+	fileStore, err := filestore.New(db, filepath.Join(t.TempDir(), "attachments"), 10*1024*1024)
+	if err != nil {
+		t.Fatalf("unable to create filestore: %v", err)
+	}
 
-	sampleDataNoise(t, store, mdStore, csvStore)
+	sampleDataNoise(t, store, mdStore, csvStore, nil)
 
 	backupFile := "testdata/backup-v1.zip"
-	err = Import(t.Context(), store, mdStore, csvStore, tdStore, backupFile)
+	err = Import(t.Context(), store, mdStore, csvStore, fileStore, tdStore, backupFile)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	return testStores{accounting: store, marketdata: mdStore, csvimport: csvStore, toolsdata: tdStore}
+	return testStores{accounting: store, marketdata: mdStore, csvimport: csvStore, filestore: fileStore, toolsdata: tdStore}
 }
 
 func TestImportV1(t *testing.T) {
@@ -86,6 +94,9 @@ func TestImportV1(t *testing.T) {
 	t.Run("assert category rules", func(t *testing.T) {
 		assertImportedCategoryRules(t, stores.csvimport)
 	})
+	t.Run("assert attachments", func(t *testing.T) {
+		assertImportedAttachments(t, stores.filestore)
+	})
 }
 
 func assertImportedAccounts(t *testing.T, store *accounting.Store) {
@@ -102,6 +113,8 @@ func assertImportedAccounts(t *testing.T, store *accounting.Store) {
 				{ID: 2, AccountProviderID: 2, Name: "acc1", Description: "dacc1", Icon: "wallet", Currency: currency.EUR, Type: accounting.CashAccountType},
 				{ID: 3, AccountProviderID: 2, Name: "acc2", Description: "dacc2", Currency: currency.USD, Type: accounting.CheckinAccountType},
 				{ID: 4, AccountProviderID: 2, Name: "acc3", Description: "dacc3", Currency: currency.CHF, Type: accounting.SavingsAccountType},
+				{ID: 6, AccountProviderID: 2, Name: "invest1", Description: "dinvest1", Currency: currency.USD, Type: accounting.InvestmentAccountType},
+				{ID: 7, AccountProviderID: 2, Name: "rsu1", Description: "drsu1", Currency: currency.USD, Type: accounting.RestrictedStockAccountType},
 			},
 		},
 		{ID: 3, Name: "p2", Description: "d2",
@@ -159,17 +172,26 @@ func assertImportedTransactions(t *testing.T, store *accounting.Store) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	attID := uint(1)
 	want := []accounting.Transaction{
-		accounting.Income{Description: "i1", Amount: 12.5, AccountID: 2, CategoryID: 2, Date: getDate("2022-01-20")},
+		accounting.Income{Description: "i1", Amount: 12.5, AccountID: 2, CategoryID: 2, Date: getDate("2022-01-20"), AttachmentID: &attID},
 		accounting.Expense{Description: "e1", Amount: 22.6, AccountID: 2, CategoryID: 5, Date: getDate("2022-01-19")},
 		accounting.Transfer{Description: "tr1", OriginAmount: 36.6, OriginAccountID: 2, TargetAmount: 1.5, TargetAccountID: 3, Date: getDate("2022-01-18")},
 		accounting.Income{Description: "i1", Amount: 10.5, AccountID: 5, CategoryID: 0, Date: getDate("2022-01-17")},
+		accounting.StockForfeit{Description: "forfeit1", AccountID: 7, InstrumentID: 2, Quantity: 10, Date: getDate("2022-01-12")},
+		accounting.StockVest{Description: "vest1", SourceAccountID: 7, TargetAccountID: 6, InstrumentID: 2, Quantity: 60, VestingPrice: 180.0, CategoryID: 2, Date: getDate("2022-01-11")},
+		accounting.StockGrant{Description: "grant1", AccountID: 7, InstrumentID: 2, Quantity: 100, FairMarketValue: 150.0, Date: getDate("2022-01-10")},
+		accounting.BalanceStatus{Description: "bs1", Amount: 500.0, AccountID: 2, Date: getDate("2022-01-09")},
 	}
 	if diff := cmp.Diff(want, got,
 		cmpopts.EquateComparable(currency.Unit{}),
 		cmpopts.IgnoreFields(accounting.Income{}, "Id", "baseTx"),
 		cmpopts.IgnoreFields(accounting.Expense{}, "Id", "baseTx"),
 		cmpopts.IgnoreFields(accounting.Transfer{}, "Id", "baseTx"),
+		cmpopts.IgnoreFields(accounting.StockGrant{}, "Id", "baseTx"),
+		cmpopts.IgnoreFields(accounting.StockVest{}, "Id", "baseTx", "LotSelections"),
+		cmpopts.IgnoreFields(accounting.StockForfeit{}, "Id", "baseTx", "LotSelections"),
+		cmpopts.IgnoreFields(accounting.BalanceStatus{}, "Id", "baseTx"),
 	); diff != "" {
 		t.Errorf("unexpected result (-want +got):\n%s", diff)
 	}
@@ -247,7 +269,7 @@ func assertImportedCategoryRules(t *testing.T, csvStore *csvimport.Store) {
 
 // sampleDataNoise is used to generate some entries in the store before running an import
 // this should generate noise before wiping data
-func sampleDataNoise(t *testing.T, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store) {
+func sampleDataNoise(t *testing.T, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, fileStore *filestore.Store) {
 
 	// =========================================
 	// create accounts providers
@@ -301,4 +323,26 @@ func sampleDataNoise(t *testing.T, store *accounting.Store, mdStore *marketdata.
 		DescriptionColumn: "desc", AmountColumn: "amt", AmountMode: "single",
 	})
 
+}
+
+func assertImportedAttachments(t *testing.T, fileStore *filestore.Store) {
+	t.Helper()
+	if fileStore == nil {
+		t.Skip("filestore not available")
+		return
+	}
+	// After import, we should have at least the attachment from the test fixture.
+	// The attachment IDs are remapped, so we just check that we can get attachment ID 1
+	// (the new ID after import)
+	ctx := context.Background()
+	att, err := fileStore.Get(ctx, 1)
+	if err != nil {
+		t.Fatalf("expected attachment 1 to exist after import, got: %v", err)
+	}
+	if att.OriginalName != "receipt.jpg" {
+		t.Errorf("expected OriginalName 'receipt.jpg', got %q", att.OriginalName)
+	}
+	if att.MimeType != "image/jpeg" {
+		t.Errorf("expected MimeType 'image/jpeg', got %q", att.MimeType)
+	}
 }

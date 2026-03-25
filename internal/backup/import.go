@@ -14,13 +14,37 @@ import (
 
 	"github.com/andresbott/etna/internal/accounting"
 	"github.com/andresbott/etna/internal/csvimport"
+	"github.com/andresbott/etna/internal/filestore"
 	"github.com/andresbott/etna/internal/marketdata"
 	"github.com/andresbott/etna/internal/toolsdata"
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/text/currency"
 )
 
-func Import(ctx context.Context, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, tdStore *toolsdata.Store, file string) error {
+func wipeStores(ctx context.Context, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, fileStore *filestore.Store, tdStore *toolsdata.Store) error {
+	if err := store.WipeData(ctx); err != nil {
+		return err
+	}
+	if err := mdStore.WipeData(ctx); err != nil {
+		return err
+	}
+	if err := csvStore.WipeData(ctx); err != nil {
+		return err
+	}
+	if tdStore != nil {
+		if err := tdStore.WipeData(ctx); err != nil {
+			return err
+		}
+	}
+	if fileStore != nil {
+		if err := fileStore.WipeData(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func Import(ctx context.Context, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, fileStore *filestore.Store, tdStore *toolsdata.Store, file string) error {
 	zipPath, err := checkZip(file)
 	if err != nil {
 		return err
@@ -38,28 +62,12 @@ func Import(ctx context.Context, store *accounting.Store, mdStore *marketdata.St
 	if err != nil {
 		return err
 	}
-	// in the future implement further importers
 	if metaInfo.Version != "1.0.0" {
 		return fmt.Errorf("unsuported backup shema: %s", metaInfo.Version)
 	}
 
-	err = store.WipeData(ctx)
-	if err != nil {
+	if err := wipeStores(ctx, store, mdStore, csvStore, fileStore, tdStore); err != nil {
 		return err
-	}
-	err = mdStore.WipeData(ctx)
-	if err != nil {
-		return err
-	}
-	err = csvStore.WipeData(ctx)
-	if err != nil {
-		return err
-	}
-	if tdStore != nil {
-		err = tdStore.WipeData(ctx)
-		if err != nil {
-			return err
-		}
 	}
 
 	profilesMap, err := importProfiles(ctx, csvStore, r)
@@ -81,7 +89,12 @@ func Import(ctx context.Context, store *accounting.Store, mdStore *marketdata.St
 		return err
 	}
 
-	err = importTransactions(ctx, store, r, accountsMap, inMap, exMap, instrumentsMap)
+	attachmentsMap, err := importAttachments(ctx, fileStore, r)
+	if err != nil {
+		return err
+	}
+
+	err = importTransactions(ctx, store, r, accountsMap, inMap, exMap, instrumentsMap, attachmentsMap)
 	if err != nil {
 		return err
 	}
@@ -101,12 +114,7 @@ func Import(ctx context.Context, store *accounting.Store, mdStore *marketdata.St
 		return err
 	}
 
-	err = importCaseStudies(ctx, tdStore, r)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return importCaseStudies(ctx, tdStore, r)
 }
 
 func importAccounts(ctx context.Context, store *accounting.Store, r *zip.ReadCloser, profilesMap map[uint]uint) (map[uint]uint, error) {
@@ -236,7 +244,117 @@ func createCategoriesRecursive(ctx context.Context, store *accounting.Store, cat
 	return nil
 }
 
-func importTransactions(ctx context.Context, store *accounting.Store, r *zip.ReadCloser, accountsMap, incomeMap, expenseMap, instrumentsMap map[uint]uint) error {
+type importMaps struct {
+	accounts    map[uint]uint
+	income      map[uint]uint
+	expense     map[uint]uint
+	instruments map[uint]uint
+	attachments map[uint]uint
+}
+
+func v1ToBasicTx(tx TransactionV1, m importMaps, attID *uint) (accounting.Transaction, bool) {
+	switch tx.Type {
+	case txTypeIncome:
+		if tx.AccountID == 0 {
+			return nil, false
+		}
+		return accounting.Income{
+			Description: tx.Description, Notes: tx.Notes, Amount: tx.Amount,
+			AccountID: m.accounts[tx.AccountID], CategoryID: m.income[tx.CategoryID],
+			Date: tx.Date, AttachmentID: attID,
+		}, true
+	case txTypeExpense:
+		if tx.AccountID == 0 {
+			return nil, false
+		}
+		return accounting.Expense{
+			Description: tx.Description, Notes: tx.Notes, Amount: tx.Amount,
+			AccountID: m.accounts[tx.AccountID], CategoryID: m.expense[tx.CategoryID],
+			Date: tx.Date, AttachmentID: attID,
+		}, true
+	case txTypeTransfer:
+		if tx.OriginAccountID == 0 || tx.TargetAccountID == 0 {
+			return nil, false
+		}
+		return accounting.Transfer{
+			Description: tx.Description, Notes: tx.Notes,
+			OriginAmount: tx.OriginAmount, TargetAmount: tx.TargetAmount,
+			OriginAccountID: m.accounts[tx.OriginAccountID], TargetAccountID: m.accounts[tx.TargetAccountID],
+			Date: tx.Date, AttachmentID: attID,
+		}, true
+	case txTypeStockBuy:
+		return accounting.StockBuy{
+			Description: tx.Description, Notes: tx.Notes, Date: tx.Date,
+			InvestmentAccountID: m.accounts[tx.InvestmentAccountID], CashAccountID: m.accounts[tx.CashAccountID],
+			InstrumentID: m.instruments[tx.InstrumentID], Quantity: tx.Quantity,
+			TotalAmount: tx.TotalAmount, StockAmount: tx.StockAmount, AttachmentID: attID,
+		}, true
+	case txTypeStockSell:
+		return accounting.StockSell{
+			Description: tx.Description, Notes: tx.Notes, Date: tx.Date,
+			InvestmentAccountID: m.accounts[tx.InvestmentAccountID], CashAccountID: m.accounts[tx.CashAccountID],
+			InstrumentID: m.instruments[tx.InstrumentID], Quantity: tx.Quantity,
+			PricePerShare: tx.PricePerShare, TotalAmount: tx.TotalAmount, Fees: tx.Fees, AttachmentID: attID,
+		}, true
+	case txTypeStockGrant:
+		return accounting.StockGrant{
+			Description: tx.Description, Notes: tx.Notes, Date: tx.Date,
+			AccountID: m.accounts[tx.AccountID], InstrumentID: m.instruments[tx.InstrumentID],
+			Quantity: tx.Quantity, FairMarketValue: tx.FairMarketValue, AttachmentID: attID,
+		}, true
+	case txTypeStockTransfer:
+		return accounting.StockTransfer{
+			Description: tx.Description, Notes: tx.Notes, Date: tx.Date,
+			SourceAccountID: m.accounts[tx.SourceAccountID], TargetAccountID: m.accounts[tx.TargetAccountID],
+			InstrumentID: m.instruments[tx.InstrumentID], Quantity: tx.Quantity, AttachmentID: attID,
+		}, true
+	case txTypeBalanceStatus:
+		return accounting.BalanceStatus{
+			Description: tx.Description, Notes: tx.Notes, Date: tx.Date,
+			Amount: tx.Amount, AccountID: m.accounts[tx.AccountID], AttachmentID: attID,
+		}, true
+	case txTypeRevaluation:
+		return accounting.Revaluation{
+			Description: tx.Description, Notes: tx.Notes, Date: tx.Date,
+			Amount: tx.Amount, Balance: tx.Balance, AccountID: m.accounts[tx.AccountID], AttachmentID: attID,
+		}, true
+	default:
+		return nil, false
+	}
+}
+
+func v1ToLotTx(ctx context.Context, store *accounting.Store, tx TransactionV1, m importMaps, attID *uint) (accounting.Transaction, error) {
+	switch tx.Type {
+	case txTypeStockVest:
+		sourceAccID := m.accounts[tx.SourceAccountID]
+		instID := m.instruments[tx.InstrumentID]
+		lotSels, err := fifoLotSelections(ctx, store, sourceAccID, instID, tx.Quantity, tx.Date)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build lot selections for vest %q: %w", tx.Description, err)
+		}
+		return accounting.StockVest{
+			Description: tx.Description, Notes: tx.Notes, Date: tx.Date,
+			SourceAccountID: sourceAccID, TargetAccountID: m.accounts[tx.TargetAccountID],
+			InstrumentID: instID, VestingPrice: tx.VestingPrice,
+			CategoryID: m.income[tx.CategoryID], LotSelections: lotSels, AttachmentID: attID,
+		}, nil
+	case txTypeStockForfeit:
+		accID := m.accounts[tx.AccountID]
+		instID := m.instruments[tx.InstrumentID]
+		lotSels, err := fifoLotSelections(ctx, store, accID, instID, tx.Quantity, tx.Date)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build lot selections for forfeit %q: %w", tx.Description, err)
+		}
+		return accounting.StockForfeit{
+			Description: tx.Description, Notes: tx.Notes, Date: tx.Date,
+			AccountID: accID, InstrumentID: instID, LotSelections: lotSels, AttachmentID: attID,
+		}, nil
+	default:
+		return nil, nil
+	}
+}
+
+func importTransactions(ctx context.Context, store *accounting.Store, r *zip.ReadCloser, accountsMap, incomeMap, expenseMap, instrumentsMap, attachmentsMap map[uint]uint) error {
 	txs, err := loadV1Json[[]TransactionV1](r, transactionsFile)
 	if err != nil {
 		return err
@@ -251,135 +369,42 @@ func importTransactions(ctx context.Context, store *accounting.Store, r *zip.Rea
 		return txs[i].Date.Before(txs[j].Date)
 	})
 
+	m := importMaps{accounts: accountsMap, income: incomeMap, expense: expenseMap, instruments: instrumentsMap, attachments: attachmentsMap}
+
 	for _, tx := range txs {
+		var remappedAttID *uint
+		if tx.AttachmentID != nil {
+			if newID, ok := attachmentsMap[*tx.AttachmentID]; ok {
+				remappedAttID = &newID
+			}
+		}
+
 		var item accounting.Transaction
 		switch tx.Type {
-		case txTypeIncome:
-			in := accounting.Income{
-				Description: tx.Description, Notes: tx.Notes, Amount: tx.Amount, CategoryID: tx.CategoryID, Date: tx.Date,
-			}
-			in.AccountID = accountsMap[tx.AccountID]
-			in.CategoryID = incomeMap[tx.CategoryID]
-			item = in
-
-		case txTypeExpense:
-			ex := accounting.Expense{
-				Description: tx.Description, Notes: tx.Notes, Amount: tx.Amount, CategoryID: tx.CategoryID, Date: tx.Date,
-			}
-			ex.AccountID = accountsMap[tx.AccountID]
-			ex.CategoryID = expenseMap[tx.CategoryID]
-			item = ex
-		case txTypeTransfer:
-			tr := accounting.Transfer{
-				Description: tx.Description, Notes: tx.Notes, OriginAmount: tx.OriginAmount, TargetAmount: tx.TargetAmount, Date: tx.Date,
-			}
-			tr.OriginAccountID = accountsMap[tx.OriginAccountID]
-			tr.TargetAccountID = accountsMap[tx.TargetAccountID]
-			item = tr
-
-		case txTypeStockBuy:
-			item = accounting.StockBuy{
-				Description:         tx.Description,
-				Notes:               tx.Notes,
-				Date:                tx.Date,
-				InvestmentAccountID: accountsMap[tx.InvestmentAccountID],
-				CashAccountID:       accountsMap[tx.CashAccountID],
-				InstrumentID:        instrumentsMap[tx.InstrumentID],
-				Quantity:            tx.Quantity,
-				TotalAmount:         tx.TotalAmount,
-				StockAmount:         tx.StockAmount,
-			}
-		case txTypeStockSell:
-			item = accounting.StockSell{
-				Description:         tx.Description,
-				Notes:               tx.Notes,
-				Date:                tx.Date,
-				InvestmentAccountID: accountsMap[tx.InvestmentAccountID],
-				CashAccountID:       accountsMap[tx.CashAccountID],
-				InstrumentID:        instrumentsMap[tx.InstrumentID],
-				Quantity:            tx.Quantity,
-				PricePerShare:       tx.PricePerShare,
-				TotalAmount:         tx.TotalAmount,
-				Fees:                tx.Fees,
-			}
-		case txTypeStockGrant:
-			item = accounting.StockGrant{
-				Description:     tx.Description,
-				Notes:           tx.Notes,
-				Date:            tx.Date,
-				AccountID:       accountsMap[tx.AccountID],
-				InstrumentID:    instrumentsMap[tx.InstrumentID],
-				Quantity:        tx.Quantity,
-				FairMarketValue: tx.FairMarketValue,
-			}
-		case txTypeStockTransfer:
-			item = accounting.StockTransfer{
-				Description:     tx.Description,
-				Notes:           tx.Notes,
-				Date:            tx.Date,
-				SourceAccountID: accountsMap[tx.SourceAccountID],
-				TargetAccountID: accountsMap[tx.TargetAccountID],
-				InstrumentID:    instrumentsMap[tx.InstrumentID],
-				Quantity:        tx.Quantity,
-			}
-		case txTypeStockVest:
-			sourceAccID := accountsMap[tx.SourceAccountID]
-			instID := instrumentsMap[tx.InstrumentID]
-			lotSels, err := fifoLotSelections(ctx, store, sourceAccID, instID, tx.Quantity, tx.Date)
+		case txTypeStockVest, txTypeStockForfeit:
+			item, err = v1ToLotTx(ctx, store, tx, m, remappedAttID)
 			if err != nil {
-				return fmt.Errorf("failed to build lot selections for vest %q: %w", tx.Description, err)
+				return err
 			}
-			item = accounting.StockVest{
-				Description:     tx.Description,
-				Notes:           tx.Notes,
-				Date:            tx.Date,
-				SourceAccountID: sourceAccID,
-				TargetAccountID: accountsMap[tx.TargetAccountID],
-				InstrumentID:    instID,
-				VestingPrice:    tx.VestingPrice,
-				CategoryID:      incomeMap[tx.CategoryID],
-				LotSelections:   lotSels,
-			}
-		case txTypeStockForfeit:
-			accID := accountsMap[tx.AccountID]
-			instID := instrumentsMap[tx.InstrumentID]
-			lotSels, err := fifoLotSelections(ctx, store, accID, instID, tx.Quantity, tx.Date)
-			if err != nil {
-				return fmt.Errorf("failed to build lot selections for forfeit %q: %w", tx.Description, err)
-			}
-			item = accounting.StockForfeit{
-				Description:   tx.Description,
-				Notes:         tx.Notes,
-				Date:          tx.Date,
-				AccountID:     accID,
-				InstrumentID:  instID,
-				LotSelections: lotSels,
-			}
-		case txTypeBalanceStatus:
-			item = accounting.BalanceStatus{
-				Description: tx.Description,
-				Notes:       tx.Notes,
-				Date:        tx.Date,
-				Amount:      tx.Amount,
-				AccountID:   accountsMap[tx.AccountID],
-			}
-		case txTypeRevaluation:
-			item = accounting.Revaluation{
-				Description: tx.Description,
-				Notes:       tx.Notes,
-				Date:        tx.Date,
-				Amount:      tx.Amount,
-				Balance:     tx.Balance,
-				AccountID:   accountsMap[tx.AccountID],
+		default:
+			var ok bool
+			item, ok = v1ToBasicTx(tx, m, remappedAttID)
+			if !ok {
+				continue
 			}
 		}
 
 		if item == nil {
 			continue
 		}
-		_, err = store.CreateTransaction(ctx, item)
+		newTxID, err := store.CreateTransaction(ctx, item)
 		if err != nil {
 			return fmt.Errorf("failed to create transaction: %w", err)
+		}
+		if remappedAttID != nil {
+			if err := store.SetAttachmentID(ctx, newTxID, remappedAttID); err != nil {
+				return fmt.Errorf("failed to set attachment ID on transaction %d: %w", newTxID, err)
+			}
 		}
 	}
 	return nil
@@ -630,4 +655,72 @@ func importCategoryRules(ctx context.Context, csvStore *csvimport.Store, r *zip.
 		}
 	}
 	return nil
+}
+
+func importAttachments(ctx context.Context, fileStore *filestore.Store, r *zip.ReadCloser) (map[uint]uint, error) {
+	attachmentsMap := map[uint]uint{}
+	if fileStore == nil {
+		return attachmentsMap, nil
+	}
+
+	manifest, err := loadAttachmentManifest(r)
+	if err != nil {
+		return attachmentsMap, nil // gracefully skip (old backup without attachments)
+	}
+
+	for _, att := range manifest {
+		content, err := readZipBinary(r, att.ZipPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read attachment %s from zip: %w", att.ZipPath, err)
+		}
+
+		date := time.Now()
+		newID, err := fileStore.SaveRaw(ctx, date, content, att.OriginalName, att.MimeType)
+		if err != nil {
+			return nil, fmt.Errorf("failed to save attachment %d: %w", att.ID, err)
+		}
+		attachmentsMap[att.ID] = newID
+	}
+
+	return attachmentsMap, nil
+}
+
+func loadAttachmentManifest(r *zip.ReadCloser) ([]attachmentV1, error) {
+	for _, f := range r.File {
+		if f.Name != attachmentsFile {
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			return nil, err
+		}
+		defer func() { _ = rc.Close() }()
+
+		data, err := io.ReadAll(rc)
+		if err != nil {
+			return nil, err
+		}
+
+		var manifest []attachmentV1
+		if err := json.Unmarshal(data, &manifest); err != nil {
+			return nil, err
+		}
+		return manifest, nil
+	}
+	return nil, fmt.Errorf("attachments manifest not found")
+}
+
+func readZipBinary(r *zip.ReadCloser, path string) ([]byte, error) {
+	for _, f := range r.File {
+		if f.Name != path {
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			return nil, err
+		}
+		defer func() { _ = rc.Close() }()
+		return io.ReadAll(rc)
+	}
+	return nil, fmt.Errorf("file %s not found in zip", path)
 }
