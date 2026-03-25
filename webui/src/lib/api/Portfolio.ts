@@ -60,11 +60,13 @@ export const getPositionDetail = async (
 
 export const getLots = async (
     accountId?: number,
-    instrumentId?: number
+    instrumentId?: number,
+    beforeDate?: string
 ): Promise<Lot[]> => {
     const params = new URLSearchParams()
     if (accountId) params.set('accountId', String(accountId))
     if (instrumentId) params.set('instrumentId', String(instrumentId))
+    if (beforeDate) params.set('beforeDate', beforeDate)
     const { data } = await apiClient.get(`/fin/portfolio/lots?${params}`)
     return data.items ?? []
 }

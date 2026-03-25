@@ -57,6 +57,7 @@ type transactionPayload struct {
 	// used for stock buy / sell
 	InstrumentID        uint    `json:"instrumentId"`
 	Quantity            float64 `json:"quantity"`
+	PricePerShare       float64 `json:"pricePerShare,omitempty"`
 	TotalAmount         float64 `json:"totalAmount"`
 	Fees                float64 `json:"fees"`
 	InvestmentAccountID uint    `json:"investmentAccountId"`
@@ -159,6 +160,7 @@ func (h *Handler) CreateTx() http.Handler {
 				CashAccountID:       payload.CashAccountID,
 				InstrumentID:        payload.InstrumentID,
 				Quantity:            payload.Quantity,
+				PricePerShare:       payload.PricePerShare,
 				TotalAmount:         payload.TotalAmount,
 				Fees:                payload.Fees,
 				LotSelections:       parseLotSelections(payload.LotAllocations),
@@ -309,6 +311,7 @@ type entryUpdatePayload struct {
 	// used for stock buy / sell / grant / transfer
 	InstrumentID        *uint    `json:"instrumentId"`
 	Quantity            *float64 `json:"quantity"`
+	PricePerShare       *float64 `json:"pricePerShare"`
 	TotalAmount         *float64 `json:"totalAmount"`
 	FairMarketValue     *float64 `json:"fairMarketValue"`
 	// used for stock vest
@@ -397,6 +400,7 @@ func (h *Handler) UpdateTx(Id uint) http.Handler {
 				Date:                datePtr,
 				InstrumentID:        payload.InstrumentID,
 				Quantity:            payload.Quantity,
+				PricePerShare:       payload.PricePerShare,
 				TotalAmount:         payload.TotalAmount,
 				Fees:                payload.Fees,
 				InvestmentAccountID: payload.InvestmentAccountID,
@@ -575,6 +579,7 @@ func transactionToPayload(entry accounting.Transaction) transactionPayload {
 			Type:                stockSellTxStr,
 			InstrumentID:        entry.InstrumentID,
 			Quantity:            entry.Quantity,
+			PricePerShare:       entry.PricePerShare,
 			TotalAmount:         entry.TotalAmount,
 			CostBasis:           entry.CostBasis,
 			RealizedGainLoss:    entry.RealizedGainLoss,

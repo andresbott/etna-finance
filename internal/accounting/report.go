@@ -235,7 +235,7 @@ func (store *Store) accountBalanceSingle(ctx context.Context, accountID uint, ac
 		accountIds: []uint{accountID},
 		entryTypes: balanceEntryTypes,
 	}
-	sum, err := store.sumEntries(ctx, opts)
+	sum, err := store.sumBalanceEntries(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -281,7 +281,7 @@ func (store *Store) accountBalanceMultipleEmptyStartDate(ctx context.Context, ac
 			entryTypes: balanceEntryTypes,
 		}
 
-		sum, err := store.sumEntries(ctx, opts)
+		sum, err := store.sumBalanceEntries(ctx, opts)
 		if err != nil {
 			return nil, err
 		}
@@ -313,7 +313,7 @@ func (store *Store) accountBalanceMultipleEqualSteps(ctx context.Context, accoun
 		entryTypes: balanceEntryTypes,
 	}
 
-	sum, err := store.sumEntries(ctx, opts)
+	sum, err := store.sumBalanceEntries(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -367,7 +367,7 @@ func (store *Store) accountBalanceMultipleEqualSteps(ctx context.Context, accoun
 			entryTypes: balanceEntryTypes,
 		}
 
-		sum, err = store.sumEntries(ctx, opts)
+		sum, err = store.sumBalanceEntries(ctx, opts)
 		if err != nil {
 			return nil, err
 		}

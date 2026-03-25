@@ -41,6 +41,7 @@ export const ACCOUNT_TYPES = {
     RESTRICTED_STOCK: 'restrictedstock', // not yet accessible (e.g. restricted stock / RSUs); can transfer to Investment
     LENT: 'lent', // money lent to others; owned but not in any account
     PENSION: 'pension', // pension/retirement fund
+    PREPAID_EXPENSE: 'prepaidexpense', // prepaid obligations (e.g. tax pre-payments); owned but not liquid
 } as const
 
 export type AccountType = typeof ACCOUNT_TYPES[keyof typeof ACCOUNT_TYPES]
@@ -56,6 +57,7 @@ export const ACCOUNT_TYPE_ICONS: Record<AccountType, string> = {
     [ACCOUNT_TYPES.RESTRICTED_STOCK]: 'gift',
     [ACCOUNT_TYPES.LENT]: 'send',
     [ACCOUNT_TYPES.PENSION]: 'building-bank',
+    [ACCOUNT_TYPES.PREPAID_EXPENSE]: 'receipt',
 }
 
 /**
@@ -69,6 +71,7 @@ export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
     [ACCOUNT_TYPES.RESTRICTED_STOCK]: 'Restricted stocks',
     [ACCOUNT_TYPES.LENT]: 'Lent money',
     [ACCOUNT_TYPES.PENSION]: 'Pension',
+    [ACCOUNT_TYPES.PREPAID_EXPENSE]: 'Prepaid expense',
 }
 
 /**
@@ -156,11 +159,16 @@ export const ALLOWED_OPERATIONS_BY_ACCOUNT_TYPE: Record<AccountType, EntryOperat
         ENTRY_OPERATIONS.EXPENSE,
         ENTRY_OPERATIONS.TRANSFER,
         ENTRY_OPERATIONS.BALANCE_STATUS,
-        ENTRY_OPERATIONS.IMPORT_CSV,
     ],
     [ACCOUNT_TYPES.PENSION]: [
         ENTRY_OPERATIONS.TRANSFER,
         ENTRY_OPERATIONS.REVALUATION,
+    ],
+    [ACCOUNT_TYPES.PREPAID_EXPENSE]: [
+        ENTRY_OPERATIONS.INCOME,
+        ENTRY_OPERATIONS.EXPENSE,
+        ENTRY_OPERATIONS.TRANSFER,
+        ENTRY_OPERATIONS.BALANCE_STATUS,
     ],
 }
 

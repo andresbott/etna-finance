@@ -95,3 +95,37 @@ func (store *Store) sumEntries(ctx context.Context, opts sumEntriesOpts) (sumRes
 	//spew.Dump(target)
 	return target, nil
 }
+
+// sumBalanceEntries sums entries for cash-balance purposes. It works like
+// sumEntries but excludes income/expense entries from stock-sell transactions.
+// Those entries record realized gain/loss and fees for P&L reporting but must
+// not affect cash-balance sums because the actual cash flow is already captured
+// by the stockCashInEntry.
+func (store *Store) sumBalanceEntries(ctx context.Context, opts sumEntriesOpts) (sumResult, error) {
+	db := store.db.WithContext(ctx).Table("db_entries")
+
+	db = db.Select("SUM(amount) as sum, COUNT(*) as count").
+		Joins("JOIN db_transactions ON db_transactions.id = db_entries.transaction_id")
+
+	db = db.Where("db_transactions.date BETWEEN ? AND ?", opts.startDate, opts.endDate)
+
+	if opts.accountIds != nil {
+		db = db.Where("db_entries.account_id IN (?)", opts.accountIds)
+	}
+
+	if len(opts.entryTypes) == 0 {
+		return sumResult{Sum: 0, Count: 0}, fmt.Errorf("entry type must be set")
+	}
+	db = db.Where("db_entries.entry_type IN (?)", opts.entryTypes)
+
+	db = db.Where(
+		"NOT (db_entries.entry_type IN (?) AND db_transactions.type = ?)",
+		[]entryType{incomeEntry, expenseEntry}, StockSellTransaction,
+	)
+
+	var target sumResult
+	if err := db.Scan(&target).Error; err != nil {
+		return sumResult{}, err
+	}
+	return target, nil
+}

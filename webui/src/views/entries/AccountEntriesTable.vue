@@ -247,8 +247,8 @@ const tableEntries = computed(() =>
                             </div>
                             <div v-else-if="data.type === 'stocksell'" class="amount" :class="String(data.cashAccountId) === String(accountId) ? 'amount-positive' : 'amount-negative'">
                                 <template v-if="data.instrumentId != null && data.quantity != null">
-                                    <template v-if="(data.costBasis != null || data.StockAmount != null) && data.quantity > 0">
-                                        ({{ getInstrumentSymbol(data.instrumentId) }}) {{ data.quantity }} @ {{ formatPrice((data.costBasis ?? data.StockAmount) / data.quantity) }} {{ getInstrumentCurrency(data.instrumentId) }}
+                                    <template v-if="data.quantity > 0 && (data.pricePerShare || data.costBasis != null || data.StockAmount != null)">
+                                        ({{ getInstrumentSymbol(data.instrumentId) }}) {{ data.quantity }} @ {{ formatPrice(data.pricePerShare || (data.costBasis ?? data.StockAmount) / data.quantity) }} {{ getInstrumentCurrency(data.instrumentId) }}
                                         <template v-if="String(data.cashAccountId) === String(accountId)">
                                             +{{ formatAmount(data.totalAmount) }}{{ data.fees ? ` (−${formatAmount(data.fees)} fee)` : '' }}
                                         </template>
@@ -393,7 +393,7 @@ const tableEntries = computed(() =>
 
                 <Column v-if="!isInstrumentAccount" field="runningBalance" header="Balance" bodyStyle="text-align: right" class="balance-column">
                     <template #body="{ data }">
-                        <div class="balance" :class="{ 'balance-negative': data.runningBalance < 0 && !Object.is(data.runningBalance, -0) }">
+                        <div class="balance" :class="{ 'balance-negative': data.runningBalance < -0.005 }">
                             {{ formatAmount(data.runningBalance) }}
                         </div>
                     </template>

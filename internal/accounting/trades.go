@@ -722,6 +722,7 @@ type ListLotsOpts struct {
 	AccountID    uint
 	InstrumentID uint
 	Status       *LotStatus
+	BeforeDate   *time.Time
 }
 
 func (store *Store) ListLots(ctx context.Context, opts ListLotsOpts) ([]Lot, error) {
@@ -735,6 +736,9 @@ func (store *Store) ListLots(ctx context.Context, opts ListLotsOpts) ([]Lot, err
 	}
 	if opts.Status != nil {
 		db = db.Where("status = ?", *opts.Status)
+	}
+	if opts.BeforeDate != nil {
+		db = db.Where("open_date <= ?", *opts.BeforeDate)
 	}
 
 	db = db.Order("open_date ASC, id ASC")

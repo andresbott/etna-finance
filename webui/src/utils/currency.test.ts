@@ -37,6 +37,17 @@ describe('formatCurrency', () => {
   it('formats negative zero as zero', () => {
     expect(formatCurrency(-0)).toBe('0.00')
   })
+
+  it('formats tiny negative values that round to zero as zero', () => {
+    expect(formatCurrency(-0.001)).toBe('0.00')
+    expect(formatCurrency(-0.004)).toBe('0.00')
+    expect(formatCurrency(-0.0000001)).toBe('0.00')
+  })
+
+  it('still formats values that round to -0.01', () => {
+    expect(formatCurrency(-0.006)).toBe('-0.01')
+    expect(formatCurrency(-0.01)).toBe('-0.01')
+  })
 })
 
 describe('formatAmount', () => {

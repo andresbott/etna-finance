@@ -74,7 +74,12 @@ const stockTradeTotalAmount = (data) => (isStockSell(data) ? (data.totalAmount |
 
 /** Price per share/unit for financial view (stock buy/sell/grant); null if not applicable. */
 const financialPrice = (data) => {
-    if (data.type === 'stockbuy' || data.type === 'stocksell') {
+    if (data.type === 'stocksell') {
+        if (data.pricePerShare) return data.pricePerShare
+        if (data.quantity && data.totalAmount != null) return data.totalAmount / data.quantity
+        return null
+    }
+    if (data.type === 'stockbuy') {
         if (data.quantity && (data.costBasis != null || data.StockAmount != null))
             return (data.costBasis ?? data.StockAmount) / data.quantity
         if (data.quantity && data.totalAmount != null) return data.totalAmount / data.quantity
@@ -361,9 +366,9 @@ const openAttachment = (data) => {
                             {{ getAccountCurrency(data.targetAccountId) }}
                         </div>
                         <div v-else-if="data.type === 'stockbuy' || data.type === 'stocksell'" class="amount stock-trade">
-                            <template v-if="data.quantity && (data.StockAmount != null || data.costBasis != null)">
+                            <template v-if="data.quantity && (data.pricePerShare || data.StockAmount != null || data.costBasis != null)">
                                 ({{ getInstrumentSymbol(data.instrumentId) }}) {{ data.quantity }}
-                                @ {{ formatAmount((data.costBasis ?? data.StockAmount) / data.quantity) }}
+                                @ {{ formatAmount(data.pricePerShare || (data.costBasis ?? data.StockAmount) / data.quantity) }}
                                 {{ getInstrumentCurrency(data.instrumentId) }}
                                 <i
                                     class="ti ti-arrow-right"

@@ -30,13 +30,13 @@ func TestExport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unable to connect to sqlite: %v", err)
 	}
-	store, err := accounting.NewStore(db, nil)
-	if err != nil {
-		t.Fatalf("unable to connect to finance: %v", err)
-	}
 	mdStore, err := marketdata.NewStore(db)
 	if err != nil {
 		t.Fatalf("unable to create marketdata store: %v", err)
+	}
+	store, err := accounting.NewStore(db, mdStore)
+	if err != nil {
+		t.Fatalf("unable to connect to finance: %v", err)
 	}
 	csvStore, err := csvimport.NewStore(db)
 	if err != nil {
@@ -79,6 +79,8 @@ func TestExport(t *testing.T) {
 			{ID: 2, AccountProviderID: 1, Name: "acc2", Description: "dacc2", Currency: "USD", Type: "Checkin"},
 			{ID: 3, AccountProviderID: 1, Name: "acc3", Description: "dacc3", Currency: "CHF", Type: "Savings"},
 			{ID: 4, AccountProviderID: 2, Name: "acc4", Description: "dacc4", Currency: "EUR", Type: "Checkin"},
+			{ID: 5, AccountProviderID: 1, Name: "invest1", Description: "dinvest1", Currency: "USD", Type: "Investment"},
+			{ID: 6, AccountProviderID: 1, Name: "rsu1", Description: "drsu1", Currency: "USD", Type: "RestrictedStock"},
 		},
 		IncomeCategories: []categoryV1{
 			{ID: 1, ParentId: 0, Name: "in1", Description: "din1", Icon: "income-icon"},
@@ -93,6 +95,10 @@ func TestExport(t *testing.T) {
 			{Id: 2, Description: "e1", Amount: 22.6, AccountID: 1, CategoryID: 3, Date: getDate("2022-01-19"), Type: txTypeExpense},
 			{Id: 3, Description: "tr1", OriginAmount: 36.6, OriginAccountID: 1, TargetAmount: 1.5, TargetAccountID: 2, Date: getDate("2022-01-18"), Type: txTypeTransfer},
 			{Id: 4, Description: "i1", Amount: 10.5, AccountID: 4, CategoryID: 0, Date: getDate("2022-01-17"), Type: txTypeIncome},
+			{Id: 7, Description: "forfeit1", AccountID: 6, InstrumentID: 1, Quantity: 10, Date: getDate("2022-01-12"), Type: txTypeStockForfeit},
+			{Id: 6, Description: "vest1", SourceAccountID: 6, TargetAccountID: 5, InstrumentID: 1, Quantity: 60, VestingPrice: 180.0, CategoryID: 1, Date: getDate("2022-01-11"), Type: txTypeStockVest},
+			{Id: 5, Description: "grant1", AccountID: 6, InstrumentID: 1, Quantity: 100, FairMarketValue: 150.0, Date: getDate("2022-01-10"), Type: txTypeStockGrant},
+			{Id: 8, Description: "bs1", Amount: 500.0, AccountID: 1, Date: getDate("2022-01-09"), Type: txTypeBalanceStatus},
 		},
 		Instruments: []instrumentV1{
 			{ID: 1, Symbol: "AAPL", Name: "Apple Inc", Currency: "USD"},
@@ -275,6 +281,18 @@ func sampleData(t *testing.T, store *accounting.Store, mdStore *marketdata.Store
 		t.Fatalf("error creating account 1: %v", err)
 	}
 
+	// investment and restricted stock accounts for vest/forfeit tests
+	investAcc := accounting.Account{AccountProviderID: accProviderId, Name: "invest1", Description: "dinvest1", Currency: currency.USD, Type: accounting.InvestmentAccountType}
+	investAccID, err := store.CreateAccount(t.Context(), investAcc)
+	if err != nil {
+		t.Fatalf("error creating investment account: %v", err)
+	}
+	rsAcc := accounting.Account{AccountProviderID: accProviderId, Name: "rsu1", Description: "drsu1", Currency: currency.USD, Type: accounting.RestrictedStockAccountType}
+	rsAccID, err := store.CreateAccount(t.Context(), rsAcc)
+	if err != nil {
+		t.Fatalf("error creating restricted stock account: %v", err)
+	}
+
 	// =========================================
 	// create categories
 	// =========================================
@@ -328,6 +346,69 @@ func sampleData(t *testing.T, store *accounting.Store, mdStore *marketdata.Store
 	}
 
 	sampleExtraData(t, mdStore, csvStore, tdStore, ex1)
+	sampleStockAndBalanceData(t, store, rsAccID, investAccID, in1)
+}
+
+func sampleStockAndBalanceData(t *testing.T, store *accounting.Store, rsAccID, investAccID, incomeCatID uint) {
+	t.Helper()
+
+	// stock grant → vest → forfeit (instrument AAPL = id 1 created by sampleExtraData)
+	_, err := store.CreateTransaction(t.Context(), accounting.StockGrant{
+		Description: "grant1", AccountID: rsAccID, InstrumentID: 1,
+		Quantity: 100, FairMarketValue: 150.0, Date: getDate("2022-01-10"),
+	})
+	if err != nil {
+		t.Fatalf("error creating stock grant: %v", err)
+	}
+
+	// look up lot created by grant to use in vest/forfeit
+	lots, err := store.ListLots(t.Context(), accounting.ListLotsOpts{AccountID: rsAccID, InstrumentID: 1})
+	if err != nil {
+		t.Fatalf("error listing lots: %v", err)
+	}
+	if len(lots) != 1 {
+		t.Fatalf("expected 1 lot, got %d", len(lots))
+	}
+	lotID := lots[0].Id
+
+	_, err = store.CreateTransaction(t.Context(), accounting.StockVest{
+		Description: "vest1", SourceAccountID: rsAccID, TargetAccountID: investAccID,
+		InstrumentID: 1, VestingPrice: 180.0, CategoryID: incomeCatID,
+		Date:          getDate("2022-01-11"),
+		LotSelections: []accounting.LotSelection{{LotID: lotID, Quantity: 60}},
+	})
+	if err != nil {
+		t.Fatalf("error creating stock vest: %v", err)
+	}
+
+	// re-list lots for forfeit (after vest, remaining quantity is 40)
+	lots, err = store.ListLots(t.Context(), accounting.ListLotsOpts{AccountID: rsAccID, InstrumentID: 1})
+	if err != nil {
+		t.Fatalf("error listing lots after vest: %v", err)
+	}
+	var forfeitLotID uint
+	for _, l := range lots {
+		if l.Quantity > 0 {
+			forfeitLotID = l.Id
+			break
+		}
+	}
+
+	_, err = store.CreateTransaction(t.Context(), accounting.StockForfeit{
+		Description:   "forfeit1", AccountID: rsAccID, InstrumentID: 1,
+		Date:          getDate("2022-01-12"),
+		LotSelections: []accounting.LotSelection{{LotID: forfeitLotID, Quantity: 10}},
+	})
+	if err != nil {
+		t.Fatalf("error creating stock forfeit: %v", err)
+	}
+
+	_, err = store.CreateTransaction(t.Context(), accounting.BalanceStatus{
+		Description: "bs1", Amount: 500.0, AccountID: 1, Date: getDate("2022-01-09"),
+	})
+	if err != nil {
+		t.Fatalf("error creating balance status: %v", err)
+	}
 }
 
 func sampleExtraData(t *testing.T, mdStore *marketdata.Store, csvStore *csvimport.Store, tdStore *toolsdata.Store, expenseCategoryID uint) {
@@ -388,11 +469,11 @@ func TestRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store1, err := accounting.NewStore(db1, nil)
+	mdStore1, err := marketdata.NewStore(db1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	mdStore1, err := marketdata.NewStore(db1)
+	store1, err := accounting.NewStore(db1, mdStore1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -419,11 +500,11 @@ func TestRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store2, err := accounting.NewStore(db2, nil)
+	mdStore2, err := marketdata.NewStore(db2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	mdStore2, err := marketdata.NewStore(db2)
+	store2, err := accounting.NewStore(db2, mdStore2)
 	if err != nil {
 		t.Fatal(err)
 	}

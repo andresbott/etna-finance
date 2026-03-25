@@ -84,7 +84,7 @@ const emit = defineEmits(['update:deleteDialogVisible', 'confirmDelete', 'transf
         :instrument-id="selectedEntry?.instrumentId"
         :description="selectedEntry?.description"
         :quantity="selectedEntry?.quantity"
-        :price-per-share="(selectedEntry?.quantity && (selectedEntry?.costBasis != null || selectedEntry?.StockAmount != null)) ? ((selectedEntry?.costBasis ?? selectedEntry?.StockAmount) / selectedEntry.quantity) : undefined"
+        :price-per-share="selectedEntry?.pricePerShare || undefined"
         :cash-amount="(selectedEntry?.totalAmount ?? 0) - (selectedEntry?.fees ?? 0)"
         :fees="selectedEntry?.fees ?? 0"
         :date="isDuplicateMode ? new Date() : (selectedEntry?.date ? new Date(selectedEntry.date) : new Date())"
