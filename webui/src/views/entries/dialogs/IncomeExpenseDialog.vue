@@ -221,8 +221,7 @@ const handleSubmit = async (e) => {
             try { await deleteAttachment(savedId); attachmentChanged = true } catch (e) { console.error('Failed to delete attachment:', e) }
         }
         if (fileToUpload) {
-            await uploadAttachment(savedId, fileToUpload)
-            attachmentChanged = true
+            try { await uploadAttachment(savedId, fileToUpload); attachmentChanged = true } catch (e) { console.error('Failed to upload attachment:', e) }
         }
         if (attachmentChanged) {
             queryClient.invalidateQueries({ queryKey: ['entries'] })

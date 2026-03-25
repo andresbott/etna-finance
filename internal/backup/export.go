@@ -218,6 +218,97 @@ func dataFuture() time.Time {
 
 var entriesLimit = 100
 
+func txToV1(tx accounting.Transaction) (TransactionV1, bool) {
+	switch item := tx.(type) {
+	case accounting.Transfer:
+		if item.OriginAccountID == 0 || item.TargetAccountID == 0 {
+			return TransactionV1{}, false
+		}
+		return TransactionV1{
+			Id: item.Id, Description: item.Description, Notes: item.Notes,
+			OriginAmount: item.OriginAmount, OriginAccountID: item.OriginAccountID,
+			TargetAmount: item.TargetAmount, TargetAccountID: item.TargetAccountID,
+			Date: item.Date, Type: txTypeTransfer, AttachmentID: item.AttachmentID,
+		}, true
+	case accounting.Income:
+		if item.AccountID == 0 {
+			return TransactionV1{}, false
+		}
+		return TransactionV1{
+			Id: item.Id, Description: item.Description, Notes: item.Notes,
+			Amount: item.Amount, AccountID: item.AccountID, CategoryID: item.CategoryID,
+			Date: item.Date, Type: txTypeIncome, AttachmentID: item.AttachmentID,
+		}, true
+	case accounting.Expense:
+		if item.AccountID == 0 {
+			return TransactionV1{}, false
+		}
+		return TransactionV1{
+			Id: item.Id, Description: item.Description, Notes: item.Notes,
+			Amount: item.Amount, AccountID: item.AccountID, CategoryID: item.CategoryID,
+			Date: item.Date, Type: txTypeExpense, AttachmentID: item.AttachmentID,
+		}, true
+	case accounting.StockBuy:
+		return TransactionV1{
+			Id: item.Id, Description: item.Description, Notes: item.Notes,
+			InstrumentID: item.InstrumentID, Quantity: item.Quantity,
+			TotalAmount: item.TotalAmount, StockAmount: item.StockAmount,
+			InvestmentAccountID: item.InvestmentAccountID, CashAccountID: item.CashAccountID,
+			Date: item.Date, Type: txTypeStockBuy, AttachmentID: item.AttachmentID,
+		}, true
+	case accounting.StockSell:
+		return TransactionV1{
+			Id: item.Id, Description: item.Description, Notes: item.Notes,
+			InstrumentID: item.InstrumentID, Quantity: item.Quantity,
+			PricePerShare: item.PricePerShare, TotalAmount: item.TotalAmount, Fees: item.Fees,
+			InvestmentAccountID: item.InvestmentAccountID, CashAccountID: item.CashAccountID,
+			Date: item.Date, Type: txTypeStockSell, AttachmentID: item.AttachmentID,
+		}, true
+	case accounting.StockGrant:
+		return TransactionV1{
+			Id: item.Id, Description: item.Description, Notes: item.Notes,
+			AccountID: item.AccountID, InstrumentID: item.InstrumentID,
+			Quantity: item.Quantity, FairMarketValue: item.FairMarketValue,
+			Date: item.Date, Type: txTypeStockGrant, AttachmentID: item.AttachmentID,
+		}, true
+	case accounting.StockTransfer:
+		return TransactionV1{
+			Id: item.Id, Description: item.Description, Notes: item.Notes,
+			SourceAccountID: item.SourceAccountID, TargetAccountID: item.TargetAccountID,
+			InstrumentID: item.InstrumentID, Quantity: item.Quantity,
+			Date: item.Date, Type: txTypeStockTransfer, AttachmentID: item.AttachmentID,
+		}, true
+	case accounting.StockVest:
+		return TransactionV1{
+			Id: item.Id, Description: item.Description, Notes: item.Notes,
+			SourceAccountID: item.SourceAccountID, TargetAccountID: item.TargetAccountID,
+			InstrumentID: item.InstrumentID, Quantity: item.Quantity,
+			VestingPrice: item.VestingPrice, CategoryID: item.CategoryID,
+			Date: item.Date, Type: txTypeStockVest, AttachmentID: item.AttachmentID,
+		}, true
+	case accounting.StockForfeit:
+		return TransactionV1{
+			Id: item.Id, Description: item.Description, Notes: item.Notes,
+			AccountID: item.AccountID, InstrumentID: item.InstrumentID, Quantity: item.Quantity,
+			Date: item.Date, Type: txTypeStockForfeit, AttachmentID: item.AttachmentID,
+		}, true
+	case accounting.BalanceStatus:
+		return TransactionV1{
+			Id: item.Id, Description: item.Description, Notes: item.Notes,
+			Amount: item.Amount, AccountID: item.AccountID,
+			Date: item.Date, Type: txTypeBalanceStatus, AttachmentID: item.AttachmentID,
+		}, true
+	case accounting.Revaluation:
+		return TransactionV1{
+			Id: item.Id, Description: item.Description, Notes: item.Notes,
+			Amount: item.Amount, Balance: item.Balance, AccountID: item.AccountID,
+			Date: item.Date, Type: txTypeRevaluation, AttachmentID: item.AttachmentID,
+		}, true
+	default:
+		return TransactionV1{}, false
+	}
+}
+
 func writeTransactions(ctx context.Context, zw *zipWriter, store *accounting.Store) ([]uint, error) {
 	jsonData := []TransactionV1{}
 	opts := accounting.ListOpts{
@@ -250,156 +341,8 @@ func writeTransactions(ctx context.Context, zw *zipWriter, store *accounting.Sto
 		}
 
 		for _, tx := range transactions {
-			switch item := tx.(type) {
-			case accounting.Transfer:
-				if item.OriginAccountID == 0 || item.TargetAccountID == 0 {
-					continue // skip corrupt/empty transaction
-				}
-				jsonData = append(jsonData, TransactionV1{
-					Id:              item.Id,
-					Description:     item.Description,
-					Notes:           item.Notes,
-					OriginAmount:    item.OriginAmount,
-					OriginAccountID: item.OriginAccountID,
-					TargetAmount:    item.TargetAmount,
-					TargetAccountID: item.TargetAccountID,
-					Date:            item.Date,
-					Type:            txTypeTransfer,
-					AttachmentID:    item.AttachmentID,
-				})
-			case accounting.Income:
-				if item.AccountID == 0 {
-					continue // skip corrupt/empty transaction
-				}
-				jsonData = append(jsonData, TransactionV1{
-					Id:           item.Id,
-					Description:  item.Description,
-					Notes:        item.Notes,
-					Amount:       item.Amount,
-					AccountID:    item.AccountID,
-					CategoryID:   item.CategoryID,
-					Date:         item.Date,
-					Type:         txTypeIncome,
-					AttachmentID: item.AttachmentID,
-				})
-			case accounting.Expense:
-				if item.AccountID == 0 {
-					continue // skip corrupt/empty transaction
-				}
-				jsonData = append(jsonData, TransactionV1{
-					Id:           item.Id,
-					Description:  item.Description,
-					Notes:        item.Notes,
-					Amount:       item.Amount,
-					AccountID:    item.AccountID,
-					CategoryID:   item.CategoryID,
-					Date:         item.Date,
-					Type:         txTypeExpense,
-					AttachmentID: item.AttachmentID,
-				})
-			case accounting.StockBuy:
-				jsonData = append(jsonData, TransactionV1{
-					Id:                  item.Id,
-					Description:         item.Description,
-					Notes:               item.Notes,
-					InstrumentID:        item.InstrumentID,
-					Quantity:            item.Quantity,
-					TotalAmount:         item.TotalAmount,
-					StockAmount:         item.StockAmount,
-					InvestmentAccountID: item.InvestmentAccountID,
-					CashAccountID:       item.CashAccountID,
-					Date:                item.Date,
-					Type:                txTypeStockBuy,
-					AttachmentID:        item.AttachmentID,
-				})
-			case accounting.StockSell:
-				jsonData = append(jsonData, TransactionV1{
-					Id:                  item.Id,
-					Description:         item.Description,
-					Notes:               item.Notes,
-					InstrumentID:        item.InstrumentID,
-					Quantity:            item.Quantity,
-					PricePerShare:       item.PricePerShare,
-					TotalAmount:         item.TotalAmount,
-					Fees:                item.Fees,
-					InvestmentAccountID: item.InvestmentAccountID,
-					CashAccountID:       item.CashAccountID,
-					Date:                item.Date,
-					Type:                txTypeStockSell,
-					AttachmentID:        item.AttachmentID,
-				})
-			case accounting.StockGrant:
-				jsonData = append(jsonData, TransactionV1{
-					Id:              item.Id,
-					Description:     item.Description,
-					Notes:           item.Notes,
-					AccountID:       item.AccountID,
-					InstrumentID:    item.InstrumentID,
-					Quantity:        item.Quantity,
-					FairMarketValue: item.FairMarketValue,
-					Date:            item.Date,
-					Type:            txTypeStockGrant,
-					AttachmentID:    item.AttachmentID,
-				})
-			case accounting.StockTransfer:
-				jsonData = append(jsonData, TransactionV1{
-					Id:              item.Id,
-					Description:     item.Description,
-					Notes:           item.Notes,
-					SourceAccountID: item.SourceAccountID,
-					TargetAccountID: item.TargetAccountID,
-					InstrumentID:    item.InstrumentID,
-					Quantity:        item.Quantity,
-					Date:            item.Date,
-					Type:            txTypeStockTransfer,
-					AttachmentID:    item.AttachmentID,
-				})
-			case accounting.StockVest:
-				jsonData = append(jsonData, TransactionV1{
-					Id:              item.Id,
-					Description:     item.Description,
-					Notes:           item.Notes,
-					SourceAccountID: item.SourceAccountID,
-					TargetAccountID: item.TargetAccountID,
-					InstrumentID:    item.InstrumentID,
-					Quantity:        item.Quantity,
-					VestingPrice:    item.VestingPrice,
-					CategoryID:      item.CategoryID,
-					Date:            item.Date,
-					Type:            txTypeStockVest,
-				})
-			case accounting.StockForfeit:
-				jsonData = append(jsonData, TransactionV1{
-					Id:           item.Id,
-					Description:  item.Description,
-					Notes:        item.Notes,
-					AccountID:    item.AccountID,
-					InstrumentID: item.InstrumentID,
-					Quantity:     item.Quantity,
-					Date:         item.Date,
-					Type:         txTypeStockForfeit,
-				})
-			case accounting.BalanceStatus:
-				jsonData = append(jsonData, TransactionV1{
-					Id:          item.Id,
-					Description: item.Description,
-					Notes:       item.Notes,
-					Amount:      item.Amount,
-					AccountID:   item.AccountID,
-					Date:        item.Date,
-					Type:        txTypeBalanceStatus,
-				})
-			case accounting.Revaluation:
-				jsonData = append(jsonData, TransactionV1{
-					Id:          item.Id,
-					Description: item.Description,
-					Notes:       item.Notes,
-					Amount:      item.Amount,
-					Balance:     item.Balance,
-					AccountID:   item.AccountID,
-					Date:        item.Date,
-					Type:        txTypeRevaluation,
-				})
+			if v1, ok := txToV1(tx); ok {
+				jsonData = append(jsonData, v1)
 			}
 		}
 		opts.Page++
