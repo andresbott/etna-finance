@@ -305,6 +305,50 @@ func (h *Handler) ListPortfolioTrades() http.Handler {
 	})
 }
 
+type instrumentReturnPayload struct {
+	InstrumentID     uint    `json:"instrumentId"`
+	TotalInvested    float64 `json:"totalInvested"`
+	RealizedProceeds float64 `json:"realizedProceeds"`
+	RealizedGL       float64 `json:"realizedGL"`
+	CurrentQuantity  float64 `json:"currentQuantity"`
+	CurrentCostBasis float64 `json:"currentCostBasis"`
+	FirstTradeDate   string  `json:"firstTradeDate"`
+	LastTradeDate    string  `json:"lastTradeDate"`
+}
+
+func (h *Handler) ListInstrumentReturns() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		returns, err := h.Store.ListInstrumentReturns(r.Context())
+		if err != nil {
+			http.Error(w, fmt.Sprintf("error listing instrument returns: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+
+		payload := make([]instrumentReturnPayload, len(returns))
+		for i, ret := range returns {
+			payload[i] = instrumentReturnPayload{
+				InstrumentID:     ret.InstrumentID,
+				TotalInvested:    ret.TotalInvested,
+				RealizedProceeds: ret.RealizedProceeds,
+				RealizedGL:       ret.RealizedGL,
+				CurrentQuantity:  ret.CurrentQuantity,
+				CurrentCostBasis: ret.CurrentCostBasis,
+				FirstTradeDate:   ret.FirstTradeDate.Format("2006-01-02"),
+				LastTradeDate:    ret.LastTradeDate.Format("2006-01-02"),
+			}
+		}
+
+		respJSON, err := json.Marshal(map[string]interface{}{"items": payload})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(respJSON)
+	})
+}
+
 func parseDateParam(s string) (time.Time, error) {
 	s = strings.TrimSpace(s)
 	return time.Parse("2006-01-02", s)

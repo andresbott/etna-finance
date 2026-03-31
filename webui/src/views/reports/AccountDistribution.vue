@@ -7,7 +7,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { PieChart } from 'echarts/charts'
 import { TooltipComponent, LegendComponent } from 'echarts/components'
 import { useAccountTypesData } from '@/composables/useAccountTypesData'
-import { getAccountTypeLabel } from '@/types/account'
+import { getAccountTypeLabel, ACCOUNT_TYPES } from '@/types/account'
 import { formatAmount } from '@/utils/currency'
 
 use([CanvasRenderer, PieChart, TooltipComponent, LegendComponent])
@@ -25,7 +25,8 @@ const getTextColor = () => {
 
 const chartOption = computed(() => {
     const textColor = getTextColor()
-    const rows = accountsByType.value ?? []
+    const hiddenTypes = [ACCOUNT_TYPES.RESTRICTED_STOCK, ACCOUNT_TYPES.PREPAID_EXPENSE]
+    const rows = (accountsByType.value ?? []).filter((row) => !hiddenTypes.includes(row.type))
     const data = rows.map((row, index) => ({
         value: totalInMainCurrency(row),
         name: getAccountTypeLabel(row.type),

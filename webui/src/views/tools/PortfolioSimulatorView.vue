@@ -30,6 +30,8 @@ const leftSidebarCollapsed = ref(true)
 
 // Form inputs (defaults)
 const initialContribution = ref(10000)
+const monthlyContribution = ref(0)
+const durationYears = ref(20)
 const growthRatePct = ref(7)
 const expenseRatioPct = ref(0.2)
 const capitalGainTaxPct = ref(19)
@@ -46,6 +48,8 @@ const toast = useToast()
 function getCurrentParams() {
     return {
         initialContribution: initialContribution.value,
+        monthlyContribution: monthlyContribution.value,
+        durationYears: durationYears.value,
         growthRatePct: growthRatePct.value,
         expenseRatioPct: expenseRatioPct.value,
         capitalGainTaxPct: capitalGainTaxPct.value,
@@ -108,6 +112,8 @@ function loadCaseData(cs) {
     const p = cs.params
     if (p) {
         initialContribution.value = p.initialContribution ?? initialContribution.value
+        monthlyContribution.value = p.monthlyContribution ?? 0
+        durationYears.value = p.durationYears ?? 20
         growthRatePct.value = p.growthRatePct ?? growthRatePct.value
         expenseRatioPct.value = p.expenseRatioPct ?? 0
         capitalGainTaxPct.value = p.capitalGainTaxPct ?? capitalGainTaxPct.value
@@ -273,7 +279,38 @@ function formatCurrencyShort(value) {
                                         </div>
                                     </div>
                                     <div class="field">
-                                        <label for="growth">Annual growth rate (%)</label>
+                                        <label for="monthly">Monthly contribution</label>
+                                        <div class="field-controls">
+                                            <InputNumber
+                                                id="monthly"
+                                                v-model="monthlyContribution"
+                                                :min="0"
+                                                :max="50000"
+                                                mode="decimal"
+                                                :minFractionDigits="0"
+                                                :maxFractionDigits="0"
+                                                class="field-input"
+                                            />
+                                            <Slider v-model="monthlyContribution" :min="0" :max="50000" :step="100" class="field-slider" />
+                                        </div>
+                                    </div>
+                                    <div class="field">
+                                        <label for="duration">Duration (years)</label>
+                                        <div class="field-controls">
+                                            <InputNumber
+                                                id="duration"
+                                                v-model="durationYears"
+                                                :min="1"
+                                                :max="50"
+                                                :minFractionDigits="0"
+                                                :maxFractionDigits="0"
+                                                class="field-input"
+                                            />
+                                            <Slider v-model="durationYears" :min="1" :max="50" :step="1" class="field-slider" />
+                                        </div>
+                                    </div>
+                                    <div class="field">
+                                        <label for="growth">Annualized return (%)</label>
                                         <div class="field-controls">
                                             <InputNumber
                                                 id="growth"

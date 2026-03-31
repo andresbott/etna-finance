@@ -863,3 +863,145 @@ func (store *Store) ListPositions(ctx context.Context, opts ListPositionsOpts) (
 func (store *Store) ListAllPositions(ctx context.Context) ([]Position, error) {
 	return store.ListPositions(ctx, ListPositionsOpts{})
 }
+
+// ---------------------------------------------------------------------------
+// Instrument Returns (aggregated per instrument across all accounts)
+// ---------------------------------------------------------------------------
+
+type InstrumentReturn struct {
+	InstrumentID     uint
+	TotalInvested    float64 // sum of cost basis from buy/grant trades
+	RealizedProceeds float64 // sum of proceeds from sell disposals
+	RealizedGL       float64 // sum of realized gain/loss from sell disposals
+	CurrentQuantity  float64 // quantity still held (open positions)
+	CurrentCostBasis float64 // cost basis of remaining open position
+	FirstTradeDate   time.Time
+	LastTradeDate    time.Time
+}
+
+func (store *Store) ListInstrumentReturns(ctx context.Context) ([]InstrumentReturn, error) {
+	// Step 1: invested amounts from buy/grant trades per instrument
+	type investedRow struct {
+		InstrumentID  uint    `gorm:"column:instrument_id"`
+		TotalInvested float64 `gorm:"column:total_invested"`
+	}
+	var invested []investedRow
+	if err := store.db.WithContext(ctx).
+		Table("db_trades").
+		Select("instrument_id, SUM(total_amount) as total_invested").
+		Where("trade_type IN ?", []TradeType{BuyTrade, GrantTrade}).
+		Group("instrument_id").
+		Find(&invested).Error; err != nil {
+		return nil, fmt.Errorf("failed to query invested amounts: %w", err)
+	}
+
+	// Step 2: realized returns from sell disposals per instrument
+	type realizedRow struct {
+		InstrumentID    uint    `gorm:"column:instrument_id"`
+		TotalProceeds   float64 `gorm:"column:total_proceeds"`
+		TotalRealizedGL float64 `gorm:"column:total_realized_gl"`
+	}
+	var realized []realizedRow
+	if err := store.db.WithContext(ctx).
+		Table("db_lot_disposals d").
+		Joins("JOIN db_lots l ON d.lot_id = l.id").
+		Joins("JOIN db_trades t ON d.sell_trade_id = t.id").
+		Select("l.instrument_id, SUM(d.proceeds) as total_proceeds, SUM(d.realized_gl) as total_realized_gl").
+		Where("t.trade_type = ?", SellTrade).
+		Group("l.instrument_id").
+		Find(&realized).Error; err != nil {
+		return nil, fmt.Errorf("failed to query realized returns: %w", err)
+	}
+
+	// Step 3: current open positions per instrument (across all accounts)
+	type positionRow struct {
+		InstrumentID uint    `gorm:"column:instrument_id"`
+		TotalQty     float64 `gorm:"column:total_qty"`
+		TotalCost    float64 `gorm:"column:total_cost"`
+	}
+	var positions []positionRow
+	if err := store.db.WithContext(ctx).
+		Table("db_positions").
+		Select("instrument_id, SUM(quantity) as total_qty, SUM(cost_basis) as total_cost").
+		Where("quantity > 0").
+		Group("instrument_id").
+		Find(&positions).Error; err != nil {
+		return nil, fmt.Errorf("failed to query current positions: %w", err)
+	}
+
+	// Step 4: trade date ranges per instrument — query via GORM model to avoid
+	// raw-string date scanning issues with SQLite aggregate functions.
+	var allTrades []dbTrade
+	if err := store.db.WithContext(ctx).
+		Order("date ASC").
+		Find(&allTrades).Error; err != nil {
+		return nil, fmt.Errorf("failed to query trades for date ranges: %w", err)
+	}
+	type dateRange struct {
+		first time.Time
+		last  time.Time
+	}
+	tradeDates := map[uint]*dateRange{}
+	for _, t := range allTrades {
+		dr, ok := tradeDates[t.InstrumentID]
+		if !ok {
+			dr = &dateRange{first: t.Date, last: t.Date}
+			tradeDates[t.InstrumentID] = dr
+		}
+		if t.Date.Before(dr.first) {
+			dr.first = t.Date
+		}
+		if t.Date.After(dr.last) {
+			dr.last = t.Date
+		}
+	}
+
+	// Combine into a map by instrument_id
+	byInst := map[uint]*InstrumentReturn{}
+
+	for _, inv := range invested {
+		r := &InstrumentReturn{
+			InstrumentID:  inv.InstrumentID,
+			TotalInvested: inv.TotalInvested,
+		}
+		if dr, ok := tradeDates[inv.InstrumentID]; ok {
+			r.FirstTradeDate = dr.first
+			r.LastTradeDate = dr.last
+		}
+		byInst[inv.InstrumentID] = r
+	}
+
+	for _, real := range realized {
+		r, ok := byInst[real.InstrumentID]
+		if !ok {
+			r = &InstrumentReturn{InstrumentID: real.InstrumentID}
+			if dr, ok := tradeDates[real.InstrumentID]; ok {
+				r.FirstTradeDate = dr.first
+				r.LastTradeDate = dr.last
+			}
+			byInst[real.InstrumentID] = r
+		}
+		r.RealizedProceeds = real.TotalProceeds
+		r.RealizedGL = real.TotalRealizedGL
+	}
+
+	for _, pos := range positions {
+		r, ok := byInst[pos.InstrumentID]
+		if !ok {
+			r = &InstrumentReturn{InstrumentID: pos.InstrumentID}
+			if dr, ok := tradeDates[pos.InstrumentID]; ok {
+				r.FirstTradeDate = dr.first
+				r.LastTradeDate = dr.last
+			}
+			byInst[pos.InstrumentID] = r
+		}
+		r.CurrentQuantity = pos.TotalQty
+		r.CurrentCostBasis = pos.TotalCost
+	}
+
+	result := make([]InstrumentReturn, 0, len(byInst))
+	for _, r := range byInst {
+		result = append(result, *r)
+	}
+	return result, nil
+}

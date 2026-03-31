@@ -467,37 +467,7 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 	// ==========================================================================
 
 	if h.appSettings.InvestmentInstruments {
-		r.Path(fmt.Sprintf("%s/positions", finPortfolio)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if _, err := sessionauth.CtxGetUserData(r); err != nil {
-				http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
-				return
-			}
-			finHndlr.ListPositions().ServeHTTP(w, r)
-		})
-
-		r.Path(fmt.Sprintf("%s/positions/{accountId}/{instrumentId}", finPortfolio)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if _, err := sessionauth.CtxGetUserData(r); err != nil {
-				http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
-				return
-			}
-			finHndlr.GetPositionDetail().ServeHTTP(w, r)
-		})
-
-		r.Path(fmt.Sprintf("%s/lots", finPortfolio)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if _, err := sessionauth.CtxGetUserData(r); err != nil {
-				http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
-				return
-			}
-			finHndlr.ListLots().ServeHTTP(w, r)
-		})
-
-		r.Path(fmt.Sprintf("%s/trades", finPortfolio)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if _, err := sessionauth.CtxGetUserData(r); err != nil {
-				http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
-				return
-			}
-			finHndlr.ListPortfolioTrades().ServeHTTP(w, r)
-		})
+		attachPortfolioRoutes(r, finHndlr)
 	}
 
 	// ==========================================================================
@@ -1068,5 +1038,47 @@ func (h *MainAppHandler) toolsDataAPI(r *mux.Router) {
 			return
 		}
 		tdHandler.DeleteAttachment(toolType, itemId).ServeHTTP(w, r)
+	})
+}
+
+func attachPortfolioRoutes(r *mux.Router, finHndlr finHandler.Handler) {
+	r.Path(fmt.Sprintf("%s/positions", finPortfolio)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		finHndlr.ListPositions().ServeHTTP(w, r)
+	})
+
+	r.Path(fmt.Sprintf("%s/positions/{accountId}/{instrumentId}", finPortfolio)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		finHndlr.GetPositionDetail().ServeHTTP(w, r)
+	})
+
+	r.Path(fmt.Sprintf("%s/lots", finPortfolio)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		finHndlr.ListLots().ServeHTTP(w, r)
+	})
+
+	r.Path(fmt.Sprintf("%s/trades", finPortfolio)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		finHndlr.ListPortfolioTrades().ServeHTTP(w, r)
+	})
+
+	r.Path(fmt.Sprintf("%s/returns", finPortfolio)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := sessionauth.CtxGetUserData(r); err != nil {
+			http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		finHndlr.ListInstrumentReturns().ServeHTTP(w, r)
 	})
 }

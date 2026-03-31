@@ -71,6 +71,22 @@ export const getLots = async (
     return data.items ?? []
 }
 
+export interface InstrumentReturn {
+    instrumentId: number
+    totalInvested: number
+    realizedProceeds: number
+    realizedGL: number
+    currentQuantity: number
+    currentCostBasis: number
+    firstTradeDate: string
+    lastTradeDate: string
+}
+
+export const getInstrumentReturns = async (): Promise<InstrumentReturn[]> => {
+    const { data } = await apiClient.get('/fin/portfolio/returns')
+    return data.items ?? []
+}
+
 export const getTrades = async (
     accountId?: number,
     instrumentId?: number

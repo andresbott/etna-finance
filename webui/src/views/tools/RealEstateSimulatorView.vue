@@ -258,6 +258,39 @@ const avgTotalLeveredYield = computed(() => {
     return eq > 0 ? ((leveragedCashFlow.value + linearEquityBuildup + annualPropertyAppreciation.value) / eq) * 100 : 0
 })
 
+// ── Swiss mortgage reference (2/3 – 1/3 rule) ──────────────────────
+const swissFirstMortgage = computed(() => {
+    const pp = purchasePrice.value ?? 0
+    return pp * 2 / 3
+})
+
+const swissSecondMortgage = computed(() => {
+    const pp = purchasePrice.value ?? 0
+    return Math.max(0, pp * 0.8 - swissFirstMortgage.value)
+})
+
+const swissMinEquity = computed(() => {
+    const pp = purchasePrice.value ?? 0
+    return pp * 0.2
+})
+
+// ── Rent equivalent (dead money) & principal buildup ────────────────
+const totalAnnualInterestOnly = computed(() => {
+    return mortgageDetails.value.reduce((sum, m) => {
+        return sum + m.principal * (m.interestRate ?? 0) / 100
+    }, 0)
+})
+
+const monthlyRentEquivalent = computed(() => {
+    return (totalAnnualInterestOnly.value + totalRecurringCosts.value) / 12
+})
+
+const monthlyLinearPrincipal = computed(() => {
+    return mortgageDetails.value.reduce((sum, m) => {
+        return sum + (m.amortize && m.termYears > 0 ? m.principal / m.termYears / 12 : 0)
+    }, 0)
+})
+
 // ── Affordability metrics ───────────────────────────────────────────
 const totalMonthlyHousingCost = computed(() => {
     return totalMonthlyMortgagePayments.value + totalRecurringCosts.value / 12
@@ -919,9 +952,6 @@ function formatPct(value: number): string {
                                 <TabView>
                                     <!-- Tab 1: Overview Chart -->
                                     <TabPanel header="Overview" value="overview">
-                                        <div class="chart-wrap">
-                                            <VChart :option="chartOption" autoresize class="chart" />
-                                        </div>
                                         <div class="results">
                                             <h4>Financing</h4>
                                             <div class="result-row">
@@ -949,6 +979,21 @@ function formatPct(value: number): string {
                                             <div class="result-row">
                                                 <span class="result-label">Total Housing Cost</span>
                                                 <span class="result-value">{{ formatCurrency(totalMonthlyHousingCost * 12) }} / yr</span>
+                                            </div>
+                                            <h4>Buy vs Rent</h4>
+                                            <div class="result-row">
+                                                <span class="result-label">Rent Equivalent
+                                                    <i class="ti ti-help-circle text-color-secondary text-sm cursor-pointer"
+                                                       @click="openHelp('Rent Equivalent', '<p>The monthly <strong>dead money</strong> — real lost money that does not build any equity.</p><p><strong>Includes:</strong> mortgage interest (all tranches) + recurring costs (maintenance, incidentals, etc.).</p><p><strong>Note:</strong> Uses a simplified linear interest calculation, since actual amortization schedules are front-loaded with interest.</p>')" />
+                                                </span>
+                                                <span class="result-value">{{ formatCurrency(monthlyRentEquivalent) }} / mo</span>
+                                            </div>
+                                            <div class="result-row">
+                                                <span class="result-label">Monthly Principal
+                                                    <i class="ti ti-help-circle text-color-secondary text-sm cursor-pointer"
+                                                       @click="openHelp('Monthly Principal', '<p>The monthly amount that goes toward paying down the mortgage principal.</p><p>This money builds equity in the property — comparable to investing this amount monthly in the market instead.</p><p><strong>Note:</strong> Uses a simplified linear calculation (total principal ÷ term).</p>')" />
+                                                </span>
+                                                <span class="result-value">{{ formatCurrency(monthlyLinearPrincipal) }} / mo</span>
                                             </div>
                                             <h4>Property Reference</h4>
                                             <div class="result-row">
@@ -1033,6 +1078,25 @@ function formatPct(value: number): string {
                                                     <ProgressBar :value="Math.min(equityContributionPct, 100)" :showValue="false" :pt="{ root: { style: { width: '5rem', height: '0.5rem' } }, value: { style: { background: equityColor(equityContributionPct) } } }" />
                                                 </span>
                                                 <span class="result-value">{{ formatPct(equityContributionPct) }}</span>
+                                            </div>
+                                        </div>
+
+                                        <div class="report-section">
+                                            <h4>Swiss Mortgage Reference
+                                                <i class="ti ti-help-circle text-color-secondary text-sm cursor-pointer"
+                                                   @click="openHelp('Swiss Mortgage Reference', '<p>Under Swiss banking rules, a property mortgage is typically split into two tranches based on the property value:</p><ul><li><strong>1st Mortgage (2/3)</strong> — does not need to be amortized (interest-only).</li><li><strong>2nd Mortgage (1/3 of the financed portion)</strong> — must be amortized, typically within 15 years.</li><li><strong>Minimum Equity</strong> — at least 20% of the purchase price.</li></ul>')" />
+                                            </h4>
+                                            <div class="result-row">
+                                                <span class="result-label">1st Mortgage (2/3 — no amortization)</span>
+                                                <span class="result-value">{{ formatCurrency(swissFirstMortgage) }}</span>
+                                            </div>
+                                            <div class="result-row">
+                                                <span class="result-label">2nd Mortgage (1/3 — must amortize)</span>
+                                                <span class="result-value">{{ formatCurrency(swissSecondMortgage) }}</span>
+                                            </div>
+                                            <div class="result-row">
+                                                <span class="result-label">Minimum Equity (20%)</span>
+                                                <span class="result-value">{{ formatCurrency(swissMinEquity) }}</span>
                                             </div>
                                         </div>
                                     </TabPanel>

@@ -2,37 +2,23 @@ import { computed } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
 import { useAccounts } from '@/composables/useAccounts'
 import { useSettingsStore } from '@/store/settingsStore'
-import { getLatestRate } from '@/lib/api/CurrencyRates'
 import { getBalanceReport } from '@/lib/api/report'
 import { toLocalDateString } from '@/utils/date'
-import { useHoldings } from '@/composables/useHoldings'
 import { ACCOUNT_TYPES } from '@/types/account'
 
 export interface AccountTypeRow {
     type: string
-    currencies: Record<string, number>
+    total: number
 }
 
 export function useAccountTypesData() {
     const { accounts: accountProviders } = useAccounts()
     const settingsStore = useSettingsStore()
     const mainCurrency = computed(() => settingsStore.mainCurrency || 'CHF')
-    const { providersWithHoldings } = useHoldings()
-
-    // Map accountId -> totalValue (market value) for investment/restricted stock accounts
-    const holdingsTotalMap = computed(() => {
-        const map = new Map<number, number>()
-        for (const provider of providersWithHoldings.value) {
-            for (const account of provider.accounts) {
-                map.set(account.id, account.totalValue)
-            }
-        }
-        return map
-    })
 
     const allAccounts = computed(() => {
         if (!accountProviders.value) return []
-        const accounts: Array<{ id: number; type?: string; currency?: string; reportData?: Array<{ sum: number }> }> = []
+        const accounts: Array<{ id: number; type?: string; currency?: string }> = []
         for (const provider of accountProviders.value) {
             if (provider.accounts && Array.isArray(provider.accounts)) {
                 accounts.push(...provider.accounts)
@@ -57,77 +43,48 @@ export function useAccountTypesData() {
 
     const balanceReport = computed(() => balanceReportQuery.data.value)
 
-    function getLatestBalance(account: { reportData?: Array<{ sum: number }> }): number {
-        if (!account.reportData || account.reportData.length === 0) return 0
-        const latestEntry = account.reportData[account.reportData.length - 1]
-        return latestEntry?.sum ?? 0
+    function getLatestBalance(reportData: Array<{ sum: number }>): number {
+        if (reportData.length === 0) return 0
+        return reportData[reportData.length - 1]?.sum ?? 0
     }
 
+    const ACCOUNT_TYPE_ORDER: string[] = [
+        ACCOUNT_TYPES.CASH,
+        ACCOUNT_TYPES.CHECKING,
+        ACCOUNT_TYPES.SAVINGS,
+        ACCOUNT_TYPES.LENT,
+        ACCOUNT_TYPES.PREPAID_EXPENSE,
+        ACCOUNT_TYPES.PENSION,
+        ACCOUNT_TYPES.INVESTMENT,
+        ACCOUNT_TYPES.RESTRICTED_STOCK,
+    ]
+
+    // Balance report values are already converted to main currency by the backend,
+    // so we sum them directly per account type without additional FX conversion.
     const accountsByType = computed<AccountTypeRow[]>(() => {
         if (!allAccounts.value) return []
         const grouped: Record<string, AccountTypeRow> = {}
         for (const account of allAccounts.value) {
             const type = account.type || 'Other'
-            const currency = account.currency || 'CHF'
-            let balance: number
 
-            if (type === ACCOUNT_TYPES.INVESTMENT || type === ACCOUNT_TYPES.RESTRICTED_STOCK) {
-                // Use current market value from holdings for investment/restricted stock accounts
-                balance = holdingsTotalMap.value.get(account.id) ?? 0
-            } else {
-                // Use balance report for cash/other accounts
-                const reportData = balanceReport.value?.accounts?.[account.id]
-                if (!reportData) continue
-                balance = getLatestBalance({ reportData })
-            }
+            const reportData = balanceReport.value?.accounts?.[account.id]
+            if (!reportData) continue
+            const balance = getLatestBalance(reportData)
 
             if (!grouped[type]) {
-                grouped[type] = { type, currencies: {} }
+                grouped[type] = { type, total: 0 }
             }
-            if (!grouped[type].currencies[currency]) {
-                grouped[type].currencies[currency] = 0
-            }
-            grouped[type].currencies[currency] += balance
+            grouped[type].total += balance
         }
-        return Object.values(grouped)
-    })
-
-    const allCurrencies = computed(() => {
-        const currencies = new Set<string>()
-        accountsByType.value.forEach((typeGroup) => {
-            Object.keys(typeGroup.currencies).forEach((c) => currencies.add(c))
+        return Object.values(grouped).sort((a, b) => {
+            const ai = ACCOUNT_TYPE_ORDER.indexOf(a.type)
+            const bi = ACCOUNT_TYPE_ORDER.indexOf(b.type)
+            return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
         })
-        return Array.from(currencies).sort()
-    })
-
-    const currencyListKey = computed(() => allCurrencies.value.join(','))
-    const { data: latestRatesMap } = useQuery({
-        queryKey: computed(() => ['fxLatestRates', mainCurrency.value, currencyListKey.value]),
-        queryFn: async () => {
-            const main = mainCurrency.value
-            const map: Record<string, number> = {}
-            for (const currency of allCurrencies.value) {
-                if (currency === main) continue
-                const r = await getLatestRate(main, currency)
-                if (r?.rate) map[currency] = r.rate
-            }
-            return map
-        },
-        enabled: computed(() => mainCurrency.value !== '' && allCurrencies.value.length > 0)
     })
 
     function totalInMainCurrency(row: AccountTypeRow): number {
-        const main = mainCurrency.value
-        const rates = latestRatesMap.value ?? {}
-        let total = 0
-        for (const [currency, amount] of Object.entries(row.currencies)) {
-            if (currency === main) {
-                total += amount
-            } else if (rates[currency]) {
-                total += amount / rates[currency]
-            }
-        }
-        return total
+        return row.total
     }
 
     return {
