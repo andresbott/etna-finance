@@ -4,6 +4,8 @@ import type { PortfolioSimulatorParams } from '@/lib/api/ToolsData'
 
 const BASE_PARAMS: PortfolioSimulatorParams = {
     initialContribution: 10000,
+    monthlyContribution: 0,
+    durationYears: 20,
     growthRatePct: 7,
     expenseRatioPct: 0.2,
     capitalGainTaxPct: 19,
@@ -94,6 +96,67 @@ describe('computePortfolioProjection — annual tax', () => {
     })
 })
 
+describe('computePortfolioProjection — monthly contributions', () => {
+    const params: PortfolioSimulatorParams = {
+        ...BASE_PARAMS,
+        initialContribution: 0,
+        monthlyContribution: 1000,
+        durationYears: 10,
+    }
+
+    it('total invested grows with monthly contributions', () => {
+        const result = computePortfolioProjection(params)
+        expect(result.totalContributions).toBe(1000 * 12 * 10)
+        expect(result.series.totalInvested[0]).toBe(0)
+        expect(result.series.totalInvested[1]).toBe(12000)
+        expect(result.series.totalInvested[10]).toBe(120000)
+    })
+
+    it('net worth exceeds total invested due to growth', () => {
+        const result = computePortfolioProjection(params)
+        expect(result.finalValueAfterTax).toBeGreaterThan(0)
+        expect(result.series.netWorth[10] + result.taxPaid).toBeGreaterThan(result.totalContributions)
+    })
+
+    it('combines initial + monthly contributions', () => {
+        const combined = computePortfolioProjection({
+            ...params,
+            initialContribution: 50000,
+        })
+        expect(combined.totalContributions).toBe(50000 + 1000 * 12 * 10)
+        expect(combined.series.totalInvested[0]).toBe(50000)
+        expect(combined.series.totalInvested[1]).toBe(50000 + 12000)
+    })
+
+    it('exit tax applies to gains over total invested (not just initial)', () => {
+        const result = computePortfolioProjection(params)
+        const preTaxBalance = result.finalValueAfterTax + result.taxPaid
+        const gains = preTaxBalance - result.totalContributions
+        expect(result.taxPaid).toBeCloseTo(gains * 0.19, 2)
+    })
+})
+
+describe('computePortfolioProjection — custom duration', () => {
+    it('respects durationYears from params', () => {
+        const params = { ...BASE_PARAMS, durationYears: 10 }
+        const result = computePortfolioProjection(params)
+        expect(result.years).toHaveLength(11)
+        expect(result.years[10]).toBe(10)
+    })
+
+    it('override argument takes precedence over params', () => {
+        const params = { ...BASE_PARAMS, durationYears: 10 }
+        const result = computePortfolioProjection(params, 5)
+        expect(result.years).toHaveLength(6)
+    })
+
+    it('clamps duration to max 50 years', () => {
+        const params = { ...BASE_PARAMS, durationYears: 100 }
+        const result = computePortfolioProjection(params)
+        expect(result.years).toHaveLength(51)
+    })
+})
+
 describe('computePortfolioExpectedReturn', () => {
     it('computes exit tax expected return', () => {
         const result = computePortfolioExpectedReturn(BASE_PARAMS)
@@ -136,8 +199,8 @@ describe('edge cases', () => {
         expect(result.taxPaid).toBe(0)
     })
 
-    it('handles zero initial contribution', () => {
-        const params = { ...BASE_PARAMS, initialContribution: 0 }
+    it('handles zero initial and zero monthly contribution', () => {
+        const params = { ...BASE_PARAMS, initialContribution: 0, monthlyContribution: 0 }
         const result = computePortfolioProjection(params)
         expect(result.finalValueAfterTax).toBe(0)
     })
@@ -150,7 +213,7 @@ describe('edge cases', () => {
         expect(result.finalValueAfterTax).toBeGreaterThan(withTER.finalValueAfterTax)
     })
 
-    it('totalGain equals finalValueAfterTax + taxPaid - initial', () => {
+    it('totalGain equals finalValueAfterTax + taxPaid - totalContributions', () => {
         const result = computePortfolioProjection(BASE_PARAMS)
         expect(result.totalGain).toBeCloseTo(
             result.finalValueAfterTax + result.taxPaid - BASE_PARAMS.initialContribution, 2

@@ -185,8 +185,9 @@ func (store *Store) AccountBalanceSingle(ctx context.Context, accountID uint, en
 // AccountBalance returns a slice of AccountBalance, with N steps of balance spread between the start and the end date
 // this allows to generate balance graphs.
 // If zero or 1 steps are selected, a slice with size 1 is returned that contains the balance at end date.
-// The implementation tries to be efficient to only sum the delta entries for every step.
-// When a main currency is configured, each step's delta is converted using the FX rate at the step's end date.
+// For cash-like accounts, the implementation sums delta entries for every step.
+// For investment/restricted-stock accounts, it reconstructs position market value at each step.
+// When a main currency is configured, amounts are converted using the FX rate at the step's end date.
 // If no FX rate is available for a step, the delta is used unconverted and AccountBalance.Unconverted is set to true.
 func (store *Store) AccountBalance(ctx context.Context, accountID uint, steps int, startDate, endDate time.Time) ([]AccountBalance, error) {
 
@@ -197,18 +198,88 @@ func (store *Store) AccountBalance(ctx context.Context, accountID uint, steps in
 	if err != nil {
 		return nil, err
 	}
-	accountCurrency := account.Currency.String()
 
-	if steps <= 1 {
-		// handle single result requests
-		return store.accountBalanceSingle(ctx, accountID, accountCurrency, endDate)
-	} else {
-		if startDate.IsZero() {
-			return store.accountBalanceMultipleEmptyStartDate(ctx, accountID, accountCurrency, steps, endDate)
-		} else {
-			return store.accountBalanceMultipleEqualSteps(ctx, accountID, accountCurrency, steps, startDate, endDate)
+	// Investment and restricted-stock accounts: use market-value-based calculation
+	if isInvestmentType(account.Type) {
+		return store.investmentBalanceSteps(ctx, accountID, steps, startDate, endDate)
+	}
+
+	// Cash-like accounts: accumulate balance in original currency, convert total at each step's FX rate
+	accountCurrency := account.Currency.String()
+	return store.cashBalanceSteps(ctx, accountID, accountCurrency, steps, startDate, endDate)
+}
+
+// investmentBalanceSteps calculates market-value-based balance for investment accounts
+// at each step date, using the same step-splitting logic as the cash-flow methods.
+func (store *Store) investmentBalanceSteps(ctx context.Context, accountID uint, steps int, startDate, endDate time.Time) ([]AccountBalance, error) {
+	dates := store.computeStepDates(steps, startDate, endDate)
+
+	results := make([]AccountBalance, len(dates))
+	for i, date := range dates {
+		value, unconverted, err := store.investmentValueAtDate(ctx, accountID, date)
+		if err != nil {
+			return nil, err
+		}
+		results[i] = AccountBalance{
+			Date:        toDate(date),
+			Sum:         value,
+			Unconverted: unconverted,
 		}
 	}
+	return results, nil
+}
+
+// computeStepDates returns the list of step end-dates for a balance report, matching
+// the same logic used by the cash-flow methods.
+func (store *Store) computeStepDates(steps int, startDate, endDate time.Time) []time.Time {
+	if steps <= 1 {
+		return []time.Time{endDate}
+	}
+
+	if startDate.IsZero() {
+		// One step per day, ending at endDate
+		start := toDate(endDate).AddDate(0, 0, -1*(steps-1))
+		stepDuration := time.Hour * 24
+		dates := make([]time.Time, steps)
+		for i := 0; i < steps; i++ {
+			dateFrom := start.Add(time.Duration(i) * stepDuration)
+			dateTo := dateFrom.Add(stepDuration).Add(-time.Nanosecond)
+			if i == steps-1 {
+				dateTo = endOfDay(endDate)
+			}
+			dates[i] = dateTo
+		}
+		return dates
+	}
+
+	// Equal steps between startDate and endDate
+	startDate = toDate(startDate)
+	dates := []time.Time{endOfDay(startDate)}
+
+	advancedStart := startDate.Add(24 * time.Hour)
+	if !endDate.After(advancedStart) {
+		return dates
+	}
+
+	daysInRange := int(endDate.Sub(advancedStart).Hours() / 24)
+	if daysInRange <= 0 {
+		daysInRange = 1
+	}
+	stepCount := steps - 1
+	if stepCount > daysInRange {
+		stepCount = daysInRange
+	}
+	stepDuration := endDate.Sub(advancedStart) / time.Duration(stepCount)
+
+	for i := 0; i < stepCount; i++ {
+		dateFrom := advancedStart.Add(time.Duration(i) * stepDuration)
+		dateTo := dateFrom.Add(stepDuration).Add(-time.Nanosecond)
+		if i == stepCount-1 {
+			dateTo = endOfDay(endDate)
+		}
+		dates = append(dates, dateTo)
+	}
+	return dates
 }
 
 // convertDelta converts a delta amount from accountCurrency to the store's main currency using the FX rate
@@ -226,52 +297,21 @@ func (store *Store) convertDelta(ctx context.Context, delta float64, accountCurr
 	return delta / rec.Rate, false
 }
 
-// accountBalanceSingle internal function used to get a single account balance,
-func (store *Store) accountBalanceSingle(ctx context.Context, accountID uint, accountCurrency string, endDate time.Time) ([]AccountBalance, error) {
+// cashBalanceSteps calculates cash-flow-based balance for cash-like accounts at each step date.
+// At each step it accumulates the raw balance in the account's original currency, then converts
+// the entire balance to main currency using the FX rate at that step's date. This correctly
+// reflects FX movements on the full balance, not just on each delta.
+func (store *Store) cashBalanceSteps(ctx context.Context, accountID uint, accountCurrency string, steps int, startDate, endDate time.Time) ([]AccountBalance, error) {
+	dates := store.computeStepDates(steps, startDate, endDate)
 
-	opts := sumEntriesOpts{
-		startDate:  time.Time{},
-		endDate:    endDate,
-		accountIds: []uint{accountID},
-		entryTypes: balanceEntryTypes,
-	}
-	sum, err := store.sumBalanceEntries(ctx, opts)
-	if err != nil {
-		return nil, err
-	}
-	converted, unconverted := store.convertDelta(ctx, sum.Sum, accountCurrency, endDate)
-	b := AccountBalance{
-		Date:        toDate(endDate),
-		Sum:         converted,
-		Count:       sum.Count,
-		Unconverted: unconverted,
-	}
-	return []AccountBalance{b}, nil
-}
-
-// accountBalanceMultipleEmptyStartDate internal function used to get multiple account balances when no start date is
-// provided, this case the historical data is one day per step
-func (store *Store) accountBalanceMultipleEmptyStartDate(ctx context.Context, accountID uint, accountCurrency string, steps int, endDate time.Time) ([]AccountBalance, error) {
-
-	var prevSum float64
+	var rawBalance float64 // cumulative balance in original currency
 	var results []AccountBalance
+	prevDateTo := time.Time{}
 
-	// calculate start date one based on the number of steps, one per day
-	startDate := toDate(endDate).AddDate(0, 0, -1*(steps-1))
-	stepDuration := time.Hour * 24
-
-	for i := 0; i < steps; i++ {
-		dateFrom := startDate.Add(time.Duration(i) * stepDuration)
-		dateTo := dateFrom.Add(stepDuration).Add(-time.Nanosecond)
-
-		// if first iteration calculate all historical data
+	for i, dateTo := range dates {
+		dateFrom := prevDateTo
 		if i == 0 {
-			dateFrom = time.Time{}
-		}
-
-		//last step ends exactly at endDate
-		if i == steps-1 {
-			dateTo = endOfDay(endDate)
+			dateFrom = time.Time{} // first step: sum all entries from beginning of time
 		}
 
 		opts := sumEntriesOpts{
@@ -285,103 +325,115 @@ func (store *Store) accountBalanceMultipleEmptyStartDate(ctx context.Context, ac
 		if err != nil {
 			return nil, err
 		}
-		converted, unconverted := store.convertDelta(ctx, sum.Sum, accountCurrency, dateTo)
-		prevSum += converted
+
+		rawBalance += sum.Sum // accumulate in original currency
+		// Convert the entire balance at this step's FX rate
+		converted, unconverted := store.convertDelta(ctx, rawBalance, accountCurrency, dateTo)
+
 		results = append(results, AccountBalance{
-			Date:        toDate(dateTo), // remove the microsecond from the report for simplicity
-			Sum:         prevSum,
+			Date:        toDate(dateTo),
+			Sum:         converted,
 			Count:       sum.Count,
 			Unconverted: unconverted,
 		})
+
+		prevDateTo = dateTo
 	}
 
 	return results, nil
 }
 
-// accountBalanceMultipleEqualSteps internal function used to get multiple account balances where N amaunt of
-// steps are returned equialy spread over the time range
-func (store *Store) accountBalanceMultipleEqualSteps(ctx context.Context, accountID uint, accountCurrency string, steps int, startDate, endDate time.Time) ([]AccountBalance, error) {
-	var prevSum float64
-
-	var results []AccountBalance
-	// get the balance at the start time
-	startDate = toDate(startDate)
-	opts := sumEntriesOpts{
-		startDate:  time.Time{},
-		endDate:    endOfDay(startDate), // sum everything up to and including the end of start date
-		accountIds: []uint{accountID},
-		entryTypes: balanceEntryTypes,
+// investmentValueAtDate calculates the total market value of an investment/restricted-stock
+// account at a given date. It reconstructs positions from lots and disposals, then multiplies
+// by the instrument price at that date, converting to main currency.
+// Returns (value, unconverted, error). unconverted is true if any position could not be
+// fully converted (missing price or FX rate).
+func (store *Store) investmentValueAtDate(ctx context.Context, accountID uint, date time.Time) (float64, bool, error) {
+	if store.marketStore == nil {
+		return 0, true, nil
 	}
 
-	sum, err := store.sumBalanceEntries(ctx, opts)
-	if err != nil {
-		return nil, err
-	}
-	converted, unconverted := store.convertDelta(ctx, sum.Sum, accountCurrency, startDate)
-	prevSum = converted
-	results = append(results, AccountBalance{
-		Date:        startDate,
-		Sum:         prevSum,
-		Count:       sum.Count,
-		Unconverted: unconverted,
+	// Get all lots for this account opened on or before the date
+	beforeDate := endOfDay(date)
+	lots, err := store.ListLots(ctx, ListLotsOpts{
+		AccountID:  accountID,
+		BeforeDate: &beforeDate,
 	})
-
-	// modify the start date before starting the iteration
-	startDate = startDate.Add(24 * time.Hour)
-
-	// If endDate is before the advanced startDate the initial point is all we can return
-	if !endDate.After(startDate) {
-		return results, nil
+	if err != nil {
+		return 0, false, fmt.Errorf("failed to list lots: %w", err)
 	}
 
-	// Total daysInRange in the range
-	daysInRange := int(endDate.Sub(startDate).Hours() / 24)
-	if daysInRange <= 0 {
-		daysInRange = 1
+	// For each lot, calculate quantity held at the given date by subtracting disposals
+	// that happened on or before that date.
+	type instrumentPosition struct {
+		quantity float64
 	}
+	positions := make(map[uint]*instrumentPosition) // instrumentID -> position
 
-	// remove the initial step from the counter
-	stepCount := steps - 1
-	// limit the steps up to a max of one per day
-	if stepCount > daysInRange {
-		stepCount = daysInRange
-	}
-	stepDuration := endDate.Sub(startDate) / time.Duration(stepCount)
-
-	//--- Steps 1...N: evenly spaced intervals ---
-	for i := 0; i < stepCount; i++ {
-
-		dateFrom := startDate.Add(time.Duration(i) * stepDuration) // for i = 0 dateFrom = start date
-		dateTo := dateFrom.Add(stepDuration).Add(-time.Nanosecond)
-		//dateFrom = dateFrom.addTask(time.Nanosecond) // avoid complete overlap
-
-		//last step ends exactly at endDate
-		if i == stepCount-1 {
-			dateTo = endOfDay(endDate)
+	for _, lot := range lots {
+		// Skip lots that were fully closed before the target date
+		if lot.ClosedDate != nil && !lot.ClosedDate.After(date) {
+			continue
 		}
 
-		opts = sumEntriesOpts{
-			startDate:  dateFrom,
-			endDate:    dateTo,
-			accountIds: []uint{accountID},
-			entryTypes: balanceEntryTypes,
+		// Get disposals for this lot up to the target date
+		var disposedQty float64
+		var disposals []dbLotDisposal
+		if err := store.db.WithContext(ctx).
+			Where("lot_id = ? AND date <= ?", lot.Id, endOfDay(date)).
+			Find(&disposals).Error; err != nil {
+			return 0, false, fmt.Errorf("failed to query disposals: %w", err)
+		}
+		for _, d := range disposals {
+			disposedQty += d.Quantity
 		}
 
-		sum, err = store.sumBalanceEntries(ctx, opts)
+		qtyAtDate := lot.OriginalQty - disposedQty
+		if qtyAtDate <= 0 {
+			continue
+		}
+
+		pos, ok := positions[lot.InstrumentID]
+		if !ok {
+			pos = &instrumentPosition{}
+			positions[lot.InstrumentID] = pos
+		}
+		pos.quantity += qtyAtDate
+	}
+
+	// Calculate market value for each instrument position
+	var totalValue float64
+	anyUnconverted := false
+
+	for instrumentID, pos := range positions {
+		inst, err := store.marketStore.GetInstrument(ctx, instrumentID)
 		if err != nil {
-			return nil, err
+			anyUnconverted = true
+			continue
 		}
-		converted, unconverted := store.convertDelta(ctx, sum.Sum, accountCurrency, dateTo)
-		prevSum += converted
-		results = append(results, AccountBalance{
-			Date:        toDate(dateTo), // remove the microsecond from the report for simplicity
-			Sum:         prevSum,
-			Count:       sum.Count,
-			Unconverted: unconverted,
-		})
+
+		priceRec, err := store.marketStore.PriceAt(ctx, inst.Symbol, endOfDay(date))
+		if err != nil || priceRec == nil {
+			anyUnconverted = true
+			continue
+		}
+
+		value := pos.quantity * priceRec.Price
+		instCurrency := inst.Currency.String()
+
+		converted, unconverted := store.convertDelta(ctx, value, instCurrency, date)
+		if unconverted {
+			anyUnconverted = true
+		}
+		totalValue += converted
 	}
 
-	return results, nil
+	return totalValue, anyUnconverted, nil
+}
+
+// isInvestmentType returns true for account types that hold positions valued at market price.
+func isInvestmentType(t AccountType) bool {
+	return t == InvestmentAccountType || t == RestrictedStockAccountType
 }
 
 // endOfDay returns a time.Time on the last nanosecond of the day for the provided input time

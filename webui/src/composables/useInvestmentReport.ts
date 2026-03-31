@@ -122,10 +122,21 @@ export function useInvestmentReport() {
                 (l) => l.instrumentId === pos.instrumentId && (l.status === 1 || l.status === 2)
             )
 
+            const now = new Date()
+
             const children: TreeNode[] = openLots.map((lot) => {
                 const marketValue = lot.quantity * (pos.lastPrice ?? 0)
                 const lotGainLoss = marketValue - lot.costBasis
                 const lotGainLossPct = lot.costBasis !== 0 ? (lotGainLoss / lot.costBasis) * 100 : null
+
+                let lotAnnualized: number | null = null
+                if (lot.costBasis > 0) {
+                    const days = Math.max(1, Math.round((now.getTime() - new Date(lot.openDate).getTime()) / (1000 * 60 * 60 * 24)))
+                    const ratio = lotGainLoss / lot.costBasis
+                    if (ratio > -1) {
+                        lotAnnualized = (Math.pow(1 + ratio, 365 / days) - 1) * 100
+                    }
+                }
 
                 return {
                     key: `lot-${lot.id}`,
@@ -143,15 +154,27 @@ export function useInvestmentReport() {
                         costBasis: lot.costBasis,
                         marketValue,
                         lotGainLoss,
-                        lotGainLossPct
+                        lotGainLossPct,
+                        lotAnnualized
                     },
                     leaf: true
                 }
             })
 
+            // Instrument-level annualized: use earliest lot open date
+            let annualized: number | null = null
+            if (pos.investedAmount > 0 && openLots.length > 0) {
+                const earliest = openLots.reduce((min, l) => l.openDate < min ? l.openDate : min, openLots[0].openDate)
+                const days = Math.max(1, Math.round((now.getTime() - new Date(earliest).getTime()) / (1000 * 60 * 60 * 24)))
+                const ratio = pos.winLoss / pos.investedAmount
+                if (ratio > -1) {
+                    annualized = (Math.pow(1 + ratio, 365 / days) - 1) * 100
+                }
+            }
+
             return {
                 key: `instrument-${pos.instrumentId}`,
-                data: { rowType: 'instrument', ...pos },
+                data: { rowType: 'instrument', ...pos, annualized },
                 children,
                 leaf: children.length === 0
             }

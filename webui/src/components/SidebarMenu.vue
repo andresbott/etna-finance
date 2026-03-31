@@ -28,7 +28,7 @@
                     <li v-if="settings.investmentInstruments">
                         <router-link to="/reports/investment" class="menu-item">
                             <i class="ti ti-chart-pie menu-icon"></i>
-                            <span class="menu-label">Open Positions</span>
+                            <span class="menu-label">Investment Portfolio</span>
                         </router-link>
                     </li>
                     <li class="menu-spacer"></li>

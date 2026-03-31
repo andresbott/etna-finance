@@ -125,6 +125,34 @@ func (s *Store) LatestPrice(_ context.Context, symbol string) (*PriceRecord, err
 	}, nil
 }
 
+// PriceAt returns the price record for the given instrument at a specific point in time.
+// It returns the most recent price at or before the given time (last-known-price semantics).
+// Returns nil if no price data exists at or before that time.
+func (s *Store) PriceAt(_ context.Context, symbol string, t time.Time) (*PriceRecord, error) {
+	if symbol == "" {
+		return nil, fmt.Errorf("instrument symbol cannot be empty")
+	}
+
+	rec, err := s.registry.RecordAt(seriesName(symbol), t)
+	if err != nil {
+		errStr := err.Error()
+		if strings.Contains(errStr, "series not found") || strings.Contains(errStr, "record not found") {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get price for %q at %v: %w", symbol, t, err)
+	}
+	if rec == nil {
+		return nil, nil
+	}
+
+	return &PriceRecord{
+		ID:     rec.Id,
+		Symbol: symbol,
+		Time:   rec.Time,
+		Price:  rec.Value,
+	}, nil
+}
+
 // PriceUpdate holds optional fields for a partial price update.
 type PriceUpdate struct {
 	Time  *time.Time

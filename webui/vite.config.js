@@ -20,7 +20,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/auth': { // This is the path you want to proxy
-        target: 'http://localhost:8085',
+        target: 'http://localhost:8086',
         changeOrigin: true,
         secure: false, // if you are using an HTTPS API, set this to true
         // Configure how cookies and headers should be handled
@@ -30,7 +30,7 @@ export default defineConfig({
         }
       },
       '/api': { // This is the path you want to proxy
-        target: 'http://localhost:8085',
+        target: 'http://localhost:8086',
         changeOrigin: true,
         secure: false, // if you are using an HTTPS API, set this to true
         // Configure how cookies and headers should be handled

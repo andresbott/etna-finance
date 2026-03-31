@@ -1,10 +1,12 @@
 package accounting
 
 import (
+	"context"
 	"sort"
 	"testing"
 	"time"
 
+	"github.com/andresbott/etna/internal/marketdata"
 	"github.com/go-bumbu/testdbs"
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/text/currency"
@@ -561,4 +563,298 @@ var balanceSampleDataProgression = map[int]Transaction{
 	401: Income{Description: "i1_acc4", Date: getDateTime("2024-01-01 00:20:00"), Amount: 100, AccountID: 4},
 	402: Expense{Description: "e1_acc4", Date: getDateTime("2024-01-02 00:00:00"), Amount: 10, AccountID: 4},
 	403: Expense{Description: "e1_acc4", Date: getDateTime("2024-01-03 00:00:00"), Amount: 5, AccountID: 4},
+}
+
+// setupInvestmentBalanceTest creates a broker with an investment account, buys stock, and ingests prices.
+func setupInvestmentBalanceTest(t *testing.T, ctx context.Context, store *Store, mktStore *marketdata.Store) (investmentAccountID, cashAccountID uint) {
+	t.Helper()
+
+	providerID, err := store.CreateAccountProvider(ctx, AccountProvider{Name: "Broker"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	investmentAccountID, err = store.CreateAccount(ctx, Account{
+		AccountProviderID: providerID,
+		Name:              "Investments",
+		Currency:          currency.USD,
+		Type:              InvestmentAccountType,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cashAccountID, err = store.CreateAccount(ctx, Account{
+		AccountProviderID: providerID,
+		Name:              "Cash",
+		Currency:          currency.USD,
+		Type:              CheckinAccountType,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	instrumentID, err := mktStore.CreateInstrument(ctx, marketdata.Instrument{
+		Symbol:   "TEST",
+		Name:     "Test Corp",
+		Currency: currency.USD,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Buy 10 shares at $100 on Jan 15 (total $1000)
+	_, err = store.CreateTransaction(ctx, StockBuy{
+		Description:         "buy TEST",
+		Date:                getDateTime("2025-01-15 10:00:00"),
+		Quantity:            10,
+		TotalAmount:         1000,
+		StockAmount:         1000,
+		InstrumentID:        instrumentID,
+		InvestmentAccountID: investmentAccountID,
+		CashAccountID:       cashAccountID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Ingest prices: $100 on Jan 15, $120 on Feb 1, $150 on Mar 1
+	for _, pp := range []struct {
+		date  string
+		price float64
+	}{
+		{"2025-01-15", 100},
+		{"2025-02-01", 120},
+		{"2025-03-01", 150},
+	} {
+		if err := mktStore.IngestPrice(ctx, "TEST", getDate(pp.date), pp.price); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	return investmentAccountID, cashAccountID
+}
+
+func TestAccountBalance_InvestmentMarketValue(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			dbCon := db.ConnDbName("TestInvBalance")
+			store, mktStore := newAccountingStoreWithMarketData(t, dbCon)
+			ctx := t.Context()
+
+			investmentAccountID, _ := setupInvestmentBalanceTest(t, ctx, store, mktStore)
+
+			t.Run("single step returns market value at date", func(t *testing.T) {
+				got, err := store.AccountBalance(ctx, investmentAccountID, 1, time.Time{}, getDate("2025-03-01"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(got) != 1 {
+					t.Fatalf("expected 1 result, got %d", len(got))
+				}
+				// 10 shares × $150 = $1500 (same currency, no FX conversion)
+				want := 1500.0
+				if got[0].Sum != want {
+					t.Errorf("got Sum=%v, want %v", got[0].Sum, want)
+				}
+			})
+
+			t.Run("multiple steps show value evolution", func(t *testing.T) {
+				// Use dates aligned with price ingestion points
+				got, err := store.AccountBalance(ctx, investmentAccountID, 3, getDate("2025-01-01"), getDate("2025-03-01"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(got) != 3 {
+					t.Fatalf("expected 3 results, got %d", len(got))
+				}
+				// Step 1 (Jan 1): no shares yet (bought Jan 15), value = 0
+				if got[0].Sum != 0 {
+					t.Errorf("step 0: got Sum=%v, want 0", got[0].Sum)
+				}
+				// Step 2 (~Jan 31): 10 shares, last known price is Jan 15 = $100 → $1000
+				if got[1].Sum != 1000 {
+					t.Errorf("step 1: got Sum=%v, want 1000", got[1].Sum)
+				}
+				// Step 3 (Mar 1): 10 shares, price at Mar 1 = $150 → $1500
+				if got[2].Sum != 1500 {
+					t.Errorf("step 2: got Sum=%v, want 1500", got[2].Sum)
+				}
+			})
+
+			t.Run("before any purchase returns zero", func(t *testing.T) {
+				got, err := store.AccountBalance(ctx, investmentAccountID, 0, time.Time{}, getDate("2025-01-01"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got[0].Sum != 0 {
+					t.Errorf("got Sum=%v, want 0", got[0].Sum)
+				}
+			})
+		})
+	}
+}
+
+func TestAccountBalance_InvestmentWithFX(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			dbCon := db.ConnDbName("TestInvBalanceFX")
+			store, mktStore := newAccountingStoreWithMarketData(t, dbCon)
+			ctx := t.Context()
+
+			// Set main currency to CHF; instrument is in USD
+			store.mainCurrency = "CHF"
+
+			investmentAccountID, _ := setupInvestmentBalanceTest(t, ctx, store, mktStore)
+
+			// Ingest CHF/USD FX rate: 0.90 (1 CHF = 0.90 USD, so $1 = 1/0.90 CHF)
+			if err := mktStore.IngestRate(ctx, "CHF", "USD", getDate("2025-01-01"), 0.90); err != nil {
+				t.Fatal(err)
+			}
+			if err := mktStore.IngestRate(ctx, "CHF", "USD", getDate("2025-03-01"), 0.85); err != nil {
+				t.Fatal(err)
+			}
+
+			t.Run("investment value converted via FX", func(t *testing.T) {
+				got, err := store.AccountBalance(ctx, investmentAccountID, 1, time.Time{}, getDate("2025-03-01"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				// 10 shares × $150 = $1500 USD / 0.85 rate = 1764.71 CHF
+				want := 1500.0 / 0.85
+				if diff := got[0].Sum - want; diff > 0.01 || diff < -0.01 {
+					t.Errorf("got Sum=%v, want ~%v", got[0].Sum, want)
+				}
+				if got[0].Unconverted {
+					t.Error("expected Unconverted=false")
+				}
+			})
+		})
+	}
+}
+
+func TestAccountBalance_CashWithFX(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			dbCon := db.ConnDbName("TestCashBalanceFX")
+			store, mktStore := newAccountingStoreWithMarketData(t, dbCon)
+			ctx := t.Context()
+
+			store.mainCurrency = "CHF"
+
+			providerID, err := store.CreateAccountProvider(ctx, AccountProvider{Name: "Bank"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			accountID, err := store.CreateAccount(ctx, Account{
+				AccountProviderID: providerID,
+				Name:              "USD Savings",
+				Currency:          currency.USD,
+				Type:              SavingsAccountType,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Deposit $1000 on Jan 15
+			_, err = store.CreateTransaction(ctx, Income{
+				Description: "salary",
+				Date:        getDateTime("2025-01-15 10:00:00"),
+				Amount:      1000,
+				AccountID:   accountID,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// FX rates: Jan = 0.90, Mar = 0.85
+			if err := mktStore.IngestRate(ctx, "CHF", "USD", getDate("2025-01-01"), 0.90); err != nil {
+				t.Fatal(err)
+			}
+			if err := mktStore.IngestRate(ctx, "CHF", "USD", getDate("2025-03-01"), 0.85); err != nil {
+				t.Fatal(err)
+			}
+
+			t.Run("cash balance uses current FX rate on full balance", func(t *testing.T) {
+				got, err := store.AccountBalance(ctx, accountID, 1, time.Time{}, getDate("2025-03-01"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				// $1000 / 0.85 = 1176.47 CHF (converted at Mar rate, not Jan rate)
+				want := 1000.0 / 0.85
+				if diff := got[0].Sum - want; diff > 0.01 || diff < -0.01 {
+					t.Errorf("got Sum=%v, want ~%v", got[0].Sum, want)
+				}
+			})
+
+			t.Run("multi-step reflects FX changes on full balance", func(t *testing.T) {
+				got, err := store.AccountBalance(ctx, accountID, 2, getDate("2025-01-20"), getDate("2025-03-01"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(got) != 2 {
+					t.Fatalf("expected 2 results, got %d", len(got))
+				}
+				// Step 1 (Jan 20): $1000 / 0.90 = 1111.11 CHF
+				wantJan := 1000.0 / 0.90
+				if diff := got[0].Sum - wantJan; diff > 0.01 || diff < -0.01 {
+					t.Errorf("step 0: got Sum=%v, want ~%v", got[0].Sum, wantJan)
+				}
+				// Step 2 (Mar 1): $1000 / 0.85 = 1176.47 CHF
+				wantMar := 1000.0 / 0.85
+				if diff := got[1].Sum - wantMar; diff > 0.01 || diff < -0.01 {
+					t.Errorf("step 1: got Sum=%v, want ~%v", got[1].Sum, wantMar)
+				}
+			})
+		})
+	}
+}
+
+func TestAccountBalance_InvestmentAfterPartialSell(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			dbCon := db.ConnDbName("TestInvPartialSell")
+			store, mktStore := newAccountingStoreWithMarketData(t, dbCon)
+			ctx := t.Context()
+
+			investmentAccountID, cashAccountID := setupInvestmentBalanceTest(t, ctx, store, mktStore)
+
+			// Sell 4 shares on Feb 15 at $120 each
+			_, err := store.CreateTransaction(ctx, StockSell{
+				Description:         "sell TEST",
+				Date:                getDateTime("2025-02-15 10:00:00"),
+				Quantity:            4,
+				PricePerShare:       120,
+				TotalAmount:         480,
+				InstrumentID:        1, // TEST instrument
+				InvestmentAccountID: investmentAccountID,
+				CashAccountID:       cashAccountID,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			t.Run("value reflects remaining shares after sell", func(t *testing.T) {
+				got, err := store.AccountBalance(ctx, investmentAccountID, 1, time.Time{}, getDate("2025-03-01"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				// 6 remaining shares × $150 = $900
+				want := 900.0
+				if got[0].Sum != want {
+					t.Errorf("got Sum=%v, want %v", got[0].Sum, want)
+				}
+			})
+
+			t.Run("value before sell shows all shares", func(t *testing.T) {
+				got, err := store.AccountBalance(ctx, investmentAccountID, 1, time.Time{}, getDate("2025-02-01"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				// 10 shares × $120 = $1200
+				want := 1200.0
+				if got[0].Sum != want {
+					t.Errorf("got Sum=%v, want %v", got[0].Sum, want)
+				}
+			})
+		})
+	}
 }

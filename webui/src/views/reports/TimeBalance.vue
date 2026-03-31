@@ -14,6 +14,8 @@ import {
     DataZoomComponent
 } from 'echarts/components'
 import { useAccounts } from '@/composables/useAccounts'
+import { ACCOUNT_TYPES } from '@/types/account'
+import { useAccountTypesData } from '@/composables/useAccountTypesData'
 import { useBalance } from '@/composables/useGetBalanceReport'
 import { formatAmount } from '@/utils/currency'
 import { formatPct, getChangeSeverity } from '@/utils/format'
@@ -76,33 +78,48 @@ const providerData = computed(() => {
                 unconverted: accountReports.some((a) => a.reportData[i]?.unconverted)
             }))
 
-            // Check if provider has any non-restricted-stock accounts
-            const hasVestedAccounts = provider.accounts.some((a) => a.type !== 'restrictedstock')
-
             return {
                 id: provider.id,
                 name: provider.name,
                 icon: provider.icon,
-                reportData,
-                hasVestedAccounts
+                reportData
             }
         })
         .filter(Boolean)
 })
 
-// Total stats for the price-row header
+// Account types excluded from the total (not liquid / not accessible)
+const excludedFromTotal = new Set([ACCOUNT_TYPES.RESTRICTED_STOCK, ACCOUNT_TYPES.PREPAID_EXPENSE])
+
+// Per-account report data for the total line (excluding restricted stock & prepaid)
+const totalAccountReports = computed(() => {
+    if (!balanceReport.value || !accounts.value) return []
+    const reports = []
+    for (const provider of accounts.value) {
+        for (const account of provider.accounts ?? []) {
+            if (excludedFromTotal.has(account.type)) continue
+            const reportData = balanceReport.value?.accounts?.[account.id]
+            if (reportData) reports.push(reportData)
+        }
+    }
+    return reports
+})
+
+// Use the same data source as AccountTypesList for the header total
+const { accountsByType, totalInMainCurrency } = useAccountTypesData()
+
 const totalCurrentValue = computed(() => {
-    const vestedProviders = providerData.value.filter((p) => p.hasVestedAccounts)
-    if (vestedProviders.length === 0) return null
-    const lastIndex = vestedProviders[0]?.reportData?.length - 1
-    if (lastIndex == null || lastIndex < 0) return null
-    return vestedProviders.reduce((sum, p) => sum + (p.reportData[lastIndex]?.sum || 0), 0)
+    const rows = accountsByType.value ?? []
+    if (rows.length === 0) return null
+    return rows
+        .filter((row) => !excludedFromTotal.has(row.type))
+        .reduce((sum, row) => sum + totalInMainCurrency(row), 0)
 })
 
 const totalFirstValue = computed(() => {
-    const vestedProviders = providerData.value.filter((p) => p.hasVestedAccounts)
-    if (vestedProviders.length === 0) return null
-    return vestedProviders.reduce((sum, p) => sum + (p.reportData[0]?.sum || 0), 0)
+    const reports = totalAccountReports.value
+    if (reports.length === 0) return null
+    return reports.reduce((sum, r) => sum + (r[0]?.sum || 0), 0)
 })
 
 const totalChange = computed(() => {
@@ -157,10 +174,10 @@ const chartOption = computed(() => {
             yAxisIndex: 0
         })) || []
 
-    // Sum of all providers with vested accounts per date point
-    const vestedProviders = providerData.value?.filter((p) => p.hasVestedAccounts) || []
+    // Sum of accounts excluding restricted stock & prepaid per date point
+    const reports = totalAccountReports.value
     const totalData = labels.map((_, i) =>
-        vestedProviders.reduce((sum, p) => sum + (p.reportData[i]?.sum || 0), 0)
+        reports.reduce((sum, r) => sum + (r[i]?.sum || 0), 0)
     )
 
     series.push({

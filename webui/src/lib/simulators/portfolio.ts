@@ -21,20 +21,22 @@ export interface PortfolioProjection {
 }
 
 export function computePortfolioExpectedReturn(params: PortfolioSimulatorParams): number {
+    const duration = params.durationYears ?? DEFAULT_DURATION_YEARS
     const effectiveReturn = (params.growthRatePct ?? 0) - (params.expenseRatioPct ?? 0)
     const taxRate = (params.capitalGainTaxPct ?? 0) / 100
     const taxModel = params.taxModel ?? 'exit'
 
     const estimatedTaxDrag = taxModel === 'exit'
-        ? taxRate * effectiveReturn / DEFAULT_DURATION_YEARS
+        ? taxRate * effectiveReturn / duration
         : taxRate * effectiveReturn
 
     return effectiveReturn - estimatedTaxDrag
 }
 
-export function computePortfolioProjection(params: PortfolioSimulatorParams, durationYears: number = DEFAULT_DURATION_YEARS): PortfolioProjection {
-    const duration = Math.min(Math.max(1, durationYears), MAX_DURATION_YEARS)
+export function computePortfolioProjection(params: PortfolioSimulatorParams, durationYears?: number): PortfolioProjection {
+    const duration = Math.min(Math.max(1, durationYears ?? params.durationYears ?? DEFAULT_DURATION_YEARS), MAX_DURATION_YEARS)
     const initial = params.initialContribution ?? 0
+    const monthly = params.monthlyContribution ?? 0
     const growthPct = params.growthRatePct ?? 0
     const expensePct = params.expenseRatioPct ?? 0
     const taxPct = params.capitalGainTaxPct ?? 0
@@ -43,7 +45,7 @@ export function computePortfolioProjection(params: PortfolioSimulatorParams, dur
     const effectiveReturn = growthPct - expensePct
     const taxRate = taxPct / 100
 
-    if (initial === 0) {
+    if (initial === 0 && monthly === 0) {
         const zeros = Array(duration + 1).fill(0)
         return {
             years: Array.from({ length: duration + 1 }, (_, i) => i),
@@ -66,19 +68,22 @@ export function computePortfolioProjection(params: PortfolioSimulatorParams, dur
     const yearLabels: number[] = [0]
     const balances: number[] = [initial]
     const cumulativeTaxes: number[] = [0]
+    const totalInvestedArr: number[] = [initial]
 
     let balance = initial
     let cumulativeTax = 0
+    let totalInvested = initial
 
     for (let y = 1; y <= duration; y++) {
         const balanceStartOfYear = balance
 
         for (let m = 0; m < 12; m++) {
-            balance = balance * (1 + monthlyRate)
+            balance = balance * (1 + monthlyRate) + monthly
+            totalInvested += monthly
         }
 
         if (taxModel === 'annual') {
-            const yearGain = balance - balanceStartOfYear
+            const yearGain = balance - balanceStartOfYear - (monthly * 12)
             if (yearGain > 0) {
                 const tax = yearGain * taxRate
                 cumulativeTax += tax
@@ -89,12 +94,13 @@ export function computePortfolioProjection(params: PortfolioSimulatorParams, dur
         yearLabels.push(y)
         balances.push(balance)
         cumulativeTaxes.push(cumulativeTax)
+        totalInvestedArr.push(totalInvested)
     }
 
     let finalValueBeforeTax = balance
     let finalValueAfterTax = balance
     if (taxModel === 'exit') {
-        const totalGains = balance - initial
+        const totalGains = balance - totalInvested
         if (totalGains > 0) {
             const exitTax = totalGains * taxRate
             cumulativeTax = exitTax
@@ -109,22 +115,21 @@ export function computePortfolioProjection(params: PortfolioSimulatorParams, dur
 
     const totalTaxPaid = cumulativeTax
 
-    const totalInvestedSeries = Array(duration + 1).fill(initial)
     const netWorthSeries = balances
     const taxImpactSeries = cumulativeTaxes
     const totalGainsSeries = yearLabels.map((_, i) =>
-        netWorthSeries[i] + cumulativeTaxes[i] - initial
+        netWorthSeries[i] + cumulativeTaxes[i] - totalInvestedArr[i]
     )
 
     return {
         years: yearLabels,
-        totalContributions: initial,
+        totalContributions: totalInvested,
         finalValueBeforeTax,
         finalValueAfterTax,
-        totalGain: finalValueAfterTax + totalTaxPaid - initial,
+        totalGain: finalValueAfterTax + totalTaxPaid - totalInvested,
         taxPaid: totalTaxPaid,
         series: {
-            totalInvested: totalInvestedSeries,
+            totalInvested: totalInvestedArr,
             netWorth: netWorthSeries,
             totalGains: totalGainsSeries,
             taxImpact: taxImpactSeries,
