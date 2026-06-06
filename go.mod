@@ -7,7 +7,7 @@ require (
 	github.com/glebarez/sqlite v1.11.0
 	github.com/go-bumbu/closure-tree v0.9.0
 	github.com/go-bumbu/config v0.4.0
-	github.com/go-bumbu/http v0.3.1
+	github.com/go-bumbu/http v0.5.1
 	github.com/go-bumbu/tempo v0.2.0
 	github.com/go-bumbu/testdbs v0.2.3
 	github.com/go-bumbu/timeseries v0.1.2
@@ -116,7 +116,6 @@ require (
 	golang.org/x/crypto v0.49.0 // indirect
 	golang.org/x/net v0.52.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
-	golang.org/x/tools v0.42.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/mysql v1.5.7 // indirect

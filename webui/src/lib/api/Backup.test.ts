@@ -4,7 +4,6 @@ import {
     getBackupFiles,
     deleteBackupFile,
     downloadBackupFile,
-    createBackup,
     restoreBackup,
     restoreBackupFromExisting,
     type BackupFile,
@@ -24,12 +23,14 @@ const mockBackupFile: BackupFile = {
     id: 'backup-001',
     filename: 'backup-2026-03-10.db',
     size: 1024,
+    modified: '2026-03-10T12:00:00Z',
 }
 
 const mockBackupFile2: BackupFile = {
     id: 'backup-002',
     filename: 'backup-2026-03-09.db',
     size: 2048,
+    modified: '2026-03-09T12:00:00Z',
 }
 
 describe('getBackupFiles', () => {
@@ -167,31 +168,6 @@ describe('downloadBackupFile', () => {
         expect(apiClient.get).toHaveBeenCalledWith('/backup/xyz-789', {
             responseType: 'blob',
         })
-    })
-})
-
-describe('createBackup', () => {
-    it('calls POST /backup', async () => {
-        (apiClient.post as Mock).mockResolvedValue({})
-
-        await createBackup()
-
-        expect(apiClient.post).toHaveBeenCalledWith('/backup')
-        expect(apiClient.post).toHaveBeenCalledTimes(1)
-    })
-
-    it('returns void', async () => {
-        (apiClient.post as Mock).mockResolvedValue({})
-
-        const result = await createBackup()
-
-        expect(result).toBeUndefined()
-    })
-
-    it('propagates API errors', async () => {
-        (apiClient.post as Mock).mockRejectedValue(new Error('Server error'));
-
-        await expect(createBackup()).rejects.toThrow('Server error')
     })
 })
 

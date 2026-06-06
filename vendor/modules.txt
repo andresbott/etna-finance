@@ -104,7 +104,7 @@ github.com/go-bumbu/closure-tree
 # github.com/go-bumbu/config v0.4.0
 ## explicit; go 1.22.3
 github.com/go-bumbu/config
-# github.com/go-bumbu/http v0.3.1
+# github.com/go-bumbu/http v0.5.1
 ## explicit; go 1.22.3
 github.com/go-bumbu/http/handlers/spa
 github.com/go-bumbu/http/lib/limitio
@@ -483,8 +483,6 @@ golang.org/x/text/transform
 golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
 golang.org/x/text/width
-# golang.org/x/tools v0.42.0
-## explicit; go 1.24.0
 # google.golang.org/protobuf v1.36.11
 ## explicit; go 1.23
 google.golang.org/protobuf/encoding/protodelim

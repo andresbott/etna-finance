@@ -100,11 +100,15 @@ func New(cfg Cfg) (*MainAppHandler, error) {
 	app.marketStore = cfg.MarketStore
 	app.finStore = cfg.FinStore
 
+	promHisto, err := middleware.NewPromHistogram("", nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create prometheus histogram: %w", err)
+	}
 	prodMid := middleware.New(middleware.Cfg{
 		JsonErrors:  true,
 		GenericErrs: false,
 		Logger:      cfg.Logger,
-		PromHisto:   middleware.NewPromHistogram("", nil, nil),
+		PromHisto:   promHisto,
 	})
 	r.Use(prodMid.Middleware)
 

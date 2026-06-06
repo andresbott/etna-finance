@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import Card from 'primevue/card'
 import Button from 'primevue/button'
 import Message from 'primevue/message'
@@ -9,6 +9,10 @@ import Dialog from 'primevue/dialog'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import FileInput from '@/components/common/FileInput.vue'
 import { useBackups } from '@/composables/useBackups'
+import { useBackupTask } from '@/composables/useBackupTask'
+import { useDateFormat } from '@/composables/useDateFormat'
+
+const { formatDateTime } = useDateFormat()
 
 const successMessage = ref('')
 const errorMessage = ref('')
@@ -23,28 +27,37 @@ const selectedFile = ref(null)
 const {
     backupFiles,
     isLoading,
-    createBackup,
     deleteBackup,
     downloadBackup,
     restoreBackup,
     restoreBackupFromExisting,
-    isCreating,
     isDeleting,
     isDownloading,
     isRestoring
 } = useBackups()
 
+const { runBackup, isBackupRunning, isTriggering, lastBackupStatus } = useBackupTask()
+
 const handleBackup = async () => {
     successMessage.value = ''
     errorMessage.value = ''
-    
+
     try {
-        await createBackup()
-        successMessage.value = 'Backup created successfully!'
+        // Resolves when the task is accepted (202); completion is handled by the watcher below.
+        await runBackup()
     } catch (error) {
-        errorMessage.value = 'Failed to create backup: ' + error.message
+        errorMessage.value = 'Failed to start backup: ' + error.message
     }
 }
+
+// The backup runs in the background; surface the outcome when it finishes.
+watch(lastBackupStatus, (status) => {
+    if (status === 'complete') {
+        successMessage.value = 'Backup created successfully!'
+    } else if (status === 'failed' || status === 'panicked') {
+        errorMessage.value = 'Backup failed. Check the Tasks page for details.'
+    }
+})
 
 const openUploadRestoreDialog = () => {
     selectedFile.value = null
@@ -134,15 +147,15 @@ const formatFileSize = (bytes) => {
                     label="Create Backup"
                     icon="ti ti-download"
                     @click="handleBackup"
-                    :loading="isCreating"
-                    :disabled="isRestoring"
+                    :loading="isTriggering || isBackupRunning"
+                    :disabled="isRestoring || isTriggering || isBackupRunning"
                 />
                 <Button
                     label="Upload & Restore"
                     icon="ti ti-upload"
                     severity="secondary"
                     @click="openUploadRestoreDialog"
-                    :disabled="isCreating || isRestoring"
+                    :disabled="isTriggering || isBackupRunning || isRestoring"
                 />
             </div>
         </div>
@@ -163,6 +176,8 @@ const formatFileSize = (bytes) => {
                                 :value="backupFiles"
                                 :loading="isLoading"
                                 stripedRows
+                                sortField="modified"
+                                :sortOrder="-1"
                                 :paginator="backupFiles && backupFiles.length > 10"
                                 :rows="10"
                                 responsiveLayout="scroll"
@@ -180,12 +195,18 @@ const formatFileSize = (bytes) => {
                                     </template>
                                 </Column>
                                 
+                                <Column field="modified" header="Date" :sortable="true" headerStyle="width: 180px">
+                                    <template #body="{ data }">
+                                        {{ formatDateTime(data.modified) }}
+                                    </template>
+                                </Column>
+
                                 <Column field="size" header="Size" :sortable="true" headerStyle="width: 120px">
                                     <template #body="{ data }">
                                         {{ formatFileSize(data.size) }}
                                     </template>
                                 </Column>
-                                
+
                                 <Column header="Actions" :exportable="false" headerStyle="width: 200px; text-align: center" bodyStyle="text-align: center">
                                     <template #body="{ data }">
                                         <Button

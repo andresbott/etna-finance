@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -33,9 +34,10 @@ type Handler struct {
 }
 
 type listPayload struct {
-	Id       string `json:"id"`
-	Filename string `json:"filename"`
-	Size     int64  `json:"size"`
+	Id       string    `json:"id"`
+	Filename string    `json:"filename"`
+	Size     int64     `json:"size"`
+	Modified time.Time `json:"modified"`
 }
 type listResponse struct {
 	Files []listPayload `json:"files"`
@@ -58,20 +60,27 @@ func (h *Handler) List() http.Handler {
 		payloads := []listPayload{} // init empty for proper response
 		for _, f := range files {
 			if !f.IsDir() && strings.HasSuffix(strings.ToLower(f.Name()), ".zip") {
-				fullPath := filepath.Join(absPath, f.Name())
-				finfo, err := os.Stat(fullPath)
+				finfo, err := f.Info()
 				if err != nil {
 					http.Error(w, fmt.Sprintf("failed to read file: %v", err), http.StatusInternalServerError)
 					return
 				}
-
 				payloads = append(payloads, listPayload{
 					Id:       hashFilename(f.Name()),
 					Filename: f.Name(),
 					Size:     finfo.Size(),
+					Modified: finfo.ModTime(),
 				})
 			}
 		}
+
+		// Newest first; tie-break by filename for deterministic ordering.
+		sort.Slice(payloads, func(i, j int) bool {
+			if !payloads[i].Modified.Equal(payloads[j].Modified) {
+				return payloads[i].Modified.After(payloads[j].Modified)
+			}
+			return payloads[i].Filename < payloads[j].Filename
+		})
 
 		resp := listResponse{Files: payloads}
 
@@ -161,36 +170,6 @@ func (h *Handler) Delete(id string) http.Handler {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-	})
-}
-
-func (h *Handler) CreateBackup() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		absPath, err := filepath.Abs(h.Destination)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("failed to resolve destination: %v", err), http.StatusInternalServerError)
-			return
-		}
-
-		now := time.Now().Format("2006-01-02_15-04")
-		backupFile := filepath.Join(absPath, fmt.Sprintf("backup-%s.zip", now))
-
-		// Create the backup file
-		err = backup.ExportToFile(r.Context(), h.Store, h.MdStore, h.CsvStore, h.FileStore, h.ToolsDataStore, h.ScheduleStore, backupFile)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("failed to create backup: %v", err), http.StatusInternalServerError)
-			return
-		}
-
-		// Respond with the created file name
-		w.Header().Set("Content-Type", "application/json")
-		resp := map[string]string{
-			"file": backupFile,
-		}
-		if err := json.NewEncoder(w).Encode(resp); err != nil {
-			http.Error(w, fmt.Sprintf("failed to encode response: %v", err), http.StatusInternalServerError)
-			return
-		}
 	})
 }
 

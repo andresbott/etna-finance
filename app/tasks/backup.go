@@ -29,6 +29,12 @@ var BackupTaskDef = TaskDef{
 	Description: "Export accounting and financial data to a ZIP file.",
 }
 
+// backupFileName returns the on-disk name for a backup created at t.
+// Second precision avoids two backups in the same minute overwriting each other.
+func backupFileName(t time.Time) string {
+	return fmt.Sprintf("etna-finance-backup-%s.zip", t.Format("2006-01-02_15-04-05"))
+}
+
 // BackupTaskCfg holds the configuration for the scheduled backup task.
 type BackupTaskCfg struct {
 	// Store is the accounting store to export data from.
@@ -57,8 +63,7 @@ func NewBackupTaskFn(store *accounting.Store, mdStore *marketdata.Store, csvStor
 
 func newBackupFunc(store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, fileStore *filestore.Store, tdStore *toolsdata.Store, schStore *taskrunner.ScheduleStore, destination string, l *slog.Logger) func(ctx context.Context) error {
 	return func(ctx context.Context) error {
-		now := time.Now().Format("2006-01-02_15-04")
-		zipFile := filepath.Join(destination, fmt.Sprintf("backup-%s.zip", now))
+		zipFile := filepath.Join(destination, backupFileName(time.Now()))
 
 		l.Info("starting backup",
 			slog.String("component", "tasks"),
