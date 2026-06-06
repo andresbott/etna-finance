@@ -63,7 +63,7 @@ const isInstrumentAccount = computed(
 const emit = defineEmits(['edit', 'duplicate', 'delete', 'page'])
 
 /* --- Utils --- */
-const { getCategoryName, getCategoryPath, getCategoryIcon } = useCategoryUtils()
+const { getCategoryName, getCategoryIcon } = useCategoryUtils()
 const { getAccountCurrency, getAccountName } = useAccountUtils()
 const { instruments: instrumentsData } = useInstruments()
 const { formatDate } = useDateFormat()

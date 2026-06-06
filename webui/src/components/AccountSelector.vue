@@ -101,26 +101,6 @@ const expandedKeys = computed(() => {
 // -----------------------------------------------------------------------------
 // Helper Functions
 // -----------------------------------------------------------------------------
-// Extract first item from array if needed
-const unwrapNode = (val) => (Array.isArray(val) ? val[0] : val)
-
-// Format display label for selected account
-const formatSelectedLabel = (val) => {
-    if (!val || (Array.isArray(val) && val.length === 0)) {
-        return props.placeholder
-    }
-
-    const node = unwrapNode(val)
-    if (!node) return props.placeholder
-
-    // Handle both direct selection and object with provider/label
-    if (node.provider && node.label) {
-        return `${node.provider}/${node.label}`
-    }
-
-    return props.placeholder
-}
-
 // Function to convert between the numeric ID and the {id: true} format
 const convertToFormFormat = (accountId) => {
     if (accountId === null || accountId === undefined) return null

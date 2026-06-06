@@ -399,20 +399,6 @@ async function handleSave() {
     }
 }
 
-async function handleEditSave() {
-    if (props.caseId <= 0) return
-    try {
-        await updateCase(TOOL_TYPE, props.caseId, {
-            name: activeCaseName.value,
-            description: activeCaseDescription.value,
-        })
-        showEditDialog.value = false
-        toast.add({ severity: 'success', summary: 'Saved', life: 2000 })
-    } catch (e) {
-        console.error('Edit save failed:', e)
-    }
-}
-
 onMounted(async () => {
     if (props.caseId > 0) {
         try {

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { ref } from 'vue'
 import { renderComposable, createTestQueryClient } from '@/test/helpers'
 import type { TaskWithSchedule, ExecutionInfo } from '@/lib/api/Tasks'
@@ -20,7 +20,7 @@ vi.mock('primevue/usetoast', () => ({
 
 import { listTasks, listExecutions } from '../lib/api/Tasks'
 import { useTasks, useTaskExecutions, EXECUTION_STATUS, TASK_STATUS } from './useTasks'
-import type { Task, TaskExecution } from './useTasks'
+import type { TaskExecution } from './useTasks'
 
 const mockListTasks = listTasks as ReturnType<typeof vi.fn>
 const mockListExecutions = listExecutions as ReturnType<typeof vi.fn>

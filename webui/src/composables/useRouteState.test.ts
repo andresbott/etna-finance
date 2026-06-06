@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { ref, reactive, nextTick, effectScope } from 'vue'
+import { reactive, nextTick, effectScope } from 'vue'
 import { flushPromises } from '@vue/test-utils'
 import { useRouteState } from './useRouteState'
 

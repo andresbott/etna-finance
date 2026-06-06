@@ -2,8 +2,8 @@
 
 import { onMounted, onUnmounted } from 'vue'
 import { VerticalLayout } from '@go-bumbu/vue-layouts'
-import Topbar from './views/topbar.vue'
-import Footer from './views/parts/Footer.vue'
+import Topbar from './views/TopBar.vue'
+import Footer from './views/parts/AppFooter.vue'
 import SidebarMenu from './components/SidebarMenu.vue'
 import { useUiStore } from '@/store/uiStore.js'
 import { useUserStore } from '@/store/userStore'

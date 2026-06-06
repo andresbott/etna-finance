@@ -183,9 +183,6 @@ const addTotalNode = (nodes) => {
 const incomeTableDataWithTotal = computed(() => addTotalNode(incomeTableData.value))
 const expenseTableDataWithTotal = computed(() => addTotalNode(expenseTableData.value))
 
-const incomeTotals = computed(() => calculateTotals(incomeTableData.value))
-const expenseTotals = computed(() => calculateTotals(expenseTableData.value))
-
 const toggleIncomeVisibility = () => {
     const allKeys = expandAllNodes(incomeTableDataWithTotal.value)
     const hasAllExpanded = Object.keys(expandedIncomeKeys.value).length === Object.keys(allKeys).length

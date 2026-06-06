@@ -22,8 +22,7 @@ import {
     getFormattedAccountId,
     getDateOnly,
     extractAccountId,
-    toDateString,
-    getSubmitValues
+    toDateString
 } from '@/composables/useEntryDialogForm'
 import { accountValidation } from '@/utils/entryValidation'
 import { getApiErrorMessage } from '@/utils/apiError'

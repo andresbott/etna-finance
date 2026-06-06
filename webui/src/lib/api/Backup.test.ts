@@ -204,7 +204,7 @@ describe('restoreBackup', () => {
 
         expect(apiClient.post).toHaveBeenCalledTimes(1)
 
-        const [url, formData, config] = (apiClient.post as Mock).mock.calls[0]
+        const [url, formData] = (apiClient.post as Mock).mock.calls[0]
         expect(url).toBe('/restore')
         expect(formData).toBeInstanceOf(FormData)
         expect(formData.get('file')).toBeInstanceOf(File)

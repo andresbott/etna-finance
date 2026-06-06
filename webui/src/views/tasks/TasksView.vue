@@ -57,6 +57,15 @@ function isExecutionCancelable(status) {
     return status === 'waiting' || status === 'running'
 }
 
+// A task is "running" while its last execution is waiting or running, so the
+// Run button stays in its running state until the background task finishes.
+function isTaskRunning(task) {
+    return (
+        task.lastExecutionStatus === EXECUTION_STATUS.waiting ||
+        task.lastExecutionStatus === EXECUTION_STATUS.running
+    )
+}
+
 function isCancelingExecution(id) {
     return cancelMutation.isPending.value && cancelMutation.variables.value === id
 }
@@ -269,11 +278,11 @@ function closeLogDialog() {
                         <Column header="Actions" style="width: 8rem">
                             <template #body="{ data }">
                                 <Button
-                                    label="Run now"
-                                    icon="ti ti-player-play"
+                                    :label="isTaskRunning(data) ? 'Running' : 'Run now'"
+                                    :icon="isTaskRunning(data) ? undefined : 'ti ti-player-play'"
                                     size="small"
-                                    :loading="triggeringTaskId === data.id"
-                                    :disabled="triggeringTaskId !== null"
+                                    :loading="triggeringTaskId === data.id || isTaskRunning(data)"
+                                    :disabled="triggeringTaskId !== null || isTaskRunning(data)"
                                     @click.stop="triggerTask(data)"
                                 />
                             </template>

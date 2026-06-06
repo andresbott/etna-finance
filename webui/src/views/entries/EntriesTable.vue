@@ -12,7 +12,7 @@ import { getAttachmentUrl } from '@/lib/api/Attachment'
 import { formatAmount, formatCurrency } from '@/utils/currency'
 
 /* --- Props --- */
-const props = defineProps({
+defineProps({
     entries: {
         type: Array,
         required: true
@@ -48,7 +48,7 @@ const props = defineProps({
 const emit = defineEmits(['edit', 'duplicate', 'delete', 'page'])
 
 /* --- Utils --- */
-const { getCategoryName, getCategoryPath } = useCategoryUtils()
+const { getCategoryPath } = useCategoryUtils()
 const { getAccountCurrency, getAccountName } = useAccountUtils()
 const { instruments: instrumentsData } = useInstruments()
 const { formatDate } = useDateFormat()

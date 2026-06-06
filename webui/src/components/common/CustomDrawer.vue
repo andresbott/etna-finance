@@ -37,7 +37,7 @@
 </template>
 
 <script setup>
-const props = defineProps({
+defineProps({
     visible: Boolean,
     position: { type: String, default: 'left' },
     header: { type: String, default: '' }

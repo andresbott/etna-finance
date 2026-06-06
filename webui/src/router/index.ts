@@ -222,7 +222,7 @@ const router = createRouter({
                 { path: 'csv-profiles', name: 'csv-profiles', component: () => import('@/views/csvimport/CsvImportProfileView.vue') },
                 { path: 'categories', name: 'settings-categories', component: () => import('@/views/settings/SettingsCategoriesView.vue') },
                 { path: 'category-rules', name: 'settings-category-rules', component: () => import('@/views/categories/CategoryRulesView.vue') },
-                { path: 'accounts', name: 'settings-accounts', component: () => import('@/views/accounts/accounts.vue') },
+                { path: 'accounts', name: 'settings-accounts', component: () => import('@/views/accounts/AccountsView.vue') },
                 { path: 'instruments', name: 'settings-instruments', meta: { requiresInstruments: true }, component: () => import('@/views/instruments/InstrumentsView.vue') },
                 { path: 'backup-restore', name: 'settings-backup-restore', component: () => import('@/views/backup/BackupRestoreView.vue') },
                 { path: 'tasks', name: 'settings-tasks', component: () => import('@/views/tasks/TasksView.vue') },
@@ -260,7 +260,7 @@ const router = createRouter({
         {
             path: '/:pathMatch(.*)*',
             name: 'NotFound',
-            component: () => import('@/views/404.vue')
+            component: () => import('@/views/NotFoundView.vue')
         }
 
         // { path: "*", component: {        template: '<p>Page Not Found</p>'      }

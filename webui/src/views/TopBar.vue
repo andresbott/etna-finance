@@ -5,7 +5,6 @@ import { useUserStore } from '@/store/userStore'
 import Button from 'primevue/button'
 import AppTitle from '@/views/parts/AppTitle.vue'
 import { useUiStore } from '@/store/uiStore.js'
-import Menubar from 'primevue/menubar'
 import { useRouter } from 'vue-router'
 
 const user = useUserStore()

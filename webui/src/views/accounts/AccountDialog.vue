@@ -80,7 +80,7 @@ const profileOptions = computed(() => [
 onMounted(async () => {
     try {
         profiles.value = await getProfiles()
-    } catch (e) {
+    } catch {
         /* ignore - profiles are optional */
     }
 })

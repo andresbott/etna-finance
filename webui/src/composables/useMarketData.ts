@@ -2,10 +2,8 @@ import { computed, unref, type MaybeRefOrGetter } from 'vue'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
 import { useInstruments } from '@/composables/useInstruments'
 import {
-    getLatestPrice,
     getPriceHistory,
     createPrice as createPriceApi,
-    createPricesBulk,
     updatePrice as updatePriceApi,
     deletePrice as deletePriceApi
 } from '@/lib/api/MarketData'
@@ -41,7 +39,6 @@ export interface PriceHistory {
 const MARKET_INSTRUMENTS_QUERY_KEY = ['marketInstruments']
 
 export function useMarketInstruments() {
-    const queryClient = useQueryClient()
     const { instruments: instrumentsData, isLoading: instrumentsLoading } = useInstruments()
     const { start, end } = lastDaysRange(30)
 
@@ -109,7 +106,6 @@ export function usePriceHistory(
     symbol: MaybeRefOrGetter<string>,
     range: MaybeRefOrGetter<PriceHistoryRange>
 ) {
-    const queryClient = useQueryClient()
     const rangeValue = computed(() => (typeof range === 'function' ? range() : unref(range)))
 
     const historyQuery = useQuery({
