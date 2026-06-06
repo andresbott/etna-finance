@@ -41,6 +41,9 @@ zarf/appData/session
 .env
 config.yaml
 
+# editor backup files
+*~
+
 # AI stuff
 .playwright-mcp/
 docs/superpowers
