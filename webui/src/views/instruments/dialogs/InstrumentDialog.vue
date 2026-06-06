@@ -2,6 +2,7 @@
 import { ref, watch, computed } from 'vue'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
+import Textarea from 'primevue/textarea'
 import Button from 'primevue/button'
 import { Form } from '@primevue/forms'
 import Message from 'primevue/message'
@@ -32,7 +33,8 @@ const currencies = computed(() => {
 const formValues = ref({
     symbol: '',
     name: '',
-    currency: ''
+    currency: '',
+    notes: ''
 })
 
 watch(
@@ -44,13 +46,15 @@ watch(
                 formValues.value = {
                     symbol: instrument.symbol ?? '',
                     name: instrument.name ?? '',
-                    currency: instrument.currency ?? currencyDefault
+                    currency: instrument.currency ?? currencyDefault,
+                    notes: instrument.notes ?? ''
                 }
             } else {
                 formValues.value = {
                     symbol: '',
                     name: '',
-                    currency: currencyDefault
+                    currency: currencyDefault,
+                    notes: ''
                 }
             }
         }
@@ -63,7 +67,8 @@ const resolver = ref(
         z.object({
             symbol: z.string().min(1, { message: 'Symbol is required' }),
             name: z.string().min(1, { message: 'Name is required' }),
-            currency: z.string().min(1, { message: 'Currency is required' })
+            currency: z.string().min(1, { message: 'Currency is required' }),
+            notes: z.string().optional()
         })
     )
 )
@@ -132,6 +137,20 @@ const onFormSubmit = (e) => {
                     />
                     <Message v-if="$form.currency?.invalid" severity="error" size="small">
                         {{ $form.currency.error?.message }}
+                    </Message>
+                </div>
+                <div>
+                    <label for="notes" class="form-label">Notes</label>
+                    <Textarea
+                        id="notes"
+                        name="notes"
+                        rows="3"
+                        autoResize
+                        class="w-full"
+                        placeholder="Optional details about this instrument"
+                    />
+                    <Message v-if="$form.notes?.invalid" severity="error" size="small">
+                        {{ $form.notes.error?.message }}
                     </Message>
                 </div>
                 <div class="flex justify-content-end gap-3">

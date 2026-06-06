@@ -38,7 +38,8 @@ const openNewInstrumentDialog = () => {
     selectedInstrument.value = {
         symbol: '',
         name: '',
-        currency: defaultCurrency.value
+        currency: defaultCurrency.value,
+        notes: ''
     }
     isEditInstrument.value = false
     instrumentDialogVisible.value = true
@@ -49,7 +50,8 @@ const editInstrument = (inst) => {
         id: inst.id,
         symbol: inst.symbol,
         name: inst.name,
-        currency: inst.currency
+        currency: inst.currency,
+        notes: inst.notes
     }
     isEditInstrument.value = true
     instrumentDialogVisible.value = true
@@ -80,14 +82,16 @@ const saveInstrument = async (payload) => {
                 payload: {
                     symbol: payload.symbol,
                     name: payload.name,
-                    currency: payload.currency
+                    currency: payload.currency,
+                    notes: payload.notes ?? ''
                 }
             })
         } else {
             await createInstrument({
                 symbol: payload.symbol,
                 name: payload.name,
-                currency: payload.currency
+                currency: payload.currency,
+                notes: payload.notes ?? ''
             })
         }
         instrumentDialogVisible.value = false

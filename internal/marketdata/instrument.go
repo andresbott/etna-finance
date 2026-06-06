@@ -16,6 +16,7 @@ type Instrument struct {
 	Symbol               string
 	Name                 string
 	Currency             currency.Unit
+	Notes                string
 }
 
 type dbInstrument struct {
@@ -28,6 +29,7 @@ type dbInstrument struct {
 	Symbol   string `gorm:"uniqueIndex:idx_instrument_symbol"`
 	Name     string
 	Currency string
+	Notes    string
 }
 
 func (dbInstrument) TableName() string { return "db_instruments" }
@@ -39,6 +41,7 @@ func dbToInstrument(in dbInstrument) Instrument {
 		Symbol:               in.Symbol,
 		Name:                 in.Name,
 		Currency:             currency.MustParseISO(in.Currency),
+		Notes:                in.Notes,
 	}
 }
 
@@ -56,6 +59,7 @@ type InstrumentUpdatePayload struct {
 	Symbol   *string
 	Name     *string
 	Currency *string
+	Notes    *string
 }
 
 func (s *Store) CreateInstrument(ctx context.Context, item Instrument) (uint, error) {
@@ -77,6 +81,7 @@ func (s *Store) CreateInstrument(ctx context.Context, item Instrument) (uint, er
 			existing.ProviderID = item.InstrumentProviderID
 			existing.Name = item.Name
 			existing.Currency = item.Currency.String()
+			existing.Notes = item.Notes
 			if u := s.db.WithContext(ctx).Unscoped().Save(&existing); u.Error != nil {
 				return 0, u.Error
 			}
@@ -92,6 +97,7 @@ func (s *Store) CreateInstrument(ctx context.Context, item Instrument) (uint, er
 		Symbol:     item.Symbol,
 		Name:       item.Name,
 		Currency:   item.Currency.String(),
+		Notes:      item.Notes,
 	}
 	d := s.db.WithContext(ctx).Create(&payload)
 	if d.Error != nil {
@@ -147,6 +153,10 @@ func (s *Store) UpdateInstrument(ctx context.Context, id uint, item InstrumentUp
 		}
 		updateStruct.Currency = *item.Currency
 		selectedFields = append(selectedFields, "Currency")
+	}
+	if item.Notes != nil {
+		updateStruct.Notes = *item.Notes
+		selectedFields = append(selectedFields, "Notes")
 	}
 	if len(selectedFields) == 0 {
 		return ErrNoChanges

@@ -51,6 +51,14 @@ async function saveAddDialog() {
     } catch (_) {}
 }
 
+const notesDialogVisible = ref(false)
+const notesDialogInstrument = ref(null)
+
+function openNotesDialog(inst) {
+    notesDialogInstrument.value = inst
+    notesDialogVisible.value = true
+}
+
 const onRowClick = (event) => {
     router.push({ name: 'stock-detail', params: { id: event.data.id, tab: 'overview' } })
 }
@@ -113,7 +121,21 @@ const onRowClick = (event) => {
                                     <span class="font-bold">{{ data.symbol }}</span>
                                 </template>
                             </Column>
-                            <Column field="name" header="Name" />
+                            <Column field="name" header="Name">
+                                <template #body="{ data }">
+                                    <span>{{ data.name }}</span>
+                                    <Button
+                                        v-if="data.notes"
+                                        icon="ti ti-help-circle"
+                                        text
+                                        rounded
+                                        size="small"
+                                        class="p-1 ml-1 note-btn"
+                                        v-tooltip.bottom="'View note'"
+                                        @click.stop="openNotesDialog(data)"
+                                    />
+                                </template>
+                            </Column>
                             <Column field="lastPrice" header="Price">
                                 <template #body="{ data }">
                                     <span class="font-semibold">{{ formatPrice(data.lastPrice) }}</span>
@@ -195,6 +217,18 @@ const onRowClick = (event) => {
                         <Button label="Cancel" text severity="secondary" @click="addDialogVisible = false" />
                     </template>
                 </Dialog>
+
+                <Dialog
+                    v-model:visible="notesDialogVisible"
+                    :header="notesDialogInstrument ? `Note – ${notesDialogInstrument.symbol}` : 'Note'"
+                    modal
+                    class="entry-dialog"
+                >
+                    <p v-if="notesDialogInstrument" class="notes-content">{{ notesDialogInstrument.notes }}</p>
+                    <template #footer>
+                        <Button label="Close" text severity="secondary" @click="notesDialogVisible = false" />
+                    </template>
+                </Dialog>
             </div>
         </template>
     </ResponsiveHorizontal>
@@ -234,5 +268,12 @@ const onRowClick = (event) => {
     font-weight: 600;
     margin-bottom: 0.35rem;
     font-size: 0.9rem;
+}
+
+.notes-content {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-width: 32rem;
 }
 </style>

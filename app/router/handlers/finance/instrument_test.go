@@ -316,6 +316,63 @@ func TestHandler_UpdateInstrument(t *testing.T) {
 	}
 }
 
+func TestHandler_InstrumentNotes(t *testing.T) {
+	h, end := SampleHandler(t)
+	defer end()
+
+	// Create with notes
+	createRec := httptest.NewRecorder()
+	createReq, _ := http.NewRequest(http.MethodPost, "/fin/instrument",
+		bytes.NewBuffer([]byte(`{"symbol":"NOTE","name":"With Notes","currency":"USD","notes":"initial details"}`)))
+	h.CreateInstrument().ServeHTTP(createRec, createReq)
+	if createRec.Code != http.StatusOK {
+		t.Fatalf("create failed: %d %s", createRec.Code, createRec.Body.String())
+	}
+	var created instrumentPayload
+	if err := json.NewDecoder(createRec.Body).Decode(&created); err != nil {
+		t.Fatal(err)
+	}
+	if created.Notes != "initial details" {
+		t.Errorf("create response notes: got %q want %q", created.Notes, "initial details")
+	}
+
+	// Get returns the notes
+	getRec := httptest.NewRecorder()
+	getReq, _ := http.NewRequest(http.MethodGet, "/fin/instrument/1", nil)
+	h.GetInstrument(created.ID).ServeHTTP(getRec, getReq)
+	if getRec.Code != http.StatusOK {
+		t.Fatalf("get failed: %d %s", getRec.Code, getRec.Body.String())
+	}
+	var got instrumentPayload
+	if err := json.NewDecoder(getRec.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Notes != "initial details" {
+		t.Errorf("get notes: got %q want %q", got.Notes, "initial details")
+	}
+
+	// Update notes
+	updRec := httptest.NewRecorder()
+	updReq, _ := http.NewRequest(http.MethodPut, "/fin/instrument/1",
+		bytes.NewBuffer([]byte(`{"notes":"updated details"}`)))
+	h.UpdateInstrument(created.ID).ServeHTTP(updRec, updReq)
+	if updRec.Code != http.StatusOK {
+		t.Fatalf("update failed: %d %s", updRec.Code, updRec.Body.String())
+	}
+
+	// Get reflects the updated notes
+	getRec2 := httptest.NewRecorder()
+	getReq2, _ := http.NewRequest(http.MethodGet, "/fin/instrument/1", nil)
+	h.GetInstrument(created.ID).ServeHTTP(getRec2, getReq2)
+	var got2 instrumentPayload
+	if err := json.NewDecoder(getRec2.Body).Decode(&got2); err != nil {
+		t.Fatal(err)
+	}
+	if got2.Notes != "updated details" {
+		t.Errorf("get after update notes: got %q want %q", got2.Notes, "updated details")
+	}
+}
+
 func TestHandler_DeleteInstrument(t *testing.T) {
 	h, end := SampleHandler(t)
 	defer end()

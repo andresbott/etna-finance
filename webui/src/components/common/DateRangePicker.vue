@@ -111,36 +111,36 @@ const currentMonthName = now.toLocaleString('en-US', { month: 'long' })
 const previousMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1)
 const previousMonthName = previousMonthDate.toLocaleString('en-US', { month: 'long' })
 
-const quickSelectOptions = ref([
-    { label: `Previous Month (${previousMonthName})`, value: 'previous-month' },
-    { label: `Current Month (${currentMonthName})`, value: 'current-month' },
-    { label: `Previous Year (${currentYear - 1})`, value: 'previous-year' },
+const dateSelectOptions = ref([
     { label: `Current Year (${currentYear})`, value: 'current-year' },
+    { label: `Previous Year (${currentYear - 1})`, value: 'previous-year' },
+    { label: `Current Month (${currentMonthName})`, value: 'current-month' },
+    { label: `Previous Month (${previousMonthName})`, value: 'previous-month' },
     { label: 'Last 10 Years', value: 'last-10-years' }
 ])
 
 const effectiveDateFormat = computed(() => props.dateFormat ?? pickerDateFormat.value)
 
-const selectedQuickOption = ref(null)
+const selectedOption = ref(null)
 
-watch(selectedQuickOption, (newValue) => {
+watch(selectedOption, (newValue) => {
     if (!newValue) return
-    
+
     if (newValue === 'current-year') {
         setCurrentYear()
+    } else if (newValue === 'previous-year') {
+        setPreviousYear()
     } else if (newValue === 'current-month') {
         setCurrentMonth()
     } else if (newValue === 'previous-month') {
         setPreviousMonth()
-    } else if (newValue === 'previous-year') {
-        setPreviousYear()
     } else if (newValue === 'last-10-years') {
         setLast10Years()
     }
-    
-    // Reset selection after applying
+
+    // Reset selection after applying so the placeholder stays visible
     setTimeout(() => {
-        selectedQuickOption.value = null
+        selectedOption.value = null
     }, 100)
 })
 </script>
@@ -168,13 +168,13 @@ watch(selectedQuickOption, (newValue) => {
             />
         </div>
         <Select
-            v-model="selectedQuickOption"
-            :options="quickSelectOptions"
+            v-model="selectedOption"
+            :options="dateSelectOptions"
             optionLabel="label"
             optionValue="value"
-            placeholder="Quick Select"
+            placeholder="Date Select"
             scrollHeight="22rem"
-            class="quick-select"
+            class="date-select"
         />
     </div>
 </template>
@@ -203,8 +203,7 @@ watch(selectedQuickOption, (newValue) => {
     white-space: nowrap;
 }
 
-.quick-select {
+.date-select {
     min-width: 150px;
 }
 </style>
-
