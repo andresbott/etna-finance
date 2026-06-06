@@ -12,6 +12,7 @@ import (
 	"github.com/andresbott/etna/internal/csvimport"
 	"github.com/andresbott/etna/internal/filestore"
 	"github.com/andresbott/etna/internal/marketdata"
+	"github.com/andresbott/etna/internal/taskrunner"
 	"github.com/andresbott/etna/internal/toolsdata"
 	"github.com/go-bumbu/tempo"
 )
@@ -26,6 +27,12 @@ var BackupTaskDef = TaskDef{
 	ID:          BackupTaskName,
 	Name:        "Backup",
 	Description: "Export accounting and financial data to a ZIP file.",
+}
+
+// backupFileName returns the on-disk name for a backup created at t.
+// Second precision avoids two backups in the same minute overwriting each other.
+func backupFileName(t time.Time) string {
+	return fmt.Sprintf("etna-finance-backup-%s.zip", t.Format("2006-01-02_15-04-05"))
 }
 
 // BackupTaskCfg holds the configuration for the scheduled backup task.
@@ -50,14 +57,13 @@ type BackupTaskCfg struct {
 
 // NewBackupTaskFn returns the task function that performs the actual backup export.
 // It can be used to enqueue a one-off backup from the API.
-func NewBackupTaskFn(store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, fileStore *filestore.Store, tdStore *toolsdata.Store, destination string, l *slog.Logger) func(ctx context.Context) error {
-	return newBackupFunc(store, mdStore, csvStore, fileStore, tdStore, destination, l)
+func NewBackupTaskFn(store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, fileStore *filestore.Store, tdStore *toolsdata.Store, schStore *taskrunner.ScheduleStore, destination string, l *slog.Logger) func(ctx context.Context) error {
+	return newBackupFunc(store, mdStore, csvStore, fileStore, tdStore, schStore, destination, l)
 }
 
-func newBackupFunc(store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, fileStore *filestore.Store, tdStore *toolsdata.Store, destination string, l *slog.Logger) func(ctx context.Context) error {
+func newBackupFunc(store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, fileStore *filestore.Store, tdStore *toolsdata.Store, schStore *taskrunner.ScheduleStore, destination string, l *slog.Logger) func(ctx context.Context) error {
 	return func(ctx context.Context) error {
-		now := time.Now().Format("2006-01-02_15-04")
-		zipFile := filepath.Join(destination, fmt.Sprintf("backup-%s.zip", now))
+		zipFile := filepath.Join(destination, backupFileName(time.Now()))
 
 		l.Info("starting backup",
 			slog.String("component", "tasks"),
@@ -65,7 +71,7 @@ func newBackupFunc(store *accounting.Store, mdStore *marketdata.Store, csvStore 
 		)
 		tempo.Info(ctx, fmt.Sprintf("starting backup: %s", zipFile))
 
-		err := backup.ExportToFile(ctx, store, mdStore, csvStore, fileStore, tdStore, zipFile)
+		err := backup.ExportToFile(ctx, store, mdStore, csvStore, fileStore, tdStore, schStore, zipFile)
 		if err != nil {
 			l.Error("backup failed",
 				slog.String("component", "tasks"),

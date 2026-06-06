@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"context"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/andresbott/etna/internal/toolsdata"
 	"github.com/glebarez/sqlite"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
@@ -35,6 +37,11 @@ func TestHandler_List(t *testing.T) {
 	_ = os.WriteFile(zipFile1, []byte("dummy1"), 0600)
 	_ = os.WriteFile(zipFile2, []byte("dummy2"), 0600)
 	_ = os.WriteFile(txtFile, []byte("dummy3"), 0600)
+
+	// Make file1 newer than file2 so the date sort yields [file1, file2].
+	now := time.Now()
+	_ = os.Chtimes(zipFile1, now, now)
+	_ = os.Chtimes(zipFile2, now.Add(-time.Minute), now.Add(-time.Minute))
 
 	// Invalid directory for error case
 	invalidDir := "/path/does/not/exist"
@@ -101,11 +108,49 @@ func TestHandler_List(t *testing.T) {
 					t.Fatal(err)
 				}
 
-				if diff := cmp.Diff(got, tc.want); diff != "" {
+				// Modified is the filesystem mod time (dynamic); assert the rest of the shape.
+				if diff := cmp.Diff(got, tc.want, cmpopts.IgnoreFields(listPayload{}, "Modified")); diff != "" {
 					t.Errorf("unexpected response (-want +got):\n%s", diff)
 				}
 			}
 		})
+	}
+}
+
+func TestHandler_List_SortedByDate(t *testing.T) {
+	tempDir := t.TempDir()
+	older := filepath.Join(tempDir, "aaa.zip") // alphabetically first but older
+	newer := filepath.Join(tempDir, "zzz.zip") // alphabetically last but newer
+	_ = os.WriteFile(older, []byte("x"), 0600)
+	_ = os.WriteFile(newer, []byte("y"), 0600)
+
+	now := time.Now()
+	_ = os.Chtimes(older, now.Add(-time.Hour), now.Add(-time.Hour))
+	_ = os.Chtimes(newer, now, now)
+
+	h := &Handler{Destination: tempDir}
+	rec := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/files", nil)
+	h.List().ServeHTTP(rec, req)
+
+	var got listResponse
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Files) != 2 {
+		t.Fatalf("expected 2 files, got %d", len(got.Files))
+	}
+	if got.Files[0].Filename != "zzz.zip" || got.Files[1].Filename != "aaa.zip" {
+		t.Errorf("expected newest-first [zzz.zip, aaa.zip], got [%s, %s]",
+			got.Files[0].Filename, got.Files[1].Filename)
+	}
+	// Modified must be propagated into the payload, newest first.
+	if got.Files[0].Modified.IsZero() || got.Files[1].Modified.IsZero() {
+		t.Fatalf("Modified not populated: [%v, %v]", got.Files[0].Modified, got.Files[1].Modified)
+	}
+	if !got.Files[0].Modified.After(got.Files[1].Modified) {
+		t.Errorf("expected Files[0].Modified after Files[1].Modified, got [%v, %v]",
+			got.Files[0].Modified, got.Files[1].Modified)
 	}
 }
 
@@ -182,95 +227,6 @@ func TestHandler_Delete(t *testing.T) {
 					}
 				}
 			}
-		})
-	}
-}
-
-func TestHandler_CreateBackup(t *testing.T) {
-	tcs := []struct {
-		name       string
-		store      func() *accounting.Store
-		expectCode int
-		expectErr  string
-	}{
-		{
-			name: "successful backup",
-			store: func() *accounting.Store {
-
-				db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{
-					Logger: logger.Discard,
-				})
-				if err != nil {
-					t.Fatalf("unable to connect to sqlite: %v", err)
-				}
-
-				store, err := accounting.NewStore(db, nil)
-				if err != nil {
-					t.Fatalf("unable to connect to finance: %v", err)
-				}
-				return store
-			},
-			expectCode: http.StatusOK,
-		},
-		{
-			name: "backup.ExportToFile returns error",
-			store: func() *accounting.Store {
-				return nil
-			},
-			expectCode: http.StatusInternalServerError,
-			expectErr:  "failed to create backup: finance store was not initialized\n",
-		},
-	}
-
-	for _, tc := range tcs {
-		t.Run(tc.name, func(t *testing.T) {
-			tempDir := t.TempDir()
-
-			h := &Handler{Destination: tempDir, Store: tc.store(), MdStore: newTestMdStore(t), CsvStore: newTestCsvStore(t), ToolsDataStore: newTestToolsDataStore(t)}
-
-			recorder := httptest.NewRecorder()
-			req, _ := http.NewRequest("POST", "/backup", nil)
-			handler := h.CreateBackup()
-			handler.ServeHTTP(recorder, req)
-
-			if tc.expectErr != "" {
-				if status := recorder.Code; status != tc.expectCode {
-					t.Errorf("wrong status code: got %v want %v", status, tc.expectCode)
-				}
-				body, err := io.ReadAll(recorder.Body)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if !strings.Contains(string(body), tc.expectErr) {
-					t.Errorf("unexpected error message: got %q want substring %q", string(body), tc.expectErr)
-				}
-			} else {
-				if status := recorder.Code; status != tc.expectCode {
-					t.Errorf("wrong status code: got %v want %v", status, tc.expectCode)
-					respText, err := io.ReadAll(recorder.Body)
-					if err != nil {
-						t.Fatal(err)
-					}
-					t.Fatalf("error response: %s", string(respText))
-				}
-
-				// decode JSON response to get backup file path
-				var resp map[string]string
-				if err := json.NewDecoder(recorder.Body).Decode(&resp); err != nil {
-					t.Fatal(err)
-				}
-
-				filePath := resp["file"]
-				if filePath == "" {
-					t.Fatalf("response does not contain file path")
-				}
-
-				// check that file exists
-				if _, err := os.Stat(filePath); os.IsNotExist(err) {
-					t.Errorf("expected backup file %s to exist, but it does not", filePath)
-				}
-			}
-
 		})
 	}
 }
@@ -645,7 +601,7 @@ func generateTestBackup(t *testing.T) []byte {
 
 	tmpDir := t.TempDir()
 	backupFile := filepath.Join(tmpDir, "test-backup.zip")
-	if err := backup.ExportToFile(context.Background(), store, mdStore, csvStore, nil, tdStore, backupFile); err != nil {
+	if err := backup.ExportToFile(context.Background(), store, mdStore, csvStore, nil, tdStore, nil, backupFile); err != nil {
 		t.Fatalf("failed to generate test backup: %v", err)
 	}
 	content, err := os.ReadFile(filepath.Clean(backupFile))

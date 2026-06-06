@@ -59,7 +59,7 @@ func TestExport(t *testing.T) {
 
 	tmpdir := t.TempDir()
 	target := filepath.Join(tmpdir, "backup.zip")
-	err = export(t.Context(), store, mdStore, csvStore, fileStore, tdStore, target)
+	err = export(t.Context(), store, mdStore, csvStore, fileStore, tdStore, nil, target)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -524,7 +524,7 @@ func TestRoundTrip(t *testing.T) {
 	// Export 1
 	tmpdir := t.TempDir()
 	target1 := filepath.Join(tmpdir, "export1.zip")
-	err = export(t.Context(), store1, mdStore1, csvStore1, fileStore1, tdStore1, target1)
+	err = export(t.Context(), store1, mdStore1, csvStore1, fileStore1, tdStore1, nil, target1)
 	if err != nil {
 		t.Fatalf("export1 failed: %v", err)
 	}
@@ -556,14 +556,14 @@ func TestRoundTrip(t *testing.T) {
 	}
 
 	// Import
-	err = Import(t.Context(), store2, mdStore2, csvStore2, fileStore2, tdStore2, target1)
+	err = Import(t.Context(), store2, mdStore2, csvStore2, fileStore2, tdStore2, nil, target1)
 	if err != nil {
 		t.Fatalf("import failed: %v", err)
 	}
 
 	// Export 2
 	target2 := filepath.Join(tmpdir, "export2.zip")
-	err = export(t.Context(), store2, mdStore2, csvStore2, fileStore2, tdStore2, target2)
+	err = export(t.Context(), store2, mdStore2, csvStore2, fileStore2, tdStore2, nil, target2)
 	if err != nil {
 		t.Fatalf("export2 failed: %v", err)
 	}

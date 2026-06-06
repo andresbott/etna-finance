@@ -13,6 +13,7 @@ import (
 	"github.com/andresbott/etna/internal/csvimport"
 	"github.com/andresbott/etna/internal/filestore"
 	"github.com/andresbott/etna/internal/marketdata"
+	"github.com/andresbott/etna/internal/taskrunner"
 	"github.com/andresbott/etna/internal/toolsdata"
 )
 
@@ -37,15 +38,15 @@ func verifyZipPath(zipFile string) error {
 	return nil
 }
 
-func ExportToFile(ctx context.Context, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, fileStore *filestore.Store, tdStore *toolsdata.Store, zipFile string) error {
+func ExportToFile(ctx context.Context, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, fileStore *filestore.Store, tdStore *toolsdata.Store, schStore *taskrunner.ScheduleStore, zipFile string) error {
 	err := verifyZipPath(zipFile)
 	if err != nil {
 		return err
 	}
-	return export(ctx, store, mdStore, csvStore, fileStore, tdStore, zipFile)
+	return export(ctx, store, mdStore, csvStore, fileStore, tdStore, schStore, zipFile)
 }
 
-func export(ctx context.Context, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, fileStore *filestore.Store, tdStore *toolsdata.Store, fullPath string) error {
+func export(ctx context.Context, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, fileStore *filestore.Store, tdStore *toolsdata.Store, schStore *taskrunner.ScheduleStore, fullPath string) error {
 	if store == nil {
 		return errors.New("finance store was not initialized")
 	}
@@ -86,6 +87,12 @@ func export(ctx context.Context, store *accounting.Store, mdStore *marketdata.St
 		return err
 	}
 
+	caseStudyAttIDs, err := writeCaseStudies(ctx, zw, tdStore)
+	if err != nil {
+		return err
+	}
+	attachmentIDs = append(attachmentIDs, caseStudyAttIDs...)
+
 	err = writeAttachments(ctx, zw, fileStore, attachmentIDs)
 	if err != nil {
 		return err
@@ -116,12 +123,31 @@ func export(ctx context.Context, store *accounting.Store, mdStore *marketdata.St
 		return err
 	}
 
-	err = writeCaseStudies(ctx, zw, tdStore)
+	err = writeSchedules(ctx, zw, schStore)
 	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func writeSchedules(ctx context.Context, zw *zipWriter, schStore *taskrunner.ScheduleStore) error {
+	if schStore == nil {
+		return zw.writeJsonFile(schedulesFile, []scheduleV1{})
+	}
+	schedules, err := schStore.List(ctx)
+	if err != nil {
+		return err
+	}
+	jsonData := make([]scheduleV1, len(schedules))
+	for i, sch := range schedules {
+		jsonData[i] = scheduleV1{
+			TaskName:       sch.TaskName,
+			CronExpression: sch.CronExpression,
+			Enabled:        sch.Enabled,
+		}
+	}
+	return zw.writeJsonFile(schedulesFile, jsonData)
 }
 
 func writeMeta(zw *zipWriter, timestamp time.Time) error {
@@ -380,6 +406,7 @@ func writeInstruments(ctx context.Context, zw *zipWriter, mdStore *marketdata.St
 			Symbol:               inst.Symbol,
 			Name:                 inst.Name,
 			Currency:             inst.Currency.String(),
+			Notes:                inst.Notes,
 		}
 	}
 	return zw.writeJsonFile(instrumentsFile, jsonData)
@@ -490,15 +517,18 @@ func writeCategoryRules(ctx context.Context, zw *zipWriter, csvStore *csvimport.
 	return zw.writeJsonFile(categoryRulesFile, jsonData)
 }
 
-func writeCaseStudies(ctx context.Context, zw *zipWriter, tdStore *toolsdata.Store) error {
+// writeCaseStudies writes the case studies file and returns the IDs of any
+// attachments referenced by case studies so their binaries get exported too.
+func writeCaseStudies(ctx context.Context, zw *zipWriter, tdStore *toolsdata.Store) ([]uint, error) {
 	if tdStore == nil {
-		return zw.writeJsonFile(caseStudiesFile, []caseStudyV1{})
+		return nil, zw.writeJsonFile(caseStudiesFile, []caseStudyV1{})
 	}
 	studies, err := tdStore.ListAll(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	jsonData := make([]caseStudyV1, len(studies))
+	var attachmentIDs []uint
 	for i, cs := range studies {
 		jsonData[i] = caseStudyV1{
 			ID:                   cs.ID,
@@ -507,9 +537,13 @@ func writeCaseStudies(ctx context.Context, zw *zipWriter, tdStore *toolsdata.Sto
 			Description:          cs.Description,
 			ExpectedAnnualReturn: cs.ExpectedAnnualReturn,
 			Params:               cs.Params,
+			AttachmentID:         cs.AttachmentID,
+		}
+		if cs.AttachmentID != nil {
+			attachmentIDs = append(attachmentIDs, *cs.AttachmentID)
 		}
 	}
-	return zw.writeJsonFile(caseStudiesFile, jsonData)
+	return attachmentIDs, zw.writeJsonFile(caseStudiesFile, jsonData)
 }
 
 func writeAttachments(ctx context.Context, zw *zipWriter, fileStore *filestore.Store, attachmentIDs []uint) error {

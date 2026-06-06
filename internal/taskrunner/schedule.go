@@ -118,10 +118,29 @@ func (s *ScheduleStore) Create(ctx context.Context, sch Schedule) (Schedule, err
 		CronExpression: sch.CronExpression,
 		Enabled:        sch.Enabled,
 	}
-	if err := s.db.WithContext(ctx).Create(&d).Error; err != nil {
+	if err := s.createSchedule(ctx, &d); err != nil {
 		return Schedule{}, err
 	}
 	return dbToSchedule(d), nil
+}
+
+// createSchedule inserts a new schedule row, preserving an explicit Enabled=false.
+// The "default:true" column tag makes GORM ignore a zero-value (false) Enabled on
+// insert and substitute the default, so the value is re-asserted with an explicit
+// column update after creation.
+func (s *ScheduleStore) createSchedule(ctx context.Context, d *dbSchedule) error {
+	wantEnabled := d.Enabled
+	if err := s.db.WithContext(ctx).Create(d).Error; err != nil {
+		return err
+	}
+	if d.Enabled != wantEnabled {
+		if err := s.db.WithContext(ctx).Model(&dbSchedule{}).Where("id = ?", d.ID).
+			Update("enabled", wantEnabled).Error; err != nil {
+			return err
+		}
+		d.Enabled = wantEnabled
+	}
+	return nil
 }
 
 // Update updates an existing schedule by ID.
@@ -153,6 +172,12 @@ func (s *ScheduleStore) DeleteByTaskName(ctx context.Context, taskName string) e
 	return nil
 }
 
+// WipeData hard-deletes all schedules. Unscoped is used so soft-deleted rows are also
+// removed, avoiding UNIQUE constraint collisions on a subsequent restore.
+func (s *ScheduleStore) WipeData(ctx context.Context) error {
+	return s.db.WithContext(ctx).Unscoped().Where("1 = 1").Delete(&dbSchedule{}).Error
+}
+
 // UpsertByTaskName creates or updates the schedule for the given task name (one schedule per task).
 // If a schedule was soft-deleted, it is restored and updated.
 func (s *ScheduleStore) UpsertByTaskName(ctx context.Context, taskName, cronExpression string, enabled bool) (Schedule, error) {
@@ -166,7 +191,7 @@ func (s *ScheduleStore) UpsertByTaskName(ctx context.Context, taskName, cronExpr
 		d.TaskName = taskName
 		d.CronExpression = cronExpression
 		d.Enabled = enabled
-		if err := s.db.WithContext(ctx).Create(&d).Error; err != nil {
+		if err := s.createSchedule(ctx, &d); err != nil {
 			return Schedule{}, err
 		}
 		return dbToSchedule(d), nil

@@ -59,7 +59,7 @@ func setupImportTest(t *testing.T) testStores {
 	sampleDataNoise(t, store, mdStore, csvStore, nil)
 
 	backupFile := "testdata/backup-v1.zip"
-	err = Import(t.Context(), store, mdStore, csvStore, fileStore, tdStore, backupFile)
+	err = Import(t.Context(), store, mdStore, csvStore, fileStore, tdStore, nil, backupFile)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

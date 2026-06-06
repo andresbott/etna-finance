@@ -4,6 +4,8 @@ export interface BackupFile {
     id: string
     filename: string
     size: number
+    /** File modification time (RFC3339). */
+    modified: string
 }
 
 export interface BackupListResponse {
@@ -34,10 +36,6 @@ export const downloadBackupFile = async (id: string, filename: string): Promise<
     link.click()
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
-}
-
-export const createBackup = async (): Promise<void> => {
-    await apiClient.post('/backup')
 }
 
 export const restoreBackup = async (file: File): Promise<void> => {

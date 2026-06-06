@@ -818,9 +818,9 @@ func (h *MainAppHandler) backupApi(r *mux.Router) {
 		CsvStore:       h.csvImportStore,
 		FileStore:      h.attachmentStore,
 		ToolsDataStore: h.toolsDataStore,
+		ScheduleStore:  h.scheduleStore,
 	}
 	r.Path(backupPath).Methods(http.MethodGet).Handler(backupHndl.List())
-	r.Path(backupPath).Methods(http.MethodPost).Handler(backupHndl.CreateBackup())
 	r.Path(fmt.Sprintf("%s/{id}", backupPath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		itemId, ok := vars["id"]

@@ -262,15 +262,18 @@ function closeLogDialog() {
                                 </p>
                             </template>
                         </Column>
-                        <Column header="Schedule" style="width: 14rem">
+                        <Column header="Schedule" style="width: 8rem">
                             <template #body="{ data }">
                                 <span class="schedule-summary text-color-secondary">{{ scheduleSummary(data) }}</span>
+                            </template>
+                        </Column>
+                        <Column style="width: 4rem">
+                            <template #body="{ data }">
                                 <Button
-                                    :label="data.schedule ? 'Edit' : 'Schedule'"
                                     icon="ti ti-calendar"
                                     size="small"
                                     text
-                                    class="ml-2"
+                                    :aria-label="data.schedule ? 'Edit schedule' : 'Schedule'"
                                     @click.stop="openScheduleDialog(data)"
                                 />
                             </template>

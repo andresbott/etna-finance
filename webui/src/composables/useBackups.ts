@@ -1,22 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
-import { getBackupFiles, deleteBackupFile, createBackup, restoreBackup, restoreBackupFromExisting, downloadBackupFile } from '@/lib/api/Backup'
+import { getBackupFiles, deleteBackupFile, restoreBackup, restoreBackupFromExisting, downloadBackupFile } from '@/lib/api/Backup'
+
+/** Shared so other modules (e.g. useBackupTask) can invalidate the backup file list. */
+export const BACKUP_FILES_QUERY_KEY = ['backupFiles'] as const
 
 export function useBackups() {
     const queryClient = useQueryClient()
-    const QUERY_KEY = ['backupFiles']
+    const QUERY_KEY = BACKUP_FILES_QUERY_KEY
 
     // Query to get list of backup files
     const backupFilesQuery = useQuery({
         queryKey: QUERY_KEY,
         queryFn: getBackupFiles
-    })
-
-    // Mutation to create a new backup
-    const createBackupMutation = useMutation({
-        mutationFn: createBackup,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: QUERY_KEY })
-        }
     })
 
     // Mutation to delete a backup file
@@ -60,14 +55,12 @@ export function useBackups() {
         refetch: backupFilesQuery.refetch,
 
         // Mutations
-        createBackup: createBackupMutation.mutateAsync,
         deleteBackup: deleteBackupMutation.mutateAsync,
         downloadBackup: downloadBackupMutation.mutateAsync,
         restoreBackup: restoreBackupMutation.mutateAsync,
         restoreBackupFromExisting: restoreBackupFromExistingMutation.mutateAsync,
 
         // Mutation states
-        isCreating: createBackupMutation.isPending,
         isDeleting: deleteBackupMutation.isPending,
         isDownloading: downloadBackupMutation.isPending,
         isRestoring: restoreBackupMutation.isPending || restoreBackupFromExistingMutation.isPending
