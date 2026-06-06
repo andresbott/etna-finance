@@ -18,6 +18,7 @@ import (
 	"github.com/andresbott/etna/internal/csvimport"
 	"github.com/andresbott/etna/internal/filestore"
 	"github.com/andresbott/etna/internal/marketdata"
+	"github.com/andresbott/etna/internal/taskrunner"
 	"github.com/andresbott/etna/internal/toolsdata"
 )
 
@@ -28,6 +29,7 @@ type Handler struct {
 	CsvStore       *csvimport.Store
 	FileStore      *filestore.Store
 	ToolsDataStore *toolsdata.Store
+	ScheduleStore  *taskrunner.ScheduleStore
 }
 
 type listPayload struct {
@@ -174,7 +176,7 @@ func (h *Handler) CreateBackup() http.Handler {
 		backupFile := filepath.Join(absPath, fmt.Sprintf("backup-%s.zip", now))
 
 		// Create the backup file
-		err = backup.ExportToFile(r.Context(), h.Store, h.MdStore, h.CsvStore, h.FileStore, h.ToolsDataStore, backupFile)
+		err = backup.ExportToFile(r.Context(), h.Store, h.MdStore, h.CsvStore, h.FileStore, h.ToolsDataStore, h.ScheduleStore, backupFile)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed to create backup: %v", err), http.StatusInternalServerError)
 			return
@@ -270,7 +272,7 @@ func (h *Handler) RestoreUpload() http.Handler {
 		}
 
 		// Attempt to restore from the uploaded file
-		if err := backup.Import(r.Context(), h.Store, h.MdStore, h.CsvStore, h.FileStore, h.ToolsDataStore, dstPath); err != nil {
+		if err := backup.Import(r.Context(), h.Store, h.MdStore, h.CsvStore, h.FileStore, h.ToolsDataStore, h.ScheduleStore, dstPath); err != nil {
 			http.Error(w, fmt.Sprintf("failed to restore backup: %v", err), http.StatusInternalServerError)
 			return
 		}
@@ -308,7 +310,7 @@ func (h *Handler) RestoreFromExisting(id string) http.Handler {
 		}
 
 		// Attempt to restore from the file
-		if err := backup.Import(r.Context(), h.Store, h.MdStore, h.CsvStore, h.FileStore, h.ToolsDataStore, targetFile); err != nil {
+		if err := backup.Import(r.Context(), h.Store, h.MdStore, h.CsvStore, h.FileStore, h.ToolsDataStore, h.ScheduleStore, targetFile); err != nil {
 			http.Error(w, fmt.Sprintf("failed to restore backup: %v", err), http.StatusInternalServerError)
 			return
 		}

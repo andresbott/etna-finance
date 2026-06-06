@@ -16,12 +16,13 @@ import (
 	"github.com/andresbott/etna/internal/csvimport"
 	"github.com/andresbott/etna/internal/filestore"
 	"github.com/andresbott/etna/internal/marketdata"
+	"github.com/andresbott/etna/internal/taskrunner"
 	"github.com/andresbott/etna/internal/toolsdata"
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/text/currency"
 )
 
-func wipeStores(ctx context.Context, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, fileStore *filestore.Store, tdStore *toolsdata.Store) error {
+func wipeStores(ctx context.Context, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, fileStore *filestore.Store, tdStore *toolsdata.Store, schStore *taskrunner.ScheduleStore) error {
 	if err := store.WipeData(ctx); err != nil {
 		return err
 	}
@@ -41,10 +42,15 @@ func wipeStores(ctx context.Context, store *accounting.Store, mdStore *marketdat
 			return err
 		}
 	}
+	if schStore != nil {
+		if err := schStore.WipeData(ctx); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
-func Import(ctx context.Context, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, fileStore *filestore.Store, tdStore *toolsdata.Store, file string) error {
+func Import(ctx context.Context, store *accounting.Store, mdStore *marketdata.Store, csvStore *csvimport.Store, fileStore *filestore.Store, tdStore *toolsdata.Store, schStore *taskrunner.ScheduleStore, file string) error {
 	zipPath, err := checkZip(file)
 	if err != nil {
 		return err
@@ -66,7 +72,7 @@ func Import(ctx context.Context, store *accounting.Store, mdStore *marketdata.St
 		return fmt.Errorf("unsuported backup shema: %s", metaInfo.Version)
 	}
 
-	if err := wipeStores(ctx, store, mdStore, csvStore, fileStore, tdStore); err != nil {
+	if err := wipeStores(ctx, store, mdStore, csvStore, fileStore, tdStore, schStore); err != nil {
 		return err
 	}
 
@@ -114,7 +120,31 @@ func Import(ctx context.Context, store *accounting.Store, mdStore *marketdata.St
 		return err
 	}
 
-	return importCaseStudies(ctx, tdStore, r)
+	if err := importCaseStudies(ctx, tdStore, r, attachmentsMap); err != nil {
+		return err
+	}
+
+	return importSchedules(ctx, schStore, r)
+}
+
+func importSchedules(ctx context.Context, schStore *taskrunner.ScheduleStore, r *zip.ReadCloser) error {
+	if schStore == nil {
+		return nil
+	}
+	schedules, err := loadV1Json[[]scheduleV1](r, schedulesFile)
+	if err != nil {
+		// Old backups may not have this file; skip gracefully.
+		if strings.Contains(err.Error(), "not found in zip") {
+			return nil
+		}
+		return err
+	}
+	for _, sch := range schedules {
+		if _, err := schStore.UpsertByTaskName(ctx, sch.TaskName, sch.CronExpression, sch.Enabled); err != nil {
+			return fmt.Errorf("failed to create schedule for task %q: %w", sch.TaskName, err)
+		}
+	}
+	return nil
 }
 
 func importAccounts(ctx context.Context, store *accounting.Store, r *zip.ReadCloser, profilesMap map[uint]uint) (map[uint]uint, error) {
@@ -440,7 +470,7 @@ func fifoLotSelections(ctx context.Context, store *accounting.Store, accountID, 
 }
 
 // Load V1 data from json files
-func loadV1Json[T metaInfoV1 | []accountProviderV1 | []accountV1 | []categoryV1 | []TransactionV1 | []instrumentV1 | []priceRecordV1 | []fxRateRecordV1 | []importProfileV1 | []categoryRuleGroupV1 | []caseStudyV1](r *zip.ReadCloser, fileName string) (T, error) {
+func loadV1Json[T metaInfoV1 | []accountProviderV1 | []accountV1 | []categoryV1 | []TransactionV1 | []instrumentV1 | []priceRecordV1 | []fxRateRecordV1 | []importProfileV1 | []categoryRuleGroupV1 | []caseStudyV1 | []scheduleV1](r *zip.ReadCloser, fileName string) (T, error) {
 	var result T
 
 	for _, f := range r.File {
@@ -517,10 +547,13 @@ func importInstruments(ctx context.Context, mdStore *marketdata.Store, r *zip.Re
 			return nil, fmt.Errorf("failed to parse currency %s: %w", inst.Currency, err)
 		}
 		item := marketdata.Instrument{
+			// InstrumentProviderID is copied verbatim: there is no instrument-provider
+			// table to remap against (the field is currently unused / always 0).
 			InstrumentProviderID: inst.InstrumentProviderID,
 			Symbol:               inst.Symbol,
 			Name:                 inst.Name,
 			Currency:             cur,
+			Notes:                inst.Notes,
 		}
 		newID, err := mdStore.CreateInstrument(ctx, item)
 		if err != nil {
@@ -601,7 +634,7 @@ func importProfiles(ctx context.Context, csvStore *csvimport.Store, r *zip.ReadC
 	return profilesMap, nil
 }
 
-func importCaseStudies(ctx context.Context, tdStore *toolsdata.Store, r *zip.ReadCloser) error {
+func importCaseStudies(ctx context.Context, tdStore *toolsdata.Store, r *zip.ReadCloser, attachmentsMap map[uint]uint) error {
 	if tdStore == nil {
 		return nil
 	}
@@ -614,7 +647,7 @@ func importCaseStudies(ctx context.Context, tdStore *toolsdata.Store, r *zip.Rea
 		return err
 	}
 	for _, s := range studies {
-		_, err := tdStore.Create(ctx, toolsdata.CaseStudy{
+		created, err := tdStore.Create(ctx, toolsdata.CaseStudy{
 			ToolType:             s.ToolType,
 			Name:                 s.Name,
 			Description:          s.Description,
@@ -623,6 +656,15 @@ func importCaseStudies(ctx context.Context, tdStore *toolsdata.Store, r *zip.Rea
 		})
 		if err != nil {
 			return fmt.Errorf("failed to create case study: %w", err)
+		}
+		// Create does not persist the attachment link; set it separately with the
+		// remapped attachment ID (mirrors the toolsdata handler).
+		if s.AttachmentID != nil {
+			if newID, ok := attachmentsMap[*s.AttachmentID]; ok {
+				if err := tdStore.SetAttachmentID(ctx, created.ToolType, created.ID, &newID); err != nil {
+					return fmt.Errorf("failed to set case study attachment: %w", err)
+				}
+			}
 		}
 	}
 	return nil

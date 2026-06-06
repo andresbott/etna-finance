@@ -74,6 +74,53 @@ func TestScheduleStore_CreateAndGetByID(t *testing.T) {
 	}
 }
 
+// TestScheduleStore_CreateDisabled guards against the GORM "default:true" gotcha:
+// an explicit Enabled=false must be persisted, not silently flipped to the default.
+func TestScheduleStore_CreateDisabled(t *testing.T) {
+	db := newTestDB(t)
+	store, _ := NewScheduleStore(db)
+	ctx := context.Background()
+
+	created, err := store.Create(ctx, Schedule{TaskName: "disabled", CronExpression: "0 * * * *", Enabled: false})
+	if err != nil {
+		t.Fatalf("create error: %v", err)
+	}
+	if created.Enabled {
+		t.Errorf("expected returned schedule to be disabled, got enabled=true")
+	}
+
+	fetched, err := store.GetByTaskName(ctx, "disabled")
+	if err != nil {
+		t.Fatalf("get error: %v", err)
+	}
+	if fetched.Enabled {
+		t.Errorf("expected persisted schedule to be disabled, got enabled=true")
+	}
+}
+
+// TestScheduleStore_UpsertDisabled verifies the same for the upsert create path.
+func TestScheduleStore_UpsertDisabled(t *testing.T) {
+	db := newTestDB(t)
+	store, _ := NewScheduleStore(db)
+	ctx := context.Background()
+
+	created, err := store.UpsertByTaskName(ctx, "disabled", "0 * * * *", false)
+	if err != nil {
+		t.Fatalf("upsert error: %v", err)
+	}
+	if created.Enabled {
+		t.Errorf("expected returned schedule to be disabled, got enabled=true")
+	}
+
+	fetched, err := store.GetByTaskName(ctx, "disabled")
+	if err != nil {
+		t.Fatalf("get error: %v", err)
+	}
+	if fetched.Enabled {
+		t.Errorf("expected persisted schedule to be disabled, got enabled=true")
+	}
+}
+
 func TestScheduleStore_GetByID_NotFound(t *testing.T) {
 	db := newTestDB(t)
 	store, _ := NewScheduleStore(db)
@@ -146,9 +193,7 @@ func TestScheduleStore_ListEnabled(t *testing.T) {
 	ctx := context.Background()
 
 	_, _ = store.Create(ctx, Schedule{TaskName: "enabled-task", CronExpression: "* * * * *", Enabled: true})
-	// Create as enabled, then update to disabled (GORM skips zero-value bool on create due to default:true)
-	disabled, _ := store.Create(ctx, Schedule{TaskName: "disabled-task", CronExpression: "* * * * *", Enabled: true})
-	_ = store.Update(ctx, Schedule{ID: disabled.ID, CronExpression: "* * * * *", Enabled: false})
+	_, _ = store.Create(ctx, Schedule{TaskName: "disabled-task", CronExpression: "* * * * *", Enabled: false})
 
 	list, err := store.ListEnabled(ctx)
 	if err != nil {

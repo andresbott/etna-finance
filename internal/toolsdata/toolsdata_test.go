@@ -262,3 +262,131 @@ func TestDelete(t *testing.T) {
 		}
 	})
 }
+
+func TestSetAttachmentID(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	t.Run("set and clear", func(t *testing.T) {
+		created, err := store.Create(ctx, validCaseStudy())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		attID := uint(42)
+		if err := store.SetAttachmentID(ctx, "portfolio-simulator", created.ID, &attID); err != nil {
+			t.Fatalf("unexpected error setting attachment: %v", err)
+		}
+		got, err := store.Get(ctx, "portfolio-simulator", created.ID)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.AttachmentID == nil || *got.AttachmentID != attID {
+			t.Fatalf("expected attachment id %d, got %v", attID, got.AttachmentID)
+		}
+
+		if err := store.SetAttachmentID(ctx, "portfolio-simulator", created.ID, nil); err != nil {
+			t.Fatalf("unexpected error clearing attachment: %v", err)
+		}
+		got, err = store.Get(ctx, "portfolio-simulator", created.ID)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.AttachmentID != nil {
+			t.Errorf("expected nil attachment id after clear, got %v", *got.AttachmentID)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		attID := uint(1)
+		err := store.SetAttachmentID(ctx, "portfolio-simulator", 99999, &attID)
+		if !errors.Is(err, ErrCaseStudyNotFound) {
+			t.Fatalf("expected ErrCaseStudyNotFound, got %v", err)
+		}
+	})
+}
+
+func TestListAll(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	t.Run("empty", func(t *testing.T) {
+		items, err := store.ListAll(ctx)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(items) != 0 {
+			t.Errorf("expected 0 items, got %d", len(items))
+		}
+	})
+
+	t.Run("returns all tool types", func(t *testing.T) {
+		cs1 := validCaseStudy()
+		cs1.Name = "Case A"
+		if _, err := store.Create(ctx, cs1); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		cs2 := validCaseStudy()
+		cs2.ToolType = "real-estate-simulator"
+		cs2.Name = "Case B"
+		if _, err := store.Create(ctx, cs2); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		items, err := store.ListAll(ctx)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(items) != 2 {
+			t.Fatalf("expected 2 items across tool types, got %d", len(items))
+		}
+	})
+}
+
+func TestWipeData(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	if _, err := store.Create(ctx, validCaseStudy()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if err := store.WipeData(ctx); err != nil {
+		t.Fatalf("unexpected error wiping data: %v", err)
+	}
+
+	items, err := store.ListAll(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(items) != 0 {
+		t.Errorf("expected 0 items after wipe, got %d", len(items))
+	}
+}
+
+func TestGet_EmptyParamsDefaultsToObject(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	cs := validCaseStudy()
+	cs.Params = nil // no params provided
+	created, err := store.Create(ctx, cs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	got, err := store.Get(ctx, cs.ToolType, created.ID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(got.Params) != "{}" {
+		t.Errorf("expected empty params to default to %q, got %q", "{}", string(got.Params))
+	}
+}
+
+func TestErrValidation_Error(t *testing.T) {
+	err := ErrValidation("bad input")
+	if err.Error() != "bad input" {
+		t.Errorf("expected %q, got %q", "bad input", err.Error())
+	}
+}

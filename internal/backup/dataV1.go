@@ -120,6 +120,7 @@ type instrumentV1 struct {
 	Symbol               string `json:"symbol"`
 	Name                 string `json:"name"`
 	Currency             string `json:"currency"`
+	Notes                string `json:"notes,omitempty"`
 }
 
 type priceRecordV1 struct {
@@ -172,6 +173,15 @@ type caseStudyV1 struct {
 	Description          string          `json:"description"`
 	ExpectedAnnualReturn float64         `json:"expectedAnnualReturn"`
 	Params               json.RawMessage `json:"params"`
+	AttachmentID         *uint           `json:"attachmentId,omitempty"`
+}
+
+const schedulesFile = "task_schedules.json"
+
+type scheduleV1 struct {
+	TaskName       string `json:"taskName"`
+	CronExpression string `json:"cronExpression"`
+	Enabled        bool   `json:"enabled"`
 }
 
 const attachmentsFile = "attachments.json"
