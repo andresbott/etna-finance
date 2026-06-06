@@ -153,7 +153,9 @@ func (h *Handler) GetExecutionLog() http.Handler {
 			return
 		}
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.WriteHeader(http.StatusOK)
+		//nolint:gosec // G705: response is served as text/plain with X-Content-Type-Options: nosniff, so log text cannot be interpreted as HTML/JS
 		_, _ = w.Write([]byte(text))
 	})
 }

@@ -142,18 +142,21 @@ type LoginRequest struct {
 func login(baseURL, username, password string) error {
 	url := fmt.Sprintf("%s/auth/login", baseURL)
 
+	//nolint:gosec // G117: LoginRequest legitimately carries a password to authenticate this dev-only seeding tool against the local server
 	body, _ := json.Marshal(LoginRequest{
 		Username:     username,
 		Password:     password,
 		SessionRenew: false,
 	})
 
+	//nolint:gosec // G704: baseURL is an operator-supplied local server address in a dev-only seeding tool, not untrusted input
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
 
+	//nolint:gosec // G704: baseURL is an operator-supplied local server address in a dev-only seeding tool, not untrusted input
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
@@ -184,6 +187,7 @@ func login(baseURL, username, password string) error {
 func postJSON(url string, payload, response interface{}) error {
 	body, _ := json.Marshal(payload)
 
+	//nolint:gosec // G704: baseURL is an operator-supplied local server address in a dev-only seeding tool, not untrusted input
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
 	if err != nil {
 		return err
@@ -194,6 +198,7 @@ func postJSON(url string, payload, response interface{}) error {
 		req.AddCookie(authCookie)
 	}
 
+	//nolint:gosec // G704: baseURL is an operator-supplied local server address in a dev-only seeding tool, not untrusted input
 	resp, err := client.Do(req)
 	if err != nil {
 		return err

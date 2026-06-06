@@ -37,6 +37,8 @@ func (h *Handler) UploadAttachment(txId uint) http.Handler {
 		}
 
 		// Parse multipart form (32 MB max memory)
+		r.Body = http.MaxBytesReader(w, r.Body, 32<<20)
+		//nolint:gosec // G120: body is bounded by http.MaxBytesReader above; gosec taint analysis does not track the r.Body reassignment
 		if err := r.ParseMultipartForm(32 << 20); err != nil {
 			http.Error(w, fmt.Sprintf("unable to parse multipart form: %v", err), http.StatusBadRequest)
 			return

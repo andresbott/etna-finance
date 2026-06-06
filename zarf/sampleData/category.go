@@ -40,12 +40,14 @@ func createCategory(baseURL string, categoryType string, category Category) (uin
 	}
 
 	body, _ := json.Marshal(category)
+	//nolint:gosec // G704: baseURL is an operator-supplied local server address in a dev-only seeding tool, not untrusted input
 	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	if authCookie != nil {
 		req.AddCookie(authCookie)
 	}
 
+	//nolint:gosec // G704: baseURL is an operator-supplied local server address in a dev-only seeding tool, not untrusted input
 	resp, err := client.Do(req)
 	if err != nil {
 		return 0, err
