@@ -44,6 +44,11 @@ func TestCreateInstrument(t *testing.T) {
 					input:  Instrument{Symbol: "GOOGL", Name: "", Currency: currency.EUR},
 				},
 				{
+					name:   "create security with notes",
+					tenant: tenant1,
+					input:  Instrument{Symbol: "NFLX", Name: "Netflix", Currency: currency.USD, Notes: "streaming; high volatility"},
+				},
+				{
 					name:    "want error on empty symbol",
 					tenant:  tenant1,
 					input:   Instrument{Symbol: "", Name: "Unknown", Currency: currency.USD},
@@ -94,9 +99,9 @@ func TestCreateInstrument(t *testing.T) {
 					if err != nil {
 						t.Fatalf("expected security to be found, but got error: %v", err)
 					}
-					if got.Symbol != tc.input.Symbol || got.Name != tc.input.Name || got.Currency.String() != tc.input.Currency.String() {
-						t.Errorf("got Instrument Symbol=%q Name=%q Currency=%q, want Symbol=%q Name=%q Currency=%q",
-							got.Symbol, got.Name, got.Currency.String(), tc.input.Symbol, tc.input.Name, tc.input.Currency.String())
+					if got.Symbol != tc.input.Symbol || got.Name != tc.input.Name || got.Currency.String() != tc.input.Currency.String() || got.Notes != tc.input.Notes {
+						t.Errorf("got Instrument Symbol=%q Name=%q Currency=%q Notes=%q, want Symbol=%q Name=%q Currency=%q Notes=%q",
+							got.Symbol, got.Name, got.Currency.String(), got.Notes, tc.input.Symbol, tc.input.Name, tc.input.Currency.String(), tc.input.Notes)
 					}
 				})
 			}
@@ -264,6 +269,15 @@ func TestUpdateInstrument(t *testing.T) {
 					want: Instrument{ID: id, Symbol: "NEW", Name: "New Name", Currency: currency.EUR},
 				},
 				{
+					name:   "update notes only",
+					id:     id,
+					tenant: tenant1,
+					payload: InstrumentUpdatePayload{
+						Notes: ptr("some details"),
+					},
+					want: Instrument{ID: id, Symbol: "NEW", Name: "New Name", Currency: currency.EUR, Notes: "some details"},
+				},
+				{
 					name:    "empty symbol rejected",
 					id:      id,
 					tenant:  tenant1,
@@ -319,9 +333,9 @@ func TestUpdateInstrument(t *testing.T) {
 					if err != nil {
 						t.Fatalf("get after update: %v", err)
 					}
-					if got.Symbol != tc.want.Symbol || got.Name != tc.want.Name || got.Currency.String() != tc.want.Currency.String() {
-						t.Errorf("got Symbol=%q Name=%q Currency=%q, want Symbol=%q Name=%q Currency=%q",
-							got.Symbol, got.Name, got.Currency.String(), tc.want.Symbol, tc.want.Name, tc.want.Currency.String())
+					if got.Symbol != tc.want.Symbol || got.Name != tc.want.Name || got.Currency.String() != tc.want.Currency.String() || got.Notes != tc.want.Notes {
+						t.Errorf("got Symbol=%q Name=%q Currency=%q Notes=%q, want Symbol=%q Name=%q Currency=%q Notes=%q",
+							got.Symbol, got.Name, got.Currency.String(), got.Notes, tc.want.Symbol, tc.want.Name, tc.want.Currency.String(), tc.want.Notes)
 					}
 				})
 			}

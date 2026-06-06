@@ -18,6 +18,7 @@ export interface MarketInstrument {
     id: number
     symbol: string
     name: string
+    notes: string
     currency: string
     lastPrice: number
     change: number | null
@@ -67,6 +68,7 @@ export function useMarketInstruments() {
                         id: inst.id,
                         symbol: inst.symbol,
                         name: inst.name,
+                        notes: inst.notes ?? '',
                         currency: inst.currency,
                         lastPrice,
                         change,

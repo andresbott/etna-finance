@@ -1275,6 +1275,7 @@ function formatPct(value: number): string {
         <div class="print-section print-overview">
             <h2>Overview</h2>
             <table class="print-table">
+                <tbody>
                 <tr><td>Affordability Ratio</td><td>{{ formatPct(affordabilityRatio) }}</td><td class="print-note">Housing cost as % of gross income — should be below 33%</td></tr>
                 <tr><td>Equity Contribution</td><td>{{ formatPct(equityContributionPct) }}</td><td class="print-note">Equity as % of purchase price — typically 20% minimum</td></tr>
                 <tr><td>Total Invested (Equity + Costs)</td><td>{{ formatCurrency(totalEquity + totalOneTimeCosts) }}</td><td class="print-note">Total cash outlay at closing</td></tr>
@@ -1284,6 +1285,7 @@ function formatPct(value: number): string {
                 <tr><td>Breakeven Rent</td><td>{{ formatCurrency(breakevenMonthlyRent) }} / mo</td><td class="print-note">Minimum rent to cover all costs with zero cash flow</td></tr>
                 <tr><td>Monthly Cash Flow</td><td>{{ formatCurrency(leveragedCashFlow / 12) }} / mo</td><td class="print-note">Net income after all expenses and mortgage payments</td></tr>
                 <tr class="print-total"><td>Total Levered Yield (ROI)</td><td>{{ formatPct(totalLeveredYield) }}</td><td class="print-note">Year-1 return on equity: cash flow + equity buildup + appreciation</td></tr>
+                </tbody>
             </table>
         </div>
 
@@ -1291,10 +1293,12 @@ function formatPct(value: number): string {
         <div class="print-section">
             <h2>Property</h2>
             <table class="print-table">
+                <tbody>
                 <tr><td>Purchase Price</td><td>{{ formatCurrency(purchasePrice) }}</td><td class="print-note">Agreed transaction price</td></tr>
                 <tr><td>Market Value</td><td>{{ formatCurrency(marketValue) }}</td><td class="print-note">Appraised or estimated current value — used for cap rate and maintenance calculations</td></tr>
                 <tr><td>Square Meters</td><td>{{ squareMeters }} m²</td><td class="print-note"></td></tr>
                 <tr><td>Price / m²</td><td>{{ squareMeters > 0 ? formatCurrency(purchasePrice / squareMeters) : '—' }}</td><td class="print-note">Useful for comparing with local market averages</td></tr>
+                </tbody>
             </table>
         </div>
 
@@ -1302,12 +1306,14 @@ function formatPct(value: number): string {
             <h2>One-time Purchase Costs</h2>
             <p class="print-hint">Fees paid once at closing, on top of the purchase price.</p>
             <table class="print-table">
+                <tbody>
                 <tr><td>Transfer Tax ({{ transferTaxPct }}%)</td><td>{{ formatCurrency(transferTaxCost) }}</td><td class="print-note">Tax on the property transfer, often split between buyer and seller</td></tr>
                 <tr><td>Notary ({{ notaryFeePct }}%)</td><td>{{ formatCurrency(notaryFeeCost) }}</td><td class="print-note">Land registry office fees for the deed</td></tr>
                 <tr><td>Land Registry ({{ landRegistryPct }}%)</td><td>{{ formatCurrency(landRegistryCost) }}</td><td class="print-note">Fee for registering the ownership change</td></tr>
                 <tr><td>Mortgage Deed</td><td>{{ formatCurrency(mortgageDeedCost) }}</td><td class="print-note">Issuance of a new mortgage deed, if needed</td></tr>
                 <tr class="print-total"><td>Total One-time Costs</td><td>{{ formatCurrency(totalOneTimeCosts) }}</td><td></td></tr>
                 <tr class="print-total"><td>Total Purchase Cost (Price + Fees)</td><td>{{ formatCurrency(totalPurchaseCost) }}</td><td></td></tr>
+                </tbody>
             </table>
         </div>
 
@@ -1316,11 +1322,13 @@ function formatPct(value: number): string {
             <h2>Financing</h2>
             <p class="print-hint">How the purchase is funded — equity contribution and mortgage structure.</p>
             <table class="print-table">
+                <tbody>
                 <tr><td>Gross Annual Income</td><td>{{ formatCurrency(grossAnnualIncome) }}</td><td class="print-note">Used for affordability ratio calculation</td></tr>
                 <tr><td>Cash Equity</td><td>{{ formatCurrency(cashEquity) }}</td><td class="print-note">Direct cash contribution</td></tr>
                 <tr v-for="eq in additionalEquity" :key="'print-eq-' + eq.name"><td>{{ eq.name }}</td><td>{{ formatCurrency(eq.amount) }}</td><td class="print-note"></td></tr>
                 <tr class="print-total"><td>Total Equity</td><td>{{ formatCurrency(totalEquity) }}</td><td class="print-note">{{ formatPct(equityContributionPct) }} of purchase price</td></tr>
                 <tr class="print-total"><td>Total Invested (Equity + Costs)</td><td>{{ formatCurrency(totalEquity + totalOneTimeCosts) }}</td><td class="print-note">Total cash outlay at closing</td></tr>
+                </tbody>
             </table>
         </div>
 
@@ -1329,6 +1337,7 @@ function formatPct(value: number): string {
             <div v-for="md in mortgageDetails" :key="'print-m-' + md.name" class="print-mortgage">
                 <h4>{{ md.name }}</h4>
                 <table class="print-table">
+                    <tbody>
                     <tr><td>Principal</td><td>{{ formatCurrency(md.principal) }}</td><td class="print-note">{{ md.splitPct.toFixed(0) }}% of total mortgage needed</td></tr>
                     <tr><td>Interest Rate</td><td>{{ md.interestRate }}%</td><td class="print-note"></td></tr>
                     <tr><td>Term</td><td>{{ md.termYears }} years</td><td class="print-note"></td></tr>
@@ -1337,11 +1346,14 @@ function formatPct(value: number): string {
                     <tr><td>Annual Payment</td><td>{{ formatCurrency(md.annualPayment) }}</td><td class="print-note"></td></tr>
                     <tr v-if="md.amortize"><td>Total Interest Paid</td><td>{{ formatCurrency(md.totalInterest) }}</td><td class="print-note">Over the full {{ md.termYears }}-year term</td></tr>
                     <tr v-if="md.amortize"><td>Interest / Principal Ratio</td><td>{{ md.interestToPrincipalRatio.toFixed(1) }}%</td><td class="print-note">How much interest you pay per unit borrowed — lower is better</td></tr>
+                    </tbody>
                 </table>
             </div>
             <table class="print-table">
+                <tbody>
                 <tr class="print-total"><td>Total Monthly Payments</td><td>{{ formatCurrency(totalMonthlyMortgagePayments) }}</td><td></td></tr>
                 <tr class="print-total"><td>Total Annual Payments</td><td>{{ formatCurrency(totalAnnualMortgagePayments) }}</td><td></td></tr>
+                </tbody>
             </table>
         </div>
 
@@ -1350,11 +1362,14 @@ function formatPct(value: number): string {
             <h2>Recurring Costs (yearly)</h2>
             <p class="print-hint">Ongoing annual expenses for owning and operating the property.</p>
             <table class="print-table" v-if="useSimpleCosts">
+                <tbody>
                 <tr><td>Incidental ({{ incidentalPct }}%)</td><td>{{ formatCurrency(incidentalCost) }}</td><td class="print-note">Simplified estimate — {{ incidentalPct }}% of purchase price covers maintenance, insurance, taxes, etc.</td></tr>
                 <tr><td>Other Costs</td><td>{{ formatCurrency(otherCosts) }}</td><td class="print-note">Any additional recurring expenses not captured above</td></tr>
                 <tr class="print-total"><td>Total Recurring Costs</td><td>{{ formatCurrency(totalRecurringCosts) }}</td><td></td></tr>
+                </tbody>
             </table>
             <table class="print-table" v-else>
+                <tbody>
                 <tr><td>Property Tax</td><td>{{ formatCurrency(propertyTax) }}</td><td class="print-note">Annual property / real estate tax</td></tr>
                 <tr><td>Insurance</td><td>{{ formatCurrency(insurance) }}</td><td class="print-note">Building and liability insurance</td></tr>
                 <tr><td>Maintenance Reserve ({{ maintenancePct }}%)</td><td>{{ formatCurrency(maintenanceCost) }}</td><td class="print-note">{{ maintenancePct }}% of market value — covers in-unit repairs (appliances, fixtures, paint)</td></tr>
@@ -1362,6 +1377,7 @@ function formatPct(value: number): string {
                 <tr><td>Vacancy Allowance ({{ vacancyPct }}%)</td><td>{{ formatCurrency(vacancyCost) }}</td><td class="print-note">{{ vacancyPct }}% of gross rent — reserve for tenant turnover periods</td></tr>
                 <tr><td>Property Management ({{ managementPct }}%)</td><td>{{ formatCurrency(managementCost) }}</td><td class="print-note">{{ managementPct }}% of gross rent — professional management fees</td></tr>
                 <tr class="print-total"><td>Total Recurring Costs</td><td>{{ formatCurrency(totalRecurringCosts) }}</td><td></td></tr>
+                </tbody>
             </table>
         </div>
 
@@ -1370,10 +1386,12 @@ function formatPct(value: number): string {
             <h2>Affordability</h2>
             <p class="print-hint">Can you comfortably carry this property? Total housing cost vs. income, and equity position.</p>
             <table class="print-table">
+                <tbody>
                 <tr><td>Monthly Housing Cost</td><td>{{ formatCurrency(totalMonthlyHousingCost) }} / mo</td><td class="print-note">Mortgage payments + recurring costs</td></tr>
                 <tr><td>Annual Housing Cost</td><td>{{ formatCurrency(totalMonthlyHousingCost * 12) }} / yr</td><td class="print-note"></td></tr>
                 <tr><td>Affordability Ratio</td><td>{{ formatPct(affordabilityRatio) }}</td><td class="print-note">Housing cost as % of gross income — should be below 33%</td></tr>
                 <tr><td>Equity Contribution</td><td>{{ formatPct(equityContributionPct) }}</td><td class="print-note">Equity as % of purchase price — typically 20% minimum required</td></tr>
+                </tbody>
             </table>
         </div>
 
@@ -1382,10 +1400,12 @@ function formatPct(value: number): string {
             <h2>Income vs Expenses</h2>
             <p class="print-hint">Annual cash flow from the rental property — what comes in vs. what goes out.</p>
             <table class="print-table">
+                <tbody>
                 <tr><td>Gross Rent Income</td><td>{{ formatCurrency(annualRent) }} / yr</td><td class="print-note">{{ formatCurrency(monthlyRent) }} / mo</td></tr>
                 <tr><td>Recurring Costs</td><td>−{{ formatCurrency(totalRecurringCosts) }} / yr</td><td class="print-note">All operating expenses</td></tr>
                 <tr><td>Mortgage Payments</td><td>−{{ formatCurrency(totalAnnualMortgagePayments) }} / yr</td><td class="print-note">Interest + principal repayment</td></tr>
                 <tr class="print-total"><td>Net Cash Flow</td><td>{{ formatCurrency(leveragedCashFlow) }} / yr</td><td class="print-note">{{ formatCurrency(leveragedCashFlow / 12) }} / mo — money left after all costs</td></tr>
+                </tbody>
             </table>
         </div>
 
@@ -1394,11 +1414,13 @@ function formatPct(value: number): string {
             <h2>Property Metrics (unlevered)</h2>
             <p class="print-hint">Performance indicators independent of financing — useful for comparing properties.</p>
             <table class="print-table">
+                <tbody>
                 <tr><td>Gross Annual Return</td><td>{{ formatPct(grossAnnualReturn) }}</td><td class="print-note">Annual Rent / Purchase Price — before any expenses</td></tr>
                 <tr><td>Net Operating Income (NOI)</td><td>{{ formatCurrency(noi) }} / yr</td><td class="print-note">Rent − Recurring Costs — before mortgage payments</td></tr>
                 <tr><td>Cap Rate</td><td>{{ formatPct(capRate) }}</td><td class="print-note">NOI / Market Value — the property's return regardless of how it's financed</td></tr>
                 <tr><td>Breakeven Rent</td><td>{{ formatCurrency(breakevenMonthlyRent) }} / mo</td><td class="print-note">Minimum rent to cover all costs and achieve zero cash flow</td></tr>
                 <tr><td>Simplified Taxable Income (20%)</td><td>{{ formatCurrency(grossAnnualRent * 0.2) }} / yr</td><td class="print-note">Rough estimate — 20% of gross rent after deductions</td></tr>
+                </tbody>
             </table>
         </div>
 
@@ -1409,14 +1431,18 @@ function formatPct(value: number): string {
 
             <h3>Levered Yield (cash flow + equity buildup)</h3>
             <table class="print-table">
+                <tbody>
                 <tr><td>Year-1</td><td>{{ formatPct(leveredYield) }}</td><td class="print-note">(Net Cash Flow + Year-1 Equity Buildup) / Total Equity</td></tr>
                 <tr><td>Average</td><td>{{ formatPct(avgLeveredYield) }}</td><td class="print-note">Using linear average of equity buildup over the mortgage term</td></tr>
+                </tbody>
             </table>
 
             <h3>Total Levered Yield (+ property appreciation at {{ housingPriceIncreasePct }}%/yr)</h3>
             <table class="print-table">
+                <tbody>
                 <tr class="print-total"><td>Year-1</td><td>{{ formatPct(totalLeveredYield) }}</td><td class="print-note">(Net Cash Flow + Equity Buildup + Appreciation) / Total Equity — best single metric for ROI comparison</td></tr>
                 <tr class="print-total"><td>Average</td><td>{{ formatPct(avgTotalLeveredYield) }}</td><td class="print-note">Average annual total return over the mortgage term</td></tr>
+                </tbody>
             </table>
         </div>
     </div>

@@ -5,6 +5,7 @@ import Button from 'primevue/button'
 
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import EntryFilters from '@/components/entries/EntryFilters.vue'
+import AdHocCategoryRuleDialog from '@/components/common/AdHocCategoryRuleDialog.vue'
 import AccountEntriesTable from './AccountEntriesTable.vue'
 import EntryDialogs from './EntryDialogs.vue'
 
@@ -156,6 +157,9 @@ const filtersExpanded = ref(
     hasAttachment.value ||
     search.value !== ''
 )
+
+/* --- Ad-hoc category rule dialog --- */
+const adhocDialogRef = ref(null)
 </script>
 
 <template>
@@ -178,6 +182,14 @@ const filtersExpanded = ref(
                         class="filter-btn"
                         @click="filtersExpanded = !filtersExpanded"
                         v-tooltip.bottom="'Filters'"
+                    />
+                    <Button
+                        icon="ti ti-bolt"
+                        severity="secondary"
+                        outlined
+                        class="filter-btn"
+                        @click="adhocDialogRef?.open()"
+                        v-tooltip.bottom="'Apply Ad-hoc Rule'"
                     />
                 </div>
                 <div class="add-entry-menu">
@@ -234,6 +246,8 @@ const filtersExpanded = ref(
         @confirm-delete="handleDeleteEntry"
         @transform-to-transfer="openTransformToTransfer"
     />
+
+    <AdHocCategoryRuleDialog ref="adhocDialogRef" />
 </template>
 
 <style scoped>

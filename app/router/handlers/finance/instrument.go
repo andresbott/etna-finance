@@ -19,12 +19,14 @@ type instrumentPayload struct {
 	Symbol   string `json:"symbol"`
 	Name     string `json:"name"`
 	Currency string `json:"currency"`
+	Notes    string `json:"notes"`
 }
 
 type instrumentCreatePayload struct {
 	Symbol   string `json:"symbol"`
 	Name     string `json:"name"`
 	Currency string `json:"currency"`
+	Notes    string `json:"notes"`
 }
 
 func instrumentToPayload(s marketdata.Instrument) instrumentPayload {
@@ -33,6 +35,7 @@ func instrumentToPayload(s marketdata.Instrument) instrumentPayload {
 		Symbol:   s.Symbol,
 		Name:     s.Name,
 		Currency: s.Currency.String(),
+		Notes:    s.Notes,
 	}
 }
 
@@ -102,6 +105,7 @@ func (h *Handler) CreateInstrument() http.Handler {
 			Symbol:   payload.Symbol,
 			Name:     payload.Name,
 			Currency: curr,
+			Notes:    payload.Notes,
 		}
 
 		id, err := h.InstrumentStore.CreateInstrument(r.Context(), item)
@@ -123,6 +127,7 @@ func (h *Handler) CreateInstrument() http.Handler {
 			Symbol:   item.Symbol,
 			Name:     item.Name,
 			Currency: item.Currency.String(),
+			Notes:    item.Notes,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -156,6 +161,7 @@ type instrumentUpdatePayload struct {
 	Symbol   *string `json:"symbol,omitempty"`
 	Name     *string `json:"name,omitempty"`
 	Currency *string `json:"currency,omitempty"`
+	Notes    *string `json:"notes,omitempty"`
 }
 
 func (h *Handler) UpdateInstrument(id uint) http.Handler {
@@ -176,6 +182,7 @@ func (h *Handler) UpdateInstrument(id uint) http.Handler {
 			Symbol:   payload.Symbol,
 			Name:     payload.Name,
 			Currency: payload.Currency,
+			Notes:    payload.Notes,
 		}
 		err := h.InstrumentStore.UpdateInstrument(r.Context(), id, item)
 		if err != nil {
