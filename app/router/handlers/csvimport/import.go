@@ -20,6 +20,8 @@ type ImportHandler struct {
 
 func (h *ImportHandler) ParseCSV() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
+		//nolint:gosec // G120: body is bounded by http.MaxBytesReader above; gosec taint analysis does not track the r.Body reassignment
 		if err := r.ParseMultipartForm(10 << 20); err != nil {
 			http.Error(w, fmt.Sprintf("unable to parse multipart form: %s", err.Error()), http.StatusBadRequest)
 			return

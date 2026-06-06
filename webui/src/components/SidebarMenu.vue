@@ -38,6 +38,12 @@
                         <div class="menu-section-label">Transactions</div>
                     </li>
                     <li>
+                        <router-link to="/nav/account-browser" class="menu-item">
+                            <i class="ti ti-list-search menu-icon"></i>
+                            <span class="menu-label">Account Browser</span>
+                        </router-link>
+                    </li>
+                    <li>
                         <router-link to="/entries" class="menu-item">
                             <i class="ti ti-layout-grid menu-icon"></i>
                             <span class="menu-label">All Accounts</span>
@@ -47,12 +53,6 @@
                         <router-link :to="`/entries/${fav.id}`" class="menu-item favorite-item">
                             <i :class="['ti', `ti-${fav.icon || 'wallet'}`, 'menu-icon']"></i>
                             <span class="menu-label">{{ fav.name }}</span>
-                        </router-link>
-                    </li>
-                    <li>
-                        <router-link to="/nav/account-browser" class="menu-item">
-                            <i class="ti ti-list-search menu-icon"></i>
-                            <span class="menu-label">Account Browser</span>
                         </router-link>
                     </li>
 

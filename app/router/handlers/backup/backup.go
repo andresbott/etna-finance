@@ -209,6 +209,7 @@ func (h *Handler) RestoreUpload() http.Handler {
 		// Limit the upload size (100MB)
 		r.Body = http.MaxBytesReader(w, r.Body, 100<<20)
 
+		//nolint:gosec // G120: body is bounded by http.MaxBytesReader above; gosec taint analysis does not track the r.Body reassignment
 		if err := r.ParseMultipartForm(100 << 20); err != nil {
 			http.Error(w, fmt.Sprintf("failed to parse form: %v", err), http.StatusBadRequest)
 			return
