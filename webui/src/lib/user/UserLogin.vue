@@ -106,7 +106,7 @@ const resolver = ({ values }) => {
                     <!--      KEEP ME LOGGED IN            -->
 
                     <InputGroup>
-                        <FormField v-slot="$field" name="loggedin" initialValue="">
+                        <FormField name="loggedin" initialValue="">
                             <ToggleSwitch />
                             <label class="ml-4" for="loggedin">Keep me signed in</label>
                         </FormField>

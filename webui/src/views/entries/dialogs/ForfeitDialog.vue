@@ -23,7 +23,6 @@ import {
     extractAccountId,
     toDateString
 } from '@/composables/useEntryDialogForm'
-import { accountValidation } from '@/utils/entryValidation'
 import { getApiErrorMessage } from '@/utils/apiError'
 import { useLots } from '@/composables/useLots'
 
@@ -42,7 +41,7 @@ const createMutation = useMutation({
 })
 
 const isSaving = computed(() => createMutation.isPending.value)
-const { pickerDateFormat, dateValidation, formatDate } = useDateFormat()
+const { pickerDateFormat, formatDate } = useDateFormat()
 
 const instruments = computed(() => instrumentsData.value ?? [])
 
@@ -138,9 +137,6 @@ const visibleLots = computed(() =>
     lots.value.filter(l => getLotAvailable(l) > 0)
 )
 
-const totalAvailable = computed(() =>
-    visibleLots.value.reduce((sum, l) => sum + getLotAvailable(l), 0)
-)
 
 // When editing, each lot's "available" quantity is its current DB quantity plus
 // whatever was already allocated to this forfeit (which was subtracted when the forfeit was created).
@@ -289,7 +285,6 @@ const dialogTitle = computed(() =>
     >
         <Form
             :key="formKey"
-            v-slot="$form"
             :resolver="zodResolver(z.object({}))"
             :initialValues="formValues"
             :validateOnValueUpdate="false"

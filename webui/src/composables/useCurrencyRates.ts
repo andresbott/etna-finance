@@ -4,9 +4,7 @@ import { useSettingsStore } from '@/store/settingsStore'
 import {
     getFXPairs,
     getRateHistory,
-    getLatestRate,
     createRate as createRateApi,
-    createRatesBulk,
     updateRate as updateRateApi,
     deleteRate as deleteRateApi,
     parsePair

@@ -15,8 +15,6 @@ export const useUserStore = defineStore('user', () => {
     const isLoading = ref(false)
     const wrongPwErr = ref(false)
 
-    const user = ref('')
-
     const logoutCallbacks: Array<() => void> = []
 
     const registerLogoutAction = (callback: () => void) => {
@@ -106,7 +104,7 @@ export const useUserStore = defineStore('user', () => {
         isLoading.value = true
         axios
             .post(logoutPath, '')
-            .then((res) => {
+            .then(() => {
                 loggedInUser.value = ''
                 isLoggedIn.value = false
                 settingsStore.$reset()

@@ -1,7 +1,6 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { useToast } from 'primevue/usetoast'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
 import Message from 'primevue/message'
@@ -23,7 +22,6 @@ const props = defineProps({
 const emit = defineEmits(['update:visible'])
 
 const router = useRouter()
-const toast = useToast()
 
 const selectedFile = ref(null)
 const isParsing = ref(false)

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ResponsiveHorizontal } from '@go-bumbu/vue-layouts'
 import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Card from 'primevue/card'
 import InputNumber from 'primevue/inputnumber'
@@ -26,7 +26,6 @@ import {
     calcMonthlyPayment,
     calcTotalInterest,
     computeAmortizationSchedule,
-    computeRealEstateProjection,
 } from '@/lib/simulators/realEstate'
 import FileInput from '@/components/common/FileInput.vue'
 import { useToast } from 'primevue/usetoast'
@@ -153,15 +152,7 @@ function mortgagePrincipal(m: { splitPct: number }): number {
     return totalMortgageNeeded.value * (m.splitPct ?? 0) / 100
 }
 
-const totalMortgagePrincipal = computed(() => {
-    return mortgages.value.reduce((sum, m) => sum + mortgagePrincipal(m), 0)
-})
-
 const totalSplitPct = computed(() => mortgages.value.reduce((sum, m) => sum + (m.splitPct ?? 0), 0))
-
-const financingGap = computed(() => {
-    return (purchasePrice.value ?? 0) - totalEquity.value - totalMortgagePrincipal.value
-})
 
 // ── Mortgage payment calculation (delegated to shared utility) ───────
 
@@ -187,15 +178,6 @@ const totalAnnualMortgagePayments = computed(() => {
 
 const totalMonthlyMortgagePayments = computed(() => {
     return mortgageDetails.value.reduce((sum, m) => sum + m.monthlyPayment, 0)
-})
-
-const totalMortgageInterest = computed(() => {
-    return mortgageDetails.value.reduce((sum, m) => sum + m.totalInterest, 0)
-})
-
-const overallInterestToPrincipalRatio = computed(() => {
-    const principal = totalMortgagePrincipal.value
-    return principal > 0 ? (totalMortgageInterest.value / principal) * 100 : 0
 })
 
 function interestRatioColor(ratio: number): string {
@@ -321,60 +303,6 @@ function equityColor(pct: number): string {
 // ── Amortization schedule (delegated to shared utility) ──────────────
 
 const amortizationSchedule = computed(() => computeAmortizationSchedule(getCurrentParams()))
-
-// ── Chart projection (delegated to shared utility) ──────────────────
-const chartProjection = computed(() => computeRealEstateProjection(getCurrentParams()))
-
-const chartColors = {
-    netWorth: '#22c55e',
-    propertyEquity: '#64748b',
-    cumulativeCashFlow: '#3b82f6'
-}
-
-const chartOption = computed(() => {
-    const p = chartProjection.value
-    return {
-        animation: true,
-        legend: {
-            type: 'scroll',
-            bottom: 0,
-            data: ['Real Estate Net Worth', 'Property Equity', 'Cumulative Cash Flow']
-        },
-        grid: { left: '3%', right: '4%', bottom: '18%', top: '6%', containLabel: true },
-        tooltip: {
-            trigger: 'axis',
-            formatter: (params: Array<{ dataIndex: number }>) => {
-                const idx = params[0].dataIndex
-                const y = p.yearLabels[idx]
-                return [
-                    `Year <strong>${y}</strong>`,
-                    `Real Estate Net Worth: ${formatCurrency(p.netWorth[idx])}`,
-                    `Property Equity: ${formatCurrency(p.propertyEquity[idx])}`,
-                    `Cumulative Cash Flow: ${formatCurrency(p.cumulativeCashFlow[idx])}`
-                ].join('<br/>')
-            }
-        },
-        xAxis: {
-            type: 'value',
-            name: 'Year',
-            nameLocation: 'middle',
-            nameGap: 25,
-            axisLabel: { formatter: (v: number) => v + 'y' },
-            splitLine: { lineStyle: { type: 'dashed', opacity: 0.4 } }
-        },
-        yAxis: {
-            type: 'value',
-            name: 'Value',
-            axisLabel: { formatter: (v: number) => formatCurrencyShort(v) },
-            splitLine: { lineStyle: { type: 'dashed', opacity: 0.4 } }
-        },
-        series: [
-            { type: 'line', data: p.yearLabels.map((y, i) => [y, p.netWorth[i]]), smooth: 0.2, showSymbol: false, lineStyle: { color: chartColors.netWorth, width: 2.5 }, itemStyle: { color: chartColors.netWorth }, name: 'Real Estate Net Worth' },
-            { type: 'line', data: p.yearLabels.map((y, i) => [y, p.propertyEquity[i]]), smooth: 0.2, showSymbol: false, lineStyle: { color: chartColors.propertyEquity, width: 2 }, itemStyle: { color: chartColors.propertyEquity }, name: 'Property Equity' },
-            { type: 'line', data: p.yearLabels.map((y, i) => [y, p.cumulativeCashFlow[i]]), smooth: 0.2, showSymbol: false, lineStyle: { color: chartColors.cumulativeCashFlow, width: 2 }, itemStyle: { color: chartColors.cumulativeCashFlow }, name: 'Cumulative Cash Flow' }
-        ]
-    }
-})
 
 const amortizationChartOption = computed(() => {
     const schedule = amortizationSchedule.value

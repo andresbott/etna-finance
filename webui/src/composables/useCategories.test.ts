@@ -60,7 +60,7 @@ describe('useCategories', () => {
             ]
             mockedgetIncomeCategories.mockResolvedValue(categories)
 
-            const { result } = renderComposable(() => useCategories(), { queryClient })
+            renderComposable(() => useCategories(), { queryClient })
             unmount = renderComposable(() => useCategories(), { queryClient }).unmount
             // Re-render properly
             unmount()

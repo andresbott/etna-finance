@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import Card from 'primevue/card'
 import Button from 'primevue/button'
 import Message from 'primevue/message'
@@ -109,13 +109,6 @@ const handleRestoreBackup = async () => {
     } catch (error) {
         errorMessage.value = 'Failed to restore backup: ' + error.message
     }
-}
-
-const formatDate = (filename) => {
-    // Extract date from filename if it follows a pattern like "backup_2025-11-01_10-30-00.json"
-    // For now, just return the filename as is
-    // TODO: Implement proper date extraction or get date from API
-    return filename
 }
 
 const formatFileSize = (bytes) => {

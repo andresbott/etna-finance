@@ -26,6 +26,10 @@ const emit = defineEmits(['update:deleteDialogVisible', 'confirmDelete', 'transf
 </script>
 
 <template>
+    <!-- eslint-disable vue/no-mutating-props --
+         `dialogs` is a shared object of refs owned by useEntryDialogs(); writing
+         dialogs.*.value through v-model is the intended two-way binding, not an
+         accidental prop mutation. -->
     <IncomeExpenseDialog
         v-model:visible="dialogs.incomeExpense.value"
         :is-edit="isEditMode"
