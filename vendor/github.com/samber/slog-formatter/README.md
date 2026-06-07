@@ -2,7 +2,7 @@
 # slog: Attribute formatting
 
 [![tag](https://img.shields.io/github/tag/samber/slog-formatter.svg)](https://github.com/samber/slog-formatter/releases)
-![Go Version](https://img.shields.io/badge/Go-%3E%3D%201.21-%23007d9c)
+![Go Version](https://img.shields.io/badge/Go-%3E%3D%201.22-%23007d9c)
 [![GoDoc](https://godoc.org/github.com/samber/slog-formatter?status.svg)](https://pkg.go.dev/github.com/samber/slog-formatter)
 ![Build Status](https://github.com/samber/slog-formatter/actions/workflows/test.yml/badge.svg)
 [![Go report](https://goreportcard.com/badge/github.com/samber/slog-formatter)](https://goreportcard.com/report/github.com/samber/slog-formatter)
@@ -15,6 +15,15 @@ Common formatters for [slog](https://pkg.go.dev/log/slog) library + helpers for 
 <div align="center">
   <hr>
   <sup><b>Sponsored by:</b></sup>
+  <br>
+  <a href="https://cast.ai/samuel">
+    <div>
+      <img src="https://github.com/user-attachments/assets/502f8fa8-e7e8-4754-a51f-036d0443e694" width="200" alt="Cast AI">
+    </div>
+    <div>
+      Cut Kubernetes & AI costs, boost application stability
+    </div>
+  </a>
   <br>
   <a href="https://www.dash0.com?utm_campaign=148395251-samber%20github%20sponsorship&utm_source=github&utm_medium=sponsorship&utm_content=samber">
     <div>
