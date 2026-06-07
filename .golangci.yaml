@@ -10,6 +10,9 @@ linters:
 
   # exclude test files
   exclusions:
+    # exclude third-party code shipped inside node_modules (e.g. flatted's Go port)
+    paths:
+      - node_modules
     rules:
       - path: '(.+)_test\.go'
         linters:
