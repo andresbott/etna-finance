@@ -168,63 +168,50 @@ func (s *Store) LatestRate(ctx context.Context, main, secondary string) (*RateRe
 	return &RateRecord{ID: fxID(last.Time), Main: main, Secondary: secondary, Time: last.Time, Rate: last.Value}, nil
 }
 
-// UpdateRate applies a partial update to an existing rate record using its synthetic id.
-func (s *Store) UpdateRate(ctx context.Context, id uint, in RateUpdate) error {
+// UpdateRate applies a partial update to the rate record identified by (main/secondary, id),
+// where id is the synthetic time-derived id from RateRecord.ID.
+func (s *Store) UpdateRate(ctx context.Context, main, secondary string, id uint, in RateUpdate) error {
+	if main == "" || secondary == "" {
+		return fmt.Errorf("main and secondary currency cannot be empty")
+	}
 	if id == 0 {
 		return fmt.Errorf("record id is required for update")
 	}
+	name := fxSeriesName(main, secondary)
 	oldTime := fxTime(id)
-	// Resolve which series this record belongs to by scanning registered pairs.
-	pairs, err := s.ListFXPairs(ctx)
+	cur, ok, err := s.store.FieldAt(ctx, name, fxField, oldTime)
 	if err != nil {
+		if errors.Is(err, timeseries.ErrSeriesNotFound) || errors.Is(err, timeseries.ErrFieldNotFound) {
+			return fmt.Errorf("rate record %d not found for %s/%s", id, main, secondary)
+		}
 		return err
 	}
-	for _, pair := range pairs {
-		parts := strings.SplitN(pair, "/", 2)
-		if len(parts) != 2 {
-			continue
-		}
-		main, secondary := parts[0], parts[1]
-		cur, err := s.RateAt(ctx, main, secondary, oldTime)
-		if err != nil || cur == nil || !cur.Time.Equal(oldTime) {
-			continue
-		}
-		rate := cur.Rate
-		if in.Rate != nil {
-			rate = *in.Rate
-		}
-		newTime := oldTime
-		if in.Time != nil {
-			newTime = *in.Time
-		}
-		if !newTime.Equal(oldTime) {
-			if err := s.store.Delete(ctx, fxSeriesName(main, secondary), oldTime); err != nil {
-				return err
-			}
-		}
-		return s.IngestRate(ctx, main, secondary, newTime, rate)
+	if !ok {
+		return fmt.Errorf("rate record %d not found for %s/%s", id, main, secondary)
 	}
-	return fmt.Errorf("rate record %d not found", id)
-}
-
-// DeleteRate removes a rate record by its synthetic id.
-func (s *Store) DeleteRate(ctx context.Context, id uint) error {
-	if id == 0 {
-		return fmt.Errorf("record id is required for delete")
+	rate := cur
+	if in.Rate != nil {
+		rate = *in.Rate
 	}
-	t := fxTime(id)
-	pairs, err := s.ListFXPairs(ctx)
-	if err != nil {
-		return err
+	newTime := oldTime
+	if in.Time != nil {
+		newTime = *in.Time
 	}
-	for _, pair := range pairs {
-		parts := strings.SplitN(pair, "/", 2)
-		if len(parts) != 2 {
-			continue
-		}
-		if err := s.store.Delete(ctx, fxSeriesName(parts[0], parts[1]), t); err != nil {
+	if !newTime.Equal(oldTime) {
+		if err := s.store.Delete(ctx, name, oldTime); err != nil {
 			return err
 		}
 	}
-	return nil
+	return s.IngestRate(ctx, main, secondary, newTime, rate)
+}
+
+// DeleteRate removes the rate record identified by (main/secondary, id).
+func (s *Store) DeleteRate(ctx context.Context, main, secondary string, id uint) error {
+	if main == "" || secondary == "" {
+		return fmt.Errorf("main and secondary currency cannot be empty")
+	}
+	if id == 0 {
+		return fmt.Errorf("record id is required for delete")
+	}
+	return s.store.Delete(ctx, fxSeriesName(main, secondary), fxTime(id))
 }

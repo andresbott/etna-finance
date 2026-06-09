@@ -166,9 +166,15 @@ func TestLatestPrice(t *testing.T) {
 
 			t.Run("returns most recent price", func(t *testing.T) {
 				base := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
-				_ = store.IngestPrice(ctx, "LATEST", PricePoint{Time: base, Close: 50.0})
-				_ = store.IngestPrice(ctx, "LATEST", PricePoint{Time: base.AddDate(0, 0, 1), Close: 55.0})
-				_ = store.IngestPrice(ctx, "LATEST", PricePoint{Time: base.AddDate(0, 0, 2), Close: 60.0})
+				if err := store.IngestPrice(ctx, "LATEST", PricePoint{Time: base, Close: 50.0}); err != nil {
+					t.Fatalf("seed ingest: %v", err)
+				}
+				if err := store.IngestPrice(ctx, "LATEST", PricePoint{Time: base.AddDate(0, 0, 1), Close: 55.0}); err != nil {
+					t.Fatalf("seed ingest: %v", err)
+				}
+				if err := store.IngestPrice(ctx, "LATEST", PricePoint{Time: base.AddDate(0, 0, 2), Close: 60.0}); err != nil {
+					t.Fatalf("seed ingest: %v", err)
+				}
 
 				rec, err := store.LatestPrice(ctx, "LATEST")
 				if err != nil {

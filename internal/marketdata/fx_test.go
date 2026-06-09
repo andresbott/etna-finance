@@ -56,6 +56,12 @@ func TestIngestRatesBulk(t *testing.T) {
 				if len(records) != 3 {
 					t.Fatalf("expected 3 records, got %d", len(records))
 				}
+				expectedRates := []float64{1.08, 1.09, 1.10}
+				for i, r := range records {
+					if r.Rate != expectedRates[i] {
+						t.Errorf("records[%d]: expected rate %v, got %v", i, expectedRates[i], r.Rate)
+					}
+				}
 			})
 		})
 	}
@@ -214,7 +220,7 @@ func TestUpdateRate(t *testing.T) {
 			}
 
 			t.Run("zero id returns error", func(t *testing.T) {
-				err := store.UpdateRate(ctx, 0, RateUpdate{Rate: ptr(1.5)})
+				err := store.UpdateRate(ctx, "EUR", "USD", 0, RateUpdate{Rate: ptr(1.5)})
 				if err == nil {
 					t.Fatal("expected error for zero id")
 				}
@@ -237,7 +243,7 @@ func TestUpdateRate(t *testing.T) {
 				recID := records[0].ID
 
 				newRate := 0.0070
-				err = store.UpdateRate(ctx, recID, RateUpdate{Rate: &newRate})
+				err = store.UpdateRate(ctx, "JPY", "USD", recID, RateUpdate{Rate: &newRate})
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
@@ -280,7 +286,7 @@ func TestUpdateRate(t *testing.T) {
 				recID := records[0].ID
 
 				newTime := time.Date(2025, 7, 15, 0, 0, 0, 0, time.UTC)
-				err = store.UpdateRate(ctx, recID, RateUpdate{Time: &newTime})
+				err = store.UpdateRate(ctx, "CAD", "USD", recID, RateUpdate{Time: &newTime})
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
@@ -324,7 +330,7 @@ func TestDeleteRate(t *testing.T) {
 			recID := records[0].ID
 
 			t.Run("delete existing record", func(t *testing.T) {
-				err := store.DeleteRate(ctx, recID)
+				err := store.DeleteRate(ctx, "AUD", "USD", recID)
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
