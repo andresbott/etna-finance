@@ -110,8 +110,8 @@ func TestExport(t *testing.T) {
 			{ID: 1, Symbol: "AAPL", Name: "Apple Inc", Currency: "USD"},
 		},
 		PriceHistory: []priceRecordV1{
-			{Symbol: "AAPL", Time: getDate("2024-01-15"), Price: 185.50},
-			{Symbol: "AAPL", Time: getDate("2024-01-16"), Price: 186.00},
+			{Symbol: "AAPL", Time: getDate("2024-01-15"), Open: 184.0, High: 187.0, Low: 183.5, Close: 185.5, Volume: 1000000},
+			{Symbol: "AAPL", Time: getDate("2024-01-16"), Open: 185.0, High: 188.0, Low: 184.5, Close: 186.0, Volume: 1100000},
 		},
 		FXRates: []fxRateRecordV1{
 			{Main: "USD", Secondary: "EUR", Time: getDate("2024-01-15"), Rate: 0.92},
@@ -436,11 +436,11 @@ func sampleExtraData(t *testing.T, store *accounting.Store, mdStore *marketdata.
 		t.Fatalf("error creating instrument: %v", err)
 	}
 
-	err = mdStore.IngestPrice(t.Context(), "AAPL", getDate("2024-01-15"), 185.50)
+	err = mdStore.IngestPrice(t.Context(), "AAPL", marketdata.PricePoint{Time: getDate("2024-01-15"), Open: 184.0, High: 187.0, Low: 183.5, Close: 185.5, Volume: 1000000})
 	if err != nil {
 		t.Fatalf("error ingesting price: %v", err)
 	}
-	err = mdStore.IngestPrice(t.Context(), "AAPL", getDate("2024-01-16"), 186.00)
+	err = mdStore.IngestPrice(t.Context(), "AAPL", marketdata.PricePoint{Time: getDate("2024-01-16"), Open: 185.0, High: 188.0, Low: 184.5, Close: 186.0, Volume: 1100000})
 	if err != nil {
 		t.Fatalf("error ingesting price: %v", err)
 	}

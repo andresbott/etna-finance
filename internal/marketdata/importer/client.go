@@ -21,7 +21,7 @@ type PricePoint struct {
 // Implementations may wrap a single API (e.g. Massive) or a pool of clients for key rotation.
 // The client only yields data; the caller is responsible for persisting it.
 type Client interface {
-	// FetchDailyPrices returns daily price points (typically close) for the given symbol
+	// FetchDailyPrices returns daily OHLCV candles for the given symbol
 	// in the [start, end] date range (inclusive). Times should be interpreted in UTC.
 	FetchDailyPrices(ctx context.Context, symbol string, start, end time.Time) ([]PricePoint, error)
 }

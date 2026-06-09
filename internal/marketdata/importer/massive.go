@@ -22,7 +22,7 @@ func NewMassiveClient(apiKey string) *MassiveClient {
 }
 
 // FetchDailyPrices implements Client by calling the Massive aggregates API with 1-day bars,
-// adjusted for splits, and returns close price for each day.
+// adjusted for splits, and returns full OHLCV candles for each day.
 func (c *MassiveClient) FetchDailyPrices(ctx context.Context, symbol string, start, end time.Time) ([]PricePoint, error) {
 	params := models.ListAggsParams{
 		Ticker:     symbol,

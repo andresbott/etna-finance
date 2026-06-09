@@ -625,7 +625,7 @@ func setupInvestmentBalanceTest(t *testing.T, ctx context.Context, store *Store,
 		{"2025-02-01", 120},
 		{"2025-03-01", 150},
 	} {
-		if err := mktStore.IngestPrice(ctx, "TEST", getDate(pp.date), pp.price); err != nil {
+		if err := mktStore.IngestPrice(ctx, "TEST", marketdata.PricePoint{Time: getDate(pp.date), Close: pp.price}); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -26,9 +26,11 @@ func TestClient_FetchDailyPrices_yieldsResult(t *testing.T) {
 		t.Fatalf("got %d points, want 3", len(got))
 	}
 	for i, p := range got {
-		if !p.Time.Equal(points[i].Time) || p.Close != points[i].Close || p.Volume != points[i].Volume {
-			t.Errorf("point[%d]: got Time=%v Close=%v Volume=%v, want Time=%v Close=%v Volume=%v",
-				i, p.Time, p.Close, p.Volume, points[i].Time, points[i].Close, points[i].Volume)
+		want := points[i]
+		if !p.Time.Equal(want.Time) || p.Open != want.Open || p.High != want.High || p.Low != want.Low || p.Close != want.Close || p.Volume != want.Volume {
+			t.Errorf("point[%d]: got Time=%v Open=%v High=%v Low=%v Close=%v Volume=%v, want Time=%v Open=%v High=%v Low=%v Close=%v Volume=%v",
+				i, p.Time, p.Open, p.High, p.Low, p.Close, p.Volume,
+				want.Time, want.Open, want.High, want.Low, want.Close, want.Volume)
 		}
 	}
 }
