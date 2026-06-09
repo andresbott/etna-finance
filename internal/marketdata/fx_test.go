@@ -220,7 +220,7 @@ func TestUpdateRate(t *testing.T) {
 				}
 			})
 
-			t.Run("update rate value", func(t *testing.T) {
+			t.Run("update rate value via synthetic id round-trip", func(t *testing.T) {
 				base := time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
 				err := store.IngestRate(ctx, "JPY", "USD", base, 0.0067)
 				if err != nil {
@@ -246,9 +246,12 @@ func TestUpdateRate(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				if len(updated) == 0 {
+					t.Fatal("expected at least one record after update")
+				}
 				found := false
 				for _, r := range updated {
-					if r.ID == recID {
+					if r.Time.Equal(base) {
 						found = true
 						if r.Rate != 0.0070 {
 							t.Errorf("expected rate 0.0070, got %f", r.Rate)
@@ -280,6 +283,15 @@ func TestUpdateRate(t *testing.T) {
 				err = store.UpdateRate(ctx, recID, RateUpdate{Time: &newTime})
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
+				}
+
+				// Verify old time is gone, new time exists
+				atNew, err := store.RateAt(ctx, "CAD", "USD", newTime)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if atNew == nil {
+					t.Error("expected record at new time, got nil")
 				}
 			})
 		})
@@ -322,7 +334,7 @@ func TestDeleteRate(t *testing.T) {
 					t.Fatalf("unexpected error: %v", err)
 				}
 				for _, r := range after {
-					if r.ID == recID {
+					if r.Time.Equal(base) {
 						t.Error("record should have been deleted")
 					}
 				}

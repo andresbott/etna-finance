@@ -124,3 +124,5 @@ require (
 	modernc.org/memory v1.11.0 // indirect
 	modernc.org/sqlite v1.52.0 // indirect
 )
+
+replace github.com/go-bumbu/timeseries => /home/bott/datos/edit/programacion-privado/bumbu/timeseries

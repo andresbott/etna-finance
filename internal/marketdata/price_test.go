@@ -20,7 +20,7 @@ func TestIngestPricesBulk(t *testing.T) {
 			}
 
 			t.Run("empty symbol returns error", func(t *testing.T) {
-				err := store.IngestPricesBulk(ctx, "", []PricePoint{{Time: time.Now(), Price: 1.0}})
+				err := store.IngestPricesBulk(ctx, "", []PricePoint{{Time: time.Now(), Close: 1.0}})
 				if err == nil {
 					t.Fatal("expected error for empty symbol")
 				}
@@ -35,9 +35,9 @@ func TestIngestPricesBulk(t *testing.T) {
 
 			t.Run("bulk ingest multiple points", func(t *testing.T) {
 				points := []PricePoint{
-					{Time: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), Price: 100.0},
-					{Time: time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC), Price: 101.0},
-					{Time: time.Date(2025, 1, 3, 0, 0, 0, 0, time.UTC), Price: 102.0},
+					{Time: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), Open: 99.0, High: 105.0, Low: 98.0, Close: 100.0, Volume: 1000},
+					{Time: time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC), Open: 100.5, High: 106.0, Low: 99.5, Close: 101.0, Volume: 1200},
+					{Time: time.Date(2025, 1, 3, 0, 0, 0, 0, time.UTC), Open: 101.0, High: 107.0, Low: 100.0, Close: 102.0, Volume: 1100},
 				}
 				err := store.IngestPricesBulk(ctx, "BULK", points)
 				if err != nil {
@@ -50,6 +50,13 @@ func TestIngestPricesBulk(t *testing.T) {
 				}
 				if len(records) != 3 {
 					t.Fatalf("expected 3 records, got %d", len(records))
+				}
+
+				// Verify all five OHLCV fields round-trip correctly
+				r := records[0]
+				if r.Open != 99.0 || r.High != 105.0 || r.Low != 98.0 || r.Close != 100.0 || r.Volume != 1000 {
+					t.Errorf("record 0 OHLCV mismatch: got Open=%f High=%f Low=%f Close=%f Volume=%f",
+						r.Open, r.High, r.Low, r.Close, r.Volume)
 				}
 			})
 		})
@@ -69,7 +76,10 @@ func TestPriceHistory(t *testing.T) {
 			// Seed data
 			base := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 			for i := 0; i < 5; i++ {
-				err := store.IngestPrice(ctx, "HIST", base.AddDate(0, 0, i), float64(100+i))
+				price := float64(100 + i)
+				err := store.IngestPrice(ctx, "HIST", PricePoint{
+					Time: base.AddDate(0, 0, i), Open: price, High: price + 1, Low: price - 1, Close: price,
+				})
 				if err != nil {
 					t.Fatalf("seed ingest: %v", err)
 				}
@@ -103,9 +113,6 @@ func TestPriceHistory(t *testing.T) {
 				for _, r := range records {
 					if r.Symbol != "HIST" {
 						t.Errorf("expected symbol HIST, got %q", r.Symbol)
-					}
-					if r.ID == 0 {
-						t.Error("expected non-zero ID")
 					}
 				}
 			})
@@ -159,9 +166,9 @@ func TestLatestPrice(t *testing.T) {
 
 			t.Run("returns most recent price", func(t *testing.T) {
 				base := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
-				_ = store.IngestPrice(ctx, "LATEST", base, 50.0)
-				_ = store.IngestPrice(ctx, "LATEST", base.AddDate(0, 0, 1), 55.0)
-				_ = store.IngestPrice(ctx, "LATEST", base.AddDate(0, 0, 2), 60.0)
+				_ = store.IngestPrice(ctx, "LATEST", PricePoint{Time: base, Close: 50.0})
+				_ = store.IngestPrice(ctx, "LATEST", PricePoint{Time: base.AddDate(0, 0, 1), Close: 55.0})
+				_ = store.IngestPrice(ctx, "LATEST", PricePoint{Time: base.AddDate(0, 0, 2), Close: 60.0})
 
 				rec, err := store.LatestPrice(ctx, "LATEST")
 				if err != nil {
@@ -173,52 +180,33 @@ func TestLatestPrice(t *testing.T) {
 				if rec.Symbol != "LATEST" {
 					t.Errorf("expected symbol LATEST, got %q", rec.Symbol)
 				}
-				if rec.Price != 60.0 {
-					t.Errorf("expected price 60.0, got %f", rec.Price)
-				}
-				if rec.ID == 0 {
-					t.Error("expected non-zero ID")
+				if rec.Close != 60.0 {
+					t.Errorf("expected close 60.0, got %f", rec.Close)
 				}
 			})
 		})
 	}
 }
 
-func TestUpdatePrice(t *testing.T) {
+func TestEditPrice(t *testing.T) {
 	for _, db := range testdbs.DBs() {
 		t.Run(db.DbType(), func(t *testing.T) {
 			ctx := t.Context()
-			dbCon := db.ConnDbName("TestUpdatePrice")
+			dbCon := db.ConnDbName("TestEditPrice")
 			store, err := NewStore(dbCon)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			t.Run("zero id returns error", func(t *testing.T) {
-				err := store.UpdatePrice(ctx, 0, PriceUpdate{Price: ptr(99.0)})
-				if err == nil {
-					t.Fatal("expected error for zero id")
-				}
-			})
-
-			t.Run("update price value", func(t *testing.T) {
+			t.Run("update close value", func(t *testing.T) {
 				base := time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
-				err := store.IngestPrice(ctx, "UPD", base, 200.0)
+				err := store.IngestPrice(ctx, "UPD", PricePoint{Time: base, Close: 200.0})
 				if err != nil {
 					t.Fatal(err)
 				}
 
-				records, err := store.PriceHistory(ctx, "UPD", time.Time{}, time.Time{})
-				if err != nil {
-					t.Fatal(err)
-				}
-				if len(records) == 0 {
-					t.Fatal("expected at least one record")
-				}
-				recID := records[0].ID
-
-				newPrice := 250.0
-				err = store.UpdatePrice(ctx, recID, PriceUpdate{Price: &newPrice})
+				// Edit in-place (same time, new close)
+				err = store.EditPrice(ctx, "UPD", base, PricePoint{Time: base, Close: 250.0})
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
@@ -227,73 +215,58 @@ func TestUpdatePrice(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				found := false
-				for _, r := range updated {
-					if r.ID == recID {
-						found = true
-						if r.Price != 250.0 {
-							t.Errorf("expected price 250.0, got %f", r.Price)
-						}
-					}
+				if len(updated) == 0 {
+					t.Fatal("expected records after edit")
 				}
-				if !found {
-					t.Error("updated record not found")
+				if updated[0].Close != 250.0 {
+					t.Errorf("expected close 250.0, got %f", updated[0].Close)
 				}
 			})
 
-			t.Run("update time", func(t *testing.T) {
+			t.Run("move to new time", func(t *testing.T) {
 				base := time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC)
-				err := store.IngestPrice(ctx, "UPDT", base, 300.0)
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				records, err := store.PriceHistory(ctx, "UPDT", time.Time{}, time.Time{})
-				if err != nil {
-					t.Fatal(err)
-				}
-				if len(records) == 0 {
-					t.Fatal("expected at least one record")
-				}
-				recID := records[0].ID
-
 				newTime := time.Date(2025, 7, 15, 0, 0, 0, 0, time.UTC)
-				err = store.UpdatePrice(ctx, recID, PriceUpdate{Time: &newTime})
+				err := store.IngestPrice(ctx, "UPDT", PricePoint{Time: base, Close: 300.0})
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				err = store.EditPrice(ctx, "UPDT", base, PricePoint{Time: newTime, Close: 310.0})
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
+				}
+
+				// Original time should be gone
+				orig, err := store.PriceHistory(ctx, "UPDT", base, base)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(orig) != 0 {
+					t.Errorf("expected old record to be removed, got %d records", len(orig))
 				}
 			})
 		})
 	}
 }
 
-func TestDeletePrice(t *testing.T) {
+func TestDeletePriceAt(t *testing.T) {
 	for _, db := range testdbs.DBs() {
 		t.Run(db.DbType(), func(t *testing.T) {
 			ctx := t.Context()
-			dbCon := db.ConnDbName("TestDeletePrice")
+			dbCon := db.ConnDbName("TestDeletePriceAt")
 			store, err := NewStore(dbCon)
 			if err != nil {
 				t.Fatal(err)
 			}
 
 			base := time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC)
-			err = store.IngestPrice(ctx, "DEL", base, 400.0)
+			err = store.IngestPrice(ctx, "DEL", PricePoint{Time: base, Close: 400.0})
 			if err != nil {
 				t.Fatal(err)
 			}
-
-			records, err := store.PriceHistory(ctx, "DEL", time.Time{}, time.Time{})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if len(records) == 0 {
-				t.Fatal("expected at least one record")
-			}
-			recID := records[0].ID
 
 			t.Run("delete existing record", func(t *testing.T) {
-				err := store.DeletePrice(ctx, recID)
+				err := store.DeletePriceAt(ctx, "DEL", base)
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
@@ -303,7 +276,7 @@ func TestDeletePrice(t *testing.T) {
 					t.Fatalf("unexpected error: %v", err)
 				}
 				for _, r := range after {
-					if r.ID == recID {
+					if r.Time.Equal(base) {
 						t.Error("record should have been deleted")
 					}
 				}
@@ -334,9 +307,9 @@ func TestPricePointsFromImporter(t *testing.T) {
 			{Time: time.Date(2025, 1, 3, 0, 0, 0, 0, time.UTC), Price: 30.0},
 		}
 		want := []PricePoint{
-			{Time: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), Price: 10.0},
-			{Time: time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC), Price: 20.0},
-			{Time: time.Date(2025, 1, 3, 0, 0, 0, 0, time.UTC), Price: 30.0},
+			{Time: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), Close: 10.0},
+			{Time: time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC), Close: 20.0},
+			{Time: time.Date(2025, 1, 3, 0, 0, 0, 0, time.UTC), Close: 30.0},
 		}
 		got := PricePointsFromImporter(input)
 		if diff := cmp.Diff(want, got); diff != "" {
@@ -358,7 +331,7 @@ func TestMaintenance(t *testing.T) {
 			// Seed some data so maintenance has something to work with
 			base := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 			for i := 0; i < 3; i++ {
-				_ = store.IngestPrice(ctx, "MAINT", base.AddDate(0, 0, i), float64(100+i))
+				_ = store.IngestPrice(ctx, "MAINT", PricePoint{Time: base.AddDate(0, 0, i), Close: float64(100 + i)})
 			}
 
 			t.Run("maintenance runs without error", func(t *testing.T) {
