@@ -84,7 +84,7 @@ export function useHoldings() {
             const results = await Promise.allSettled(
                 symbolSet.value.map(async (sym) => {
                     const p = await getLatestPrice(sym)
-                    return { sym, price: p?.price ?? null }
+                    return { sym, price: p?.close ?? null }
                 })
             )
             const map: Record<string, number> = {}

@@ -2,20 +2,22 @@ import { apiClient } from '@/lib/api/client'
 import { with404Null } from '@/lib/api/helpers'
 
 export interface PriceRecord {
-    id: number
     symbol: string
     time: string
-    price: number
+    open: number
+    high: number
+    low: number
+    close: number
+    volume: number
 }
 
 export interface CreatePriceDTO {
     time: string
-    price: number
-}
-
-export interface UpdatePriceDTO {
-    time?: string
-    price?: number
+    open: number
+    high: number
+    low: number
+    close: number
+    volume: number
 }
 
 const MARKET_DATA_PATH = '/fin/marketdata'
@@ -69,12 +71,16 @@ export async function createPricesBulk(
 }
 
 export async function updatePrice(
-    id: number,
-    payload: UpdatePriceDTO
+    symbol: string,
+    origDate: string,
+    payload: CreatePriceDTO
 ): Promise<void> {
-    await apiClient.put(`${MARKET_DATA_PATH}/prices/${id}`, payload)
+    await apiClient.put(
+        `${MARKET_DATA_PATH}/${encodeURIComponent(symbol)}/prices/${origDate}`,
+        payload
+    )
 }
 
-export async function deletePrice(id: number): Promise<void> {
-    await apiClient.delete(`${MARKET_DATA_PATH}/prices/${id}`)
+export async function deletePrice(symbol: string, date: string): Promise<void> {
+    await apiClient.delete(`${MARKET_DATA_PATH}/${encodeURIComponent(symbol)}/prices/${date}`)
 }

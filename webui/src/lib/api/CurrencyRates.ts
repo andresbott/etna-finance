@@ -79,10 +79,24 @@ export async function createRatesBulk(
     )
 }
 
-export async function updateRate(id: number, payload: UpdateRateDTO): Promise<void> {
-    await apiClient.put(`${FX_PATH}/rates/${id}`, payload)
+export async function updateRate(
+    main: string,
+    secondary: string,
+    id: number,
+    payload: UpdateRateDTO
+): Promise<void> {
+    await apiClient.put(
+        `${FX_PATH}/${encodeURIComponent(main)}/${encodeURIComponent(secondary)}/rates/${id}`,
+        payload
+    )
 }
 
-export async function deleteRate(id: number): Promise<void> {
-    await apiClient.delete(`${FX_PATH}/rates/${id}`)
+export async function deleteRate(
+    main: string,
+    secondary: string,
+    id: number
+): Promise<void> {
+    await apiClient.delete(
+        `${FX_PATH}/${encodeURIComponent(main)}/${encodeURIComponent(secondary)}/rates/${id}`
+    )
 }

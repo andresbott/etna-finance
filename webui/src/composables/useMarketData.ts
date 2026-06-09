@@ -7,7 +7,7 @@ import {
     updatePrice as updatePriceApi,
     deletePrice as deletePriceApi
 } from '@/lib/api/MarketData'
-import type { CreatePriceDTO, UpdatePriceDTO, PriceRecord } from '@/lib/api/MarketData'
+import type { CreatePriceDTO, PriceRecord } from '@/lib/api/MarketData'
 import { lastDaysRange, rangeToStartEnd, type PriceHistoryRange } from '@/utils/dateRange'
 
 export type { PriceHistoryRange } from '@/utils/dateRange'
@@ -33,8 +33,12 @@ export interface MarketInstrument {
 
 export interface PriceHistory {
     dates: string[]
-    prices: number[]
+    opens: number[]
+    highs: number[]
+    lows: number[]
+    closes: number[]
     volumes: number[]
+    records: PriceRecord[]
 }
 
 const MARKET_INSTRUMENTS_QUERY_KEY = ['marketInstruments']
@@ -55,12 +59,12 @@ export function useMarketInstruments() {
                 list.map(async (inst) => {
                     const items = await getPriceHistory(inst.symbol, start, end)
                     const n = items.length
-                    const lastPrice = n > 0 ? items[n - 1].price : 0
+                    const lastPrice = n > 0 ? items[n - 1].close : 0
                     const lastUpdate = n > 0 ? items[n - 1].time : ''
                     let change: number | null = null
                     let changePct: number | null = null
                     if (n >= 2) {
-                        const prevPrice = items[n - 2].price
+                        const prevPrice = items[n - 2].close
                         change = lastPrice - prevPrice
                         changePct = prevPrice !== 0 ? (change / prevPrice) * 100 : null
                     }
@@ -73,7 +77,7 @@ export function useMarketInstruments() {
                         lastPrice,
                         change,
                         changePct,
-                        volume: 0,
+                        volume: n > 0 ? items[n - 1].volume : 0,
                         peRatio: null as number | null,
                         dividendYield: 0,
                         week52High: 0,
@@ -118,8 +122,15 @@ export function usePriceHistory(
             const { start, end } = rangeToStartEnd(r)
             const items = await getPriceHistory(sym, start, end)
             const dates = items.map((r) => r.time)
-            const prices = items.map((r) => r.price)
-            return { dates, prices, volumes: [] as number[], records: items }
+            return {
+                dates,
+                opens: items.map(r => r.open),
+                highs: items.map(r => r.high),
+                lows: items.map(r => r.low),
+                closes: items.map(r => r.close),
+                volumes: items.map(r => r.volume),
+                records: items
+            }
         },
         enabled: computed(() => !!(typeof symbol === 'function' ? symbol() : unref(symbol)))
     })
@@ -129,7 +140,10 @@ export function usePriceHistory(
             () =>
                 historyQuery.data.value ?? {
                     dates: [],
-                    prices: [],
+                    opens: [],
+                    highs: [],
+                    lows: [],
+                    closes: [],
                     volumes: [],
                     records: [] as PriceRecord[]
                 }
@@ -158,13 +172,13 @@ export function useMarketDataMutations(symbol: MaybeRefOrGetter<string>) {
     })
 
     const updatePriceMutation = useMutation({
-        mutationFn: ({ id, payload }: { id: number; payload: UpdatePriceDTO }) =>
-            updatePriceApi(id, payload),
+        mutationFn: ({ origDate, payload }: { origDate: string; payload: CreatePriceDTO }) =>
+            updatePriceApi(getSymbol(), origDate, payload),
         onSuccess: invalidateMarketData
     })
 
     const deletePriceMutation = useMutation({
-        mutationFn: (id: number) => deletePriceApi(id),
+        mutationFn: (date: string) => deletePriceApi(getSymbol(), date),
         onSuccess: invalidateMarketData
     })
 

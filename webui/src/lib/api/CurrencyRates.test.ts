@@ -236,47 +236,47 @@ describe('createRatesBulk', () => {
 })
 
 describe('updateRate', () => {
-    it('calls PUT /fin/fx/rates/:id with payload', async () => {
+    it('calls PUT /fin/fx/{main}/{secondary}/rates/:id with payload', async () => {
         const payload = { rate: 0.95 };
         (apiClient.put as Mock).mockResolvedValue({})
 
-        await updateRate(42, payload)
+        await updateRate('USD', 'EUR', 42, payload)
 
-        expect(apiClient.put).toHaveBeenCalledWith('/fin/fx/rates/42', payload)
+        expect(apiClient.put).toHaveBeenCalledWith('/fin/fx/USD/EUR/rates/42', payload)
         expect(apiClient.put).toHaveBeenCalledTimes(1)
     })
 
     it('sends partial payload with only time', async () => {
         (apiClient.put as Mock).mockResolvedValue({})
 
-        await updateRate(7, { time: '2025-07-01' })
+        await updateRate('CHF', 'USD', 7, { time: '2025-07-01' })
 
-        expect(apiClient.put).toHaveBeenCalledWith('/fin/fx/rates/7', { time: '2025-07-01' })
+        expect(apiClient.put).toHaveBeenCalledWith('/fin/fx/CHF/USD/rates/7', { time: '2025-07-01' })
     })
 
     it('returns void', async () => {
         (apiClient.put as Mock).mockResolvedValue({})
 
-        const result = await updateRate(1, { rate: 1.0 })
+        const result = await updateRate('USD', 'EUR', 1, { rate: 1.0 })
 
         expect(result).toBeUndefined()
     })
 })
 
 describe('deleteRate', () => {
-    it('calls DELETE /fin/fx/rates/:id', async () => {
+    it('calls DELETE /fin/fx/{main}/{secondary}/rates/:id', async () => {
         (apiClient.delete as Mock).mockResolvedValue({})
 
-        await deleteRate(42)
+        await deleteRate('USD', 'EUR', 42)
 
-        expect(apiClient.delete).toHaveBeenCalledWith('/fin/fx/rates/42')
+        expect(apiClient.delete).toHaveBeenCalledWith('/fin/fx/USD/EUR/rates/42')
         expect(apiClient.delete).toHaveBeenCalledTimes(1)
     })
 
     it('returns void', async () => {
         (apiClient.delete as Mock).mockResolvedValue({})
 
-        const result = await deleteRate(1)
+        const result = await deleteRate('USD', 'EUR', 1)
 
         expect(result).toBeUndefined()
     })

@@ -141,11 +141,11 @@ export function useFXMutations(main: MaybeRefOrGetter<string>, secondary: MaybeR
     })
     const updateMutation = useMutation({
         mutationFn: ({ id, payload }: { id: number; payload: UpdateRateDTO }) =>
-            updateRateApi(id, payload),
+            updateRateApi(getMain(), getSecondary(), id, payload),
         onSuccess: invalidate
     })
     const deleteMutation = useMutation({
-        mutationFn: (id: number) => deleteRateApi(id),
+        mutationFn: (id: number) => deleteRateApi(getMain(), getSecondary(), id),
         onSuccess: invalidate
     })
 
