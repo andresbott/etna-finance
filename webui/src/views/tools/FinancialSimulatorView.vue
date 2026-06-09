@@ -29,10 +29,11 @@ const leftSidebarCollapsed = ref(true)
 
 const portfolioCases = ref<CaseStudy[]>([])
 const realEstateCases = ref<CaseStudy[]>([])
+const bondsCases = ref<CaseStudy[]>([])
 const loading = ref(false)
 
 const allCases = computed(() => {
-    const merged = [...portfolioCases.value, ...realEstateCases.value]
+    const merged = [...portfolioCases.value, ...realEstateCases.value, ...bondsCases.value]
     merged.sort((a, b) => a.id - b.id)
     return merged
 })
@@ -48,6 +49,7 @@ const typeOptions = [
     { label: 'Portfolio Simulator', value: 'portfolio-simulator' },
     { label: 'Real Estate Simulator', value: 'real-estate-simulator' },
     { label: 'Buy vs Rent', value: 'buy-vs-rent-simulator' },
+    { label: 'Bonds Simulator', value: 'bonds-simulator' },
 ]
 
 function openAddDialog() {
@@ -77,13 +79,15 @@ async function handleCreate() {
 async function loadAll() {
     loading.value = true
     try {
-        const [p, r, b] = await Promise.all([
+        const [p, r, b, bonds] = await Promise.all([
             listCases('portfolio-simulator').catch((e) => { console.error('Failed to load portfolio simulations:', e); return [] }),
             listCases('real-estate-simulator').catch((e) => { console.error('Failed to load real-estate simulations:', e); return [] }),
             listCases('buy-vs-rent-simulator').catch((e) => { console.error('Failed to load buy-vs-rent simulations:', e); return [] }),
+            listCases('bonds-simulator').catch((e) => { console.error('Failed to load bonds simulations:', e); return [] }),
         ])
         portfolioCases.value = p
         realEstateCases.value = [...r, ...b]
+        bondsCases.value = bonds
     } finally {
         loading.value = false
     }
@@ -277,6 +281,7 @@ const chartOption = computed(() => {
 function typeLabel(toolType: string): string {
     if (toolType === 'portfolio-simulator') return 'Portfolio'
     if (toolType === 'buy-vs-rent-simulator') return 'Buy vs Rent'
+    if (toolType === 'bonds-simulator') return 'Bonds'
     return 'Real Estate'
 }
 
@@ -287,6 +292,7 @@ function openAttachment(cs: CaseStudy) {
 function typeIcon(toolType: string): string {
     if (toolType === 'portfolio-simulator') return 'ti ti-chart-pie'
     if (toolType === 'buy-vs-rent-simulator') return 'ti ti-arrows-left-right'
+    if (toolType === 'bonds-simulator') return 'ti ti-certificate'
     return 'ti ti-home'
 }
 </script>
