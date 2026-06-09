@@ -236,6 +236,10 @@ func (h *Handler) EditPrice(symbol, origDate string) http.Handler {
 			http.Error(w, fmt.Sprintf("invalid date: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
+		if r.Body == nil {
+			http.Error(w, "request had empty body", http.StatusBadRequest)
+			return
+		}
 		var payload priceCreatePayload
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			http.Error(w, fmt.Sprintf("unable to decode json: %s", err.Error()), http.StatusBadRequest)
