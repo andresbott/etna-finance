@@ -29,7 +29,7 @@ const props = defineProps<{
 }>()
 
 const store = useChartControls()
-const { selectedRange, indicatorParams, pe } = storeToRefs(store)
+const { selectedRange, indicatorParams } = storeToRefs(store)
 
 /** Largest indicator lookback period (in trading days). */
 function maxWarmupPeriod(p: IndicatorParams): number {

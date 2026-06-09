@@ -12,7 +12,7 @@ defineProps<{
     params: Record<string, any>
 }>()
 
-const emit = defineEmits<{
+defineEmits<{
     (e: 'update:params', value: Record<string, any>): void
 }>()
 
