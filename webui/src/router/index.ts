@@ -186,7 +186,7 @@ const router = createRouter({
             },
             component: () => import('@/views/marketdata/StockDetailView.vue'),
             beforeEnter: (to, _from, next) => {
-                const validTabs = ['overview', 'raw-data']
+                const validTabs = ['overview', 'chart', 'raw-data']
                 if (to.params.tab && !validTabs.includes(to.params.tab as string)) {
                     next({ path: `/market-data/stock-market/${to.params.id}/overview` })
                 } else {

@@ -16,6 +16,7 @@ import Dialog from 'primevue/dialog'
 import DatePicker from 'primevue/datepicker'
 import InputNumber from 'primevue/inputnumber'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import StockChartTab from '@/views/marketdata/StockChartTab.vue'
 import { useDateFormat } from '@/composables/useDateFormat'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
@@ -33,13 +34,13 @@ import {
     useMarketDataMutations,
     toLocalDateString,
     formatPrice,
+    formatVolume,
     formatPct,
     formatChange,
     getChangeSeverity,
     type MarketInstrument,
     type PriceHistoryRange
 } from '@/composables/useMarketData'
-import type { PriceRecord } from '@/lib/api/MarketData'
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent, MarkLineComponent])
 
@@ -47,7 +48,7 @@ const route = useRoute()
 const router = useRouter()
 const { instruments, isLoading } = useMarketInstruments()
 const { formatDate, pickerDateFormat } = useDateFormat()
-const TAB_NAMES = ['overview', 'raw-data'] as const
+const TAB_NAMES = ['overview', 'chart', 'raw-data'] as const
 
 const leftSidebarCollapsed = ref(true)
 const activeTabIndex = ref(0)
@@ -104,59 +105,96 @@ const {
 const priceHistory = computed(() => priceHistoryData.value)
 
 const rangeChange = computed(() => {
-    const prices = priceHistoryData.value.prices
-    if (prices.length < 2) return null
-    return prices[prices.length - 1] - prices[0]
+    const closes = priceHistoryData.value.closes
+    if (closes.length < 2) return null
+    return closes[closes.length - 1] - closes[0]
 })
 
 const rangeChangePct = computed(() => {
-    const prices = priceHistoryData.value.prices
-    if (prices.length < 2) return null
-    const first = prices[0]
+    const closes = priceHistoryData.value.closes
+    if (closes.length < 2) return null
+    const first = closes[0]
     if (first === 0) return null
-    return ((prices[prices.length - 1] - first) / first) * 100
+    return ((closes[closes.length - 1] - first) / first) * 100
 })
 
-const rawDataRows = computed(() => {
+interface RawDataRow {
+    date: string
+    open: number
+    high: number
+    low: number
+    close: number
+    volume: number
+}
+
+const rawDataRows = computed<RawDataRow[]>(() => {
     const { records } = priceHistoryData.value
-    const rows = (records ?? []).map((r: PriceRecord) => ({ id: r.id, date: r.time, price: r.price }))
+    const rows = (records ?? []).map((r) => ({
+        date: r.time,
+        open: r.open,
+        high: r.high,
+        low: r.low,
+        close: r.close,
+        volume: r.volume
+    }))
     return rows.sort((a, b) => b.date.localeCompare(a.date))
 })
 
 const dataDialogVisible = ref(false)
 const dataDialogMode = ref<'add' | 'edit'>('add')
-const dataDialogForm = ref<{ id?: number; date: string; price: number }>({ date: '', price: 0 })
-const dataDialogEditRecord = ref<{ id: number; date: string; price: number } | null>(null)
+const dataDialogForm = ref<{
+    origDate?: string
+    date: string
+    open: number
+    high: number
+    low: number
+    close: number
+    volume: number
+}>({ date: '', open: 0, high: 0, low: 0, close: 0, volume: 0 })
 
 function openAddDataDialog() {
     dataDialogMode.value = 'add'
-    dataDialogForm.value = { date: '', price: 0 }
+    dataDialogForm.value = { date: '', open: 0, high: 0, low: 0, close: 0, volume: 0 }
     dataDialogVisible.value = true
 }
 
-function openEditDataDialog(record: { id: number; date: string; price: number }) {
+function openEditDataDialog(record: RawDataRow) {
     dataDialogMode.value = 'edit'
-    dataDialogForm.value = { id: record.id, date: record.date, price: record.price }
-    dataDialogEditRecord.value = record
+    dataDialogForm.value = {
+        origDate: record.date,
+        date: record.date,
+        open: record.open,
+        high: record.high,
+        low: record.low,
+        close: record.close,
+        volume: record.volume
+    }
     dataDialogVisible.value = true
 }
 
 async function saveDataDialog() {
     const sym = instrument.value?.symbol
     if (!sym) return
-    const { date, price } = dataDialogForm.value
-    if (!date) {
+    const f = dataDialogForm.value
+    if (!f.date) {
         dataDialogVisible.value = false
         return
     }
     // Use date as-is (already local YYYY-MM-DD from picker); avoid UTC shift
-    const time = date.includes('T') ? toLocalDateString(new Date(date)) : date
+    const time = f.date.includes('T') ? toLocalDateString(new Date(f.date)) : f.date
+    const payload = {
+        time,
+        open: f.open,
+        high: f.high,
+        low: f.low,
+        close: f.close,
+        volume: f.volume
+    }
     try {
         if (dataDialogMode.value === 'add') {
-            await createPriceMutation({ time, price })
+            await createPriceMutation(payload)
         } else {
-            const id = dataDialogForm.value.id ?? dataDialogEditRecord.value?.id
-            if (id != null) await updatePriceMutation({ id, payload: { time, price } })
+            await updatePriceMutation({ origDate: f.origDate!, payload })
         }
         dataDialogVisible.value = false
         await refetchPriceHistory()
@@ -166,9 +204,9 @@ async function saveDataDialog() {
 }
 
 const deleteDialogVisible = ref(false)
-const deleteTargetRecord = ref<{ id: number; date: string; price: number } | null>(null)
+const deleteTargetRecord = ref<RawDataRow | null>(null)
 
-function openDeleteDataDialog(record: { id: number; date: string; price: number }) {
+function openDeleteDataDialog(record: RawDataRow) {
     deleteTargetRecord.value = record
     deleteDialogVisible.value = true
 }
@@ -177,7 +215,7 @@ async function confirmDeleteData() {
     const rec = deleteTargetRecord.value
     if (rec) {
         try {
-            await deletePriceMutation(rec.id)
+            await deletePriceMutation(rec.date)
             deleteTargetRecord.value = null
             deleteDialogVisible.value = false
             await refetchPriceHistory()
@@ -192,7 +230,7 @@ function formatTableDate(isoDate: string) {
 }
 
 const chartOption = computed(() => {
-    const { dates, prices } = priceHistory.value
+    const { dates, closes } = priceHistory.value
     if (!dates.length || !instrument.value) return {}
 
     const inst = instrument.value
@@ -240,7 +278,7 @@ const chartOption = computed(() => {
         },
         series: [{
             type: 'line',
-            data: prices,
+            data: closes,
             smooth: 0.3,
             showSymbol: false,
             lineStyle: { color: lineColor, width: 2 },
@@ -352,6 +390,10 @@ function goBack() {
                             </div>
                         </TabPanel>
 
+                        <TabPanel header="Chart" value="chart">
+                            <StockChartTab v-if="symbol" :symbol="symbol" class="chart-tab-host" />
+                        </TabPanel>
+
                         <TabPanel header="Raw data" value="raw-data">
                             <div class="raw-data-toolbar mb-3">
                                 <Button label="Add" icon="ti ti-plus" :loading="isCreating" @click="openAddDataDialog" />
@@ -361,7 +403,7 @@ function goBack() {
                                 stripedRows
                                 :paginator="rawDataRows.length > 10"
                                 :rows="10"
-                                dataKey="id"
+                                dataKey="date"
                                 class="p-datatable-sm"
                             >
                                 <Column field="date" header="Date">
@@ -369,9 +411,29 @@ function goBack() {
                                         {{ formatTableDate(data.date) }}
                                     </template>
                                 </Column>
-                                <Column field="price" header="Price">
+                                <Column field="open" header="Open">
                                     <template #body="{ data }">
-                                        {{ formatPrice(data.price) }}
+                                        {{ formatPrice(data.open) }}
+                                    </template>
+                                </Column>
+                                <Column field="high" header="High">
+                                    <template #body="{ data }">
+                                        {{ formatPrice(data.high) }}
+                                    </template>
+                                </Column>
+                                <Column field="low" header="Low">
+                                    <template #body="{ data }">
+                                        {{ formatPrice(data.low) }}
+                                    </template>
+                                </Column>
+                                <Column field="close" header="Close">
+                                    <template #body="{ data }">
+                                        {{ formatPrice(data.close) }}
+                                    </template>
+                                </Column>
+                                <Column field="volume" header="Volume">
+                                    <template #body="{ data }">
+                                        {{ formatVolume(data.volume) }}
                                     </template>
                                 </Column>
                                 <Column header="Actions" style="width: 120px">
@@ -418,13 +480,60 @@ function goBack() {
                                 />
                             </div>
                             <div class="field">
-                                <label for="data-price">Price</label>
+                                <label for="data-open">Open</label>
                                 <InputNumber
-                                    id="data-price"
-                                    v-model="dataDialogForm.price"
+                                    id="data-open"
+                                    v-model="dataDialogForm.open"
                                     mode="decimal"
                                     :minFractionDigits="2"
                                     :maxFractionDigits="2"
+                                    :min="0"
+                                    class="w-full"
+                                />
+                            </div>
+                            <div class="field">
+                                <label for="data-high">High</label>
+                                <InputNumber
+                                    id="data-high"
+                                    v-model="dataDialogForm.high"
+                                    mode="decimal"
+                                    :minFractionDigits="2"
+                                    :maxFractionDigits="2"
+                                    :min="0"
+                                    class="w-full"
+                                />
+                            </div>
+                            <div class="field">
+                                <label for="data-low">Low</label>
+                                <InputNumber
+                                    id="data-low"
+                                    v-model="dataDialogForm.low"
+                                    mode="decimal"
+                                    :minFractionDigits="2"
+                                    :maxFractionDigits="2"
+                                    :min="0"
+                                    class="w-full"
+                                />
+                            </div>
+                            <div class="field">
+                                <label for="data-close">Close</label>
+                                <InputNumber
+                                    id="data-close"
+                                    v-model="dataDialogForm.close"
+                                    mode="decimal"
+                                    :minFractionDigits="2"
+                                    :maxFractionDigits="2"
+                                    :min="0"
+                                    class="w-full"
+                                />
+                            </div>
+                            <div class="field">
+                                <label for="data-volume">Volume</label>
+                                <InputNumber
+                                    id="data-volume"
+                                    v-model="dataDialogForm.volume"
+                                    :minFractionDigits="0"
+                                    :maxFractionDigits="0"
                                     :min="0"
                                     class="w-full"
                                 />
@@ -518,6 +627,12 @@ function goBack() {
 .price-chart {
     height: 400px;
     width: 100%;
+}
+
+.chart-tab-host {
+    display: flex;
+    flex-direction: column;
+    min-height: 600px;
 }
 
 .raw-data-toolbar {
