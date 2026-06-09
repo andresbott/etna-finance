@@ -81,6 +81,15 @@ export interface BuyVsRentSimulatorParams {
     etfReturnPct?: number
 }
 
+export interface BondsSimulatorParams {
+    faceValue: number          // par / nominal value, e.g. 1000
+    purchasePrice: number      // price paid (discount if < face, premium if > face)
+    couponRatePct: number      // annual coupon as % of face value
+    couponFrequency: number    // payments per year: 1 (annual) or 2 (semi-annual)
+    maturityDate: string       // ISO date of the maturity month, e.g. "2036-02-01"
+    taxesPct: number           // tax applied to coupon income and redemption gains
+}
+
 function toolPath(toolType: string): string {
     return `/tools/${toolType}/cases`
 }
