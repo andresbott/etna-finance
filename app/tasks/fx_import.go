@@ -47,7 +47,7 @@ func NewFXImportTaskFn(store *marketdata.Store, mainCurrency string, currencies 
 				if secondary == mainCurrency {
 					continue
 				}
-				if err := store.RegisterPair(mainCurrency, secondary); err != nil {
+				if err := store.RegisterPair(ctx, mainCurrency, secondary); err != nil {
 					tempo.Info(ctx, fmt.Sprintf("fx import: register %s/%s: %v", mainCurrency, secondary, err))
 					continue
 				}

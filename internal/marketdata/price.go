@@ -175,7 +175,7 @@ func PricePointsFromImporter(pts []importer.PricePoint) []PricePoint {
 	}
 	out := make([]PricePoint, len(pts))
 	for i, p := range pts {
-		out[i] = PricePoint{Time: p.Time, Close: p.Price}
+		out[i] = PricePoint{Time: p.Time, Open: p.Open, High: p.High, Low: p.Low, Close: p.Close, Volume: p.Volume}
 	}
 	return out
 }

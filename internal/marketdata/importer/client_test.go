@@ -12,9 +12,9 @@ func TestClient_FetchDailyPrices_yieldsResult(t *testing.T) {
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 1, 3, 0, 0, 0, 0, time.UTC)
 	points := []PricePoint{
-		{Time: start, Price: 100},
-		{Time: start.AddDate(0, 0, 1), Price: 101},
-		{Time: end, Price: 102},
+		{Time: start, Open: 98.0, High: 101.0, Low: 97.0, Close: 100.0, Volume: 1000},
+		{Time: start.AddDate(0, 0, 1), Open: 100.0, High: 102.0, Low: 99.0, Close: 101.0, Volume: 1100},
+		{Time: end, Open: 101.0, High: 103.0, Low: 100.0, Close: 102.0, Volume: 1200},
 	}
 
 	client := &mockClient{points: points}
@@ -26,8 +26,9 @@ func TestClient_FetchDailyPrices_yieldsResult(t *testing.T) {
 		t.Fatalf("got %d points, want 3", len(got))
 	}
 	for i, p := range got {
-		if !p.Time.Equal(points[i].Time) || p.Price != points[i].Price {
-			t.Errorf("point[%d]: got Time=%v Price=%v, want Time=%v Price=%v", i, p.Time, p.Price, points[i].Time, points[i].Price)
+		if !p.Time.Equal(points[i].Time) || p.Close != points[i].Close || p.Volume != points[i].Volume {
+			t.Errorf("point[%d]: got Time=%v Close=%v Volume=%v, want Time=%v Close=%v Volume=%v",
+				i, p.Time, p.Close, p.Volume, points[i].Time, points[i].Close, points[i].Volume)
 		}
 	}
 }

@@ -413,7 +413,7 @@ func writeInstruments(ctx context.Context, zw *zipWriter, mdStore *marketdata.St
 }
 
 func writePriceHistory(ctx context.Context, zw *zipWriter, mdStore *marketdata.Store) error {
-	symbols, err := mdStore.ListPriceSymbols()
+	symbols, err := mdStore.ListPriceSymbols(ctx)
 	if err != nil {
 		return err
 	}
@@ -427,7 +427,11 @@ func writePriceHistory(ctx context.Context, zw *zipWriter, mdStore *marketdata.S
 			jsonData = append(jsonData, priceRecordV1{
 				Symbol: rec.Symbol,
 				Time:   rec.Time,
-				Price:  rec.Price,
+				Open:   rec.Open,
+				High:   rec.High,
+				Low:    rec.Low,
+				Close:  rec.Close,
+				Volume: rec.Volume,
 			})
 		}
 	}
@@ -438,7 +442,7 @@ func writePriceHistory(ctx context.Context, zw *zipWriter, mdStore *marketdata.S
 }
 
 func writeFXRates(ctx context.Context, zw *zipWriter, mdStore *marketdata.Store) error {
-	pairs, err := mdStore.ListFXPairs()
+	pairs, err := mdStore.ListFXPairs(ctx)
 	if err != nil {
 		return err
 	}

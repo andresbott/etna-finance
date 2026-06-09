@@ -5,12 +5,16 @@ import (
 	"time"
 )
 
-// PricePoint is a single price observation at a point in time.
+// PricePoint is a single OHLCV candle at a point in time.
 // Consumers (e.g. the market data import job) can convert to marketdata.PricePoint
 // and write to the store via Store.IngestPricesBulk.
 type PricePoint struct {
-	Time  time.Time
-	Price float64
+	Time   time.Time
+	Open   float64
+	High   float64
+	Low    float64
+	Close  float64
+	Volume float64
 }
 
 // Client is the interface for fetching market data from an external source.

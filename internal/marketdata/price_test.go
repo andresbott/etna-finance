@@ -308,14 +308,14 @@ func TestPricePointsFromImporter(t *testing.T) {
 
 	t.Run("converts points correctly", func(t *testing.T) {
 		input := []importer.PricePoint{
-			{Time: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), Price: 10.0},
-			{Time: time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC), Price: 20.0},
-			{Time: time.Date(2025, 1, 3, 0, 0, 0, 0, time.UTC), Price: 30.0},
+			{Time: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), Open: 9.0, High: 11.0, Low: 8.5, Close: 10.0, Volume: 500},
+			{Time: time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC), Open: 19.0, High: 21.0, Low: 18.5, Close: 20.0, Volume: 600},
+			{Time: time.Date(2025, 1, 3, 0, 0, 0, 0, time.UTC), Open: 29.0, High: 31.0, Low: 28.5, Close: 30.0, Volume: 700},
 		}
 		want := []PricePoint{
-			{Time: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), Close: 10.0},
-			{Time: time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC), Close: 20.0},
-			{Time: time.Date(2025, 1, 3, 0, 0, 0, 0, time.UTC), Close: 30.0},
+			{Time: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), Open: 9.0, High: 11.0, Low: 8.5, Close: 10.0, Volume: 500},
+			{Time: time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC), Open: 19.0, High: 21.0, Low: 18.5, Close: 20.0, Volume: 600},
+			{Time: time.Date(2025, 1, 3, 0, 0, 0, 0, time.UTC), Open: 29.0, High: 31.0, Low: 28.5, Close: 30.0, Volume: 700},
 		}
 		got := PricePointsFromImporter(input)
 		if diff := cmp.Diff(want, got); diff != "" {

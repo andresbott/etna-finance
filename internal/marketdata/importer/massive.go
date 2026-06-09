@@ -41,8 +41,12 @@ func (c *MassiveClient) FetchDailyPrices(ctx context.Context, symbol string, sta
 			continue
 		}
 		points = append(points, PricePoint{
-			Time:  t,
-			Price: agg.Close,
+			Time:   t,
+			Open:   agg.Open,
+			High:   agg.High,
+			Low:    agg.Low,
+			Close:  agg.Close,
+			Volume: agg.Volume,
 		})
 	}
 	if err := iter.Err(); err != nil {

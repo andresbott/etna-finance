@@ -418,7 +418,7 @@ func (store *Store) investmentValueAtDate(ctx context.Context, accountID uint, d
 			continue
 		}
 
-		value := pos.quantity * priceRec.Price
+		value := pos.quantity * priceRec.Close
 		instCurrency := inst.Currency.String()
 
 		converted, unconverted := store.convertDelta(ctx, value, instCurrency, date)

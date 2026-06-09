@@ -94,7 +94,14 @@ func pricePointsNewDays(points []importer.PricePoint, existingDays map[time.Time
 	for _, p := range points {
 		day := dayNormalize(p.Time)
 		if _, exists := existingDays[day]; !exists {
-			out = append(out, marketdata.PricePoint{Time: p.Time, Price: p.Price})
+			out = append(out, marketdata.PricePoint{
+				Time:   p.Time,
+				Open:   p.Open,
+				High:   p.High,
+				Low:    p.Low,
+				Close:  p.Close,
+				Volume: p.Volume,
+			})
 			existingDays[day] = struct{}{}
 		}
 	}

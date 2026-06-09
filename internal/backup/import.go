@@ -572,8 +572,12 @@ func importPriceHistory(ctx context.Context, mdStore *marketdata.Store, r *zip.R
 	bySymbol := map[string][]marketdata.PricePoint{}
 	for _, rec := range records {
 		bySymbol[rec.Symbol] = append(bySymbol[rec.Symbol], marketdata.PricePoint{
-			Time:  rec.Time,
-			Price: rec.Price,
+			Time:   rec.Time,
+			Open:   rec.Open,
+			High:   rec.High,
+			Low:    rec.Low,
+			Close:  rec.Close,
+			Volume: rec.Volume,
 		})
 	}
 	for symbol, points := range bySymbol {
