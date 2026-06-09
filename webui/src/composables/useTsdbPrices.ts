@@ -3,6 +3,7 @@ import { computed, unref, type MaybeRefOrGetter } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
 import { getPriceHistory, type PriceRecord } from '@/lib/api/MarketData'
 import { rangeToStartEnd, toLocalDateString, type PriceHistoryRange } from '@/utils/dateRange'
+import { parseLocalDate } from '@/utils/date'
 
 export interface OhlcvData {
     dates: string[]
@@ -39,7 +40,7 @@ export function useTsdbPrices(
 
             let fetchStart = start
             if (warmup > 0) {
-                const d = new Date(start)
+                const d = parseLocalDate(start)
                 d.setDate(d.getDate() - warmup)
                 fetchStart = toLocalDateString(d)
             }

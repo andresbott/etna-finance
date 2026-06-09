@@ -76,11 +76,11 @@ export async function updatePrice(
     payload: CreatePriceDTO
 ): Promise<void> {
     await apiClient.put(
-        `${MARKET_DATA_PATH}/${encodeURIComponent(symbol)}/prices/${origDate}`,
+        `${MARKET_DATA_PATH}/${encodeURIComponent(symbol)}/prices/${encodeURIComponent(origDate)}`,
         payload
     )
 }
 
 export async function deletePrice(symbol: string, date: string): Promise<void> {
-    await apiClient.delete(`${MARKET_DATA_PATH}/${encodeURIComponent(symbol)}/prices/${date}`)
+    await apiClient.delete(`${MARKET_DATA_PATH}/${encodeURIComponent(symbol)}/prices/${encodeURIComponent(date)}`)
 }

@@ -31,7 +31,7 @@ export function useFXOverview() {
     const { start, end } = lastDaysRange(30)
 
     const pairsQuery = useQuery({
-        queryKey: [FX_OVERVIEW_QUERY_KEY],
+        queryKey: FX_OVERVIEW_QUERY_KEY,
         queryFn: getFXPairs,
         enabled: true
     })
@@ -129,7 +129,7 @@ export function useFXMutations(main: MaybeRefOrGetter<string>, secondary: MaybeR
     const getSecondary = () => (typeof secondary === 'function' ? secondary() : unref(secondary))
 
     const invalidate = () => {
-        queryClient.invalidateQueries({ queryKey: [FX_OVERVIEW_QUERY_KEY] })
+        queryClient.invalidateQueries({ queryKey: FX_OVERVIEW_QUERY_KEY })
         queryClient.invalidateQueries({
             queryKey: [FX_RATE_HISTORY_QUERY_KEY, getMain(), getSecondary()]
         })
