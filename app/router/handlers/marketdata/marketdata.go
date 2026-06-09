@@ -17,20 +17,22 @@ type Handler struct {
 }
 
 type pricePayload struct {
-	ID     uint    `json:"id"`
 	Symbol string  `json:"symbol"`
 	Time   string  `json:"time"`
-	Price  float64 `json:"price"`
+	Open   float64 `json:"open"`
+	High   float64 `json:"high"`
+	Low    float64 `json:"low"`
+	Close  float64 `json:"close"`
+	Volume float64 `json:"volume"`
 }
 
 type priceCreatePayload struct {
-	Time  string  `json:"time"`
-	Price float64 `json:"price"`
-}
-
-type priceUpdatePayload struct {
-	Time  *string  `json:"time,omitempty"`
-	Price *float64 `json:"price,omitempty"`
+	Time   string  `json:"time"`
+	Open   float64 `json:"open"`
+	High   float64 `json:"high"`
+	Low    float64 `json:"low"`
+	Close  float64 `json:"close"`
+	Volume float64 `json:"volume"`
 }
 
 type bulkCreatePayload struct {
@@ -39,10 +41,18 @@ type bulkCreatePayload struct {
 
 const timeLayout = "2006-01-02"
 
+func (p priceCreatePayload) toPoint() (marketdata.PricePoint, error) {
+	t, err := time.Parse(timeLayout, p.Time)
+	if err != nil {
+		return marketdata.PricePoint{}, err
+	}
+	return marketdata.PricePoint{Time: t, Open: p.Open, High: p.High, Low: p.Low, Close: p.Close, Volume: p.Volume}, nil
+}
+
 // ListSymbols returns the list of instrument symbols that have price data.
 func (h *Handler) ListSymbols() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		symbols, err := h.Store.ListPriceSymbols()
+		symbols, err := h.Store.ListPriceSymbols(r.Context())
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to list symbols: %s", err.Error()), http.StatusInternalServerError)
 			return
@@ -59,10 +69,9 @@ func (h *Handler) ListSymbols() http.Handler {
 
 func recordToPayload(r marketdata.PriceRecord) pricePayload {
 	return pricePayload{
-		ID:     r.ID,
 		Symbol: r.Symbol,
 		Time:   r.Time.Format(timeLayout),
-		Price:  r.Price,
+		Open:   r.Open, High: r.High, Low: r.Low, Close: r.Close, Volume: r.Volume,
 	}
 }
 
@@ -90,7 +99,8 @@ func (h *Handler) ListPrices(symbol string) http.Handler {
 				http.Error(w, fmt.Sprintf("invalid end date: %s", err.Error()), http.StatusBadRequest)
 				return
 			}
-			end = t
+			// Treat end as inclusive of that calendar day
+			end = t.Add(24*time.Hour - time.Nanosecond)
 		}
 
 		records, err := h.Store.PriceHistory(r.Context(), symbol, start, end)
@@ -155,24 +165,20 @@ func (h *Handler) CreatePrice(symbol string) http.Handler {
 			return
 		}
 
-		t, err := time.Parse(timeLayout, payload.Time)
+		pt, err := payload.toPoint()
 		if err != nil {
 			http.Error(w, fmt.Sprintf("invalid time: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
 
-		if err := h.Store.IngestPrice(r.Context(), symbol, t, payload.Price); err != nil {
+		if err := h.Store.IngestPrice(r.Context(), symbol, pt); err != nil {
 			http.Error(w, fmt.Sprintf("unable to ingest price: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(pricePayload{
-			Symbol: symbol,
-			Time:   t.Format(timeLayout),
-			Price:  payload.Price,
-		})
+		_ = json.NewEncoder(w).Encode(recordToPayload(marketdata.PriceRecord{Symbol: symbol, Time: pt.Time, Open: pt.Open, High: pt.High, Low: pt.Low, Close: pt.Close, Volume: pt.Volume}))
 	})
 }
 
@@ -200,12 +206,12 @@ func (h *Handler) CreatePricesBulk(symbol string) http.Handler {
 
 		points := make([]marketdata.PricePoint, len(payload.Points))
 		for i, p := range payload.Points {
-			t, err := time.Parse(timeLayout, p.Time)
+			pt, err := p.toPoint()
 			if err != nil {
 				http.Error(w, fmt.Sprintf("invalid time at index %d: %s", i, err.Error()), http.StatusBadRequest)
 				return
 			}
-			points[i] = marketdata.PricePoint{Time: t, Price: p.Price}
+			points[i] = pt
 		}
 
 		if err := h.Store.IngestPricesBulk(r.Context(), symbol, points); err != nil {
@@ -217,58 +223,53 @@ func (h *Handler) CreatePricesBulk(symbol string) http.Handler {
 	})
 }
 
-// UpdatePrice applies a partial update to a price record.
-//nolint:dupl // parallel to UpdateFXRate by design
-func (h *Handler) UpdatePrice(id uint) http.Handler {
+// EditPrice upserts the candle for {symbol} at the given original {date}. Body carries the full candle
+// (its time may differ from {date} to move the record).
+func (h *Handler) EditPrice(symbol, origDate string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if id == 0 {
-			http.Error(w, "valid record id is required", http.StatusBadRequest)
+		if symbol == "" || origDate == "" {
+			http.Error(w, "symbol and date are required", http.StatusBadRequest)
 			return
 		}
-		if r.Body == nil {
-			http.Error(w, "request had empty body", http.StatusBadRequest)
+		oldTime, err := time.Parse(timeLayout, origDate)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("invalid date: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
-
-		var payload priceUpdatePayload
+		var payload priceCreatePayload
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			http.Error(w, fmt.Sprintf("unable to decode json: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
-
-		var update marketdata.PriceUpdate
-		if payload.Time != nil {
-			t, err := time.Parse(timeLayout, *payload.Time)
-			if err != nil {
-				http.Error(w, fmt.Sprintf("invalid time: %s", err.Error()), http.StatusBadRequest)
-				return
-			}
-			update.Time = &t
+		pt, err := payload.toPoint()
+		if err != nil {
+			http.Error(w, fmt.Sprintf("invalid time: %s", err.Error()), http.StatusBadRequest)
+			return
 		}
-		update.Price = payload.Price
-
-		if err := h.Store.UpdatePrice(r.Context(), id, update); err != nil {
+		if err := h.Store.EditPrice(r.Context(), symbol, oldTime, pt); err != nil {
 			http.Error(w, fmt.Sprintf("unable to update price: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
-
 		w.WriteHeader(http.StatusOK)
 	})
 }
 
-// DeletePrice removes a price record by ID.
-func (h *Handler) DeletePrice(id uint) http.Handler {
+// DeletePrice removes the candle for {symbol} at the given {date}.
+func (h *Handler) DeletePrice(symbol, date string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if id == 0 {
-			http.Error(w, "valid record id is required", http.StatusBadRequest)
+		if symbol == "" || date == "" {
+			http.Error(w, "symbol and date are required", http.StatusBadRequest)
 			return
 		}
-
-		if err := h.Store.DeletePrice(r.Context(), id); err != nil {
+		t, err := time.Parse(timeLayout, date)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("invalid date: %s", err.Error()), http.StatusBadRequest)
+			return
+		}
+		if err := h.Store.DeletePriceAt(r.Context(), symbol, t); err != nil {
 			http.Error(w, fmt.Sprintf("unable to delete price: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
-
 		w.WriteHeader(http.StatusOK)
 	})
 }
@@ -469,10 +470,13 @@ func (h *Handler) CreateFXRatesBulk(main, secondary string) http.Handler {
 	})
 }
 
-// UpdateFXRate applies a partial update to a rate record.
-//nolint:dupl // parallel to UpdatePrice by design
-func (h *Handler) UpdateFXRate(id uint) http.Handler {
+// UpdateFXRate applies a partial update to a rate record identified by (main/secondary, id).
+func (h *Handler) UpdateFXRate(main, secondary string, id uint) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if main == "" || secondary == "" {
+			http.Error(w, "main and secondary currency are required", http.StatusBadRequest)
+			return
+		}
 		if id == 0 {
 			http.Error(w, "valid record id is required", http.StatusBadRequest)
 			return
@@ -496,7 +500,7 @@ func (h *Handler) UpdateFXRate(id uint) http.Handler {
 			update.Time = &t
 		}
 		update.Rate = payload.Rate
-		if err := h.Store.UpdateRate(r.Context(), id, update); err != nil {
+		if err := h.Store.UpdateRate(r.Context(), main, secondary, id, update); err != nil {
 			http.Error(w, fmt.Sprintf("unable to update rate: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
@@ -504,14 +508,18 @@ func (h *Handler) UpdateFXRate(id uint) http.Handler {
 	})
 }
 
-// DeleteFXRate removes a rate record by ID.
-func (h *Handler) DeleteFXRate(id uint) http.Handler {
+// DeleteFXRate removes a rate record identified by (main/secondary, id).
+func (h *Handler) DeleteFXRate(main, secondary string, id uint) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if main == "" || secondary == "" {
+			http.Error(w, "main and secondary currency are required", http.StatusBadRequest)
+			return
+		}
 		if id == 0 {
 			http.Error(w, "valid record id is required", http.StatusBadRequest)
 			return
 		}
-		if err := h.Store.DeleteRate(r.Context(), id); err != nil {
+		if err := h.Store.DeleteRate(r.Context(), main, secondary, id); err != nil {
 			http.Error(w, fmt.Sprintf("unable to delete rate: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
