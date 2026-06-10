@@ -154,17 +154,16 @@ func (s *Store) LatestRate(ctx context.Context, main, secondary string) (*RateRe
 	if main == "" || secondary == "" {
 		return nil, fmt.Errorf("main and secondary currency cannot be empty")
 	}
-	samples, err := s.store.FieldRange(ctx, fxSeriesName(main, secondary), fxField, time.Time{}, time.Time{})
+	last, found, err := s.store.LatestField(ctx, fxSeriesName(main, secondary), fxField)
 	if err != nil {
 		if errors.Is(err, timeseries.ErrSeriesNotFound) || errors.Is(err, timeseries.ErrFieldNotFound) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to get latest rate for %s/%s: %w", main, secondary, err)
 	}
-	if len(samples) == 0 {
+	if !found {
 		return nil, nil
 	}
-	last := samples[len(samples)-1]
 	return &RateRecord{ID: fxID(last.Time), Main: main, Secondary: secondary, Time: last.Time, Rate: last.Value}, nil
 }
 
@@ -197,15 +196,18 @@ func (s *Store) UpdateRate(ctx context.Context, main, secondary string, id uint,
 	if in.Time != nil {
 		newTime = *in.Time
 	}
-	// Moving a record to a new time is a delete + write: the timeseries store has no
-	// transaction spanning both, so a crash between them can drop the record. Acceptable
-	// for this single-user app; revisit if the store gains atomic move support.
-	if !newTime.Equal(oldTime) {
-		if err := s.store.Delete(ctx, name, oldTime); err != nil {
-			return fmt.Errorf("failed to delete old rate record for %s/%s: %w", main, secondary, err)
-		}
+	// Same time: a plain upsert. Different time: an atomic move (delete old + write
+	// new in one transaction) so a crash cannot drop the record.
+	if newTime.Equal(oldTime) {
+		return s.IngestRate(ctx, main, secondary, newTime, rate)
 	}
-	return s.IngestRate(ctx, main, secondary, newTime, rate)
+	if err := s.RegisterPair(ctx, main, secondary); err != nil {
+		return err
+	}
+	if err := s.store.Move(ctx, name, oldTime, timeseries.Point{Time: newTime, Values: map[string]float64{fxField: rate}}); err != nil {
+		return fmt.Errorf("failed to move rate record for %s/%s: %w", main, secondary, err)
+	}
+	return nil
 }
 
 // DeleteRate removes the rate record identified by (main/secondary, id).

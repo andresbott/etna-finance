@@ -36,7 +36,7 @@ const sections = computed(() => {
     ]
 
     if (settings.investmentInstruments) {
-        appDataItems.push({ label: 'Investment Products', icon: 'ti ti-chart-bar', route: '/instruments' })
+        appDataItems.push({ label: 'Investment Products', icon: 'ti ti-chart-bar', route: '/market-data/stock-market' })
     }
 
     return [

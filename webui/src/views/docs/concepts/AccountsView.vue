@@ -61,7 +61,7 @@ import Message from 'primevue/message'
                         <p>
                             These two account types track investment assets such as stocks, ETFs, or mutual funds.
                             Both work together with
-                            <router-link to="/settings/instruments">investment instruments</router-link> to track
+                            <router-link to="/market-data/stock-market">investment instruments</router-link> to track
                             quantities, cost basis, and market value of your holdings.
                         </p>
                         <ul>

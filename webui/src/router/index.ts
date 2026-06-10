@@ -92,11 +92,11 @@ const router = createRouter({
         },
         {
             path: '/instruments',
-            redirect: { name: 'settings-instruments' }
+            redirect: { name: 'stock-market' }
         },
         {
             path: '/securities',
-            redirect: { name: 'settings-instruments' }
+            redirect: { name: 'stock-market' }
         },
         {
             path: '/backup-restore',
@@ -223,7 +223,6 @@ const router = createRouter({
                 { path: 'categories', name: 'settings-categories', component: () => import('@/views/settings/SettingsCategoriesView.vue') },
                 { path: 'category-rules', name: 'settings-category-rules', component: () => import('@/views/categories/CategoryRulesView.vue') },
                 { path: 'accounts', name: 'settings-accounts', component: () => import('@/views/accounts/AccountsView.vue') },
-                { path: 'instruments', name: 'settings-instruments', meta: { requiresInstruments: true }, component: () => import('@/views/instruments/InstrumentsView.vue') },
                 { path: 'backup-restore', name: 'settings-backup-restore', component: () => import('@/views/backup/BackupRestoreView.vue') },
                 { path: 'tasks', name: 'settings-tasks', component: () => import('@/views/tasks/TasksView.vue') },
                 { path: 'about', name: 'settings-about', component: () => import('@/views/settings/AboutView.vue') },

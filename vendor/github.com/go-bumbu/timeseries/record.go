@@ -92,6 +92,53 @@ func (s *Store) WriteMany(ctx context.Context, series string, ps []Point) error 
 	})
 }
 
+// Move atomically replaces the record at oldTime with p: it deletes every field
+// stored at oldTime and upserts p (at p.Time) inside a single transaction, so a
+// crash can never leave the old timestamp removed without the new one written —
+// the hazard a separate Delete + Write pair has. When oldTime equals p.Time it
+// is a clean replace at that timestamp. A zero oldTime skips the delete, making
+// it a plain upsert. Like Write, it takes the shared lock and rejects a zero
+// p.Time.
+func (s *Store) Move(ctx context.Context, series string, oldTime time.Time, p Point) error {
+	if p.Time.IsZero() {
+		return fmt.Errorf("point time cannot be zero")
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	sid, err := s.seriesID(ctx, series)
+	if err != nil {
+		return err
+	}
+
+	// Resolve and validate every field id before opening the transaction, so an
+	// unknown field aborts without having deleted anything.
+	rows := make([]dbRecord, 0, len(p.Values))
+	for name, val := range p.Values {
+		fid, err := s.fieldID(ctx, sid, name)
+		if err != nil {
+			return err
+		}
+		rows = append(rows, dbRecord{SeriesID: sid, FieldID: fid, Time: unixMilli(p.Time), Value: val})
+	}
+
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if !oldTime.IsZero() {
+			if err := tx.Where("series_id = ? AND time = ?", sid, unixMilli(oldTime)).Delete(&dbRecord{}).Error; err != nil {
+				return err
+			}
+		}
+		if len(rows) == 0 {
+			return nil
+		}
+		// Conflict columns in PK order, matching WriteMany.
+		return tx.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "series_id"}, {Name: "time"}, {Name: "field_id"}},
+			DoUpdates: clause.AssignmentColumns([]string{"value"}),
+		}).CreateInBatches(&rows, 500).Error
+	})
+}
+
 // Range returns points in [start, end], pivoting records that share an exact
 // timestamp into one Point. Returned in ascending time order. Pass a zero
 // time.Time for an unbounded start or end.
@@ -223,6 +270,90 @@ func (s *Store) At(ctx context.Context, series string, t time.Time) (Point, erro
 		out.Values[names[r.FieldID]] = r.Value
 	}
 	return out, nil
+}
+
+// Latest returns the point at the series' most recent timestamp, with its real
+// time preserved (unlike At, which stamps the query time). found is false when
+// the series exists but holds no records. An unknown series returns
+// ErrSeriesNotFound. Reads only the newest timestamp's rows, not the whole series.
+func (s *Store) Latest(ctx context.Context, series string) (Point, bool, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	sid, err := s.seriesID(ctx, series)
+	if err != nil {
+		return Point{}, false, err
+	}
+	names, err := s.fieldNames(ctx, sid)
+	if err != nil {
+		return Point{}, false, err
+	}
+
+	// Newest timestamp for the series.
+	var newest dbRecord
+	res := s.db.WithContext(ctx).Where("series_id = ?", sid).Order("time DESC").Limit(1).Find(&newest)
+	if res.Error != nil {
+		return Point{}, false, res.Error
+	}
+	if res.RowsAffected == 0 {
+		return Point{}, false, nil
+	}
+
+	// All fields stored at that timestamp.
+	var recs []dbRecord
+	if err := s.db.WithContext(ctx).Where("series_id = ? AND time = ?", sid, newest.Time).
+		Order("field_id ASC").Find(&recs).Error; err != nil {
+		return Point{}, false, err
+	}
+	out := Point{Time: newest.Time.asTime(), Values: map[string]float64{}}
+	for _, r := range recs {
+		out.Values[names[r.FieldID]] = r.Value
+	}
+	return out, true, nil
+}
+
+// LatestField returns the newest (time, value) for one field. found is false
+// when the field has no samples. Unknown series/field return ErrSeriesNotFound /
+// ErrFieldNotFound. Reads a single row.
+func (s *Store) LatestField(ctx context.Context, series, field string) (Sample, bool, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	sid, err := s.seriesID(ctx, series)
+	if err != nil {
+		return Sample{}, false, err
+	}
+	fid, err := s.fieldID(ctx, sid, field)
+	if err != nil {
+		return Sample{}, false, err
+	}
+	var r dbRecord
+	res := s.db.WithContext(ctx).Where("series_id = ? AND field_id = ?", sid, fid).
+		Order("time DESC").Limit(1).Find(&r)
+	if res.Error != nil {
+		return Sample{}, false, res.Error
+	}
+	if res.RowsAffected == 0 {
+		return Sample{}, false, nil
+	}
+	return Sample{Time: r.Time.asTime(), Value: r.Value}, true, nil
+}
+
+// Count returns the number of distinct timestamps (points) in the series,
+// independent of how many fields each point carries. An unknown series returns
+// ErrSeriesNotFound. Counts server-side rather than loading rows.
+func (s *Store) Count(ctx context.Context, series string) (int, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	sid, err := s.seriesID(ctx, series)
+	if err != nil {
+		return 0, err
+	}
+	var n int64
+	if err := s.db.WithContext(ctx).Model(&dbRecord{}).
+		Where("series_id = ?", sid).
+		Distinct("time").Count(&n).Error; err != nil {
+		return 0, err
+	}
+	return int(n), nil
 }
 
 // Delete removes all fields at exactly t for the series.

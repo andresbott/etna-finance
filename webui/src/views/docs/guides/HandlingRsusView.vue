@@ -46,7 +46,7 @@ import Message from 'primevue/message'
                         <p>
                             Both accounts must be linked to the same investment product (the company stock).
                             Make sure the stock is configured under
-                            <router-link to="/settings/instruments">Investment Products</router-link>.
+                            <router-link to="/market-data/stock-market">Investment Products</router-link>.
                         </p>
                     </section>
 

@@ -12,10 +12,18 @@ import Message from 'primevue/message'
 import Dialog from 'primevue/dialog'
 import DatePicker from 'primevue/datepicker'
 import InputNumber from 'primevue/inputnumber'
+import InstrumentFilters from '@/components/marketdata/InstrumentFilters.vue'
+import InstrumentDialog from '@/views/instruments/dialogs/InstrumentDialog.vue'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { useDateFormat } from '@/composables/useDateFormat'
+import { useInstruments } from '@/composables/useInstruments'
+import { useSettingsStore } from '@/store/settingsStore'
+import { useToast } from 'primevue/usetoast'
+import { getApiErrorMessage } from '@/utils/apiError'
 import {
     useMarketInstruments,
     useMarketDataMutations,
+    filterMarketInstruments,
     toLocalDateString,
     formatPrice,
     formatPct,
@@ -24,9 +32,43 @@ import {
 const { formatDate, pickerDateFormat } = useDateFormat()
 
 const router = useRouter()
+const toast = useToast()
+const settingsStore = useSettingsStore()
+const defaultCurrency = computed(() => settingsStore.mainCurrency || 'CHF')
+
 const { instruments, isLoading, isError, error, refetch } = useMarketInstruments()
+const {
+    createInstrument,
+    updateInstrument,
+    deleteInstrument,
+    isCreatingInstrument,
+    isUpdatingInstrument
+} = useInstruments()
+const isSaving = computed(() => isCreatingInstrument.value || isUpdatingInstrument.value)
+
 const leftSidebarCollapsed = ref(true)
 
+// --- Filtering (client-side) ---
+const filtersExpanded = ref(false)
+const search = ref('')
+const types = ref([])
+const exchanges = ref([])
+
+const uniqueSorted = (values) =>
+    [...new Set(values.filter((v) => v && v.length > 0))].sort((a, b) => a.localeCompare(b))
+
+const typeOptions = computed(() => uniqueSorted(instruments.value.map((i) => i.type)))
+const exchangeOptions = computed(() => uniqueSorted(instruments.value.map((i) => i.exchange)))
+
+const filteredInstruments = computed(() =>
+    filterMarketInstruments(instruments.value, {
+        search: search.value,
+        types: types.value,
+        exchanges: exchanges.value
+    })
+)
+
+// --- Add price dialog (unchanged) ---
 const addDialogInstrument = ref(null)
 const addDialogVisible = ref(false)
 const addDialogForm = ref({ date: '', price: 0 })
@@ -45,18 +87,105 @@ async function saveAddDialog() {
     if (!date) return
     const time = date.includes('T') ? toLocalDateString(new Date(date)) : date
     try {
-        await createPriceMutation({ time, price })
+        // The quick-add dialog captures a single price; map it to a flat OHLC bar
+        // (open=high=low=close) since the backend expects the full price record.
+        await createPriceMutation({ time, open: price, high: price, low: price, close: price, volume: 0 })
         addDialogVisible.value = false
-        refetch()
-    } catch (_) {}
+    } catch (err) {
+        toast.add({ severity: 'error', summary: 'Error', detail: getApiErrorMessage(err), life: 5000 })
+        console.error('Failed to add price:', err)
+    }
 }
 
+// --- Notes dialog (unchanged) ---
 const notesDialogVisible = ref(false)
 const notesDialogInstrument = ref(null)
 
 function openNotesDialog(inst) {
     notesDialogInstrument.value = inst
     notesDialogVisible.value = true
+}
+
+// --- Instrument create / edit / delete ---
+const selectedInstrument = ref(null)
+const instrumentDialogVisible = ref(false)
+const isEditInstrument = ref(false)
+const deleteInstrumentDialogVisible = ref(false)
+const instrumentToDelete = ref(null)
+
+const openNewInstrumentDialog = () => {
+    selectedInstrument.value = {
+        symbol: '',
+        name: '',
+        currency: defaultCurrency.value,
+        notes: '',
+        type: '',
+        exchange: ''
+    }
+    isEditInstrument.value = false
+    instrumentDialogVisible.value = true
+}
+
+const editInstrument = (inst) => {
+    selectedInstrument.value = {
+        id: inst.id,
+        symbol: inst.symbol,
+        name: inst.name,
+        currency: inst.currency,
+        notes: inst.notes,
+        type: inst.type,
+        exchange: inst.exchange
+    }
+    isEditInstrument.value = true
+    instrumentDialogVisible.value = true
+}
+
+const showDeleteInstrumentDialog = (inst) => {
+    instrumentToDelete.value = inst
+    deleteInstrumentDialogVisible.value = true
+}
+
+const confirmDeleteInstrument = async () => {
+    if (!instrumentToDelete.value) return
+    try {
+        await deleteInstrument(instrumentToDelete.value.id)
+        deleteInstrumentDialogVisible.value = false
+        instrumentToDelete.value = null
+    } catch (err) {
+        toast.add({ severity: 'error', summary: 'Error', detail: getApiErrorMessage(err), life: 5000 })
+        console.error('Failed to delete instrument:', err)
+    }
+}
+
+const saveInstrument = async (payload) => {
+    try {
+        if (payload.id) {
+            await updateInstrument({
+                id: payload.id,
+                payload: {
+                    symbol: payload.symbol,
+                    name: payload.name,
+                    currency: payload.currency,
+                    notes: payload.notes ?? '',
+                    type: payload.type,
+                    exchange: payload.exchange
+                }
+            })
+        } else {
+            await createInstrument({
+                symbol: payload.symbol,
+                name: payload.name,
+                currency: payload.currency,
+                notes: payload.notes ?? '',
+                type: payload.type,
+                exchange: payload.exchange
+            })
+        }
+        instrumentDialogVisible.value = false
+    } catch (err) {
+        toast.add({ severity: 'error', summary: 'Error', detail: getApiErrorMessage(err), life: 5000 })
+        console.error('Failed to save instrument:', err)
+    }
 }
 
 const onRowClick = (event) => {
@@ -75,7 +204,32 @@ const onRowClick = (event) => {
                             Stock Market
                         </h1>
                     </div>
+                    <div class="flex align-items-center gap-2">
+                        <Button
+                            :icon="filtersExpanded ? 'ti ti-filter-off' : 'ti ti-filter'"
+                            label="Filter"
+                            severity="secondary"
+                            outlined
+                            size="small"
+                            @click="filtersExpanded = !filtersExpanded"
+                        />
+                        <Button
+                            icon="ti ti-plus"
+                            label="New Instrument"
+                            size="small"
+                            @click="openNewInstrumentDialog"
+                        />
+                    </div>
                 </div>
+
+                <InstrumentFilters
+                    v-model:search="search"
+                    v-model:types="types"
+                    v-model:exchanges="exchanges"
+                    v-model:expanded="filtersExpanded"
+                    :type-options="typeOptions"
+                    :exchange-options="exchangeOptions"
+                />
 
                 <Message v-if="isError" severity="error" :closable="false" class="mb-3">
                     <div class="flex align-items-center gap-2 flex-wrap">
@@ -88,9 +242,8 @@ const onRowClick = (event) => {
                 <Card v-if="!instruments.length && !isLoading">
                     <template #content>
                         <div class="empty-message">
-                            No instruments configured. Add instruments in
-                            <router-link to="/instruments">Investment Products</router-link>
-                            to see market data here.
+                            No instruments configured. Use the <strong>New Instrument</strong>
+                            button above to add one and start tracking market data.
                         </div>
                     </template>
                 </Card>
@@ -98,22 +251,24 @@ const onRowClick = (event) => {
                 <Card v-else>
                     <template #content>
                         <DataTable
-                            :value="instruments"
+                            :value="filteredInstruments"
                             :loading="isLoading"
                             dataKey="id"
                             stripedRows
-                            :paginator="instruments.length > 15"
+                            sortField="symbol"
+                            :sortOrder="1"
+                            :paginator="filteredInstruments.length > 15"
                             :rows="15"
                             class="p-datatable-sm clickable-rows stock-table"
                             selectionMode="single"
                             @rowClick="onRowClick"
                         >
-                            <Column field="symbol" header="Symbol">
+                            <Column field="symbol" header="Symbol" sortable>
                                 <template #body="{ data }">
                                     <span class="font-bold">{{ data.symbol }}</span>
                                 </template>
                             </Column>
-                            <Column field="name" header="Name">
+                            <Column field="name" header="Name" sortable>
                                 <template #body="{ data }">
                                     <span>{{ data.name }}</span>
                                     <Button
@@ -128,13 +283,18 @@ const onRowClick = (event) => {
                                     />
                                 </template>
                             </Column>
-                            <Column field="lastPrice" header="Price">
+                            <Column field="type" header="Type" sortable>
+                                <template #body="{ data }">
+                                    <span>{{ data.type || '-' }}</span>
+                                </template>
+                            </Column>
+                            <Column field="lastPrice" header="Price" sortable>
                                 <template #body="{ data }">
                                     <span class="font-semibold">{{ formatPrice(data.lastPrice) }}</span>
                                     <span class="text-color-secondary text-sm ml-1">{{ data.currency }}</span>
                                 </template>
                             </Column>
-                            <Column field="changePct" header="Change">
+                            <Column field="changePct" header="Change" sortable>
                                 <template #body="{ data }">
                                     <Tag
                                         :value="formatPct(data.changePct)"
@@ -142,12 +302,12 @@ const onRowClick = (event) => {
                                     />
                                 </template>
                             </Column>
-                            <Column field="lastUpdate" header="Last update" bodyClass="last-update-cell" headerClass="last-update-cell">
+                            <Column field="lastUpdate" header="Last update" sortable bodyClass="last-update-cell" headerClass="last-update-cell">
                                 <template #body="{ data }">
                                     {{ data.lastUpdate ? formatDate(data.lastUpdate) : '-' }}
                                 </template>
                             </Column>
-                            <Column header="Actions" class="actions-column" style="width: 4rem; min-width: 4rem">
+                            <Column header="Actions" class="actions-column" style="width: 7rem; min-width: 7rem">
                                 <template #body="{ data }">
                                     <div class="flex gap-2 justify-content-end">
                                         <Button
@@ -158,6 +318,23 @@ const onRowClick = (event) => {
                                             v-tooltip.bottom="'Add price'"
                                             :loading="isCreatingPrice && addDialogInstrument?.id === data.id"
                                             @click.stop="openAddDialog(data)"
+                                        />
+                                        <Button
+                                            icon="ti ti-pencil"
+                                            text
+                                            rounded
+                                            class="p-1"
+                                            v-tooltip.bottom="'Edit'"
+                                            @click.stop="editInstrument(data)"
+                                        />
+                                        <Button
+                                            icon="ti ti-trash"
+                                            text
+                                            rounded
+                                            severity="danger"
+                                            class="p-1"
+                                            v-tooltip.bottom="'Delete'"
+                                            @click.stop="showDeleteInstrumentDialog(data)"
                                         />
                                     </div>
                                 </template>
@@ -221,6 +398,23 @@ const onRowClick = (event) => {
                         <Button label="Close" text severity="secondary" @click="notesDialogVisible = false" />
                     </template>
                 </Dialog>
+
+                <InstrumentDialog
+                    v-if="selectedInstrument"
+                    v-model:visible="instrumentDialogVisible"
+                    :is-edit="isEditInstrument"
+                    :instrument="selectedInstrument"
+                    :loading="isSaving"
+                    @save="saveInstrument"
+                />
+
+                <ConfirmDialog
+                    v-model:visible="deleteInstrumentDialogVisible"
+                    :name="instrumentToDelete?.name"
+                    title="Delete investment instrument"
+                    message="Are you sure you want to delete this investment instrument?"
+                    @confirm="confirmDeleteInstrument"
+                />
             </div>
         </template>
     </ResponsiveHorizontal>

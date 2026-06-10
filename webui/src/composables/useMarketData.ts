@@ -1,5 +1,5 @@
 import { computed, unref, type MaybeRefOrGetter } from 'vue'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/vue-query'
 import { useInstruments } from '@/composables/useInstruments'
 import {
     getPriceHistory,
@@ -20,6 +20,8 @@ export interface MarketInstrument {
     name: string
     notes: string
     currency: string
+    type: string
+    exchange: string
     lastPrice: number
     change: number | null
     changePct: number | null
@@ -48,9 +50,14 @@ export function useMarketInstruments() {
     const { start, end } = lastDaysRange(30)
 
     const marketInstrumentsQuery = useQuery({
+        // Key on instrument *content* (not just ids) so that editing a name/type/exchange/
+        // currency/symbol reactively busts this cache once the instruments query refetches.
+        // Keying on ids alone would only refetch on add/remove, leaving edits stale.
         queryKey: computed(() => [
             ...MARKET_INSTRUMENTS_QUERY_KEY,
-            (instrumentsData.value ?? []).map((i) => i.id).join(',')
+            (instrumentsData.value ?? [])
+                .map((i) => `${i.id}:${i.symbol}:${i.name}:${i.type}:${i.exchange}:${i.currency}`)
+                .join('|')
         ]),
         queryFn: async (): Promise<MarketInstrument[]> => {
             const list = instrumentsData.value ?? []
@@ -74,6 +81,8 @@ export function useMarketInstruments() {
                         name: inst.name,
                         notes: inst.notes ?? '',
                         currency: inst.currency,
+                        type: inst.type,
+                        exchange: inst.exchange,
                         lastPrice,
                         change,
                         changePct,
@@ -88,7 +97,10 @@ export function useMarketInstruments() {
             )
             return withLatest
         },
-        enabled: computed(() => (instrumentsData.value?.length ?? 0) > 0)
+        enabled: computed(() => (instrumentsData.value?.length ?? 0) > 0),
+        // Keep showing the previous rows while a content-key change (edit/add/delete) or a
+        // price update triggers a refetch, so the table does not flash empty mid-refetch.
+        placeholderData: keepPreviousData
     })
 
     const instruments = computed<MarketInstrument[]>(() => {
@@ -210,4 +222,27 @@ export function formatChange(value: number | null | undefined): string {
     if (value == null) return '-'
     const sign = value >= 0 ? '+' : ''
     return sign + value.toFixed(2)
+}
+
+export interface MarketInstrumentFilters {
+    search: string
+    types: string[]
+    exchanges: string[]
+}
+
+export function filterMarketInstruments(
+    instruments: MarketInstrument[],
+    filters: MarketInstrumentFilters
+): MarketInstrument[] {
+    const search = (filters.search ?? '').trim().toLowerCase()
+    return instruments.filter((inst) => {
+        const matchesSearch =
+            search === '' ||
+            inst.symbol.toLowerCase().includes(search) ||
+            inst.name.toLowerCase().includes(search)
+        const matchesType = filters.types.length === 0 || filters.types.includes(inst.type)
+        const matchesExchange =
+            filters.exchanges.length === 0 || filters.exchanges.includes(inst.exchange)
+        return matchesSearch && matchesType && matchesExchange
+    })
 }

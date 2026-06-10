@@ -109,17 +109,17 @@ func (s *Store) LatestPrice(ctx context.Context, symbol string) (*PriceRecord, e
 	if symbol == "" {
 		return nil, fmt.Errorf("instrument symbol cannot be empty")
 	}
-	points, err := s.store.Range(ctx, seriesName(symbol), time.Time{}, time.Time{})
+	p, found, err := s.store.Latest(ctx, seriesName(symbol))
 	if err != nil {
 		if errors.Is(err, timeseries.ErrSeriesNotFound) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to get latest price for %q: %w", symbol, err)
 	}
-	if len(points) == 0 {
+	if !found {
 		return nil, nil
 	}
-	rec := pointToPriceRecord(symbol, points[len(points)-1])
+	rec := pointToPriceRecord(symbol, p)
 	return &rec, nil
 }
 
@@ -144,19 +144,23 @@ func (s *Store) PriceAt(ctx context.Context, symbol string, t time.Time) (*Price
 }
 
 // EditPrice overwrites the candle. If newTime differs from oldTime, the old timestamp is removed
-// first (a move). A zero oldTime means "no prior timestamp to remove" and behaves as a plain write.
-// The move is a delete + write with no spanning transaction, so a crash between them can drop the
-// record; acceptable for this single-user app.
+// as part of the same write (an atomic move via the store). A zero oldTime means "no prior
+// timestamp to remove" and behaves as a plain write.
 func (s *Store) EditPrice(ctx context.Context, symbol string, oldTime time.Time, p PricePoint) error {
 	if symbol == "" {
 		return fmt.Errorf("instrument symbol cannot be empty")
 	}
-	if !oldTime.IsZero() && !oldTime.Equal(p.Time) {
-		if err := s.store.Delete(ctx, seriesName(symbol), oldTime); err != nil {
-			return fmt.Errorf("failed to move price for %q: %w", symbol, err)
-		}
+	// Same time (or no prior time): a plain upsert, no move needed.
+	if oldTime.IsZero() || oldTime.Equal(p.Time) {
+		return s.IngestPrice(ctx, symbol, p)
 	}
-	return s.IngestPrice(ctx, symbol, p)
+	if err := s.RegisterInstrument(ctx, symbol); err != nil {
+		return err
+	}
+	if err := s.store.Move(ctx, seriesName(symbol), oldTime, timeseries.Point{Time: p.Time, Values: p.values()}); err != nil {
+		return fmt.Errorf("failed to move price for %q: %w", symbol, err)
+	}
+	return nil
 }
 
 // DeletePriceAt removes the candle at exactly t.

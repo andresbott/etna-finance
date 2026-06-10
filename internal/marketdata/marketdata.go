@@ -75,15 +75,14 @@ func (s *Store) RegisterInstrument(ctx context.Context, symbol string) error {
 // WipeData deletes all data from the market data store: instruments, time series,
 // fields, and records. This is used during backup restore to clear existing data.
 func (s *Store) WipeData(ctx context.Context) error {
-	// Order matters: records reference fields, fields reference series, instruments standalone.
-	// "records"/"fields"/"series" are go-bumbu/timeseries v0.2 internal table names — the Store
-	// exposes no bulk-wipe API, so we delete directly. Revisit if the library adds one or renames
-	// its tables (it is unreleased), since a rename would make this silently skip those tables.
-	tables := []string{"records", "fields", "series", "db_instruments"}
-	for _, table := range tables {
-		if err := s.db.WithContext(ctx).Unscoped().Table(table).Where("1 = 1").Delete(nil).Error; err != nil {
-			return fmt.Errorf("failed to delete data in table '%s': %w", table, err)
-		}
+	// The timeseries Store owns its own tables (records/fields/series) and wipes
+	// them atomically under its lock, so we no longer hardcode those names here.
+	if err := s.store.Wipe(ctx); err != nil {
+		return fmt.Errorf("failed to wipe timeseries data: %w", err)
+	}
+	// db_instruments is etna's own table (migrated in NewStore), not the library's.
+	if err := s.db.WithContext(ctx).Unscoped().Table("db_instruments").Where("1 = 1").Delete(nil).Error; err != nil {
+		return fmt.Errorf("failed to delete instruments: %w", err)
 	}
 	return nil
 }
