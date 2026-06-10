@@ -632,7 +632,9 @@ function goBack() {
 .chart-tab-host {
     display: flex;
     flex-direction: column;
-    min-height: 600px;
+    /* Definite height (not min-height) so the inner flex:1 chart-wrapper and the
+       VChart's height:100% resolve; min-height is indefinite and collapses the chart. */
+    height: 600px;
 }
 
 .raw-data-toolbar {
