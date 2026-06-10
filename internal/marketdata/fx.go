@@ -31,9 +31,9 @@ func fxSeries(main, secondary string) timeseries.Series {
 
 // fxID encodes a record time as a synthetic id (UNIX seconds). Daily EOD records are at
 // midnight UTC, so this round-trips exactly.
-func fxID(t time.Time) uint { return uint(t.UTC().Unix()) }
+func fxID(t time.Time) uint { return uint(t.UTC().Unix()) } //nolint:gosec // G115: positive epoch seconds for daily records fit comfortably in uint
 
-func fxTime(id uint) time.Time { return time.Unix(int64(id), 0).UTC() }
+func fxTime(id uint) time.Time { return time.Unix(int64(id), 0).UTC() } //nolint:gosec // G115: synthetic ids are bounded epoch seconds, no overflow
 
 // RateRecord is a stored exchange rate data point.
 type RateRecord struct {
