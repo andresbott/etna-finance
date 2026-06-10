@@ -197,9 +197,12 @@ func (s *Store) UpdateRate(ctx context.Context, main, secondary string, id uint,
 	if in.Time != nil {
 		newTime = *in.Time
 	}
+	// Moving a record to a new time is a delete + write: the timeseries store has no
+	// transaction spanning both, so a crash between them can drop the record. Acceptable
+	// for this single-user app; revisit if the store gains atomic move support.
 	if !newTime.Equal(oldTime) {
 		if err := s.store.Delete(ctx, name, oldTime); err != nil {
-			return err
+			return fmt.Errorf("failed to delete old rate record for %s/%s: %w", main, secondary, err)
 		}
 	}
 	return s.IngestRate(ctx, main, secondary, newTime, rate)

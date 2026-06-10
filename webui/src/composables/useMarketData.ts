@@ -158,11 +158,13 @@ export function useMarketDataMutations(symbol: MaybeRefOrGetter<string>) {
 
     const getSymbol = () => (typeof symbol === 'function' ? symbol() : unref(symbol))
 
-    // Invalidate this instrument's price history and the market instruments list so the list view
-    // and detail overview (lastPrice, lastUpdate) stay in sync after create/update/delete.
+    // Invalidate this instrument's price history, the candlestick chart series, and the market
+    // instruments list so the list view, detail overview (lastPrice, lastUpdate), and Chart tab
+    // all stay in sync after create/update/delete.
     const invalidateMarketData = () => {
         const sym = getSymbol()
         queryClient.invalidateQueries({ queryKey: ['priceHistory', sym] })
+        queryClient.invalidateQueries({ queryKey: ['tsdbPrices', sym] })
         queryClient.invalidateQueries({ queryKey: MARKET_INSTRUMENTS_QUERY_KEY })
     }
 

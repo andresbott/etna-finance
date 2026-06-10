@@ -135,6 +135,9 @@ function onResize() {
 
 onMounted(() => {
     window.addEventListener('resize', onResize)
+    // Measure once after first paint. The dates-length watch below only fires on a 0→N
+    // transition, so it misses the case where the tab mounts with already-cached data.
+    requestAnimationFrame(measure)
 })
 onUnmounted(() => {
     window.removeEventListener('resize', onResize)

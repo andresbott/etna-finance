@@ -143,7 +143,10 @@ func (s *Store) PriceAt(ctx context.Context, symbol string, t time.Time) (*Price
 	return &rec, nil
 }
 
-// EditPrice overwrites the candle. If newTime differs from oldTime, the old timestamp is removed first (a move).
+// EditPrice overwrites the candle. If newTime differs from oldTime, the old timestamp is removed
+// first (a move). A zero oldTime means "no prior timestamp to remove" and behaves as a plain write.
+// The move is a delete + write with no spanning transaction, so a crash between them can drop the
+// record; acceptable for this single-user app.
 func (s *Store) EditPrice(ctx context.Context, symbol string, oldTime time.Time, p PricePoint) error {
 	if symbol == "" {
 		return fmt.Errorf("instrument symbol cannot be empty")
