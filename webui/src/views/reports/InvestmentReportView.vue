@@ -138,7 +138,17 @@ const toggleExpand = () => {
                                         <span class="text-500">
                                             {{ returnRows.length }} instrument{{ returnRows.length === 1 ? '' : 's' }}
                                         </span>
-                                        <div class="flex align-items-center gap-4 flex-wrap">
+                                        <div
+                                            v-if="totals.missingRateCurrencies.length > 0"
+                                            class="flex align-items-center gap-2 text-orange-500 text-sm"
+                                        >
+                                            <i class="ti ti-alert-triangle"></i>
+                                            <span>
+                                                Totals unavailable — no FX rate to {{ totals.currency }} for
+                                                {{ totals.missingRateCurrencies.join(', ') }}. Add the missing rate to see converted totals.
+                                            </span>
+                                        </div>
+                                        <div v-else class="flex align-items-center gap-4 flex-wrap">
                                             <span class="text-sm">
                                                 Invested: <span class="font-semibold">{{ formatAmount(totals.totalInvested) }} {{ totals.currency }}</span>
                                             </span>

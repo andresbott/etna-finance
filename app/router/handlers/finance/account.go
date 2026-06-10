@@ -11,6 +11,7 @@ import (
 	"github.com/andresbott/etna/internal/accounting"
 	"github.com/andresbott/etna/internal/filestore"
 	"github.com/andresbott/etna/internal/marketdata"
+	"github.com/andresbott/etna/internal/marketdata/importer"
 
 	"golang.org/x/text/currency"
 )
@@ -19,6 +20,7 @@ type Handler struct {
 	Store           *accounting.Store
 	InstrumentStore *marketdata.Store
 	FileStore       *filestore.Store
+	Reference       importer.ReferenceClient
 }
 
 type accountProviderPayload struct {

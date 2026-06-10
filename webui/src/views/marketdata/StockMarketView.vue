@@ -74,14 +74,6 @@ const onRowClick = (event) => {
                             <i class="ti ti-chart-line text-primary"></i>
                             Stock Market
                         </h1>
-                        <p class="text-color-secondary mt-0 mb-3">
-                            Investment instruments overview with market data
-                            <i
-                                class="ti ti-help-circle"
-                                v-tooltip.bottom="'Use Tasks to update and schedule market data ingestion'"
-                                style="cursor: help"
-                            />
-                        </p>
                     </div>
                 </div>
 

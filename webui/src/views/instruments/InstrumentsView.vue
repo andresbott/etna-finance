@@ -39,7 +39,9 @@ const openNewInstrumentDialog = () => {
         symbol: '',
         name: '',
         currency: defaultCurrency.value,
-        notes: ''
+        notes: '',
+        type: '',
+        exchange: ''
     }
     isEditInstrument.value = false
     instrumentDialogVisible.value = true
@@ -51,7 +53,9 @@ const editInstrument = (inst) => {
         symbol: inst.symbol,
         name: inst.name,
         currency: inst.currency,
-        notes: inst.notes
+        notes: inst.notes,
+        type: inst.type,
+        exchange: inst.exchange
     }
     isEditInstrument.value = true
     instrumentDialogVisible.value = true
@@ -83,7 +87,9 @@ const saveInstrument = async (payload) => {
                     symbol: payload.symbol,
                     name: payload.name,
                     currency: payload.currency,
-                    notes: payload.notes ?? ''
+                    notes: payload.notes ?? '',
+                    type: payload.type,
+                    exchange: payload.exchange
                 }
             })
         } else {
@@ -91,7 +97,9 @@ const saveInstrument = async (payload) => {
                 symbol: payload.symbol,
                 name: payload.name,
                 currency: payload.currency,
-                notes: payload.notes ?? ''
+                notes: payload.notes ?? '',
+                type: payload.type,
+                exchange: payload.exchange
             })
         }
         instrumentDialogVisible.value = false

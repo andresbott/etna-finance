@@ -141,6 +141,14 @@ func runServer(configFile string) error {
 	}
 
 	// ——— Router (API, SPA, handlers) ———
+	var referenceClient importer.ReferenceClient
+	if len(cfg.MarketDataImporters.Massive.ApiKeys) > 0 {
+		refPool, err := importer.NewMassiveReferencePool(cfg.MarketDataImporters.Massive.ApiKeys)
+		if err != nil {
+			return fmt.Errorf("reference importer pool (massive): %w", err)
+		}
+		referenceClient = refPool
+	}
 	routerCfg := router.Cfg{
 		Db:                db,
 		SessionAuth:       sessionAuth,
@@ -169,6 +177,7 @@ func runServer(configFile string) error {
 		CsvImportStore:  csvImportStore,
 		AttachmentStore: attachmentStore,
 		ToolsDataStore:  toolsDataStore,
+		ReferenceClient: referenceClient,
 	}
 	mainAppHandler, err := router.New(routerCfg)
 	if err != nil {

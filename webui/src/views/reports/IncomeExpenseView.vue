@@ -232,10 +232,10 @@ const collectNodeIds = (node) => {
     return ids
 }
 
-const viewEntries = (node) => {
+const entriesRoute = (node) => {
     const ids = collectNodeIds(node)
-    if (ids.length === 0) return
-    router.push({
+    if (ids.length === 0) return null
+    return {
         path: '/entries',
         query: {
             from: formatDateForAPI(startDate.value),
@@ -244,7 +244,17 @@ const viewEntries = (node) => {
             limit: '25',
             categoryIds: ids.join(',')
         }
-    })
+    }
+}
+
+const viewEntries = (node) => {
+    const route = entriesRoute(node)
+    if (route) router.push(route)
+}
+
+const viewEntriesNewTab = (node) => {
+    const route = entriesRoute(node)
+    if (route) window.open(router.resolve(route).href, '_blank')
 }
 
 watch([startDate, endDate], () => {
@@ -303,6 +313,7 @@ onMounted(() => fetchReportData())
                                             rounded
                                             size="small"
                                             @click.stop="viewEntries(slotProps.node)"
+                                            @auxclick.middle.stop="viewEntriesNewTab(slotProps.node)"
                                             v-tooltip.top="'View entries'"
                                         />
                                     </span>
@@ -361,6 +372,7 @@ onMounted(() => fetchReportData())
                                             rounded
                                             size="small"
                                             @click.stop="viewEntries(slotProps.node)"
+                                            @auxclick.middle.stop="viewEntriesNewTab(slotProps.node)"
                                             v-tooltip.top="'View entries'"
                                         />
                                     </span>

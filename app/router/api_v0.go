@@ -11,6 +11,7 @@ import (
 	csvimportHandler "github.com/andresbott/etna/app/router/handlers/csvimport"
 	finHandler "github.com/andresbott/etna/app/router/handlers/finance"
 	mktHandler "github.com/andresbott/etna/app/router/handlers/marketdata"
+	statsHandler "github.com/andresbott/etna/app/router/handlers/stats"
 	taskHandler "github.com/andresbott/etna/app/router/handlers/tasks"
 	toolsDataHandler "github.com/andresbott/etna/app/router/handlers/toolsdata"
 	"github.com/go-bumbu/userauth/authenticator"
@@ -33,6 +34,7 @@ func (h *MainAppHandler) attachApiV0(r *mux.Router) error {
 
 	// attach api paths to api/v0
 	h.settingsApi(r)
+	h.statsApi(r)
 	h.accountingAPI(r)
 	h.marketDataAPI(r)
 	h.backupApi(r)
@@ -55,6 +57,13 @@ func (h *MainAppHandler) settingsApi(r *mux.Router) {
 	r.Path(settingsPath).Methods(http.MethodGet).Handler(handlrs.SettingsHandlerWithMarketData(h.appSettings, getSymbols))
 }
 
+const statsPath = "/stats"
+
+func (h *MainAppHandler) statsApi(r *mux.Router) {
+	statsHndlr := statsHandler.Handler{DB: h.db, MarketStore: h.marketStore}
+	r.Path(statsPath).Methods(http.MethodGet).Handler(statsHndlr.Stats())
+}
+
 const finProviderPath = "/fin/provider"
 const finAccountPath = "/fin/account"
 const finEntries = "/fin/entries"
@@ -70,7 +79,7 @@ const finReport = "/fin/report"
 //nolint:gocognit,gocyclo // the function is quite big and verbose but easy to follow
 func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 
-	finHndlr := finHandler.Handler{Store: h.finStore, InstrumentStore: h.marketStore, FileStore: h.attachmentStore}
+	finHndlr := finHandler.Handler{Store: h.finStore, InstrumentStore: h.marketStore, FileStore: h.attachmentStore, Reference: h.referenceClient}
 
 	// ==========================================================================
 	// Account Providers
@@ -415,6 +424,15 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 				return
 			}
 			finHndlr.CreateInstrument().ServeHTTP(w, r)
+		})
+
+		r.Path(fmt.Sprintf("%s/lookup", finInstrumentPath)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, err := sessionauth.CtxGetUserData(r)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+				return
+			}
+			finHndlr.LookupInstrument().ServeHTTP(w, r)
 		})
 
 		r.Path(fmt.Sprintf("%s/{id}", finInstrumentPath)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

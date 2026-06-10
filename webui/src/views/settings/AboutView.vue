@@ -7,9 +7,11 @@ import { useSettingsStore } from '@/store/settingsStore'
 import { useAccounts } from '@/composables/useAccounts'
 import { useCategories } from '@/composables/useCategories'
 import { getEntries } from '@/lib/api/Entry'
+import { getStats } from '@/lib/api/Stats'
 
 const settings = useSettingsStore()
 const repoUrl = 'https://github.com/andresbott/etna'
+const poweredByUrl = 'https://github.com/andresbott/etna-finance'
 
 const { accounts: providers } = useAccounts()
 const { incomeCategories, expenseCategories } = useCategories()
@@ -34,6 +36,37 @@ const categoryCount = computed(() => {
 })
 
 const transactionCount = computed(() => entriesCountQuery.data?.value?.total ?? 0)
+
+const statsQuery = useQuery({
+    queryKey: ['app-stats'],
+    queryFn: getStats,
+})
+
+const stats = computed(() => statsQuery.data?.value)
+
+function formatBytes(bytes: number): string {
+    if (bytes <= 0) return '0 B'
+    const units = ['B', 'KB', 'MB', 'GB', 'TB']
+    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+    const value = bytes / Math.pow(1024, i)
+    return `${value.toFixed(i === 0 ? 0 : 1)} ${units[i]}`
+}
+
+const marketDataSummary = computed(() => {
+    const s = stats.value
+    if (!s) return '—'
+    const series = `${s.priceSeries.toLocaleString()} ${s.priceSeries === 1 ? 'symbol' : 'symbols'}`
+    return `${series} · ${s.pricePoints.toLocaleString()} points`
+})
+
+const fxSummary = computed(() => {
+    const s = stats.value
+    if (!s) return '—'
+    const series = `${s.fxSeries.toLocaleString()} ${s.fxSeries === 1 ? 'pair' : 'pairs'}`
+    return `${series} · ${s.fxPoints.toLocaleString()} points`
+})
+
+const dbSizeDisplay = computed(() => (stats.value ? formatBytes(stats.value.dbSizeBytes) : '—'))
 </script>
 
 <template>
@@ -41,6 +74,13 @@ const transactionCount = computed(() => entriesCountQuery.data?.value?.total ?? 
         <template #title>About</template>
         <template #content>
             <div class="about-content">
+                <div class="about-row">
+                    <span class="about-label">Powered by</span>
+                    <a :href="poweredByUrl" target="_blank" rel="noopener noreferrer" class="about-link">
+                        etna-finance
+                        <i class="ti ti-external-link link-icon"></i>
+                    </a>
+                </div>
                 <div class="about-row">
                     <span class="about-label">Version</span>
                     <span class="about-value">{{ settings.version || 'development' }}</span>
@@ -73,6 +113,18 @@ const transactionCount = computed(() => entriesCountQuery.data?.value?.total ?? 
                 <div class="about-row">
                     <span class="about-label">Categories</span>
                     <span class="about-value">{{ categoryCount.toLocaleString() }}</span>
+                </div>
+                <div class="about-row">
+                    <span class="about-label">Market data</span>
+                    <span class="about-value">{{ marketDataSummary }}</span>
+                </div>
+                <div class="about-row">
+                    <span class="about-label">FX rates</span>
+                    <span class="about-value">{{ fxSummary }}</span>
+                </div>
+                <div class="about-row">
+                    <span class="about-label">Database size</span>
+                    <span class="about-value">{{ dbSizeDisplay }}</span>
                 </div>
             </div>
         </template>

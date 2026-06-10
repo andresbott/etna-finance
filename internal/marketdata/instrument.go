@@ -17,6 +17,8 @@ type Instrument struct {
 	Name                 string
 	Currency             currency.Unit
 	Notes                string
+	Type                 string
+	Exchange             string
 }
 
 type dbInstrument struct {
@@ -30,6 +32,8 @@ type dbInstrument struct {
 	Name     string
 	Currency string
 	Notes    string
+	Type     string
+	Exchange string
 }
 
 func (dbInstrument) TableName() string { return "db_instruments" }
@@ -42,6 +46,8 @@ func dbToInstrument(in dbInstrument) Instrument {
 		Name:                 in.Name,
 		Currency:             currency.MustParseISO(in.Currency),
 		Notes:                in.Notes,
+		Type:                 in.Type,
+		Exchange:             in.Exchange,
 	}
 }
 
@@ -60,6 +66,8 @@ type InstrumentUpdatePayload struct {
 	Name     *string
 	Currency *string
 	Notes    *string
+	Type     *string
+	Exchange *string
 }
 
 func (s *Store) CreateInstrument(ctx context.Context, item Instrument) (uint, error) {
@@ -82,6 +90,8 @@ func (s *Store) CreateInstrument(ctx context.Context, item Instrument) (uint, er
 			existing.Name = item.Name
 			existing.Currency = item.Currency.String()
 			existing.Notes = item.Notes
+			existing.Type = item.Type
+			existing.Exchange = item.Exchange
 			if u := s.db.WithContext(ctx).Unscoped().Save(&existing); u.Error != nil {
 				return 0, u.Error
 			}
@@ -98,6 +108,8 @@ func (s *Store) CreateInstrument(ctx context.Context, item Instrument) (uint, er
 		Name:       item.Name,
 		Currency:   item.Currency.String(),
 		Notes:      item.Notes,
+		Type:       item.Type,
+		Exchange:   item.Exchange,
 	}
 	d := s.db.WithContext(ctx).Create(&payload)
 	if d.Error != nil {
@@ -157,6 +169,14 @@ func (s *Store) UpdateInstrument(ctx context.Context, id uint, item InstrumentUp
 	if item.Notes != nil {
 		updateStruct.Notes = *item.Notes
 		selectedFields = append(selectedFields, "Notes")
+	}
+	if item.Type != nil {
+		updateStruct.Type = *item.Type
+		selectedFields = append(selectedFields, "Type")
+	}
+	if item.Exchange != nil {
+		updateStruct.Exchange = *item.Exchange
+		selectedFields = append(selectedFields, "Exchange")
 	}
 	if len(selectedFields) == 0 {
 		return ErrNoChanges

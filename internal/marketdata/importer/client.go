@@ -25,3 +25,22 @@ type Client interface {
 	// in the [start, end] date range (inclusive). Times should be interpreted in UTC.
 	FetchDailyPrices(ctx context.Context, symbol string, start, end time.Time) ([]PricePoint, error)
 }
+
+// TickerDetails is reference/metadata about a tradeable instrument, as returned by an
+// external provider (e.g. Massive). Fields carry the provider's RAW values; mapping to
+// app-facing values (e.g. MIC code -> exchange name) is the caller's responsibility.
+type TickerDetails struct {
+	Name     string // e.g. "Apple Inc."
+	Currency string // ISO currency, upper-cased, e.g. "USD"
+	Type     string // raw provider type code, e.g. "CS", "ETF"
+	Exchange string // raw MIC code, e.g. "XNAS"
+	Notes    string // short human description (exchange + description)
+	Found    bool   // false when the provider returned no match for the symbol
+}
+
+// ReferenceClient fetches reference/metadata for a single symbol. Implementations may wrap a
+// single API key or a pool of clients for key rotation. A not-found symbol must be returned as
+// TickerDetails{Found: false} with a nil error (only transport/parse failures return an error).
+type ReferenceClient interface {
+	GetTickerDetails(ctx context.Context, symbol string) (TickerDetails, error)
+}

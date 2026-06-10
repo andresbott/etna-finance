@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api/client'
-import type { Instrument, CreateInstrumentDTO, UpdateInstrumentDTO } from '@/types/instrument'
+import type { Instrument, CreateInstrumentDTO, UpdateInstrumentDTO, InstrumentLookup } from '@/types/instrument'
 
 const INSTRUMENT_PATH = '/fin/instrument'
 
@@ -22,4 +22,14 @@ export const updateInstrument = async (
 
 export const deleteInstrument = async (id: number): Promise<void> => {
     await apiClient.delete(`${INSTRUMENT_PATH}/${id}`)
+}
+
+export const lookupInstrument = async (symbol: string): Promise<InstrumentLookup | null> => {
+    const res = await apiClient.get<InstrumentLookup>(`${INSTRUMENT_PATH}/lookup`, {
+        params: { symbol }
+    })
+    if (res.status === 204 || !res.data) {
+        return null
+    }
+    return res.data
 }

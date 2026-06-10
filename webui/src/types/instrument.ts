@@ -4,6 +4,8 @@ export interface Instrument {
     name: string
     currency: string
     notes: string
+    type: string
+    exchange: string
 }
 
 export interface CreateInstrumentDTO {
@@ -11,6 +13,8 @@ export interface CreateInstrumentDTO {
     name: string
     currency: string
     notes: string
+    type: string
+    exchange: string
 }
 
 export interface UpdateInstrumentDTO {
@@ -18,4 +22,14 @@ export interface UpdateInstrumentDTO {
     name?: string
     currency?: string
     notes?: string
+    type?: string
+    exchange?: string
+}
+
+export interface InstrumentLookup {
+    name: string
+    currency: string
+    type: string
+    exchange: string
+    notes: string
 }

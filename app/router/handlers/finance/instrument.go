@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/andresbott/etna/internal/marketdata"
+	"github.com/andresbott/etna/internal/marketdata/importer"
 	"golang.org/x/text/currency"
 )
 
@@ -20,6 +21,8 @@ type instrumentPayload struct {
 	Name     string `json:"name"`
 	Currency string `json:"currency"`
 	Notes    string `json:"notes"`
+	Type     string `json:"type"`
+	Exchange string `json:"exchange"`
 }
 
 type instrumentCreatePayload struct {
@@ -27,6 +30,8 @@ type instrumentCreatePayload struct {
 	Name     string `json:"name"`
 	Currency string `json:"currency"`
 	Notes    string `json:"notes"`
+	Type     string `json:"type"`
+	Exchange string `json:"exchange"`
 }
 
 func instrumentToPayload(s marketdata.Instrument) instrumentPayload {
@@ -36,6 +41,8 @@ func instrumentToPayload(s marketdata.Instrument) instrumentPayload {
 		Name:     s.Name,
 		Currency: s.Currency.String(),
 		Notes:    s.Notes,
+		Type:     s.Type,
+		Exchange: s.Exchange,
 	}
 }
 
@@ -95,6 +102,15 @@ func (h *Handler) CreateInstrument() http.Handler {
 			return
 		}
 
+		if payload.Type == "" {
+			http.Error(w, "type cannot be empty", http.StatusBadRequest)
+			return
+		}
+		if payload.Exchange == "" {
+			http.Error(w, "exchange cannot be empty", http.StatusBadRequest)
+			return
+		}
+
 		curr, err := currency.ParseISO(payload.Currency)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("invalid currency: %s", payload.Currency), http.StatusBadRequest)
@@ -106,6 +122,8 @@ func (h *Handler) CreateInstrument() http.Handler {
 			Name:     payload.Name,
 			Currency: curr,
 			Notes:    payload.Notes,
+			Type:     payload.Type,
+			Exchange: payload.Exchange,
 		}
 
 		id, err := h.InstrumentStore.CreateInstrument(r.Context(), item)
@@ -128,6 +146,8 @@ func (h *Handler) CreateInstrument() http.Handler {
 			Name:     item.Name,
 			Currency: item.Currency.String(),
 			Notes:    item.Notes,
+			Type:     item.Type,
+			Exchange: item.Exchange,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -162,6 +182,8 @@ type instrumentUpdatePayload struct {
 	Name     *string `json:"name,omitempty"`
 	Currency *string `json:"currency,omitempty"`
 	Notes    *string `json:"notes,omitempty"`
+	Type     *string `json:"type,omitempty"`
+	Exchange *string `json:"exchange,omitempty"`
 }
 
 func (h *Handler) UpdateInstrument(id uint) http.Handler {
@@ -178,11 +200,21 @@ func (h *Handler) UpdateInstrument(id uint) http.Handler {
 			http.Error(w, fmt.Sprintf("unable to decode json: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
+		if payload.Type != nil && *payload.Type == "" {
+			http.Error(w, "type cannot be empty", http.StatusBadRequest)
+			return
+		}
+		if payload.Exchange != nil && *payload.Exchange == "" {
+			http.Error(w, "exchange cannot be empty", http.StatusBadRequest)
+			return
+		}
 		item := marketdata.InstrumentUpdatePayload{
 			Symbol:   payload.Symbol,
 			Name:     payload.Name,
 			Currency: payload.Currency,
 			Notes:    payload.Notes,
+			Type:     payload.Type,
+			Exchange: payload.Exchange,
 		}
 		err := h.InstrumentStore.UpdateInstrument(r.Context(), id, item)
 		if err != nil {
@@ -226,5 +258,87 @@ func (h *Handler) DeleteInstrument(id uint) http.Handler {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Instrument lookup (reference provider)
+// ---------------------------------------------------------------------------
+
+type instrumentLookupResponse struct {
+	Name     string `json:"name"`
+	Currency string `json:"currency"`
+	Type     string `json:"type"`
+	Exchange string `json:"exchange"`
+	Notes    string `json:"notes"`
+}
+
+// massiveTypeToAppType maps raw Massive ticker type codes to the app's Type values.
+// Anything not listed passes through unchanged (shown via the dialog's "Other" field).
+var massiveTypeToAppType = map[string]string{
+	"CS":   "Stock",
+	"ADRC": "Stock",
+	"ETF":  "ETF",
+	"BOND": "Bond",
+}
+
+// massiveMicToExchange maps Massive primary-exchange MIC codes to the app's exchange names.
+// Anything not listed passes through unchanged (shown via the dialog's "Other" field).
+var massiveMicToExchange = map[string]string{
+	"XNYS": "NYSE",
+	"XNAS": "NASDAQ",
+	"XLON": "LSE",
+	"XTSE": "TSX",
+	"XPAR": "Euronext",
+	"XAMS": "Euronext",
+	"XBRU": "Euronext",
+	"XETR": "XETRA",
+	"XSWX": "SIX",
+	"XTKS": "JPX (Tokyo)",
+	"XHKG": "HKEX",
+	"XASX": "ASX",
+	"XMAD": "BME (Madrid)",
+	"XMIL": "Borsa Italiana",
+	"XSTO": "Nasdaq Nordic",
+}
+
+func mapTickerDetails(d importer.TickerDetails) instrumentLookupResponse {
+	t := d.Type
+	if mapped, ok := massiveTypeToAppType[d.Type]; ok {
+		t = mapped
+	}
+	ex := d.Exchange
+	if mapped, ok := massiveMicToExchange[d.Exchange]; ok {
+		ex = mapped
+	}
+	return instrumentLookupResponse{
+		Name:     d.Name,
+		Currency: d.Currency,
+		Type:     t,
+		Exchange: ex,
+		Notes:    d.Notes,
+	}
+}
+
+// LookupInstrument returns suggested instrument details for a symbol from the reference
+// provider. Returns 204 when no provider is configured or the symbol is not found.
+func (h *Handler) LookupInstrument() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		symbol := r.URL.Query().Get("symbol")
+		if symbol == "" {
+			http.Error(w, "symbol query parameter is required", http.StatusBadRequest)
+			return
+		}
+		if h.Reference == nil {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		details, err := h.Reference.GetTickerDetails(r.Context(), symbol)
+		if err != nil || !details.Found {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(mapTickerDetails(details))
 	})
 }
