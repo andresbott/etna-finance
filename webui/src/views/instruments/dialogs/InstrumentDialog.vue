@@ -10,7 +10,7 @@ import Select from 'primevue/select'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
 import { useSettingsStore } from '@/store/settingsStore'
-import { lookupInstrument } from '@/lib/api/Instrument'
+import { lookupInstrument, LookupRateLimitError } from '@/lib/api/Instrument'
 
 const OTHER = '__other__'
 
@@ -62,6 +62,7 @@ const formValues = ref({
 // Bumping this nonce re-keys the Form so it re-initializes from formValues (used by autofill).
 const formNonce = ref(0)
 const autofilling = ref(false)
+const autofillMessage = ref('')
 
 // Split a stored value into a {select, other} pair: known values select directly, unknown
 // values select "Other" and go into the free-text field.
@@ -131,6 +132,7 @@ const onAutofill = async (symbol) => {
     const sym = (symbol ?? '').trim()
     if (!sym || autofilling.value) return
     autofilling.value = true
+    autofillMessage.value = ''
     try {
         const data = await lookupInstrument(sym)
         if (!data) return // 204 -> null: silently do nothing
@@ -147,8 +149,13 @@ const onAutofill = async (symbol) => {
             exchangeOther: e.other
         }
         formNonce.value++
-    } catch {
-        // silently do nothing on error
+    } catch (e) {
+        if (e instanceof LookupRateLimitError) {
+            autofillMessage.value = e.retryAfterSeconds
+                ? `Rate limited by the data provider. Try again in ~${e.retryAfterSeconds}s.`
+                : 'Rate limited by the data provider. Try again in a moment.'
+        }
+        // other errors: silently do nothing
     } finally {
         autofilling.value = false
     }
@@ -212,6 +219,9 @@ const onFormSubmit = (e) => {
                     </div>
                     <Message v-if="$form.symbol?.invalid" severity="error" size="small">
                         {{ $form.symbol.error?.message }}
+                    </Message>
+                    <Message v-if="autofillMessage" severity="warn" size="small">
+                        {{ autofillMessage }}
                     </Message>
                 </div>
                 <div>

@@ -541,6 +541,21 @@ func TestHandler_LookupInstrument(t *testing.T) {
 		}
 	})
 
+	t.Run("rate limit returns 429 with Retry-After", func(t *testing.T) {
+		h, end := SampleHandler(t)
+		defer end()
+		h.Reference = &fakeReference{err: errors.New("429 Too Many Requests: retry after 30")}
+		rec := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodGet, "/fin/instrument/lookup?symbol=AAPL", nil)
+		h.LookupInstrument().ServeHTTP(rec, req)
+		if rec.Code != http.StatusTooManyRequests {
+			t.Errorf("status: got %d want %d", rec.Code, http.StatusTooManyRequests)
+		}
+		if ra := rec.Header().Get("Retry-After"); ra != "30" {
+			t.Errorf("Retry-After: got %q want %q", ra, "30")
+		}
+	})
+
 	t.Run("found returns mapped 200", func(t *testing.T) {
 		h, end := SampleHandler(t)
 		defer end()

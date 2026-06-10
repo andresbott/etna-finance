@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/andresbott/etna/internal/marketdata"
 	"github.com/andresbott/etna/internal/marketdata/importer"
@@ -321,7 +322,10 @@ func mapTickerDetails(d importer.TickerDetails) instrumentLookupResponse {
 }
 
 // LookupInstrument returns suggested instrument details for a symbol from the reference
-// provider. Returns 204 when no provider is configured or the symbol is not found.
+// provider. Returns 204 when no provider is configured, the symbol is not found, or the
+// upstream request fails for a non-recoverable reason. When the provider rate-limits the
+// request it returns 429 with a Retry-After header so the client can distinguish "no match"
+// from "try again later".
 func (h *Handler) LookupInstrument() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		symbol := r.URL.Query().Get("symbol")
@@ -334,7 +338,17 @@ func (h *Handler) LookupInstrument() http.Handler {
 			return
 		}
 		details, err := h.Reference.GetTickerDetails(r.Context(), symbol)
-		if err != nil || !details.Found {
+		if err != nil {
+			if importer.IsRateLimit429(err) {
+				retryAfter := importer.RetryAfterFrom429Err(err, importer.Default429RetryAfter)
+				w.Header().Set("Retry-After", strconv.Itoa(int(retryAfter.Seconds())))
+				http.Error(w, "rate limited by reference provider, try again later", http.StatusTooManyRequests)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if !details.Found {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
