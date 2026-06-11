@@ -3,6 +3,7 @@ import Card from 'primevue/card'
 import Tag from 'primevue/tag'
 import Message from 'primevue/message'
 import { useSettingsStore } from '@/store/settingsStore'
+import { featureTag } from '@/utils/featureTag'
 
 const settings = useSettingsStore()
 </script>
@@ -85,10 +86,7 @@ const settings = useSettingsStore()
                                 <span>Investment Instruments</span>
                             </div>
                             <div class="setting-value">
-                                <Tag
-                                    :value="settings.investmentInstruments ? 'Enabled' : 'Disabled'"
-                                    :severity="settings.investmentInstruments ? 'success' : 'secondary'"
-                                />
+                                <Tag v-bind="featureTag(settings.investmentInstruments, 'investmentInstruments', settings.autoEnabled)" />
                             </div>
                         </div>
 
@@ -98,10 +96,7 @@ const settings = useSettingsStore()
                                 <span>RSU (Restricted Stock Units)</span>
                             </div>
                             <div class="setting-value">
-                                <Tag
-                                    :value="settings.rsu ? 'Enabled' : 'Disabled'"
-                                    :severity="settings.rsu ? 'success' : 'secondary'"
-                                />
+                                <Tag v-bind="featureTag(settings.rsu, 'rsu', settings.autoEnabled)" />
                             </div>
                         </div>
 
@@ -111,10 +106,7 @@ const settings = useSettingsStore()
                                 <span>Financial Simulator</span>
                             </div>
                             <div class="setting-value">
-                                <Tag
-                                    :value="settings.financialSimulator ? 'Enabled' : 'Disabled'"
-                                    :severity="settings.financialSimulator ? 'success' : 'secondary'"
-                                />
+                                <Tag v-bind="featureTag(settings.financialSimulator, 'financialSimulator', settings.autoEnabled)" />
                             </div>
                         </div>
                     </div>

@@ -77,6 +77,8 @@ func recordToPayload(r marketdata.PriceRecord) pricePayload {
 
 // ListPrices returns the price history for the given symbol.
 // Query parameters "start" and "end" (YYYY-MM-DD) bound the range.
+//
+//nolint:dupl // intentionally parallel to ListEPS; the price and EPS read handlers mirror each other
 func (h *Handler) ListPrices(symbol string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if symbol == "" {
@@ -183,6 +185,8 @@ func (h *Handler) CreatePrice(symbol string) http.Handler {
 }
 
 // CreatePricesBulk ingests multiple price points for the given symbol.
+//
+//nolint:dupl // intentionally parallel to CreateEPSBulk; the price and EPS bulk-create handlers mirror each other
 func (h *Handler) CreatePricesBulk(symbol string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if symbol == "" {
@@ -305,6 +309,8 @@ func epsRecordToPayload(r marketdata.EPSRecord) epsPayload {
 }
 
 // ListEPS returns the EPS history for the given symbol. Query params "start"/"end" (YYYY-MM-DD) bound the range.
+//
+//nolint:dupl // intentionally parallel to ListPrices; the price and EPS read handlers mirror each other
 func (h *Handler) ListEPS(symbol string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if symbol == "" {
@@ -400,6 +406,8 @@ func (h *Handler) CreateEPS(symbol string) http.Handler {
 }
 
 // CreateEPSBulk ingests multiple EPS observations for the given symbol.
+//
+//nolint:dupl // intentionally parallel to CreatePricesBulk; the price and EPS bulk-create handlers mirror each other
 func (h *Handler) CreateEPSBulk(symbol string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if symbol == "" {
@@ -638,6 +646,11 @@ func (h *Handler) CreateFXRate(main, secondary string) http.Handler {
 			http.Error(w, fmt.Sprintf("invalid time: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
+		// Adding a rate is how an FX pair is first introduced via the API, so ensure the series exists.
+		if err := h.Store.RegisterPair(r.Context(), main, secondary); err != nil {
+			http.Error(w, fmt.Sprintf("unable to register pair: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
 		if err := h.Store.IngestRate(r.Context(), main, secondary, pt.Time, pt.Rate); err != nil {
 			http.Error(w, fmt.Sprintf("unable to ingest rate: %s", err.Error()), http.StatusInternalServerError)
 			return
@@ -679,6 +692,11 @@ func (h *Handler) CreateFXRatesBulk(main, secondary string) http.Handler {
 				return
 			}
 			points[i] = pt
+		}
+		// Adding rates is how an FX pair is first introduced via the API, so ensure the series exists.
+		if err := h.Store.RegisterPair(r.Context(), main, secondary); err != nil {
+			http.Error(w, fmt.Sprintf("unable to register pair: %s", err.Error()), http.StatusInternalServerError)
+			return
 		}
 		if err := h.Store.IngestRatesBulk(r.Context(), main, secondary, points); err != nil {
 			http.Error(w, fmt.Sprintf("unable to bulk ingest rates: %s", err.Error()), http.StatusInternalServerError)

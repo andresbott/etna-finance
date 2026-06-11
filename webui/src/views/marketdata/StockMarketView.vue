@@ -21,6 +21,7 @@ import { useInstruments } from '@/composables/useInstruments'
 import { useSettingsStore } from '@/store/settingsStore'
 import { useCompareSelection } from '@/store/compareSelection'
 import { useToast } from 'primevue/usetoast'
+import { useTaskRunner } from '@/composables/useTaskRunner'
 import { getApiErrorMessage } from '@/utils/apiError'
 import {
     useMarketInstruments,
@@ -81,6 +82,45 @@ const compareTooltip = computed(() => {
 })
 
 const { instruments, isLoading, isError, error, refetch } = useMarketInstruments()
+
+// "Update" button: trigger the financial-import task and refresh the table when it finishes.
+const {
+    run: runImport,
+    isRunning: isImporting,
+    isTriggering: isTriggeringImport
+} = useTaskRunner('financial-import', {
+    onComplete: (status) => {
+        if (status === 'complete') {
+            toast.add({
+                severity: 'success',
+                summary: 'Update complete',
+                detail: 'Market data was refreshed.',
+                life: 4000
+            })
+            refetch()
+        } else {
+            toast.add({
+                severity: 'error',
+                summary: 'Update failed',
+                detail: 'Check the Tasks page for details.',
+                life: 6000
+            })
+        }
+    }
+})
+
+async function handleImport() {
+    try {
+        await runImport()
+    } catch (e) {
+        toast.add({
+            severity: 'error',
+            summary: 'Failed to start update',
+            detail: getApiErrorMessage(e),
+            life: 6000
+        })
+    }
+}
 const {
     createInstrument,
     updateInstrument,
@@ -283,6 +323,17 @@ const onRowClick = (event) => {
                             outlined
                             size="small"
                             @click="filtersExpanded = !filtersExpanded"
+                        />
+                        <Button
+                            icon="ti ti-refresh"
+                            label="Update"
+                            severity="secondary"
+                            outlined
+                            size="small"
+                            :loading="isTriggeringImport || isImporting"
+                            :disabled="isTriggeringImport || isImporting"
+                            v-tooltip.bottom="'Import recent prices for all instruments'"
+                            @click="handleImport"
                         />
                         <Button
                             icon="ti ti-plus"

@@ -445,6 +445,9 @@ func sampleExtraData(t *testing.T, store *accounting.Store, mdStore *marketdata.
 		t.Fatalf("error ingesting price: %v", err)
 	}
 
+	if err := mdStore.RegisterPair(t.Context(), "USD", "EUR"); err != nil {
+		t.Fatalf("error registering FX pair: %v", err)
+	}
 	err = mdStore.IngestRate(t.Context(), "USD", "EUR", getDate("2024-01-15"), 0.92)
 	if err != nil {
 		t.Fatalf("error ingesting FX rate: %v", err)

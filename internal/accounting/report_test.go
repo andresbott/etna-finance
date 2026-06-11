@@ -706,6 +706,9 @@ func TestAccountBalance_InvestmentWithFX(t *testing.T) {
 			investmentAccountID, _ := setupInvestmentBalanceTest(t, ctx, store, mktStore)
 
 			// Ingest CHF/USD FX rate: 0.90 (1 CHF = 0.90 USD, so $1 = 1/0.90 CHF)
+			if err := mktStore.RegisterPair(ctx, "CHF", "USD"); err != nil {
+				t.Fatal(err)
+			}
 			if err := mktStore.IngestRate(ctx, "CHF", "USD", getDate("2025-01-01"), 0.90); err != nil {
 				t.Fatal(err)
 			}
@@ -766,6 +769,9 @@ func TestAccountBalance_CashWithFX(t *testing.T) {
 			}
 
 			// FX rates: Jan = 0.90, Mar = 0.85
+			if err := mktStore.RegisterPair(ctx, "CHF", "USD"); err != nil {
+				t.Fatal(err)
+			}
 			if err := mktStore.IngestRate(ctx, "CHF", "USD", getDate("2025-01-01"), 0.90); err != nil {
 				t.Fatal(err)
 			}

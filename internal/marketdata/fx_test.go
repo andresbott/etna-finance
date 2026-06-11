@@ -1,11 +1,21 @@
 package marketdata
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/go-bumbu/testdbs"
 )
+
+// mustRegisterPair registers an FX pair or fails the test. FX series must exist before ingest
+// (ingest no longer auto-registers).
+func mustRegisterPair(t *testing.T, ctx context.Context, store *Store, main, secondary string) {
+	t.Helper()
+	if err := store.RegisterPair(ctx, main, secondary); err != nil {
+		t.Fatalf("register %s/%s: %v", main, secondary, err)
+	}
+}
 
 func TestIngestRatesBulk(t *testing.T) {
 	for _, db := range testdbs.DBs() {
@@ -44,6 +54,9 @@ func TestIngestRatesBulk(t *testing.T) {
 					{Time: time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC), Rate: 1.09},
 					{Time: time.Date(2025, 1, 3, 0, 0, 0, 0, time.UTC), Rate: 1.10},
 				}
+				if err := store.RegisterPair(ctx, "EUR", "USD"); err != nil {
+					t.Fatalf("register: %v", err)
+				}
 				err := store.IngestRatesBulk(ctx, "EUR", "USD", points)
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
@@ -79,6 +92,9 @@ func TestRateHistory(t *testing.T) {
 
 			// Seed data
 			base := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+			if err := store.RegisterPair(ctx, "CHF", "USD"); err != nil {
+				t.Fatalf("register: %v", err)
+			}
 			for i := 0; i < 5; i++ {
 				err := store.IngestRate(ctx, "CHF", "USD", base.AddDate(0, 0, i), 1.0+float64(i)*0.01)
 				if err != nil {
@@ -181,6 +197,9 @@ func TestLatestRate(t *testing.T) {
 
 			t.Run("returns most recent rate", func(t *testing.T) {
 				base := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+				if err := store.RegisterPair(ctx, "GBP", "EUR"); err != nil {
+					t.Fatalf("register: %v", err)
+				}
 				_ = store.IngestRate(ctx, "GBP", "EUR", base, 1.15)
 				_ = store.IngestRate(ctx, "GBP", "EUR", base.AddDate(0, 0, 1), 1.16)
 				_ = store.IngestRate(ctx, "GBP", "EUR", base.AddDate(0, 0, 2), 1.17)
@@ -222,6 +241,7 @@ func TestEditRate(t *testing.T) {
 
 			t.Run("update rate value in place", func(t *testing.T) {
 				base := time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
+				mustRegisterPair(t, ctx, store, "JPY", "USD")
 				err := store.IngestRate(ctx, "JPY", "USD", base, 0.0067)
 				if err != nil {
 					t.Fatal(err)
@@ -257,6 +277,7 @@ func TestEditRate(t *testing.T) {
 			t.Run("move to new time", func(t *testing.T) {
 				base := time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC)
 				newTime := time.Date(2025, 7, 15, 0, 0, 0, 0, time.UTC)
+				mustRegisterPair(t, ctx, store, "CAD", "USD")
 				err := store.IngestRate(ctx, "CAD", "USD", base, 0.74)
 				if err != nil {
 					t.Fatal(err)
@@ -301,6 +322,9 @@ func TestDeleteRateAt(t *testing.T) {
 			}
 
 			base := time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC)
+			if err := store.RegisterPair(ctx, "AUD", "USD"); err != nil {
+				t.Fatalf("register: %v", err)
+			}
 			err = store.IngestRate(ctx, "AUD", "USD", base, 0.65)
 			if err != nil {
 				t.Fatal(err)

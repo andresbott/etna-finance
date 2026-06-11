@@ -38,7 +38,34 @@ func NewStore(db *gorm.DB) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create timeseries store: %w", err)
 	}
-	return &Store{db: db, store: ts}, nil
+	s := &Store{db: db, store: ts}
+
+	// Migration: price series are now defined at instrument creation (see CreateInstrument), not
+	// lazily on the first ingest. Define the series for any pre-existing instrument that does not
+	// have one yet, so ingest paths never hit ErrSeriesNotFound for a known instrument.
+	if err := s.ensureInstrumentSeries(context.Background()); err != nil {
+		return nil, fmt.Errorf("failed to ensure instrument series: %w", err)
+	}
+
+	return s, nil
+}
+
+// ensureInstrumentSeries defines the OHLCV series for every existing instrument that lacks one.
+// DefineSeries is idempotent and cheap on the no-op path, so this is safe to run on every startup.
+func (s *Store) ensureInstrumentSeries(ctx context.Context) error {
+	var symbols []string
+	if err := s.db.WithContext(ctx).Model(&dbInstrument{}).Pluck("symbol", &symbols).Error; err != nil {
+		return fmt.Errorf("list instrument symbols: %w", err)
+	}
+	for _, symbol := range symbols {
+		if symbol == "" {
+			continue
+		}
+		if err := s.RegisterInstrument(ctx, symbol); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // seriesName returns the timeseries name for a given instrument symbol.

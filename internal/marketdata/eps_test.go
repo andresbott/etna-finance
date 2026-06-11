@@ -8,6 +8,7 @@ import (
 	"github.com/go-bumbu/testdbs"
 )
 
+//nolint:gocyclo // table-driven test with many independent sub-cases; complexity is inherent and readable
 func TestEPSStore(t *testing.T) {
 	for _, db := range testdbs.DBs() {
 		t.Run(db.DbType(), func(t *testing.T) {

@@ -13,6 +13,9 @@ import Dialog from 'primevue/dialog'
 import DatePicker from 'primevue/datepicker'
 import InputNumber from 'primevue/inputnumber'
 import CurrencyCalculatorDialog from '@/views/marketdata/CurrencyCalculatorDialog.vue'
+import { useToast } from 'primevue/usetoast'
+import { useTaskRunner } from '@/composables/useTaskRunner'
+import { getApiErrorMessage } from '@/utils/apiError'
 import { useDateFormat } from '@/composables/useDateFormat'
 import { toLocalDateString } from '@/composables/useMarketData'
 import {
@@ -23,7 +26,47 @@ import {
 } from '@/composables/useCurrencyRates'
 const { formatDate, pickerDateFormat } = useDateFormat()
 const router = useRouter()
+const toast = useToast()
 const { mainCurrency, currencyRows, isLoading, isError, error, refetch } = useFXOverview()
+
+// "Update" button: trigger the fx-import task and refresh the table when it finishes.
+const {
+    run: runImport,
+    isRunning: isImporting,
+    isTriggering: isTriggeringImport
+} = useTaskRunner('fx-import', {
+    onComplete: (status) => {
+        if (status === 'complete') {
+            toast.add({
+                severity: 'success',
+                summary: 'Update complete',
+                detail: 'Currency rates were refreshed.',
+                life: 4000
+            })
+            refetch()
+        } else {
+            toast.add({
+                severity: 'error',
+                summary: 'Update failed',
+                detail: 'Check the Tasks page for details.',
+                life: 6000
+            })
+        }
+    }
+})
+
+async function handleImport() {
+    try {
+        await runImport()
+    } catch (e) {
+        toast.add({
+            severity: 'error',
+            summary: 'Failed to start update',
+            detail: getApiErrorMessage(e),
+            life: 6000
+        })
+    }
+}
 const leftSidebarCollapsed = ref(true)
 
 const calculatorVisible = ref(false)
@@ -75,12 +118,24 @@ function onRowClick(event) {
                             />
                         </p>
                     </div>
-                    <Button
-                        label="Calculator"
-                        icon="ti ti-calculator"
-                        outlined
-                        @click="calculatorVisible = true"
-                    />
+                    <div class="flex align-items-center gap-2">
+                        <Button
+                            label="Update"
+                            icon="ti ti-refresh"
+                            severity="secondary"
+                            outlined
+                            :loading="isTriggeringImport || isImporting"
+                            :disabled="isTriggeringImport || isImporting"
+                            v-tooltip.bottom="'Import recent rates for configured pairs'"
+                            @click="handleImport"
+                        />
+                        <Button
+                            label="Calculator"
+                            icon="ti ti-calculator"
+                            outlined
+                            @click="calculatorVisible = true"
+                        />
+                    </div>
                 </div>
 
                 <Message v-if="isError" severity="error" :closable="false" class="mb-3">

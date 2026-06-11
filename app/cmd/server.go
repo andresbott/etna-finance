@@ -120,10 +120,8 @@ func runServer(configFile string) error {
 	}
 
 	// ——— InvestmentInstruments and RSU config vs DB consistency ———
-	if err := reconcileRsuSetting(&cfg, finStore, l); err != nil {
-		return err
-	}
-	if err := reconcileInvestmentInstrumentsSetting(&cfg, finStore, l); err != nil {
+	autoEnabledFeatures, err := reconcileFeatureSettings(&cfg, finStore, l)
+	if err != nil {
 		return err
 	}
 
@@ -160,19 +158,20 @@ func runServer(configFile string) error {
 		BackupDestination: backupDest,
 		ProductionMode:    cfg.Env.Production,
 		AppSettings: handlers.AppSettings{
-			DateFormat:          cfg.Settings.DateFormat,
-			MainCurrency:        cfg.Settings.MainCurrency,
-			Currencies:          cfg.Settings.AllCurrencies(),
+			DateFormat:            cfg.Settings.DateFormat,
+			MainCurrency:          cfg.Settings.MainCurrency,
+			Currencies:            cfg.Settings.AllCurrencies(),
 			InvestmentInstruments: cfg.Settings.InvestmentInstruments,
-			Rsu:                 cfg.Settings.Rsu,
-			FinancialSimulator:  cfg.Settings.FinancialSimulator,
-			MaxAttachmentSizeMB: cfg.Settings.MaxAttachmentSizeMB,
-			Version:             metainfo.Version,
+			Rsu:                   cfg.Settings.Rsu,
+			FinancialSimulator:    cfg.Settings.FinancialSimulator,
+			MaxAttachmentSizeMB:   cfg.Settings.MaxAttachmentSizeMB,
+			Version:               metainfo.Version,
+			AutoEnabled:           autoEnabledFeatures,
 		},
-		TaskRunner:    taskRunner,
-		ScheduleStore: scheduleStore,
-		Scheduler:     scheduler,
-		TaskLogGetter: taskrunner.NewFileTaskLogReader(filepath.Join(cfg.DataDir, "tasklogs")),
+		TaskRunner:      taskRunner,
+		ScheduleStore:   scheduleStore,
+		Scheduler:       scheduler,
+		TaskLogGetter:   taskrunner.NewFileTaskLogReader(filepath.Join(cfg.DataDir, "tasklogs")),
 		FinStore:        finStore,
 		MarketStore:     marketStore,
 		CsvImportStore:  csvImportStore,
@@ -254,71 +253,107 @@ func initStores(db *gorm.DB, cfg AppCfg) (*marketdata.Store, *accounting.Store, 
 	return marketStore, finStore, csvImportStore, attachmentStore, toolsDataStore, nil
 }
 
-// reconcileInvestmentInstrumentsSetting enables InvestmentInstruments if the DB contains investment/restricted-stock accounts,
-// or if RSU is enabled (RSU requires investment instruments).
-func reconcileInvestmentInstrumentsSetting(cfg *AppCfg, finStore *accounting.Store, l *slog.Logger) error {
-	if cfg.Settings.Rsu && !cfg.Settings.InvestmentInstruments {
-		cfg.Settings.InvestmentInstruments = true
-		l.Warn("config discrepancy: Settings.Rsu is true but Settings.InvestmentInstruments is false; enabling InvestmentInstruments (required by RSU)",
-			slog.String("component", "startup"),
-			slog.String("reason", "rsu_requires_instruments"))
-	}
-	ctx := context.Background()
-	accounts, err := finStore.ListAccounts(ctx)
-	if err != nil {
-		return fmt.Errorf("listing accounts at startup: %w", err)
-	}
-	for _, acc := range accounts {
-		if acc.Type == accounting.InvestmentAccountType || acc.Type == accounting.RestrictedStockAccountType {
-			if !cfg.Settings.InvestmentInstruments {
-				cfg.Settings.InvestmentInstruments = true
-				l.Warn("config discrepancy: Settings.InvestmentInstruments is false but database contains investment or restricted-stock accounts; enabling InvestmentInstruments",
-					slog.String("component", "startup"),
-					slog.String("reason", "db_has_investment_accounts"))
-			}
-			break
-		}
-	}
-	return nil
+// featureAutoEnable records a feature that was turned on despite the config disabling it,
+// along with the warning message and reason code emitted for the discrepancy.
+type featureAutoEnable struct {
+	feature string // key exposed to the UI: "rsu" | "investmentInstruments"
+	warnMsg string
+	reason  string
 }
 
-// reconcileRsuSetting enables RSU if the DB contains restricted-stock accounts or vest/forfeit transactions.
-func reconcileRsuSetting(cfg *AppCfg, finStore *accounting.Store, l *slog.Logger) error {
-	if cfg.Settings.Rsu {
-		return nil
-	}
-	ctx := context.Background()
+// dbFeatureFacts are the database conditions that can force a feature on at startup.
+type dbFeatureFacts struct {
+	hasRestrictedStock bool // any restricted-stock account
+	hasInvestment      bool // any investment OR restricted-stock account
+	hasVestForfeit     bool // any vest/forfeit transaction
+}
 
-	// Check for restricted-stock accounts.
-	accounts, err := finStore.ListAccounts(ctx)
-	if err != nil {
-		return fmt.Errorf("listing accounts at startup: %w", err)
-	}
-	for _, acc := range accounts {
-		if acc.Type == accounting.RestrictedStockAccountType {
-			cfg.Settings.Rsu = true
-			l.Warn("config discrepancy: Settings.Rsu is false but database contains restricted-stock accounts; enabling Rsu",
-				slog.String("component", "startup"),
-				slog.String("reason", "db_has_restricted_stock_accounts"))
-			return nil
+// decideFeatureSettings is the pure reconciliation core: given the configured RSU /
+// InvestmentInstruments flags and the relevant DB facts, it returns the effective flags
+// and the list of features that had to be auto-enabled (with their warning/reason).
+//
+// RSU is resolved first because InvestmentInstruments depends on the effective RSU value.
+func decideFeatureSettings(rsu, instruments bool, facts dbFeatureFacts) (effRsu, effInstruments bool, autoEnabled []featureAutoEnable) {
+	effRsu, effInstruments = rsu, instruments
+
+	if !effRsu {
+		switch {
+		case facts.hasRestrictedStock:
+			effRsu = true
+			autoEnabled = append(autoEnabled, featureAutoEnable{"rsu",
+				"config discrepancy: Settings.Rsu is false but database contains restricted-stock accounts; enabling Rsu",
+				"db_has_restricted_stock_accounts"})
+		case facts.hasVestForfeit:
+			effRsu = true
+			autoEnabled = append(autoEnabled, featureAutoEnable{"rsu",
+				"config discrepancy: Settings.Rsu is false but database contains vest/forfeit transactions; enabling Rsu",
+				"db_has_vest_forfeit_transactions"})
 		}
 	}
 
-	// Check for vest/forfeit transactions.
-	vestTxs, _, err := finStore.ListTransactions(ctx, accounting.ListOpts{
-		Types: []accounting.TxType{accounting.StockVestTransaction, accounting.StockForfeitTransaction},
-		Limit: 1,
-	})
+	if !effInstruments {
+		switch {
+		case effRsu:
+			effInstruments = true
+			autoEnabled = append(autoEnabled, featureAutoEnable{"investmentInstruments",
+				"config discrepancy: Settings.Rsu is true but Settings.InvestmentInstruments is false; enabling InvestmentInstruments (required by RSU)",
+				"rsu_requires_instruments"})
+		case facts.hasInvestment:
+			effInstruments = true
+			autoEnabled = append(autoEnabled, featureAutoEnable{"investmentInstruments",
+				"config discrepancy: Settings.InvestmentInstruments is false but database contains investment or restricted-stock accounts; enabling InvestmentInstruments",
+				"db_has_investment_accounts"})
+		}
+	}
+	return effRsu, effInstruments, autoEnabled
+}
+
+// reconcileFeatureSettings reconciles the RSU and InvestmentInstruments feature flags
+// against the database: it gathers the relevant facts (in a single account listing, plus
+// a lazy vest/forfeit lookup only when RSU isn't otherwise implied), applies the pure
+// decision in decideFeatureSettings, logs a warning per discrepancy, and returns the keys
+// of any features that were auto-enabled so the UI can label them.
+func reconcileFeatureSettings(cfg *AppCfg, finStore *accounting.Store, l *slog.Logger) ([]string, error) {
+	ctx := context.Background()
+
+	accounts, err := finStore.ListAccounts(ctx)
 	if err != nil {
-		return fmt.Errorf("checking vest/forfeit transactions at startup: %w", err)
+		return nil, fmt.Errorf("listing accounts at startup: %w", err)
 	}
-	if len(vestTxs) > 0 {
-		cfg.Settings.Rsu = true
-		l.Warn("config discrepancy: Settings.Rsu is false but database contains vest/forfeit transactions; enabling Rsu",
-			slog.String("component", "startup"),
-			slog.String("reason", "db_has_vest_forfeit_transactions"))
+	var facts dbFeatureFacts
+	for _, acc := range accounts {
+		switch acc.Type {
+		case accounting.RestrictedStockAccountType:
+			facts.hasRestrictedStock = true
+			facts.hasInvestment = true
+		case accounting.InvestmentAccountType:
+			facts.hasInvestment = true
+		}
 	}
-	return nil
+
+	// Vest/forfeit transactions only affect RSU, and only when it isn't already implied
+	// by config or a restricted-stock account — skip the query otherwise.
+	if !cfg.Settings.Rsu && !facts.hasRestrictedStock {
+		vestTxs, _, err := finStore.ListTransactions(ctx, accounting.ListOpts{
+			Types: []accounting.TxType{accounting.StockVestTransaction, accounting.StockForfeitTransaction},
+			Limit: 1,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("checking vest/forfeit transactions at startup: %w", err)
+		}
+		facts.hasVestForfeit = len(vestTxs) > 0
+	}
+
+	effRsu, effInstruments, autoEnabled := decideFeatureSettings(cfg.Settings.Rsu, cfg.Settings.InvestmentInstruments, facts)
+	cfg.Settings.Rsu = effRsu
+	cfg.Settings.InvestmentInstruments = effInstruments
+
+	keys := make([]string, 0, len(autoEnabled))
+	for _, e := range autoEnabled {
+		l.Warn(e.warnMsg, slog.String("component", "startup"), slog.String("reason", e.reason))
+		keys = append(keys, e.feature)
+	}
+	return keys, nil
 }
 
 // serveHTTP binds the listener, serves until ctx is cancelled, then shuts down gracefully.

@@ -28,6 +28,14 @@ func TestStats(t *testing.T) {
 
 			// Two price series: AAPL with 3 candles, MSFT with 2 candles.
 			day := func(d int) time.Time { return time.Date(2025, 1, d, 0, 0, 0, 0, time.UTC) }
+			for _, sym := range []string{"AAPL", "MSFT"} {
+				if err := store.RegisterInstrument(ctx, sym); err != nil {
+					t.Fatalf("register %s: %v", sym, err)
+				}
+			}
+			if err := store.RegisterPair(ctx, "EUR", "USD"); err != nil {
+				t.Fatalf("register EUR/USD: %v", err)
+			}
 			if err := store.IngestPricesBulk(ctx, "AAPL", []PricePoint{
 				{Time: day(1), Close: 1}, {Time: day(2), Close: 2}, {Time: day(3), Close: 3},
 			}); err != nil {

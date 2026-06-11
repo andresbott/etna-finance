@@ -34,6 +34,9 @@ func TestWipeData(t *testing.T) {
 			}
 
 			// Ingest an FX rate
+			if err := store.RegisterPair(ctx, "EUR", "USD"); err != nil {
+				t.Fatalf("register pair: %v", err)
+			}
 			err = store.IngestRate(ctx, "EUR", "USD", time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), 1.08)
 			if err != nil {
 				t.Fatalf("ingest rate: %v", err)

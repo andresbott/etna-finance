@@ -603,6 +603,11 @@ func importFXRates(ctx context.Context, mdStore *marketdata.Store, r *zip.ReadCl
 		})
 	}
 	for p, points := range byPair {
+		// FX pairs have no instrument table — the series is the pair — so define it explicitly
+		// before ingesting (ingest no longer auto-registers).
+		if err := mdStore.RegisterPair(ctx, p.main, p.secondary); err != nil {
+			return fmt.Errorf("failed to register FX pair %s/%s: %w", p.main, p.secondary, err)
+		}
 		if err := mdStore.IngestRatesBulk(ctx, p.main, p.secondary, points); err != nil {
 			return fmt.Errorf("failed to ingest FX rates for %s/%s: %w", p.main, p.secondary, err)
 		}

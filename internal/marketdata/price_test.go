@@ -39,6 +39,9 @@ func TestIngestPricesBulk(t *testing.T) {
 					{Time: time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC), Open: 100.5, High: 106.0, Low: 99.5, Close: 101.0, Volume: 1200},
 					{Time: time.Date(2025, 1, 3, 0, 0, 0, 0, time.UTC), Open: 101.0, High: 107.0, Low: 100.0, Close: 102.0, Volume: 1100},
 				}
+				if err := store.RegisterInstrument(ctx, "BULK"); err != nil {
+					t.Fatalf("register: %v", err)
+				}
 				err := store.IngestPricesBulk(ctx, "BULK", points)
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
@@ -75,6 +78,9 @@ func TestPriceHistory(t *testing.T) {
 
 			// Seed data
 			base := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+			if err := store.RegisterInstrument(ctx, "HIST"); err != nil {
+				t.Fatalf("register: %v", err)
+			}
 			for i := 0; i < 5; i++ {
 				price := float64(100 + i)
 				err := store.IngestPrice(ctx, "HIST", PricePoint{
@@ -166,6 +172,9 @@ func TestLatestPrice(t *testing.T) {
 
 			t.Run("returns most recent price", func(t *testing.T) {
 				base := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+				if err := store.RegisterInstrument(ctx, "LATEST"); err != nil {
+					t.Fatalf("register: %v", err)
+				}
 				if err := store.IngestPrice(ctx, "LATEST", PricePoint{Time: base, Close: 50.0}); err != nil {
 					t.Fatalf("seed ingest: %v", err)
 				}
@@ -206,6 +215,9 @@ func TestEditPrice(t *testing.T) {
 
 			t.Run("update close value", func(t *testing.T) {
 				base := time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
+				if err := store.RegisterInstrument(ctx, "UPD"); err != nil {
+					t.Fatalf("register: %v", err)
+				}
 				err := store.IngestPrice(ctx, "UPD", PricePoint{Time: base, Close: 200.0})
 				if err != nil {
 					t.Fatal(err)
@@ -232,6 +244,9 @@ func TestEditPrice(t *testing.T) {
 			t.Run("move to new time", func(t *testing.T) {
 				base := time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC)
 				newTime := time.Date(2025, 7, 15, 0, 0, 0, 0, time.UTC)
+				if err := store.RegisterInstrument(ctx, "UPDT"); err != nil {
+					t.Fatalf("register: %v", err)
+				}
 				err := store.IngestPrice(ctx, "UPDT", PricePoint{Time: base, Close: 300.0})
 				if err != nil {
 					t.Fatal(err)
@@ -266,6 +281,9 @@ func TestDeletePriceAt(t *testing.T) {
 			}
 
 			base := time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC)
+			if err := store.RegisterInstrument(ctx, "DEL"); err != nil {
+				t.Fatalf("register: %v", err)
+			}
 			err = store.IngestPrice(ctx, "DEL", PricePoint{Time: base, Close: 400.0})
 			if err != nil {
 				t.Fatal(err)
@@ -336,6 +354,9 @@ func TestMaintenance(t *testing.T) {
 
 			// Seed some data so maintenance has something to work with
 			base := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+			if err := store.RegisterInstrument(ctx, "MAINT"); err != nil {
+				t.Fatalf("register: %v", err)
+			}
 			for i := 0; i < 3; i++ {
 				_ = store.IngestPrice(ctx, "MAINT", PricePoint{Time: base.AddDate(0, 0, i), Close: float64(100 + i)})
 			}

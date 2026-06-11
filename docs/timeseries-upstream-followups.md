@@ -211,7 +211,25 @@ stable record id. `price.go` does **not** do this — it edits by time directly
 
 ---
 
-## 6. Define series at creation time, not on every write — etna refactor (no library change)
+## 6. Define series at creation time, not on every write — etna refactor (no library change) — ✅ DONE
+
+**Done.** Series definition is now off the write path. For prices, `CreateInstrument`
+(`instrument.go`) calls `RegisterInstrument`, and the soft-delete-restore branch does the same
+via the new `restoreSoftDeletedInstrument` helper; `IngestPrice`/`IngestPricesBulk` and the
+`EditPrice` move branch no longer register (`price.go`). For FX — which has no instrument table,
+so the series *is* the pair — `RegisterPair` became the explicit creation step: it is called where
+pairs are first introduced (the `CreateFXRate`/`CreateFXRatesBulk` handlers in
+`app/router/handlers/marketdata`, backup restore `importFXRates`, and the `fx-import`/`fx-backfill`
+tasks via the shared `registerFXPairs` helper), and `IngestRate`/`IngestRatesBulk` and the
+`EditRate` move branch no longer register (`fx.go`). A startup migration in `NewStore`
+(`ensureInstrumentSeries`) defines the series for any pre-existing instrument that lacks one, so
+ingest never hits `ErrSeriesNotFound` for a known instrument (covers the partial-wipe / legacy-data
+hazard noted below). EPS (`eps.go`) deliberately keeps lazy `registerEPSSeries` on ingest — it was
+out of scope here and has no separate creation point. New store tests
+(`series_creation_test.go`): `TestCreateInstrument_DefinesPriceSeries`,
+`TestIngestPrice_RequiresExistingSeries`, `TestIngestRate_RequiresRegisteredPair`,
+`TestNewStore_RegistersSeriesForExistingInstruments`; existing tests that relied on lazy register
+were updated to create the instrument / register the pair first.
 
 **Not a library concern.** This complements #4: where #4 makes `DefineSeries`
 cheap on the no-op path, this takes it *off* the write path entirely by moving

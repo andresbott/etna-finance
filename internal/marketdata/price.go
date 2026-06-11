@@ -49,13 +49,11 @@ func pointToPriceRecord(symbol string, p timeseries.Point) PriceRecord {
 	}
 }
 
-// IngestPrice records a single OHLCV candle. Series is auto-registered.
+// IngestPrice records a single OHLCV candle. The instrument's series must already exist
+// (defined by CreateInstrument); this does not auto-register it.
 func (s *Store) IngestPrice(ctx context.Context, symbol string, p PricePoint) error {
 	if symbol == "" {
 		return fmt.Errorf("instrument symbol cannot be empty")
-	}
-	if err := s.RegisterInstrument(ctx, symbol); err != nil {
-		return err
 	}
 	if err := s.store.Write(ctx, seriesName(symbol), timeseries.Point{Time: p.Time, Values: p.values()}); err != nil {
 		return fmt.Errorf("failed to write price for %q: %w", symbol, err)
@@ -63,16 +61,14 @@ func (s *Store) IngestPrice(ctx context.Context, symbol string, p PricePoint) er
 	return nil
 }
 
-// IngestPricesBulk records many OHLCV candles in one transaction. Series is auto-registered.
+// IngestPricesBulk records many OHLCV candles in one transaction. The instrument's series must
+// already exist (defined by CreateInstrument); this does not auto-register it.
 func (s *Store) IngestPricesBulk(ctx context.Context, symbol string, points []PricePoint) error {
 	if symbol == "" {
 		return fmt.Errorf("instrument symbol cannot be empty")
 	}
 	if len(points) == 0 {
 		return nil
-	}
-	if err := s.RegisterInstrument(ctx, symbol); err != nil {
-		return err
 	}
 	pts := make([]timeseries.Point, len(points))
 	for i, p := range points {
@@ -154,9 +150,7 @@ func (s *Store) EditPrice(ctx context.Context, symbol string, oldTime time.Time,
 	if oldTime.IsZero() || oldTime.Equal(p.Time) {
 		return s.IngestPrice(ctx, symbol, p)
 	}
-	if err := s.RegisterInstrument(ctx, symbol); err != nil {
-		return err
-	}
+	// A move implies a record (and therefore the series) already exists, so no register needed.
 	if err := s.store.Move(ctx, seriesName(symbol), oldTime, timeseries.Point{Time: p.Time, Values: p.values()}); err != nil {
 		return fmt.Errorf("failed to move price for %q: %w", symbol, err)
 	}

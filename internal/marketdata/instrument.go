@@ -84,18 +84,7 @@ func (s *Store) CreateInstrument(ctx context.Context, item Instrument) (uint, er
 		First(&existing).Error
 	if err == nil {
 		if existing.DeletedAt.Valid {
-			// Restore the soft-deleted row and update fields
-			existing.DeletedAt = gorm.DeletedAt{}
-			existing.ProviderID = item.InstrumentProviderID
-			existing.Name = item.Name
-			existing.Currency = item.Currency.String()
-			existing.Notes = item.Notes
-			existing.Type = item.Type
-			existing.Exchange = item.Exchange
-			if u := s.db.WithContext(ctx).Unscoped().Save(&existing); u.Error != nil {
-				return 0, u.Error
-			}
-			return existing.ID, nil
+			return s.restoreSoftDeletedInstrument(ctx, existing, item)
 		}
 		return 0, ErrInstrumentSymbolDuplicate
 	}
@@ -115,7 +104,30 @@ func (s *Store) CreateInstrument(ctx context.Context, item Instrument) (uint, er
 	if d.Error != nil {
 		return 0, d.Error
 	}
+	// Define the OHLCV series now so ingest paths never need to auto-register on the write path.
+	if err := s.RegisterInstrument(ctx, payload.Symbol); err != nil {
+		return 0, err
+	}
 	return payload.ID, nil
+}
+
+// restoreSoftDeletedInstrument revives a soft-deleted instrument row with the new field values and
+// (re)defines its OHLCV series, mirroring the create path.
+func (s *Store) restoreSoftDeletedInstrument(ctx context.Context, existing dbInstrument, item Instrument) (uint, error) {
+	existing.DeletedAt = gorm.DeletedAt{}
+	existing.ProviderID = item.InstrumentProviderID
+	existing.Name = item.Name
+	existing.Currency = item.Currency.String()
+	existing.Notes = item.Notes
+	existing.Type = item.Type
+	existing.Exchange = item.Exchange
+	if u := s.db.WithContext(ctx).Unscoped().Save(&existing); u.Error != nil {
+		return 0, u.Error
+	}
+	if err := s.RegisterInstrument(ctx, existing.Symbol); err != nil {
+		return 0, err
+	}
+	return existing.ID, nil
 }
 
 func (s *Store) GetInstrument(ctx context.Context, id uint) (Instrument, error) {

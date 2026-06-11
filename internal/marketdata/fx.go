@@ -71,27 +71,23 @@ func (s *Store) ListFXPairs(ctx context.Context) ([]string, error) {
 	return pairs, nil
 }
 
-// IngestRate records a single exchange rate for the pair (main/secondary). Series is auto-registered if needed.
+// IngestRate records a single exchange rate for the pair (main/secondary). The pair's series must
+// already exist (created via RegisterPair); this does not auto-register it.
 func (s *Store) IngestRate(ctx context.Context, main, secondary string, t time.Time, rate float64) error {
 	if main == "" || secondary == "" {
 		return fmt.Errorf("main and secondary currency cannot be empty")
 	}
-	if err := s.RegisterPair(ctx, main, secondary); err != nil {
-		return err
-	}
 	return s.store.Write(ctx, fxSeriesName(main, secondary), timeseries.Point{Time: t, Values: map[string]float64{fxField: rate}})
 }
 
-// IngestRatesBulk records multiple rate points for the given pair in one operation.
+// IngestRatesBulk records multiple rate points for the given pair in one operation. The pair's
+// series must already exist (created via RegisterPair); this does not auto-register it.
 func (s *Store) IngestRatesBulk(ctx context.Context, main, secondary string, points []RatePoint) error {
 	if main == "" || secondary == "" {
 		return fmt.Errorf("main and secondary currency cannot be empty")
 	}
 	if len(points) == 0 {
 		return nil
-	}
-	if err := s.RegisterPair(ctx, main, secondary); err != nil {
-		return err
 	}
 	pts := make([]timeseries.Point, len(points))
 	for i, p := range points {
@@ -167,9 +163,7 @@ func (s *Store) EditRate(ctx context.Context, main, secondary string, oldTime ti
 	if oldTime.IsZero() || oldTime.Equal(p.Time) {
 		return s.IngestRate(ctx, main, secondary, p.Time, p.Rate)
 	}
-	if err := s.RegisterPair(ctx, main, secondary); err != nil {
-		return err
-	}
+	// A move implies a record (and therefore the series) already exists, so no register needed.
 	if err := s.store.Move(ctx, fxSeriesName(main, secondary), oldTime, timeseries.Point{Time: p.Time, Values: map[string]float64{fxField: p.Rate}}); err != nil {
 		return fmt.Errorf("failed to move rate record for %s/%s: %w", main, secondary, err)
 	}
