@@ -136,13 +136,13 @@ const chartOption = computed(() => {
             trigger: 'axis',
             formatter: (params: any) => {
                 const x = params[0]
-                return `<strong>${x.axisValueLabel}</strong><br/>${pairLabel.value}: <strong>${Number(x.value).toFixed(4)}</strong>`
+                return `<strong>${formatDate(x.axisValue ?? x.name ?? '')}</strong><br/>${pairLabel.value}: <strong>${Number(x.value).toFixed(4)}</strong>`
             }
         },
         xAxis: {
             type: 'category',
             data: d,
-            axisLabel: { color: textColor, rotate: 45 },
+            axisLabel: { color: textColor, rotate: 45, formatter: (v: string) => formatDate(v) },
             axisLine: { lineStyle: { color: surfaceColor } },
             splitLine: { lineStyle: { color: surfaceColor } }
         },
@@ -197,8 +197,8 @@ async function saveDataDialog() {
         if (dataDialogMode.value === 'add') {
             await createRateMutation({ time, rate })
         } else {
-            const id = dataDialogEditRecord.value?.id
-            if (id != null) await updateRateMutation({ id, payload: { time, rate } })
+            const origDate = dataDialogEditRecord.value?.time
+            if (origDate) await updateRateMutation({ origDate, payload: { time, rate } })
         }
         dataDialogVisible.value = false
         await refetchRateHistory()
@@ -217,7 +217,7 @@ async function confirmDeleteData() {
     const rec = deleteTargetRecord.value
     if (rec) {
         try {
-            await deleteRateMutation(rec.id)
+            await deleteRateMutation(rec.time)
             deleteTargetRecord.value = null
             deleteDialogVisible.value = false
             await refetchRateHistory()
@@ -313,7 +313,7 @@ function goBack() {
                                         stripedRows
                                         :paginator="rawDataRows.length > 10"
                                         :rows="10"
-                                        dataKey="id"
+                                        dataKey="time"
                                         class="p-datatable-sm"
                                     >
                                         <Column field="time" header="Date">

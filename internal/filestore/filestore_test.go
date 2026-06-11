@@ -598,6 +598,62 @@ func TestWipeData(t *testing.T) {
 	}
 }
 
+func TestTotalSize(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			baseDir := t.TempDir()
+			store, err := New(db.ConnDbName("TestTotalSize"), baseDir, 10*1024*1024)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			ctx := context.Background()
+			date := time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC)
+
+			// Empty store sums to zero.
+			total, err := store.TotalSize(ctx)
+			if err != nil {
+				t.Fatalf("TotalSize failed: %v", err)
+			}
+			if total != 0 {
+				t.Errorf("expected 0 for empty store, got %d", total)
+			}
+
+			jpeg := append([]byte{0xFF, 0xD8, 0xFF, 0xE0}, bytes.Repeat([]byte{0x00}, 100)...)
+			png := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, bytes.Repeat([]byte{0x00}, 50)...)
+
+			id1, err := store.SaveRaw(ctx, date, jpeg, "a.jpg", "image/jpeg")
+			if err != nil {
+				t.Fatalf("SaveRaw jpeg failed: %v", err)
+			}
+			if _, err := store.SaveRaw(ctx, date, png, "b.png", "image/png"); err != nil {
+				t.Fatalf("SaveRaw png failed: %v", err)
+			}
+
+			total, err = store.TotalSize(ctx)
+			if err != nil {
+				t.Fatalf("TotalSize failed: %v", err)
+			}
+			want := int64(len(jpeg) + len(png))
+			if total != want {
+				t.Errorf("expected total %d, got %d", want, total)
+			}
+
+			// Soft-deleted records are excluded.
+			if err := store.Delete(ctx, id1); err != nil {
+				t.Fatalf("Delete failed: %v", err)
+			}
+			total, err = store.TotalSize(ctx)
+			if err != nil {
+				t.Fatalf("TotalSize failed: %v", err)
+			}
+			if total != int64(len(png)) {
+				t.Errorf("expected total %d after delete, got %d", len(png), total)
+			}
+		})
+	}
+}
+
 // readTestFile reads a file at the given path. It is used in tests where the
 // path is constructed from t.TempDir() and is therefore safe.
 func readTestFile(t *testing.T, path string) []byte {

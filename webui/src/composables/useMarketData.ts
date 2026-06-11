@@ -3,11 +3,15 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { useInstruments } from '@/composables/useInstruments'
 import {
     getPriceHistory,
+    getEpsHistory,
     createPrice as createPriceApi,
     updatePrice as updatePriceApi,
-    deletePrice as deletePriceApi
+    deletePrice as deletePriceApi,
+    createEps as createEpsApi,
+    updateEps as updateEpsApi,
+    deleteEps as deleteEpsApi
 } from '@/lib/api/MarketData'
-import type { CreatePriceDTO, PriceRecord } from '@/lib/api/MarketData'
+import type { CreatePriceDTO, PriceRecord, EpsRecord, CreateEpsDTO } from '@/lib/api/MarketData'
 import { lastDaysRange, rangeToStartEnd, type PriceHistoryRange } from '@/utils/dateRange'
 
 export type { PriceHistoryRange } from '@/utils/dateRange'
@@ -162,6 +166,60 @@ export function usePriceHistory(
         ),
         isLoading: historyQuery.isLoading,
         refetch: historyQuery.refetch
+    }
+}
+
+export function useEpsHistory(symbol: MaybeRefOrGetter<string>) {
+    const getSymbol = () => (typeof symbol === 'function' ? symbol() : unref(symbol))
+
+    // EPS filings power the trailing-twelve-month P/E line. The series is tiny (quarterly), so we
+    // fetch all of it with no date bounds — TTM then works for any selected chart range.
+    const epsQuery = useQuery({
+        queryKey: computed(() => ['eps', getSymbol()]),
+        queryFn: () => getEpsHistory(getSymbol()),
+        enabled: computed(() => !!getSymbol())
+    })
+
+    return {
+        data: computed<EpsRecord[]>(() => epsQuery.data.value ?? []),
+        isLoading: epsQuery.isLoading
+    }
+}
+
+export function useEpsMutations(symbol: MaybeRefOrGetter<string>) {
+    const queryClient = useQueryClient()
+
+    const getSymbol = () => (typeof symbol === 'function' ? symbol() : unref(symbol))
+
+    // Invalidate this instrument's EPS history so the EPS table and the chart's TTM P/E line
+    // (both keyed on ['eps', symbol]) refresh after a create/update/delete.
+    const invalidateEps = () => {
+        queryClient.invalidateQueries({ queryKey: ['eps', getSymbol()] })
+    }
+
+    const createEpsMutation = useMutation({
+        mutationFn: (payload: CreateEpsDTO) => createEpsApi(getSymbol(), payload),
+        onSuccess: invalidateEps
+    })
+
+    const updateEpsMutation = useMutation({
+        mutationFn: ({ origDate, payload }: { origDate: string; payload: CreateEpsDTO }) =>
+            updateEpsApi(getSymbol(), origDate, payload),
+        onSuccess: invalidateEps
+    })
+
+    const deleteEpsMutation = useMutation({
+        mutationFn: (date: string) => deleteEpsApi(getSymbol(), date),
+        onSuccess: invalidateEps
+    })
+
+    return {
+        createEps: createEpsMutation.mutateAsync,
+        updateEps: updateEpsMutation.mutateAsync,
+        deleteEps: deleteEpsMutation.mutateAsync,
+        isCreating: createEpsMutation.isPending,
+        isUpdating: updateEpsMutation.isPending,
+        isDeleting: deleteEpsMutation.isPending
     }
 }
 

@@ -156,6 +156,7 @@ func runServer(configFile string) error {
 		AuthDisabled:      !cfg.Auth.Enabled,
 		DefaultUser:       cfg.Auth.DefaultUser,
 		Logger:            l,
+		LogLevel:          GetLogLevel(cfg.Env.LogLevel).String(),
 		BackupDestination: backupDest,
 		ProductionMode:    cfg.Env.Production,
 		AppSettings: handlers.AppSettings{
@@ -374,6 +375,7 @@ func initTaskRunnerAndScheduler(
 
 	var marketDataClient importer.Client
 	var fxClient importer.FXClient
+	var fundamentalsClient importer.FundamentalsClient
 	if len(cfg.MarketDataImporters.Massive.ApiKeys) > 0 {
 		pool, err := importer.NewMassivePool(cfg.MarketDataImporters.Massive.ApiKeys)
 		if err != nil {
@@ -385,6 +387,11 @@ func initTaskRunnerAndScheduler(
 			return nil, nil, nil, fmt.Errorf("FX importer pool (massive): %w", err)
 		}
 		fxClient = fxPool
+		fundamentalsPool, err := importer.NewMassiveFundamentalsPool(cfg.MarketDataImporters.Massive.ApiKeys)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("fundamentals importer pool (massive): %w", err)
+		}
+		fundamentalsClient = fundamentalsPool
 	}
 
 	// Register tasks once; enqueue later via runner.AddRun(name) (scheduler and API).
@@ -393,6 +400,7 @@ func initTaskRunnerAndScheduler(
 	runner.RegisterTask(tasks.NewFinancialBackfillTaskFn(marketStore, l, marketDataClient), tasks.FinancialBackfillTaskName, 0)
 	runner.RegisterTask(tasks.NewFXImportTaskFn(marketStore, cfg.Settings.MainCurrency, cfg.Settings.AllCurrencies(), fxClient), tasks.FXImportTaskName, 0)
 	runner.RegisterTask(tasks.NewFXBackfillTaskFn(marketStore, l, cfg.Settings.MainCurrency, cfg.Settings.AllCurrencies(), fxClient), tasks.FXBackfillTaskName, 0)
+	runner.RegisterTask(tasks.NewEPSImportTaskFn(marketStore, fundamentalsClient), tasks.EPSImportTaskName, 0)
 	if !cfg.Env.Production {
 		runner.RegisterTask(tasks.NewLogOnlyTaskFn(l), tasks.LogOnlyTaskName, 4)
 		runner.RegisterTask(tasks.NewLogOnlyLongTaskFn(l), tasks.LogOnlyLongTaskName, 1)

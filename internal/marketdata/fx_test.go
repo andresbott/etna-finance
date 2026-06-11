@@ -122,9 +122,6 @@ func TestRateHistory(t *testing.T) {
 					if r.Main != "CHF" || r.Secondary != "USD" {
 						t.Errorf("expected CHF/USD, got %s/%s", r.Main, r.Secondary)
 					}
-					if r.ID == 0 {
-						t.Error("expected non-zero ID")
-					}
 				}
 			})
 
@@ -201,49 +198,37 @@ func TestLatestRate(t *testing.T) {
 				if rec.Rate != 1.17 {
 					t.Errorf("expected rate 1.17, got %f", rec.Rate)
 				}
-				if rec.ID == 0 {
-					t.Error("expected non-zero ID")
-				}
 			})
 		})
 	}
 }
 
-func TestUpdateRate(t *testing.T) {
+func TestEditRate(t *testing.T) {
 	for _, db := range testdbs.DBs() {
 		t.Run(db.DbType(), func(t *testing.T) {
 			ctx := t.Context()
-			dbCon := db.ConnDbName("TestUpdateRate")
+			dbCon := db.ConnDbName("TestEditRate")
 			store, err := NewStore(dbCon)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			t.Run("zero id returns error", func(t *testing.T) {
-				err := store.UpdateRate(ctx, "EUR", "USD", 0, RateUpdate{Rate: ptr(1.5)})
+			t.Run("empty main returns error", func(t *testing.T) {
+				err := store.EditRate(ctx, "", "USD", time.Time{}, RatePoint{Time: time.Now(), Rate: 1.5})
 				if err == nil {
-					t.Fatal("expected error for zero id")
+					t.Fatal("expected error for empty main")
 				}
 			})
 
-			t.Run("update rate value via synthetic id round-trip", func(t *testing.T) {
+			t.Run("update rate value in place", func(t *testing.T) {
 				base := time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
 				err := store.IngestRate(ctx, "JPY", "USD", base, 0.0067)
 				if err != nil {
 					t.Fatal(err)
 				}
 
-				records, err := store.RateHistory(ctx, "JPY", "USD", time.Time{}, time.Time{})
-				if err != nil {
-					t.Fatal(err)
-				}
-				if len(records) == 0 {
-					t.Fatal("expected at least one record")
-				}
-				recID := records[0].ID
-
-				newRate := 0.0070
-				err = store.UpdateRate(ctx, "JPY", "USD", recID, RateUpdate{Rate: &newRate})
+				// Edit in place (same time, new rate)
+				err = store.EditRate(ctx, "JPY", "USD", base, RatePoint{Time: base, Rate: 0.0070})
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
@@ -269,46 +254,47 @@ func TestUpdateRate(t *testing.T) {
 				}
 			})
 
-			t.Run("update time", func(t *testing.T) {
+			t.Run("move to new time", func(t *testing.T) {
 				base := time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC)
+				newTime := time.Date(2025, 7, 15, 0, 0, 0, 0, time.UTC)
 				err := store.IngestRate(ctx, "CAD", "USD", base, 0.74)
 				if err != nil {
 					t.Fatal(err)
 				}
 
-				records, err := store.RateHistory(ctx, "CAD", "USD", time.Time{}, time.Time{})
-				if err != nil {
-					t.Fatal(err)
-				}
-				if len(records) == 0 {
-					t.Fatal("expected at least one record")
-				}
-				recID := records[0].ID
-
-				newTime := time.Date(2025, 7, 15, 0, 0, 0, 0, time.UTC)
-				err = store.UpdateRate(ctx, "CAD", "USD", recID, RateUpdate{Time: &newTime})
+				err = store.EditRate(ctx, "CAD", "USD", base, RatePoint{Time: newTime, Rate: 0.75})
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
 
-				// Verify old time is gone, new time exists
+				// Old time gone, new time present.
+				atOld, err := store.RateAt(ctx, "CAD", "USD", base)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if atOld != nil {
+					t.Errorf("expected old record to be removed, got %+v", atOld)
+				}
 				atNew, err := store.RateAt(ctx, "CAD", "USD", newTime)
 				if err != nil {
 					t.Fatal(err)
 				}
 				if atNew == nil {
-					t.Error("expected record at new time, got nil")
+					t.Fatal("expected record at new time, got nil")
+				}
+				if atNew.Rate != 0.75 {
+					t.Errorf("expected rate 0.75, got %f", atNew.Rate)
 				}
 			})
 		})
 	}
 }
 
-func TestDeleteRate(t *testing.T) {
+func TestDeleteRateAt(t *testing.T) {
 	for _, db := range testdbs.DBs() {
 		t.Run(db.DbType(), func(t *testing.T) {
 			ctx := t.Context()
-			dbCon := db.ConnDbName("TestDeleteRate")
+			dbCon := db.ConnDbName("TestDeleteRateAt")
 			store, err := NewStore(dbCon)
 			if err != nil {
 				t.Fatal(err)
@@ -320,17 +306,8 @@ func TestDeleteRate(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			records, err := store.RateHistory(ctx, "AUD", "USD", time.Time{}, time.Time{})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if len(records) == 0 {
-				t.Fatal("expected at least one record")
-			}
-			recID := records[0].ID
-
 			t.Run("delete existing record", func(t *testing.T) {
-				err := store.DeleteRate(ctx, "AUD", "USD", recID)
+				err := store.DeleteRateAt(ctx, "AUD", "USD", base)
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}

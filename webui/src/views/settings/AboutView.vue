@@ -67,6 +67,10 @@ const fxSummary = computed(() => {
 })
 
 const dbSizeDisplay = computed(() => (stats.value ? formatBytes(stats.value.dbSizeBytes) : '—'))
+const attachmentsSizeDisplay = computed(() =>
+    stats.value ? formatBytes(stats.value.attachmentsSizeBytes) : '—'
+)
+const logLevelDisplay = computed(() => stats.value?.logLevel || '—')
 </script>
 
 <template>
@@ -125,6 +129,20 @@ const dbSizeDisplay = computed(() => (stats.value ? formatBytes(stats.value.dbSi
                 <div class="about-row">
                     <span class="about-label">Database size</span>
                     <span class="about-value">{{ dbSizeDisplay }}</span>
+                </div>
+                <div class="about-row">
+                    <span class="about-label">Attachments size</span>
+                    <span class="about-value">{{ attachmentsSizeDisplay }}</span>
+                </div>
+            </div>
+
+            <Divider />
+
+            <h3 class="stats-title">Runtime</h3>
+            <div class="about-content">
+                <div class="about-row">
+                    <span class="about-label">Log level</span>
+                    <span class="about-value">{{ logLevelDisplay }}</span>
                 </div>
             </div>
         </template>

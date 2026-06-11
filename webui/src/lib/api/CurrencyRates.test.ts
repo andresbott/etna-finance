@@ -20,7 +20,6 @@ vi.mock('./client', () => ({
 beforeEach(() => vi.clearAllMocks())
 
 const mockRate: RateRecord = {
-    id: 1,
     main: 'USD',
     secondary: 'EUR',
     time: '2025-06-01',
@@ -236,47 +235,48 @@ describe('createRatesBulk', () => {
 })
 
 describe('updateRate', () => {
-    it('calls PUT /fin/fx/{main}/{secondary}/rates/:id with payload', async () => {
-        const payload = { rate: 0.95 };
+    it('calls PUT /fin/fx/{main}/{secondary}/rates/:origDate with payload', async () => {
+        const payload: CreateRateDTO = { time: '2025-06-01', rate: 0.95 };
         (apiClient.put as Mock).mockResolvedValue({})
 
-        await updateRate('USD', 'EUR', 42, payload)
+        await updateRate('USD', 'EUR', '2025-06-01', payload)
 
-        expect(apiClient.put).toHaveBeenCalledWith('/fin/fx/USD/EUR/rates/42', payload)
+        expect(apiClient.put).toHaveBeenCalledWith('/fin/fx/USD/EUR/rates/2025-06-01', payload)
         expect(apiClient.put).toHaveBeenCalledTimes(1)
     })
 
-    it('sends partial payload with only time', async () => {
+    it('moves the record when the payload time differs from origDate', async () => {
+        const payload: CreateRateDTO = { time: '2025-07-15', rate: 0.74 };
         (apiClient.put as Mock).mockResolvedValue({})
 
-        await updateRate('CHF', 'USD', 7, { time: '2025-07-01' })
+        await updateRate('CHF', 'USD', '2025-07-01', payload)
 
-        expect(apiClient.put).toHaveBeenCalledWith('/fin/fx/CHF/USD/rates/7', { time: '2025-07-01' })
+        expect(apiClient.put).toHaveBeenCalledWith('/fin/fx/CHF/USD/rates/2025-07-01', payload)
     })
 
     it('returns void', async () => {
         (apiClient.put as Mock).mockResolvedValue({})
 
-        const result = await updateRate('USD', 'EUR', 1, { rate: 1.0 })
+        const result = await updateRate('USD', 'EUR', '2025-06-01', { time: '2025-06-01', rate: 1.0 })
 
         expect(result).toBeUndefined()
     })
 })
 
 describe('deleteRate', () => {
-    it('calls DELETE /fin/fx/{main}/{secondary}/rates/:id', async () => {
+    it('calls DELETE /fin/fx/{main}/{secondary}/rates/:date', async () => {
         (apiClient.delete as Mock).mockResolvedValue({})
 
-        await deleteRate('USD', 'EUR', 42)
+        await deleteRate('USD', 'EUR', '2025-06-01')
 
-        expect(apiClient.delete).toHaveBeenCalledWith('/fin/fx/USD/EUR/rates/42')
+        expect(apiClient.delete).toHaveBeenCalledWith('/fin/fx/USD/EUR/rates/2025-06-01')
         expect(apiClient.delete).toHaveBeenCalledTimes(1)
     })
 
     it('returns void', async () => {
         (apiClient.delete as Mock).mockResolvedValue({})
 
-        const result = await deleteRate('USD', 'EUR', 1)
+        const result = await deleteRate('USD', 'EUR', '2025-06-01')
 
         expect(result).toBeUndefined()
     })

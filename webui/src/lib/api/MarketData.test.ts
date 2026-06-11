@@ -8,8 +8,10 @@ import {
     createPricesBulk,
     updatePrice,
     deletePrice,
+    getEpsHistory,
     type PriceRecord,
     type CreatePriceDTO,
+    type EpsRecord,
 } from './MarketData'
 
 vi.mock('./client', () => ({
@@ -323,5 +325,69 @@ describe('deletePrice', () => {
         const result = await deletePrice('AAPL', '2025-01-15')
 
         expect(result).toBeUndefined()
+    })
+})
+
+/* ------------------------------------------------------------------ */
+/*  getEpsHistory                                                      */
+/* ------------------------------------------------------------------ */
+describe('getEpsHistory', () => {
+    const mockEps: EpsRecord = { time: '2025-02-01', eps_basic: 6.42, eps_diluted: 6.38 }
+
+    it('calls GET with encoded symbol and no query params when dates omitted', async () => {
+        (apiClient.get as Mock).mockResolvedValue({ data: { items: [mockEps] } })
+
+        const result = await getEpsHistory('AAPL')
+
+        expect(apiClient.get).toHaveBeenCalledWith(`${BASE}/AAPL/eps`)
+        expect(result).toEqual([mockEps])
+    })
+
+    it('appends start query param only', async () => {
+        (apiClient.get as Mock).mockResolvedValue({ data: { items: [] } })
+
+        await getEpsHistory('AAPL', '2023-01-01')
+
+        expect(apiClient.get).toHaveBeenCalledWith(`${BASE}/AAPL/eps?start=2023-01-01`)
+    })
+
+    it('appends end query param only', async () => {
+        (apiClient.get as Mock).mockResolvedValue({ data: { items: [] } })
+
+        await getEpsHistory('AAPL', undefined, '2025-12-31')
+
+        expect(apiClient.get).toHaveBeenCalledWith(`${BASE}/AAPL/eps?end=2025-12-31`)
+    })
+
+    it('appends both start and end query params', async () => {
+        (apiClient.get as Mock).mockResolvedValue({ data: { items: [] } })
+
+        await getEpsHistory('AAPL', '2023-01-01', '2025-12-31')
+
+        expect(apiClient.get).toHaveBeenCalledWith(`${BASE}/AAPL/eps?start=2023-01-01&end=2025-12-31`)
+    })
+
+    it('URL-encodes symbols with special characters', async () => {
+        (apiClient.get as Mock).mockResolvedValue({ data: { items: [] } })
+
+        await getEpsHistory('BRK/B')
+
+        expect(apiClient.get).toHaveBeenCalledWith(`${BASE}/BRK%2FB/eps`)
+    })
+
+    it('returns empty array when items is undefined', async () => {
+        (apiClient.get as Mock).mockResolvedValue({ data: {} })
+
+        const result = await getEpsHistory('AAPL')
+
+        expect(result).toEqual([])
+    })
+
+    it('returns empty array when items is null', async () => {
+        (apiClient.get as Mock).mockResolvedValue({ data: { items: null } })
+
+        const result = await getEpsHistory('AAPL')
+
+        expect(result).toEqual([])
     })
 })

@@ -174,6 +174,15 @@ const router = createRouter({
             component: () => import('@/views/marketdata/StockMarketView.vue')
         },
         {
+            path: '/market-data/stock-market/compare',
+            name: 'stock-compare',
+            meta: {
+                requiresAuth: true,
+                requiresInstruments: true
+            },
+            component: () => import('@/views/marketdata/StockCompareView.vue')
+        },
+        {
             path: '/market-data/stock-market/:id',
             redirect: (to) => ({ path: `/market-data/stock-market/${to.params.id}/overview` })
         },
@@ -186,7 +195,7 @@ const router = createRouter({
             },
             component: () => import('@/views/marketdata/StockDetailView.vue'),
             beforeEnter: (to, _from, next) => {
-                const validTabs = ['overview', 'chart', 'raw-data']
+                const validTabs = ['overview', 'chart', 'raw-data', 'eps']
                 if (to.params.tab && !validTabs.includes(to.params.tab as string)) {
                     next({ path: `/market-data/stock-market/${to.params.id}/overview` })
                 } else {

@@ -29,15 +29,10 @@ func fxSeries(main, secondary string) timeseries.Series {
 	}
 }
 
-// fxID encodes a record time as a synthetic id (UNIX seconds). Daily EOD records are at
-// midnight UTC, so this round-trips exactly.
-func fxID(t time.Time) uint { return uint(t.UTC().Unix()) } //nolint:gosec // G115: positive epoch seconds for daily records fit comfortably in uint
-
-func fxTime(id uint) time.Time { return time.Unix(int64(id), 0).UTC() } //nolint:gosec // G115: synthetic ids are bounded epoch seconds, no overflow
-
-// RateRecord is a stored exchange rate data point.
+// RateRecord is a stored exchange rate data point. Like price records, it is
+// addressed by Time (no synthetic id): the daily series holds at most one record
+// per timestamp, so Time is a stable identifier for edits and deletes.
 type RateRecord struct {
-	ID        uint
 	Main      string
 	Secondary string
 	Time      time.Time
@@ -48,12 +43,6 @@ type RateRecord struct {
 type RatePoint struct {
 	Time time.Time
 	Rate float64
-}
-
-// RateUpdate holds optional fields for a partial rate update.
-type RateUpdate struct {
-	Time *time.Time
-	Rate *float64
 }
 
 // RegisterPair creates or updates a time series for the given currency pair (main/secondary).
@@ -126,7 +115,7 @@ func (s *Store) RateHistory(ctx context.Context, main, secondary string, start, 
 	}
 	out := make([]RateRecord, len(samples))
 	for i, sm := range samples {
-		out[i] = RateRecord{ID: fxID(sm.Time), Main: main, Secondary: secondary, Time: sm.Time, Rate: sm.Value}
+		out[i] = RateRecord{Main: main, Secondary: secondary, Time: sm.Time, Rate: sm.Value}
 	}
 	return out, nil
 }
@@ -146,7 +135,7 @@ func (s *Store) RateAt(ctx context.Context, main, secondary string, t time.Time)
 	if !ok {
 		return nil, nil
 	}
-	return &RateRecord{ID: fxID(t), Main: main, Secondary: secondary, Time: t, Rate: v}, nil
+	return &RateRecord{Main: main, Secondary: secondary, Time: t, Rate: v}, nil
 }
 
 // LatestRate returns the most recent rate record for the pair. Returns nil if no data.
@@ -164,59 +153,36 @@ func (s *Store) LatestRate(ctx context.Context, main, secondary string) (*RateRe
 	if !found {
 		return nil, nil
 	}
-	return &RateRecord{ID: fxID(last.Time), Main: main, Secondary: secondary, Time: last.Time, Rate: last.Value}, nil
+	return &RateRecord{Main: main, Secondary: secondary, Time: last.Time, Rate: last.Value}, nil
 }
 
-// UpdateRate applies a partial update to the rate record identified by (main/secondary, id),
-// where id is the synthetic time-derived id from RateRecord.ID.
-func (s *Store) UpdateRate(ctx context.Context, main, secondary string, id uint, in RateUpdate) error {
+// EditRate overwrites the rate for the pair at p.Time. If p.Time differs from oldTime, the old
+// timestamp is removed as part of the same write (an atomic move via the store). A zero oldTime
+// means "no prior timestamp to remove" and behaves as a plain write. Mirrors EditPrice.
+func (s *Store) EditRate(ctx context.Context, main, secondary string, oldTime time.Time, p RatePoint) error {
 	if main == "" || secondary == "" {
 		return fmt.Errorf("main and secondary currency cannot be empty")
 	}
-	if id == 0 {
-		return fmt.Errorf("record id is required for update")
-	}
-	name := fxSeriesName(main, secondary)
-	oldTime := fxTime(id)
-	cur, ok, err := s.store.FieldAt(ctx, name, fxField, oldTime)
-	if err != nil {
-		if errors.Is(err, timeseries.ErrSeriesNotFound) || errors.Is(err, timeseries.ErrFieldNotFound) {
-			return fmt.Errorf("rate record %d not found for %s/%s", id, main, secondary)
-		}
-		return err
-	}
-	if !ok {
-		return fmt.Errorf("rate record %d not found for %s/%s", id, main, secondary)
-	}
-	rate := cur
-	if in.Rate != nil {
-		rate = *in.Rate
-	}
-	newTime := oldTime
-	if in.Time != nil {
-		newTime = *in.Time
-	}
-	// Same time: a plain upsert. Different time: an atomic move (delete old + write
-	// new in one transaction) so a crash cannot drop the record.
-	if newTime.Equal(oldTime) {
-		return s.IngestRate(ctx, main, secondary, newTime, rate)
+	// Same time (or no prior time): a plain upsert, no move needed.
+	if oldTime.IsZero() || oldTime.Equal(p.Time) {
+		return s.IngestRate(ctx, main, secondary, p.Time, p.Rate)
 	}
 	if err := s.RegisterPair(ctx, main, secondary); err != nil {
 		return err
 	}
-	if err := s.store.Move(ctx, name, oldTime, timeseries.Point{Time: newTime, Values: map[string]float64{fxField: rate}}); err != nil {
+	if err := s.store.Move(ctx, fxSeriesName(main, secondary), oldTime, timeseries.Point{Time: p.Time, Values: map[string]float64{fxField: p.Rate}}); err != nil {
 		return fmt.Errorf("failed to move rate record for %s/%s: %w", main, secondary, err)
 	}
 	return nil
 }
 
-// DeleteRate removes the rate record identified by (main/secondary, id).
-func (s *Store) DeleteRate(ctx context.Context, main, secondary string, id uint) error {
+// DeleteRateAt removes the rate record for the pair at exactly t. Mirrors DeletePriceAt.
+func (s *Store) DeleteRateAt(ctx context.Context, main, secondary string, t time.Time) error {
 	if main == "" || secondary == "" {
 		return fmt.Errorf("main and secondary currency cannot be empty")
 	}
-	if id == 0 {
-		return fmt.Errorf("record id is required for delete")
+	if err := s.store.Delete(ctx, fxSeriesName(main, secondary), t); err != nil {
+		return fmt.Errorf("failed to delete rate for %s/%s: %w", main, secondary, err)
 	}
-	return s.store.Delete(ctx, fxSeriesName(main, secondary), fxTime(id))
+	return nil
 }

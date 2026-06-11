@@ -2,7 +2,6 @@ import { apiClient } from '@/lib/api/client'
 import { with404Null } from '@/lib/api/helpers'
 
 export interface RateRecord {
-    id: number
     main: string
     secondary: string
     time: string
@@ -12,11 +11,6 @@ export interface RateRecord {
 export interface CreateRateDTO {
     time: string
     rate: number
-}
-
-export interface UpdateRateDTO {
-    time?: string
-    rate?: number
 }
 
 const FX_PATH = '/fin/fx'
@@ -82,11 +76,11 @@ export async function createRatesBulk(
 export async function updateRate(
     main: string,
     secondary: string,
-    id: number,
-    payload: UpdateRateDTO
+    origDate: string,
+    payload: CreateRateDTO
 ): Promise<void> {
     await apiClient.put(
-        `${FX_PATH}/${encodeURIComponent(main)}/${encodeURIComponent(secondary)}/rates/${id}`,
+        `${FX_PATH}/${encodeURIComponent(main)}/${encodeURIComponent(secondary)}/rates/${encodeURIComponent(origDate)}`,
         payload
     )
 }
@@ -94,9 +88,9 @@ export async function updateRate(
 export async function deleteRate(
     main: string,
     secondary: string,
-    id: number
+    date: string
 ): Promise<void> {
     await apiClient.delete(
-        `${FX_PATH}/${encodeURIComponent(main)}/${encodeURIComponent(secondary)}/rates/${id}`
+        `${FX_PATH}/${encodeURIComponent(main)}/${encodeURIComponent(secondary)}/rates/${encodeURIComponent(date)}`
     )
 }

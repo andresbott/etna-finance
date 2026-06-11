@@ -3,6 +3,7 @@ import { computed, type Ref } from 'vue'
 import type { OhlcvData } from '@/composables/useTsdbPrices'
 import type { IndicatorParams, BollingerResult, MACDResult } from '@/composables/useIndicators'
 import { getGreenColor, getRedColor } from '@/utils/chartColors'
+import { useDateFormat } from '@/composables/useDateFormat'
 
 interface IndicatorData {
     sma1: (number | null)[]
@@ -38,6 +39,8 @@ export function useCandlestickChart(
     peRatio?: Ref<(number | null)[]>,
     peEnabled?: Ref<boolean>
 ) {
+    const { formatDate } = useDateFormat()
+
     const chartOption = computed(() => {
         const { dates, opens, highs, lows, closes, volumes } = ohlcv.value
         if (dates.length === 0) return {}
@@ -191,7 +194,7 @@ export function useCandlestickChart(
             grids.push({ left: 60, right: 16, top, height: subPanelHeight })
             xAxes.push({
                 type: 'category', data: dates, gridIndex: macdGridIndex,
-                axisLabel: { rotate: 45, fontSize: 10 }, boundaryGap: true
+                axisLabel: { rotate: 45, fontSize: 10, formatter: (v: string) => formatDate(v) }, boundaryGap: true
             })
             yAxes.push({
                 type: 'value', gridIndex: macdGridIndex, scale: true,
@@ -220,6 +223,7 @@ export function useCandlestickChart(
                 xAxisIndex: macdGridIndex, yAxisIndex: macdGridIndex,
                 name: 'Histogram'
             })
+            top += subPanelHeight + GAP
         }
 
         // Grid: P/E Ratio (optional)
@@ -246,7 +250,7 @@ export function useCandlestickChart(
         xAxes[lastXAxisIndex] = {
             ...xAxes[lastXAxisIndex],
             show: true,
-            axisLabel: { rotate: 45, fontSize: 10 }
+            axisLabel: { rotate: 45, fontSize: 10, formatter: (v: string) => formatDate(v) }
         }
 
         // dataZoom controls all xAxes
@@ -280,7 +284,7 @@ export function useCandlestickChart(
                 axisPointer: { type: 'cross' },
                 formatter(params: any) {
                     if (!Array.isArray(params) || params.length === 0) return ''
-                    const date = params[0].axisValueLabel ?? params[0].name ?? ''
+                    const date = formatDate(params[0].axisValue ?? params[0].name ?? '')
                     let html = `<div style="font-weight:600;margin-bottom:4px">${date}</div>`
                     for (const p of params) {
                         const marker = p.marker ?? ''

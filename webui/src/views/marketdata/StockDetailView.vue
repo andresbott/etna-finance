@@ -32,6 +32,8 @@ import {
     useMarketInstruments,
     usePriceHistory,
     useMarketDataMutations,
+    useEpsHistory,
+    useEpsMutations,
     toLocalDateString,
     formatPrice,
     formatVolume,
@@ -48,7 +50,7 @@ const route = useRoute()
 const router = useRouter()
 const { instruments, isLoading } = useMarketInstruments()
 const { formatDate, pickerDateFormat } = useDateFormat()
-const TAB_NAMES = ['overview', 'chart', 'raw-data'] as const
+const TAB_NAMES = ['overview', 'chart', 'raw-data', 'eps'] as const
 
 const leftSidebarCollapsed = ref(true)
 const activeTabIndex = ref(0)
@@ -229,6 +231,106 @@ function formatTableDate(isoDate: string) {
     return isoDate ? formatDate(isoDate) : '-'
 }
 
+// --- EPS (earnings per share) ----------------------------------------------
+// EPS is quarterly, so we fetch the full history (no date range) and edit it directly.
+const { data: epsHistoryData } = useEpsHistory(symbol)
+const {
+    createEps: createEpsMutation,
+    updateEps: updateEpsMutation,
+    deleteEps: deleteEpsMutation,
+    isCreating: isEpsCreating,
+    isUpdating: isEpsUpdating,
+    isDeleting: isEpsDeleting
+} = useEpsMutations(symbol)
+
+interface EpsRow {
+    date: string
+    basic: number
+    diluted: number
+}
+
+const epsRows = computed<EpsRow[]>(() => {
+    const rows = epsHistoryData.value.map((r) => ({
+        date: r.time,
+        basic: r.eps_basic,
+        diluted: r.eps_diluted
+    }))
+    return rows.sort((a, b) => b.date.localeCompare(a.date))
+})
+
+const epsDialogVisible = ref(false)
+const epsDialogMode = ref<'add' | 'edit'>('add')
+const epsDialogForm = ref<{ origDate?: string; date: string; basic: number; diluted: number }>({
+    date: '',
+    basic: 0,
+    diluted: 0
+})
+
+function openAddEpsDialog() {
+    epsDialogMode.value = 'add'
+    epsDialogForm.value = { date: '', basic: 0, diluted: 0 }
+    epsDialogVisible.value = true
+}
+
+function openEditEpsDialog(record: EpsRow) {
+    epsDialogMode.value = 'edit'
+    epsDialogForm.value = {
+        origDate: record.date,
+        date: record.date,
+        basic: record.basic,
+        diluted: record.diluted
+    }
+    epsDialogVisible.value = true
+}
+
+async function saveEpsDialog() {
+    const sym = instrument.value?.symbol
+    if (!sym) return
+    const f = epsDialogForm.value
+    if (!f.date) {
+        epsDialogVisible.value = false
+        return
+    }
+    const time = f.date.includes('T') ? toLocalDateString(new Date(f.date)) : f.date
+    const payload = { time, eps_basic: f.basic, eps_diluted: f.diluted }
+    try {
+        if (epsDialogMode.value === 'add') {
+            await createEpsMutation(payload)
+        } else {
+            await updateEpsMutation({ origDate: f.origDate!, payload })
+        }
+        epsDialogVisible.value = false
+    } catch (_) {
+        // Error surfaced by mutation
+    }
+}
+
+const epsDeleteDialogVisible = ref(false)
+const epsDeleteTarget = ref<EpsRow | null>(null)
+
+function openDeleteEpsDialog(record: EpsRow) {
+    epsDeleteTarget.value = record
+    epsDeleteDialogVisible.value = true
+}
+
+async function confirmDeleteEps() {
+    const rec = epsDeleteTarget.value
+    if (rec) {
+        try {
+            await deleteEpsMutation(rec.date)
+            epsDeleteTarget.value = null
+            epsDeleteDialogVisible.value = false
+        } catch (_) {
+            // Error surfaced by mutation
+        }
+    }
+}
+
+function formatEps(value: number | null | undefined): string {
+    if (value == null) return '-'
+    return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 const chartOption = computed(() => {
     const { dates, closes } = priceHistory.value
     if (!dates.length || !instrument.value) return {}
@@ -253,7 +355,7 @@ const chartOption = computed(() => {
             trigger: 'axis',
             formatter: (params: any) => {
                 const p = params[0]
-                return `<strong>${p.axisValueLabel}</strong><br/>
+                return `<strong>${formatDate(p.axisValue ?? p.name ?? '')}</strong><br/>
                     Price: <strong>${p.value.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong> ${inst.currency || ''}`
             }
         },
@@ -262,7 +364,8 @@ const chartOption = computed(() => {
             data: dates,
             axisLabel: {
                 rotate: 45,
-                fontSize: 11
+                fontSize: 11,
+                formatter: (v: string) => formatDate(v)
             },
             boundaryGap: false
         },
@@ -458,6 +561,61 @@ function goBack() {
                                 </Column>
                             </DataTable>
                         </TabPanel>
+
+                        <TabPanel header="EPS" value="eps">
+                            <div class="raw-data-toolbar mb-3">
+                                <Button label="Add" icon="ti ti-plus" :loading="isEpsCreating" @click="openAddEpsDialog" />
+                            </div>
+                            <DataTable
+                                :value="epsRows"
+                                stripedRows
+                                :paginator="epsRows.length > 10"
+                                :rows="10"
+                                dataKey="date"
+                                class="p-datatable-sm"
+                            >
+                                <template #empty>
+                                    <div class="text-center p-3 text-color-secondary">
+                                        No EPS data. Add a filing or run the <code>eps-import</code> task.
+                                    </div>
+                                </template>
+                                <Column field="date" header="Filing date">
+                                    <template #body="{ data }">
+                                        {{ formatTableDate(data.date) }}
+                                    </template>
+                                </Column>
+                                <Column field="basic" header="Basic EPS">
+                                    <template #body="{ data }">
+                                        {{ formatEps(data.basic) }}
+                                    </template>
+                                </Column>
+                                <Column field="diluted" header="Diluted EPS">
+                                    <template #body="{ data }">
+                                        {{ formatEps(data.diluted) }}
+                                    </template>
+                                </Column>
+                                <Column header="Actions" style="width: 120px">
+                                    <template #body="{ data }">
+                                        <Button
+                                            icon="ti ti-pencil"
+                                            text
+                                            size="small"
+                                            severity="secondary"
+                                            :loading="isEpsUpdating"
+                                            @click="openEditEpsDialog(data)"
+                                        />
+                                        <Button
+                                            icon="ti ti-trash"
+                                            text
+                                            size="small"
+                                            severity="danger"
+                                            :loading="isEpsDeleting"
+                                            @click="openDeleteEpsDialog(data)"
+                                        />
+                                    </template>
+                                </Column>
+                            </DataTable>
+                        </TabPanel>
                     </TabView>
 
                     <Dialog
@@ -550,6 +708,61 @@ function goBack() {
                         title="Delete market data"
                         message="Remove this data point?"
                         @confirm="confirmDeleteData"
+                    />
+
+                    <Dialog
+                        v-model:visible="epsDialogVisible"
+                        :header="epsDialogMode === 'add' ? 'Add EPS filing' : 'Edit EPS filing'"
+                        modal
+                        class="entry-dialog"
+                        @hide="epsDialogVisible = false"
+                    >
+                        <div class="flex flex-column gap-3 py-2">
+                            <div class="field">
+                                <label for="eps-date">Filing date</label>
+                                <DatePicker
+                                    :id="'eps-date'"
+                                    :modelValue="epsDialogForm.date ? new Date(epsDialogForm.date + 'T12:00:00') : null"
+                                    @update:modelValue="(d: any) => { epsDialogForm.date = d ? toLocalDateString(d) : '' }"
+                                    :dateFormat="pickerDateFormat"
+                                    showIcon
+                                    class="w-full"
+                                />
+                            </div>
+                            <div class="field">
+                                <label for="eps-basic">Basic EPS</label>
+                                <InputNumber
+                                    id="eps-basic"
+                                    v-model="epsDialogForm.basic"
+                                    mode="decimal"
+                                    :minFractionDigits="2"
+                                    :maxFractionDigits="2"
+                                    class="w-full"
+                                />
+                            </div>
+                            <div class="field">
+                                <label for="eps-diluted">Diluted EPS</label>
+                                <InputNumber
+                                    id="eps-diluted"
+                                    v-model="epsDialogForm.diluted"
+                                    mode="decimal"
+                                    :minFractionDigits="2"
+                                    :maxFractionDigits="2"
+                                    class="w-full"
+                                />
+                            </div>
+                        </div>
+                        <template #footer>
+                            <Button label="Cancel" text severity="secondary" @click="epsDialogVisible = false" />
+                            <Button label="Save" icon="ti ti-check" :loading="isEpsCreating || isEpsUpdating" @click="saveEpsDialog" />
+                        </template>
+                    </Dialog>
+
+                    <ConfirmDialog
+                        v-model:visible="epsDeleteDialogVisible"
+                        title="Delete EPS filing"
+                        message="Remove this EPS filing?"
+                        @confirm="confirmDeleteEps"
                     />
                 </template>
             </Card>

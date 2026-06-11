@@ -20,6 +20,18 @@ export interface CreatePriceDTO {
     volume: number
 }
 
+export interface EpsRecord {
+    time: string
+    eps_basic: number
+    eps_diluted: number
+}
+
+export interface CreateEpsDTO {
+    time: string
+    eps_basic: number
+    eps_diluted: number
+}
+
 const MARKET_DATA_PATH = '/fin/marketdata'
 
 export async function getMarketDataSymbols(): Promise<string[]> {
@@ -83,4 +95,40 @@ export async function updatePrice(
 
 export async function deletePrice(symbol: string, date: string): Promise<void> {
     await apiClient.delete(`${MARKET_DATA_PATH}/${encodeURIComponent(symbol)}/prices/${encodeURIComponent(date)}`)
+}
+
+export async function getEpsHistory(
+    symbol: string,
+    start?: string,
+    end?: string
+): Promise<EpsRecord[]> {
+    const params = new URLSearchParams()
+    if (start) params.set('start', start)
+    if (end) params.set('end', end)
+    const qs = params.toString()
+    const url = `${MARKET_DATA_PATH}/${encodeURIComponent(symbol)}/eps${qs ? `?${qs}` : ''}`
+    const { data } = await apiClient.get<{ items: EpsRecord[] }>(url)
+    return data.items ?? []
+}
+
+export async function createEps(symbol: string, payload: CreateEpsDTO): Promise<void> {
+    await apiClient.post(
+        `${MARKET_DATA_PATH}/${encodeURIComponent(symbol)}/eps`,
+        payload
+    )
+}
+
+export async function updateEps(
+    symbol: string,
+    origDate: string,
+    payload: CreateEpsDTO
+): Promise<void> {
+    await apiClient.put(
+        `${MARKET_DATA_PATH}/${encodeURIComponent(symbol)}/eps/${encodeURIComponent(origDate)}`,
+        payload
+    )
+}
+
+export async function deleteEps(symbol: string, date: string): Promise<void> {
+    await apiClient.delete(`${MARKET_DATA_PATH}/${encodeURIComponent(symbol)}/eps/${encodeURIComponent(date)}`)
 }

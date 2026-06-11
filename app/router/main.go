@@ -29,6 +29,7 @@ type Cfg struct {
 	AuthDisabled      bool   // when true, no login required; all operations use DefaultUser
 	DefaultUser       string // used when AuthDisabled=true
 	Logger            *slog.Logger
+	LogLevel          string // human-readable log level, surfaced on the about page
 	BackupDestination string
 	ProductionMode    bool
 	AppSettings       handlrs.AppSettings
@@ -59,6 +60,7 @@ type MainAppHandler struct {
 	authDisabled      bool
 	defaultUser       string
 	logger            *slog.Logger
+	logLevel          string
 	backupDestination string
 	productionMode    bool
 	appSettings       handlrs.AppSettings
@@ -86,6 +88,7 @@ func New(cfg Cfg) (*MainAppHandler, error) {
 		authDisabled:      cfg.AuthDisabled,
 		defaultUser:       cfg.DefaultUser,
 		logger:            cfg.Logger,
+		logLevel:          cfg.LogLevel,
 		backupDestination: cfg.BackupDestination,
 		productionMode:    cfg.ProductionMode,
 		appSettings:       cfg.AppSettings,

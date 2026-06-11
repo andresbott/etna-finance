@@ -1,0 +1,163 @@
+package marketdata
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/andresbott/etna/internal/marketdata/importer"
+	"github.com/go-bumbu/timeseries"
+)
+
+// EPSPoint is a single quarterly EPS observation to write to the store.
+type EPSPoint struct {
+	Time    time.Time
+	Basic   float64
+	Diluted float64
+}
+
+// EPSRecord is a stored EPS observation for a symbol.
+type EPSRecord struct {
+	Symbol  string
+	Time    time.Time
+	Basic   float64
+	Diluted float64
+}
+
+func (p EPSPoint) values() map[string]float64 {
+	return map[string]float64{"basic": p.Basic, "diluted": p.Diluted}
+}
+
+func pointToEPSRecord(symbol string, p timeseries.Point) EPSRecord {
+	return EPSRecord{
+		Symbol:  symbol,
+		Time:    p.Time,
+		Basic:   p.Values["basic"],
+		Diluted: p.Values["diluted"],
+	}
+}
+
+// registerEPSSeries defines (creates or updates) the eps: series for the symbol. Unlike
+// RegisterInstrument it does not touch the price series or instrument metadata.
+func (s *Store) registerEPSSeries(ctx context.Context, symbol string) error {
+	if err := s.store.DefineSeries(ctx, epsSeries(symbol)); err != nil {
+		return fmt.Errorf("failed to define EPS series for %q: %w", symbol, err)
+	}
+	return nil
+}
+
+// IngestEPS records a single EPS observation. Series is auto-registered.
+func (s *Store) IngestEPS(ctx context.Context, symbol string, p EPSPoint) error {
+	if symbol == "" {
+		return fmt.Errorf("instrument symbol cannot be empty")
+	}
+	if err := s.registerEPSSeries(ctx, symbol); err != nil {
+		return err
+	}
+	if err := s.store.Write(ctx, epsSeriesName(symbol), timeseries.Point{Time: p.Time, Values: p.values()}); err != nil {
+		return fmt.Errorf("failed to write EPS for %q: %w", symbol, err)
+	}
+	return nil
+}
+
+// IngestEPSBulk records many EPS observations in one transaction. Series is auto-registered.
+func (s *Store) IngestEPSBulk(ctx context.Context, symbol string, points []EPSPoint) error {
+	if symbol == "" {
+		return fmt.Errorf("instrument symbol cannot be empty")
+	}
+	if len(points) == 0 {
+		return nil
+	}
+	if err := s.registerEPSSeries(ctx, symbol); err != nil {
+		return err
+	}
+	pts := make([]timeseries.Point, len(points))
+	for i, p := range points {
+		pts[i] = timeseries.Point{Time: p.Time, Values: p.values()}
+	}
+	if err := s.store.WriteMany(ctx, epsSeriesName(symbol), pts); err != nil {
+		return fmt.Errorf("failed to bulk write EPS for %q: %w", symbol, err)
+	}
+	return nil
+}
+
+// EPSHistory returns EPS records in [start, end]. Zero times mean unbounded. Returns nil when the
+// series does not exist.
+func (s *Store) EPSHistory(ctx context.Context, symbol string, start, end time.Time) ([]EPSRecord, error) {
+	if symbol == "" {
+		return nil, fmt.Errorf("instrument symbol cannot be empty")
+	}
+	points, err := s.store.Range(ctx, epsSeriesName(symbol), start, end)
+	if err != nil {
+		if errors.Is(err, timeseries.ErrSeriesNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to list EPS for %q: %w", symbol, err)
+	}
+	out := make([]EPSRecord, len(points))
+	for i, p := range points {
+		out[i] = pointToEPSRecord(symbol, p)
+	}
+	return out, nil
+}
+
+// LatestEPS returns the most recent EPS record, or nil if none.
+func (s *Store) LatestEPS(ctx context.Context, symbol string) (*EPSRecord, error) {
+	if symbol == "" {
+		return nil, fmt.Errorf("instrument symbol cannot be empty")
+	}
+	p, found, err := s.store.Latest(ctx, epsSeriesName(symbol))
+	if err != nil {
+		if errors.Is(err, timeseries.ErrSeriesNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get latest EPS for %q: %w", symbol, err)
+	}
+	if !found {
+		return nil, nil
+	}
+	rec := pointToEPSRecord(symbol, p)
+	return &rec, nil
+}
+
+// EditEPS overwrites the EPS observation. If newTime differs from oldTime, the old timestamp is
+// removed as part of the same write (an atomic move). A zero oldTime behaves as a plain write.
+func (s *Store) EditEPS(ctx context.Context, symbol string, oldTime time.Time, p EPSPoint) error {
+	if symbol == "" {
+		return fmt.Errorf("instrument symbol cannot be empty")
+	}
+	if oldTime.IsZero() || oldTime.Equal(p.Time) {
+		return s.IngestEPS(ctx, symbol, p)
+	}
+	if err := s.registerEPSSeries(ctx, symbol); err != nil {
+		return err
+	}
+	if err := s.store.Move(ctx, epsSeriesName(symbol), oldTime, timeseries.Point{Time: p.Time, Values: p.values()}); err != nil {
+		return fmt.Errorf("failed to move EPS for %q: %w", symbol, err)
+	}
+	return nil
+}
+
+// DeleteEPSAt removes the EPS observation at exactly t.
+func (s *Store) DeleteEPSAt(ctx context.Context, symbol string, t time.Time) error {
+	if symbol == "" {
+		return fmt.Errorf("instrument symbol cannot be empty")
+	}
+	if err := s.store.Delete(ctx, epsSeriesName(symbol), t); err != nil {
+		return fmt.Errorf("failed to delete EPS for %q: %w", symbol, err)
+	}
+	return nil
+}
+
+// EPSPointsFromImporter converts importer EPS points into store EPSPoints for IngestEPSBulk.
+func EPSPointsFromImporter(pts []importer.EPSPoint) []EPSPoint {
+	if len(pts) == 0 {
+		return nil
+	}
+	out := make([]EPSPoint, len(pts))
+	for i, p := range pts {
+		out[i] = EPSPoint{Time: p.Time, Basic: p.Basic, Diluted: p.Diluted}
+	}
+	return out
+}

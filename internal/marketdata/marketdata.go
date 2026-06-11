@@ -16,7 +16,8 @@ const (
 	// defaultRetention is how long price data is kept (10 years).
 	defaultRetention = 10 * 365 * 24 * time.Hour
 
-	seriesPrefix = "price:"
+	seriesPrefix    = "price:"
+	epsSeriesPrefix = "eps:"
 )
 
 // Store manages market data time series and instrument definitions.
@@ -57,6 +58,25 @@ func ohlcvSeries(symbol string) timeseries.Series {
 			{Name: "low", Aggregate: timeseries.AggMin},
 			{Name: "close", Aggregate: timeseries.AggLast},
 			{Name: "volume", Aggregate: timeseries.AggSum},
+		},
+	}
+}
+
+// epsSeriesName returns the timeseries name for a given instrument symbol's EPS series.
+func epsSeriesName(symbol string) string {
+	return epsSeriesPrefix + symbol
+}
+
+// epsSeries returns the Series definition for an instrument's quarterly EPS. Both fields use
+// AggLast so a restatement at the same date overwrites the prior value.
+func epsSeries(symbol string) timeseries.Series {
+	return timeseries.Series{
+		Name:      epsSeriesName(symbol),
+		Precision: defaultPrecision,
+		Retention: defaultRetention,
+		Fields: []timeseries.Field{
+			{Name: "basic", Aggregate: timeseries.AggLast},
+			{Name: "diluted", Aggregate: timeseries.AggLast},
 		},
 	}
 }

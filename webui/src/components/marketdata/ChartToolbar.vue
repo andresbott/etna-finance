@@ -139,8 +139,6 @@ const indicatorHelp = [
                     v-model="pe.enabled"
                     onLabel="P/E" offLabel="P/E"
                     class="indicator-toggle"
-                    disabled
-                    v-tooltip.top="'Coming soon — needs fundamentals (EPS) data'"
                 />
             </div>
             <Button

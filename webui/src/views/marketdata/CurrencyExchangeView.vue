@@ -12,6 +12,7 @@ import Message from 'primevue/message'
 import Dialog from 'primevue/dialog'
 import DatePicker from 'primevue/datepicker'
 import InputNumber from 'primevue/inputnumber'
+import CurrencyCalculatorDialog from '@/views/marketdata/CurrencyCalculatorDialog.vue'
 import { useDateFormat } from '@/composables/useDateFormat'
 import { toLocalDateString } from '@/composables/useMarketData'
 import {
@@ -24,6 +25,8 @@ const { formatDate, pickerDateFormat } = useDateFormat()
 const router = useRouter()
 const { mainCurrency, currencyRows, isLoading, isError, error, refetch } = useFXOverview()
 const leftSidebarCollapsed = ref(true)
+
+const calculatorVisible = ref(false)
 
 const addDialogCurrency = ref('')
 const addDialogVisible = ref(false)
@@ -72,6 +75,12 @@ function onRowClick(event) {
                             />
                         </p>
                     </div>
+                    <Button
+                        label="Calculator"
+                        icon="ti ti-calculator"
+                        outlined
+                        @click="calculatorVisible = true"
+                    />
                 </div>
 
                 <Message v-if="isError" severity="error" :closable="false" class="mb-3">
@@ -196,6 +205,12 @@ function onRowClick(event) {
                         <Button label="Save" icon="ti ti-check" :loading="isCreating" @click="saveAddDialog" />
                     </template>
                 </Dialog>
+
+                <CurrencyCalculatorDialog
+                    v-model:visible="calculatorVisible"
+                    :mainCurrency="mainCurrency"
+                    :rows="currencyRows"
+                />
             </div>
         </template>
     </ResponsiveHorizontal>

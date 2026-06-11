@@ -251,6 +251,18 @@ func (s *Store) GetFilePath(ctx context.Context, id uint) (string, error) {
 	return absPath, nil
 }
 
+// TotalSize returns the sum of file sizes for all non-deleted attachments.
+// Soft-deleted records are excluded by GORM's default scope, mirroring the
+// files actually present on disk.
+func (s *Store) TotalSize(ctx context.Context) (int64, error) {
+	var total int64
+	if err := s.db.WithContext(ctx).Model(&dbAttachment{}).
+		Select("COALESCE(SUM(file_size), 0)").Scan(&total).Error; err != nil {
+		return 0, fmt.Errorf("summing attachment sizes: %w", err)
+	}
+	return total, nil
+}
+
 // detectMimeType detects the MIME type from file content.
 // It extends http.DetectContentType with WebP support (RIFF....WEBP signature).
 func detectMimeType(content []byte) string {

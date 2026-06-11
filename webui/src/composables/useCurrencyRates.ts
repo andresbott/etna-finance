@@ -9,7 +9,7 @@ import {
     deleteRate as deleteRateApi,
     parsePair
 } from '@/lib/api/CurrencyRates'
-import type { CreateRateDTO, UpdateRateDTO, RateRecord } from '@/lib/api/CurrencyRates'
+import type { CreateRateDTO, RateRecord } from '@/lib/api/CurrencyRates'
 import { lastDaysRange, rangeToStartEnd } from '@/utils/dateRange'
 
 export { formatPct, getChangeSeverity } from '@/utils/format'
@@ -140,12 +140,12 @@ export function useFXMutations(main: MaybeRefOrGetter<string>, secondary: MaybeR
         onSuccess: invalidate
     })
     const updateMutation = useMutation({
-        mutationFn: ({ id, payload }: { id: number; payload: UpdateRateDTO }) =>
-            updateRateApi(getMain(), getSecondary(), id, payload),
+        mutationFn: ({ origDate, payload }: { origDate: string; payload: CreateRateDTO }) =>
+            updateRateApi(getMain(), getSecondary(), origDate, payload),
         onSuccess: invalidate
     })
     const deleteMutation = useMutation({
-        mutationFn: (id: number) => deleteRateApi(getMain(), getSecondary(), id),
+        mutationFn: (date: string) => deleteRateApi(getMain(), getSecondary(), date),
         onSuccess: invalidate
     })
 

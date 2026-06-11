@@ -279,11 +279,223 @@ func (h *Handler) DeletePrice(symbol, date string) http.Handler {
 }
 
 // =============================================================================
+// EPS endpoints (mirrors the price endpoints; powers the TTM P·E chart line)
+// =============================================================================
+
+type epsPayload struct {
+	Time       string  `json:"time"`
+	EPSBasic   float64 `json:"eps_basic"`
+	EPSDiluted float64 `json:"eps_diluted"`
+}
+
+func (p epsPayload) toPoint() (marketdata.EPSPoint, error) {
+	t, err := time.Parse(timeLayout, p.Time)
+	if err != nil {
+		return marketdata.EPSPoint{}, err
+	}
+	return marketdata.EPSPoint{Time: t, Basic: p.EPSBasic, Diluted: p.EPSDiluted}, nil
+}
+
+type epsBulkCreatePayload struct {
+	Points []epsPayload `json:"points"`
+}
+
+func epsRecordToPayload(r marketdata.EPSRecord) epsPayload {
+	return epsPayload{Time: r.Time.Format(timeLayout), EPSBasic: r.Basic, EPSDiluted: r.Diluted}
+}
+
+// ListEPS returns the EPS history for the given symbol. Query params "start"/"end" (YYYY-MM-DD) bound the range.
+func (h *Handler) ListEPS(symbol string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if symbol == "" {
+			http.Error(w, "symbol is required", http.StatusBadRequest)
+			return
+		}
+		var start, end time.Time
+		if v := r.URL.Query().Get("start"); v != "" {
+			t, err := time.Parse(timeLayout, v)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("invalid start date: %s", err.Error()), http.StatusBadRequest)
+				return
+			}
+			start = t
+		}
+		if v := r.URL.Query().Get("end"); v != "" {
+			t, err := time.Parse(timeLayout, v)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("invalid end date: %s", err.Error()), http.StatusBadRequest)
+				return
+			}
+			end = t.Add(24*time.Hour - time.Nanosecond) // inclusive of that calendar day
+		}
+		records, err := h.Store.EPSHistory(r.Context(), symbol, start, end)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to list EPS: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		out := make([]epsPayload, len(records))
+		for i, rec := range records {
+			out[i] = epsRecordToPayload(rec)
+		}
+		type response struct {
+			Items []epsPayload `json:"items"`
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(response{Items: out}); err != nil {
+			http.Error(w, fmt.Sprintf("error encoding JSON: %s", err.Error()), http.StatusInternalServerError)
+		}
+	})
+}
+
+// LatestEPS returns the most recent EPS record for the given symbol.
+func (h *Handler) LatestEPS(symbol string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if symbol == "" {
+			http.Error(w, "symbol is required", http.StatusBadRequest)
+			return
+		}
+		rec, err := h.Store.LatestEPS(r.Context(), symbol)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to get latest EPS: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		if rec == nil {
+			http.Error(w, "no EPS data found", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(epsRecordToPayload(*rec))
+	})
+}
+
+// CreateEPS ingests a single EPS observation for the given symbol.
+func (h *Handler) CreateEPS(symbol string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if symbol == "" {
+			http.Error(w, "symbol is required", http.StatusBadRequest)
+			return
+		}
+		if r.Body == nil {
+			http.Error(w, "request had empty body", http.StatusBadRequest)
+			return
+		}
+		var payload epsPayload
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, fmt.Sprintf("unable to decode json: %s", err.Error()), http.StatusBadRequest)
+			return
+		}
+		pt, err := payload.toPoint()
+		if err != nil {
+			http.Error(w, fmt.Sprintf("invalid time: %s", err.Error()), http.StatusBadRequest)
+			return
+		}
+		if err := h.Store.IngestEPS(r.Context(), symbol, pt); err != nil {
+			http.Error(w, fmt.Sprintf("unable to ingest EPS: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(epsRecordToPayload(marketdata.EPSRecord{Symbol: symbol, Time: pt.Time, Basic: pt.Basic, Diluted: pt.Diluted}))
+	})
+}
+
+// CreateEPSBulk ingests multiple EPS observations for the given symbol.
+func (h *Handler) CreateEPSBulk(symbol string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if symbol == "" {
+			http.Error(w, "symbol is required", http.StatusBadRequest)
+			return
+		}
+		if r.Body == nil {
+			http.Error(w, "request had empty body", http.StatusBadRequest)
+			return
+		}
+		var payload epsBulkCreatePayload
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, fmt.Sprintf("unable to decode json: %s", err.Error()), http.StatusBadRequest)
+			return
+		}
+		if len(payload.Points) == 0 {
+			http.Error(w, "no EPS points provided", http.StatusBadRequest)
+			return
+		}
+		points := make([]marketdata.EPSPoint, len(payload.Points))
+		for i, p := range payload.Points {
+			pt, err := p.toPoint()
+			if err != nil {
+				http.Error(w, fmt.Sprintf("invalid time at index %d: %s", i, err.Error()), http.StatusBadRequest)
+				return
+			}
+			points[i] = pt
+		}
+		if err := h.Store.IngestEPSBulk(r.Context(), symbol, points); err != nil {
+			http.Error(w, fmt.Sprintf("unable to bulk ingest EPS: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+	})
+}
+
+// EditEPS upserts the EPS observation for {symbol} at the given original {date}. Body carries the
+// full point (its time may differ from {date} to move the record). Mirrors EditPrice.
+func (h *Handler) EditEPS(symbol, origDate string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if symbol == "" || origDate == "" {
+			http.Error(w, "symbol and date are required", http.StatusBadRequest)
+			return
+		}
+		oldTime, err := time.Parse(timeLayout, origDate)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("invalid date: %s", err.Error()), http.StatusBadRequest)
+			return
+		}
+		if r.Body == nil {
+			http.Error(w, "request had empty body", http.StatusBadRequest)
+			return
+		}
+		var payload epsPayload
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, fmt.Sprintf("unable to decode json: %s", err.Error()), http.StatusBadRequest)
+			return
+		}
+		pt, err := payload.toPoint()
+		if err != nil {
+			http.Error(w, fmt.Sprintf("invalid time: %s", err.Error()), http.StatusBadRequest)
+			return
+		}
+		if err := h.Store.EditEPS(r.Context(), symbol, oldTime, pt); err != nil {
+			http.Error(w, fmt.Sprintf("unable to update EPS: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+}
+
+// DeleteEPS removes the EPS observation for {symbol} at the given {date}. Mirrors DeletePrice.
+func (h *Handler) DeleteEPS(symbol, date string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if symbol == "" || date == "" {
+			http.Error(w, "symbol and date are required", http.StatusBadRequest)
+			return
+		}
+		t, err := time.Parse(timeLayout, date)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("invalid date: %s", err.Error()), http.StatusBadRequest)
+			return
+		}
+		if err := h.Store.DeleteEPSAt(r.Context(), symbol, t); err != nil {
+			http.Error(w, fmt.Sprintf("unable to delete EPS: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+}
+
+// =============================================================================
 // Currency exchange (FX) endpoints
 // =============================================================================
 
 type fxRatePayload struct {
-	ID        uint    `json:"id"`
 	Main      string  `json:"main"`
 	Secondary string  `json:"secondary"`
 	Time      string  `json:"time"`
@@ -295,9 +507,12 @@ type fxRateCreatePayload struct {
 	Rate float64 `json:"rate"`
 }
 
-type fxRateUpdatePayload struct {
-	Time *string  `json:"time,omitempty"`
-	Rate *float64 `json:"rate,omitempty"`
+func (p fxRateCreatePayload) toPoint() (marketdata.RatePoint, error) {
+	t, err := time.Parse(timeLayout, p.Time)
+	if err != nil {
+		return marketdata.RatePoint{}, err
+	}
+	return marketdata.RatePoint{Time: t, Rate: p.Rate}, nil
 }
 
 type fxBulkCreatePayload struct {
@@ -332,7 +547,6 @@ func (h *Handler) ListFXPairs() http.Handler {
 
 func fxRecordToPayload(rec marketdata.RateRecord) fxRatePayload {
 	return fxRatePayload{
-		ID:        rec.ID,
 		Main:      rec.Main,
 		Secondary: rec.Secondary,
 		Time:      rec.Time.Format(timeLayout),
@@ -419,12 +633,12 @@ func (h *Handler) CreateFXRate(main, secondary string) http.Handler {
 			http.Error(w, fmt.Sprintf("unable to decode json: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
-		t, err := time.Parse(timeLayout, payload.Time)
+		pt, err := payload.toPoint()
 		if err != nil {
 			http.Error(w, fmt.Sprintf("invalid time: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
-		if err := h.Store.IngestRate(r.Context(), main, secondary, t, payload.Rate); err != nil {
+		if err := h.Store.IngestRate(r.Context(), main, secondary, pt.Time, pt.Rate); err != nil {
 			http.Error(w, fmt.Sprintf("unable to ingest rate: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
@@ -432,7 +646,7 @@ func (h *Handler) CreateFXRate(main, secondary string) http.Handler {
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(fxRatePayload{
 			Main: main, Secondary: secondary,
-			Time: t.Format(timeLayout), Rate: payload.Rate,
+			Time: pt.Time.Format(timeLayout), Rate: pt.Rate,
 		})
 	})
 }
@@ -459,12 +673,12 @@ func (h *Handler) CreateFXRatesBulk(main, secondary string) http.Handler {
 		}
 		points := make([]marketdata.RatePoint, len(payload.Points))
 		for i, p := range payload.Points {
-			t, err := time.Parse(timeLayout, p.Time)
+			pt, err := p.toPoint()
 			if err != nil {
 				http.Error(w, fmt.Sprintf("invalid time at index %d: %s", i, err.Error()), http.StatusBadRequest)
 				return
 			}
-			points[i] = marketdata.RatePoint{Time: t, Rate: p.Rate}
+			points[i] = pt
 		}
 		if err := h.Store.IngestRatesBulk(r.Context(), main, secondary, points); err != nil {
 			http.Error(w, fmt.Sprintf("unable to bulk ingest rates: %s", err.Error()), http.StatusInternalServerError)
@@ -474,37 +688,34 @@ func (h *Handler) CreateFXRatesBulk(main, secondary string) http.Handler {
 	})
 }
 
-// UpdateFXRate applies a partial update to a rate record identified by (main/secondary, id).
-func (h *Handler) UpdateFXRate(main, secondary string, id uint) http.Handler {
+// EditFXRate upserts the rate for {main}/{secondary} at the given original {date}. Body carries the
+// full rate point (its time may differ from {date} to move the record). Mirrors EditPrice.
+func (h *Handler) EditFXRate(main, secondary, origDate string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if main == "" || secondary == "" {
-			http.Error(w, "main and secondary currency are required", http.StatusBadRequest)
+		if main == "" || secondary == "" || origDate == "" {
+			http.Error(w, "main, secondary and date are required", http.StatusBadRequest)
 			return
 		}
-		if id == 0 {
-			http.Error(w, "valid record id is required", http.StatusBadRequest)
+		oldTime, err := time.Parse(timeLayout, origDate)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("invalid date: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
 		if r.Body == nil {
 			http.Error(w, "request had empty body", http.StatusBadRequest)
 			return
 		}
-		var payload fxRateUpdatePayload
+		var payload fxRateCreatePayload
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			http.Error(w, fmt.Sprintf("unable to decode json: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
-		var update marketdata.RateUpdate
-		if payload.Time != nil {
-			t, err := time.Parse(timeLayout, *payload.Time)
-			if err != nil {
-				http.Error(w, fmt.Sprintf("invalid time: %s", err.Error()), http.StatusBadRequest)
-				return
-			}
-			update.Time = &t
+		pt, err := payload.toPoint()
+		if err != nil {
+			http.Error(w, fmt.Sprintf("invalid time: %s", err.Error()), http.StatusBadRequest)
+			return
 		}
-		update.Rate = payload.Rate
-		if err := h.Store.UpdateRate(r.Context(), main, secondary, id, update); err != nil {
+		if err := h.Store.EditRate(r.Context(), main, secondary, oldTime, pt); err != nil {
 			http.Error(w, fmt.Sprintf("unable to update rate: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
@@ -512,18 +723,19 @@ func (h *Handler) UpdateFXRate(main, secondary string, id uint) http.Handler {
 	})
 }
 
-// DeleteFXRate removes a rate record identified by (main/secondary, id).
-func (h *Handler) DeleteFXRate(main, secondary string, id uint) http.Handler {
+// DeleteFXRate removes the rate record for {main}/{secondary} at the given {date}. Mirrors DeletePrice.
+func (h *Handler) DeleteFXRate(main, secondary, date string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if main == "" || secondary == "" {
-			http.Error(w, "main and secondary currency are required", http.StatusBadRequest)
+		if main == "" || secondary == "" || date == "" {
+			http.Error(w, "main, secondary and date are required", http.StatusBadRequest)
 			return
 		}
-		if id == 0 {
-			http.Error(w, "valid record id is required", http.StatusBadRequest)
+		t, err := time.Parse(timeLayout, date)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("invalid date: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
-		if err := h.Store.DeleteRate(r.Context(), main, secondary, id); err != nil {
+		if err := h.Store.DeleteRateAt(r.Context(), main, secondary, t); err != nil {
 			http.Error(w, fmt.Sprintf("unable to delete rate: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}

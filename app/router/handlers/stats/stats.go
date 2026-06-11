@@ -6,22 +6,28 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/andresbott/etna/internal/filestore"
 	"github.com/andresbott/etna/internal/marketdata"
 	"gorm.io/gorm"
 )
 
-// Handler serves aggregate application statistics (storage volume).
+// Handler serves aggregate application statistics (storage volume) and
+// runtime configuration (log level).
 type Handler struct {
 	DB          *gorm.DB
 	MarketStore *marketdata.Store
+	FileStore   *filestore.Store
+	LogLevel    string
 }
 
 type statsResponse struct {
-	DBSizeBytes int64 `json:"dbSizeBytes"`
-	PriceSeries int   `json:"priceSeries"`
-	PricePoints int   `json:"pricePoints"`
-	FXSeries    int   `json:"fxSeries"`
-	FXPoints    int   `json:"fxPoints"`
+	DBSizeBytes          int64  `json:"dbSizeBytes"`
+	AttachmentsSizeBytes int64  `json:"attachmentsSizeBytes"`
+	PriceSeries          int    `json:"priceSeries"`
+	PricePoints          int    `json:"pricePoints"`
+	FXSeries             int    `json:"fxSeries"`
+	FXPoints             int    `json:"fxPoints"`
+	LogLevel             string `json:"logLevel"`
 }
 
 // Stats returns storage statistics: database size and market data / FX volume.
@@ -37,12 +43,22 @@ func (h *Handler) Stats() http.Handler {
 			http.Error(w, fmt.Sprintf("unable to measure database size: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
+		var attachmentsSize int64
+		if h.FileStore != nil {
+			attachmentsSize, err = h.FileStore.TotalSize(r.Context())
+			if err != nil {
+				http.Error(w, fmt.Sprintf("unable to measure attachments size: %s", err.Error()), http.StatusInternalServerError)
+				return
+			}
+		}
 		resp := statsResponse{
-			DBSizeBytes: size,
-			PriceSeries: ds.PriceSeries,
-			PricePoints: ds.PricePoints,
-			FXSeries:    ds.FXSeries,
-			FXPoints:    ds.FXPoints,
+			DBSizeBytes:          size,
+			AttachmentsSizeBytes: attachmentsSize,
+			PriceSeries:          ds.PriceSeries,
+			PricePoints:          ds.PricePoints,
+			FXSeries:             ds.FXSeries,
+			FXPoints:             ds.FXPoints,
+			LogLevel:             h.LogLevel,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(resp); err != nil {

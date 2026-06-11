@@ -18,6 +18,8 @@ import { useTsdbPrices, type OhlcvData } from '@/composables/useTsdbPrices'
 import { useIndicators, type IndicatorParams } from '@/composables/useIndicators'
 import { useCandlestickChart } from '@/composables/useCandlestickChart'
 import { useChartControls } from '@/composables/useChartControls'
+import { useEpsHistory } from '@/composables/useMarketData'
+import { computeTtmPe } from '@/utils/ttmPe'
 
 use([
     CanvasRenderer, CandlestickChart, LineChart, BarChart,
@@ -29,7 +31,7 @@ const props = defineProps<{
 }>()
 
 const store = useChartControls()
-const { selectedRange, indicatorParams } = storeToRefs(store)
+const { selectedRange, indicatorParams, pe } = storeToRefs(store)
 
 /** Largest indicator lookback period (in trading days). */
 function maxWarmupPeriod(p: IndicatorParams): number {
@@ -85,10 +87,15 @@ const ohlcv = computed<OhlcvData>(() => {
     }
 })
 
-// P/E ratio — not available in etna (no fundamentals endpoint); placeholders keep the
-// chart composable's optional P/E grid dormant.
-const peRatio = computed<(number | null)[]>(() => [])
-const peEnabled = computed(() => false)
+// EPS filings power the trailing-twelve-month P/E line (fetched in full — the series is tiny).
+const { data: epsData } = useEpsHistory(symbolRef)
+
+// Compute P/E on the full dataset (including warmup prefix), then trim to the visible window.
+const fullPeRatio = computed<(number | null)[]>(() =>
+    computeTtmPe(fullOhlcv.value.dates, fullOhlcv.value.closes, epsData.value)
+)
+const peRatio = computed<(number | null)[]>(() => sliceArray(fullPeRatio.value, trimIndex.value))
+const peEnabled = computed(() => pe.value.enabled)
 
 // Trim warmup prefix from indicator data
 const indicators = computed(() => {

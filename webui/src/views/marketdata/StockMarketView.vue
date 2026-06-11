@@ -10,6 +10,7 @@ import Column from 'primevue/column'
 import Tag from 'primevue/tag'
 import Message from 'primevue/message'
 import Dialog from 'primevue/dialog'
+import Checkbox from 'primevue/checkbox'
 import DatePicker from 'primevue/datepicker'
 import InputNumber from 'primevue/inputnumber'
 import InstrumentFilters from '@/components/marketdata/InstrumentFilters.vue'
@@ -18,6 +19,7 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { useDateFormat } from '@/composables/useDateFormat'
 import { useInstruments } from '@/composables/useInstruments'
 import { useSettingsStore } from '@/store/settingsStore'
+import { useCompareSelection } from '@/store/compareSelection'
 import { useToast } from 'primevue/usetoast'
 import { getApiErrorMessage } from '@/utils/apiError'
 import {
@@ -35,6 +37,48 @@ const router = useRouter()
 const toast = useToast()
 const settingsStore = useSettingsStore()
 const defaultCurrency = computed(() => settingsStore.mainCurrency || 'CHF')
+
+const compare = useCompareSelection()
+
+function onToggleCompare(id) {
+    if (!compare.toggle(id)) {
+        toast.add({
+            severity: 'warn',
+            summary: 'Compare limit reached',
+            detail: 'You can compare up to 10 instruments at once.',
+            life: 4000
+        })
+    }
+}
+
+// Compare mode reveals the selection checkboxes. The first click on the Compare
+// button enters this mode; a subsequent click (with >= 2 selected) opens the
+// comparison. "Clear" leaves the mode and drops the selection. Initialised from
+// the store so returning from the compare view keeps the checkboxes visible.
+const compareMode = ref(compare.count > 0)
+
+function onCompareClick() {
+    if (!compareMode.value) {
+        compareMode.value = true
+        return
+    }
+    // Carry the selection in the URL so the comparison link is shareable.
+    router.push({ name: 'stock-compare', query: { ids: compare.selectedIds.join(',') } })
+}
+
+function exitCompareMode() {
+    compare.clear()
+    compareMode.value = false
+}
+
+function clearSelection() {
+    compare.clear()
+}
+
+const compareTooltip = computed(() => {
+    if (!compareMode.value) return 'Select instruments to compare'
+    return compare.canCompare ? 'Compare selected instruments' : 'Select at least 2 instruments'
+})
 
 const { instruments, isLoading, isError, error, refetch } = useMarketInstruments()
 const {
@@ -206,6 +250,33 @@ const onRowClick = (event) => {
                     </div>
                     <div class="flex align-items-center gap-2">
                         <Button
+                            v-if="compareMode && compare.count > 0"
+                            label="Clear"
+                            text
+                            size="small"
+                            severity="secondary"
+                            @click="clearSelection"
+                        />
+                        <Button
+                            v-if="compareMode"
+                            label="Exit"
+                            icon="ti ti-x"
+                            text
+                            size="small"
+                            severity="secondary"
+                            @click="exitCompareMode"
+                        />
+                        <Button
+                            icon="ti ti-git-compare"
+                            :label="compareMode ? `Compare (${compare.count})` : 'Compare'"
+                            severity="secondary"
+                            outlined
+                            size="small"
+                            :disabled="compareMode && !compare.canCompare"
+                            v-tooltip.bottom="compareTooltip"
+                            @click="onCompareClick"
+                        />
+                        <Button
                             :icon="filtersExpanded ? 'ti ti-filter-off' : 'ti ti-filter'"
                             label="Filter"
                             severity="secondary"
@@ -263,6 +334,16 @@ const onRowClick = (event) => {
                             selectionMode="single"
                             @rowClick="onRowClick"
                         >
+                            <Column v-if="compareMode" header="" :exportable="false" style="width: 3rem; min-width: 3rem">
+                                <template #body="{ data }">
+                                    <Checkbox
+                                        :modelValue="compare.isSelected(data.id)"
+                                        binary
+                                        @click.stop
+                                        @update:modelValue="() => onToggleCompare(data.id)"
+                                    />
+                                </template>
+                            </Column>
                             <Column field="symbol" header="Symbol" sortable>
                                 <template #body="{ data }">
                                     <span class="font-bold">{{ data.symbol }}</span>
