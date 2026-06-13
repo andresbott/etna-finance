@@ -264,14 +264,13 @@ func TestUpdateInstrument(t *testing.T) {
 					want: Instrument{ID: id, Symbol: "OLD", Name: "New Name", Currency: currency.USD},
 				},
 				{
-					name:   "update symbol and currency",
+					name:   "update currency only",
 					id:     id,
 					tenant: tenant1,
 					payload: InstrumentUpdatePayload{
-						Symbol:   ptr("NEW"),
 						Currency: ptr("EUR"),
 					},
-					want: Instrument{ID: id, Symbol: "NEW", Name: "New Name", Currency: currency.EUR},
+					want: Instrument{ID: id, Symbol: "OLD", Name: "New Name", Currency: currency.EUR},
 				},
 				{
 					name:   "update notes only",
@@ -280,7 +279,7 @@ func TestUpdateInstrument(t *testing.T) {
 					payload: InstrumentUpdatePayload{
 						Notes: ptr("some details"),
 					},
-					want: Instrument{ID: id, Symbol: "NEW", Name: "New Name", Currency: currency.EUR, Notes: "some details"},
+					want: Instrument{ID: id, Symbol: "OLD", Name: "New Name", Currency: currency.EUR, Notes: "some details"},
 				},
 				{
 					name:   "update type and exchange",
@@ -290,7 +289,7 @@ func TestUpdateInstrument(t *testing.T) {
 						Type:     ptr("Stock"),
 						Exchange: ptr("NASDAQ"),
 					},
-					want: Instrument{ID: id, Symbol: "NEW", Name: "New Name", Currency: currency.EUR, Notes: "some details", Type: "Stock", Exchange: "NASDAQ"},
+					want: Instrument{ID: id, Symbol: "OLD", Name: "New Name", Currency: currency.EUR, Notes: "some details", Type: "Stock", Exchange: "NASDAQ"},
 				},
 				{
 					name:    "empty symbol rejected",
@@ -321,11 +320,18 @@ func TestUpdateInstrument(t *testing.T) {
 					wantErr: ErrInstrumentNotFound.Error(),
 				},
 				{
-					name:    "duplicate symbol rejected",
+					name:    "symbol change rejected",
 					id:      id,
 					tenant:  tenant1,
 					payload: InstrumentUpdatePayload{Symbol: ptr("TAKEN")},
-					wantErr: ErrInstrumentSymbolDuplicate.Error(),
+					wantErr: "symbol cannot be changed",
+				},
+				{
+					name:    "unchanged symbol allows other edits",
+					id:      id,
+					tenant:  tenant1,
+					payload: InstrumentUpdatePayload{Symbol: ptr("OLD"), Name: ptr("Renamed")},
+					want:    Instrument{ID: id, Symbol: "OLD", Name: "Renamed", Currency: currency.EUR, Notes: "some details", Type: "Stock", Exchange: "NASDAQ"},
 				},
 			}
 

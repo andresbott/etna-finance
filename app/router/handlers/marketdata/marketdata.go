@@ -1,7 +1,9 @@
 package marketdata
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -185,8 +187,6 @@ func (h *Handler) CreatePrice(symbol string) http.Handler {
 }
 
 // CreatePricesBulk ingests multiple price points for the given symbol.
-//
-//nolint:dupl // intentionally parallel to CreateEPSBulk; the price and EPS bulk-create handlers mirror each other
 func (h *Handler) CreatePricesBulk(symbol string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if symbol == "" {
@@ -227,38 +227,58 @@ func (h *Handler) CreatePricesBulk(symbol string) http.Handler {
 	})
 }
 
-// EditPrice upserts the candle for {symbol} at the given original {date}. Body carries the full candle
-// (its time may differ from {date} to move the record).
+// editTimeseriesRecord is the shared body of EditPrice/EditEPS. It validates the path params, parses
+// {origDate}, decodes the body into a payload, converts it to a point and applies the store edit.
+// recordNoun ("price"/"EPS") and immutableMsg tailor the user-facing errors; the date is the
+// record's identity, so a body time that differs from {origDate} surfaces as ErrDateImmutable → 400.
+func editTimeseriesRecord[T, P any](
+	w http.ResponseWriter,
+	r *http.Request,
+	symbol, origDate, recordNoun, immutableMsg string,
+	toPoint func(T) (P, error),
+	edit func(context.Context, string, time.Time, P) error,
+) {
+	if symbol == "" || origDate == "" {
+		http.Error(w, "symbol and date are required", http.StatusBadRequest)
+		return
+	}
+	oldTime, err := time.Parse(timeLayout, origDate)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("invalid date: %s", err.Error()), http.StatusBadRequest)
+		return
+	}
+	if r.Body == nil {
+		http.Error(w, "request had empty body", http.StatusBadRequest)
+		return
+	}
+	var payload T
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, fmt.Sprintf("unable to decode json: %s", err.Error()), http.StatusBadRequest)
+		return
+	}
+	pt, err := toPoint(payload)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("invalid time: %s", err.Error()), http.StatusBadRequest)
+		return
+	}
+	if err := edit(r.Context(), symbol, oldTime, pt); err != nil {
+		if errors.Is(err, marketdata.ErrDateImmutable) {
+			http.Error(w, immutableMsg, http.StatusBadRequest)
+			return
+		}
+		http.Error(w, fmt.Sprintf("unable to update %s: %s", recordNoun, err.Error()), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+// EditPrice upserts the candle for {symbol} at {date}. The body carries the full candle; its time
+// must match {date} — the date is the record's identity and an edit cannot change it (returns 400).
 func (h *Handler) EditPrice(symbol, origDate string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if symbol == "" || origDate == "" {
-			http.Error(w, "symbol and date are required", http.StatusBadRequest)
-			return
-		}
-		oldTime, err := time.Parse(timeLayout, origDate)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("invalid date: %s", err.Error()), http.StatusBadRequest)
-			return
-		}
-		if r.Body == nil {
-			http.Error(w, "request had empty body", http.StatusBadRequest)
-			return
-		}
-		var payload priceCreatePayload
-		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-			http.Error(w, fmt.Sprintf("unable to decode json: %s", err.Error()), http.StatusBadRequest)
-			return
-		}
-		pt, err := payload.toPoint()
-		if err != nil {
-			http.Error(w, fmt.Sprintf("invalid time: %s", err.Error()), http.StatusBadRequest)
-			return
-		}
-		if err := h.Store.EditPrice(r.Context(), symbol, oldTime, pt); err != nil {
-			http.Error(w, fmt.Sprintf("unable to update price: %s", err.Error()), http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
+		editTimeseriesRecord(w, r, symbol, origDate, "price",
+			"a price record's date cannot be changed; delete it and create a new one",
+			priceCreatePayload.toPoint, h.Store.EditPrice)
 	})
 }
 
@@ -275,6 +295,10 @@ func (h *Handler) DeletePrice(symbol, date string) http.Handler {
 			return
 		}
 		if err := h.Store.DeletePriceAt(r.Context(), symbol, t); err != nil {
+			if errors.Is(err, marketdata.ErrRecordNotFound) {
+				http.Error(w, "no price data found", http.StatusNotFound)
+				return
+			}
 			http.Error(w, fmt.Sprintf("unable to delete price: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
@@ -395,6 +419,12 @@ func (h *Handler) CreateEPS(symbol string) http.Handler {
 			http.Error(w, fmt.Sprintf("invalid time: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
+		// Adding the first EPS point is how the series is introduced for a symbol that was not
+		// auto-defined (e.g. a manually annotated non-stock), so ensure the series exists.
+		if err := h.Store.RegisterEPSSeries(r.Context(), symbol); err != nil {
+			http.Error(w, fmt.Sprintf("unable to register EPS series: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
 		if err := h.Store.IngestEPS(r.Context(), symbol, pt); err != nil {
 			http.Error(w, fmt.Sprintf("unable to ingest EPS: %s", err.Error()), http.StatusInternalServerError)
 			return
@@ -406,8 +436,6 @@ func (h *Handler) CreateEPS(symbol string) http.Handler {
 }
 
 // CreateEPSBulk ingests multiple EPS observations for the given symbol.
-//
-//nolint:dupl // intentionally parallel to CreatePricesBulk; the price and EPS bulk-create handlers mirror each other
 func (h *Handler) CreateEPSBulk(symbol string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if symbol == "" {
@@ -436,6 +464,12 @@ func (h *Handler) CreateEPSBulk(symbol string) http.Handler {
 			}
 			points[i] = pt
 		}
+		// Adding the first EPS point is how the series is introduced for a symbol that was not
+		// auto-defined (e.g. a manually annotated non-stock), so ensure the series exists.
+		if err := h.Store.RegisterEPSSeries(r.Context(), symbol); err != nil {
+			http.Error(w, fmt.Sprintf("unable to register EPS series: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
 		if err := h.Store.IngestEPSBulk(r.Context(), symbol, points); err != nil {
 			http.Error(w, fmt.Sprintf("unable to bulk ingest EPS: %s", err.Error()), http.StatusInternalServerError)
 			return
@@ -444,38 +478,14 @@ func (h *Handler) CreateEPSBulk(symbol string) http.Handler {
 	})
 }
 
-// EditEPS upserts the EPS observation for {symbol} at the given original {date}. Body carries the
-// full point (its time may differ from {date} to move the record). Mirrors EditPrice.
+// EditEPS upserts the EPS observation for {symbol} at {date}. The body carries the full point; its
+// time must match {date} — the date is the record's identity and an edit cannot change it (400).
+// Mirrors EditPrice.
 func (h *Handler) EditEPS(symbol, origDate string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if symbol == "" || origDate == "" {
-			http.Error(w, "symbol and date are required", http.StatusBadRequest)
-			return
-		}
-		oldTime, err := time.Parse(timeLayout, origDate)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("invalid date: %s", err.Error()), http.StatusBadRequest)
-			return
-		}
-		if r.Body == nil {
-			http.Error(w, "request had empty body", http.StatusBadRequest)
-			return
-		}
-		var payload epsPayload
-		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-			http.Error(w, fmt.Sprintf("unable to decode json: %s", err.Error()), http.StatusBadRequest)
-			return
-		}
-		pt, err := payload.toPoint()
-		if err != nil {
-			http.Error(w, fmt.Sprintf("invalid time: %s", err.Error()), http.StatusBadRequest)
-			return
-		}
-		if err := h.Store.EditEPS(r.Context(), symbol, oldTime, pt); err != nil {
-			http.Error(w, fmt.Sprintf("unable to update EPS: %s", err.Error()), http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
+		editTimeseriesRecord(w, r, symbol, origDate, "EPS",
+			"an EPS record's date cannot be changed; delete it and create a new one",
+			epsPayload.toPoint, h.Store.EditEPS)
 	})
 }
 
@@ -492,6 +502,10 @@ func (h *Handler) DeleteEPS(symbol, date string) http.Handler {
 			return
 		}
 		if err := h.Store.DeleteEPSAt(r.Context(), symbol, t); err != nil {
+			if errors.Is(err, marketdata.ErrRecordNotFound) {
+				http.Error(w, "no EPS data found", http.StatusNotFound)
+				return
+			}
 			http.Error(w, fmt.Sprintf("unable to delete EPS: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
@@ -707,7 +721,8 @@ func (h *Handler) CreateFXRatesBulk(main, secondary string) http.Handler {
 }
 
 // EditFXRate upserts the rate for {main}/{secondary} at the given original {date}. Body carries the
-// full rate point (its time may differ from {date} to move the record). Mirrors EditPrice.
+// full rate point; its time must match {date} — the date is the record's identity and an edit
+// cannot change it (returns 400). Mirrors EditPrice.
 func (h *Handler) EditFXRate(main, secondary, origDate string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if main == "" || secondary == "" || origDate == "" {
@@ -734,6 +749,10 @@ func (h *Handler) EditFXRate(main, secondary, origDate string) http.Handler {
 			return
 		}
 		if err := h.Store.EditRate(r.Context(), main, secondary, oldTime, pt); err != nil {
+			if errors.Is(err, marketdata.ErrDateImmutable) {
+				http.Error(w, "a rate record's date cannot be changed; delete it and create a new one", http.StatusBadRequest)
+				return
+			}
 			http.Error(w, fmt.Sprintf("unable to update rate: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
@@ -754,6 +773,10 @@ func (h *Handler) DeleteFXRate(main, secondary, date string) http.Handler {
 			return
 		}
 		if err := h.Store.DeleteRateAt(r.Context(), main, secondary, t); err != nil {
+			if errors.Is(err, marketdata.ErrRecordNotFound) {
+				http.Error(w, "no rate data found", http.StatusNotFound)
+				return
+			}
 			http.Error(w, fmt.Sprintf("unable to delete rate: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}

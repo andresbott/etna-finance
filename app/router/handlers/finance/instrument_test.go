@@ -301,12 +301,12 @@ func TestHandler_UpdateInstrument(t *testing.T) {
 			expectCode: http.StatusBadRequest,
 		},
 		{
-			name:       "duplicate symbol rejected",
+			name:       "symbol change rejected",
 			id:         created.ID,
 			userId:     tenant1,
 			payload:    bytes.NewBuffer([]byte(`{"symbol":"TAKEN"}`)),
-			expectErr:  marketdata.ErrInstrumentSymbolDuplicate.Error(),
-			expectCode: http.StatusConflict,
+			expectErr:  "symbol cannot be changed",
+			expectCode: http.StatusBadRequest,
 		},
 	}
 

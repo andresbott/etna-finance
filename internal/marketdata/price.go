@@ -31,6 +31,10 @@ type PriceRecord struct {
 	Volume float64
 }
 
+// priceFields are the OHLCV field names of a price series, in candle order.
+// A complete candle has all of them; PriceAt rejects a snapshot missing any.
+var priceFields = []string{"open", "high", "low", "close", "volume"}
+
 func (p PricePoint) values() map[string]float64 {
 	return map[string]float64{
 		"open": p.Open, "high": p.High, "low": p.Low, "close": p.Close, "volume": p.Volume,
@@ -121,40 +125,46 @@ func (s *Store) LatestPrice(ctx context.Context, symbol string) (*PriceRecord, e
 
 // PriceAt returns the as-of candle (each field's latest value ≤ t). Record.Time is t.
 // Returns nil if no data at or before t. Used for portfolio valuation (Close).
+//
+// The store's At is best-effort per field, so it can return a partial snapshot
+// (some OHLCV legs missing) when a field has a gap in its history. Since candles
+// are always written whole, a partial snapshot is an anomaly: rather than
+// silently zero-filling the missing legs into a real-looking candle (which would
+// corrupt valuation), PriceAt rejects it with an error.
 func (s *Store) PriceAt(ctx context.Context, symbol string, t time.Time) (*PriceRecord, error) {
 	if symbol == "" {
 		return nil, fmt.Errorf("instrument symbol cannot be empty")
 	}
-	p, err := s.store.At(ctx, seriesName(symbol), t)
+	p, found, err := s.store.At(ctx, seriesName(symbol), t)
 	if err != nil {
 		if errors.Is(err, timeseries.ErrSeriesNotFound) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to get price for %q at %v: %w", symbol, t, err)
 	}
-	if len(p.Values) == 0 {
+	if !found {
 		return nil, nil
+	}
+	for _, field := range priceFields {
+		if _, ok := p.Values[field]; !ok {
+			return nil, fmt.Errorf("partial price candle for %q at %v: missing %q", symbol, t, field)
+		}
 	}
 	rec := pointToPriceRecord(symbol, p)
 	return &rec, nil
 }
 
-// EditPrice overwrites the candle. If newTime differs from oldTime, the old timestamp is removed
-// as part of the same write (an atomic move via the store). A zero oldTime means "no prior
-// timestamp to remove" and behaves as a plain write.
+// EditPrice overwrites the candle at its timestamp. The date is the record's identity and cannot
+// be changed: if a non-zero oldTime differs from p.Time, EditPrice returns ErrDateImmutable and
+// changes nothing. A zero oldTime, or oldTime equal to p.Time, is a plain upsert at p.Time.
 func (s *Store) EditPrice(ctx context.Context, symbol string, oldTime time.Time, p PricePoint) error {
 	if symbol == "" {
 		return fmt.Errorf("instrument symbol cannot be empty")
 	}
-	// Same time (or no prior time): a plain upsert, no move needed.
-	if oldTime.IsZero() || oldTime.Equal(p.Time) {
-		return s.IngestPrice(ctx, symbol, p)
+	if !oldTime.IsZero() && !oldTime.Equal(p.Time) {
+		return fmt.Errorf("cannot edit price for %q: %w", symbol, ErrDateImmutable)
 	}
-	// A move implies a record (and therefore the series) already exists, so no register needed.
-	if err := s.store.Move(ctx, seriesName(symbol), oldTime, timeseries.Point{Time: p.Time, Values: p.values()}); err != nil {
-		return fmt.Errorf("failed to move price for %q: %w", symbol, err)
-	}
-	return nil
+	return s.IngestPrice(ctx, symbol, p)
 }
 
 // DeletePriceAt removes the candle at exactly t.
@@ -162,8 +172,12 @@ func (s *Store) DeletePriceAt(ctx context.Context, symbol string, t time.Time) e
 	if symbol == "" {
 		return fmt.Errorf("instrument symbol cannot be empty")
 	}
-	if err := s.store.Delete(ctx, seriesName(symbol), t); err != nil {
+	deleted, err := s.store.Delete(ctx, seriesName(symbol), t)
+	if err != nil {
 		return fmt.Errorf("failed to delete price for %q: %w", symbol, err)
+	}
+	if !deleted {
+		return fmt.Errorf("no price for %q at %s: %w", symbol, t.Format(time.DateOnly), ErrRecordNotFound)
 	}
 	return nil
 }

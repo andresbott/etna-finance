@@ -3,7 +3,8 @@ package marketdata
 import (
 	"context"
 	"fmt"
-	"strings"
+
+	"github.com/go-bumbu/timeseries"
 )
 
 // DataStats summarizes the volume of stored market data and FX rates.
@@ -18,28 +19,30 @@ type DataStats struct {
 // Point counts come from the store's server-side Count (distinct timestamps per
 // series), so no row data is transferred.
 func (s *Store) Stats(ctx context.Context) (DataStats, error) {
-	all, err := s.store.ListSeries(ctx)
+	priceSeries, err := s.store.ListSeries(ctx, timeseries.MatchLabel(labelType, typePrice))
 	if err != nil {
-		return DataStats{}, fmt.Errorf("failed to list series: %w", err)
+		return DataStats{}, fmt.Errorf("failed to list price series: %w", err)
+	}
+	fxSeries, err := s.store.ListSeries(ctx, timeseries.MatchLabel(labelType, typeFX))
+	if err != nil {
+		return DataStats{}, fmt.Errorf("failed to list fx series: %w", err)
 	}
 	var stats DataStats
-	for _, ts := range all {
-		switch {
-		case strings.HasPrefix(ts.Name, seriesPrefix):
-			n, err := s.store.Count(ctx, ts.Name)
-			if err != nil {
-				return DataStats{}, fmt.Errorf("failed to count price points for %q: %w", ts.Name, err)
-			}
-			stats.PriceSeries++
-			stats.PricePoints += n
-		case strings.HasPrefix(ts.Name, fxSeriesPrefix):
-			n, err := s.store.Count(ctx, ts.Name)
-			if err != nil {
-				return DataStats{}, fmt.Errorf("failed to count fx points for %q: %w", ts.Name, err)
-			}
-			stats.FXSeries++
-			stats.FXPoints += n
+	for _, ts := range priceSeries {
+		n, err := s.store.Count(ctx, ts.Name)
+		if err != nil {
+			return DataStats{}, fmt.Errorf("failed to count price points for %q: %w", ts.Name, err)
 		}
+		stats.PriceSeries++
+		stats.PricePoints += n
+	}
+	for _, ts := range fxSeries {
+		n, err := s.store.Count(ctx, ts.Name)
+		if err != nil {
+			return DataStats{}, fmt.Errorf("failed to count fx points for %q: %w", ts.Name, err)
+		}
+		stats.FXSeries++
+		stats.FXPoints += n
 	}
 	return stats, nil
 }

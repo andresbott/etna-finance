@@ -17,5 +17,5 @@ Track items to verify, refactor, or implement later.
 - [ ] Mortgage tracking
 - [ ] Adjust the dashboard to inflation
 
-http://localhost:5173/settings/about move runtime -> loglevel into http://localhost:5173/settings/configuration
 check again timeseries use-case
+test export-import with new TS

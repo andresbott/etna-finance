@@ -26,6 +26,7 @@ type Series struct {
 	Precision time.Duration
 	Retention time.Duration
 	Fields    []Field
+	Labels    map[string]string // opaque key/value metadata; nil when none
 }
 
 // DefineSeries creates or updates a series by name and declaratively syncs its
@@ -33,9 +34,16 @@ type Series struct {
 // new fields are created, and existing fields' aggregates are updated. All in
 // one transaction.
 //
-// DefineSeries takes the Store lock exclusively: it cannot run concurrently
-// with writes, reads, or Maintain on the same Store, which is what keeps a
-// field deletion from racing a concurrent write into orphan records.
+// When the stored definition already matches cfg exactly, DefineSeries is a
+// no-op that takes only the read lock — it neither acquires the exclusive lock
+// nor opens a write transaction. This keeps the common auto-register-before-
+// write pattern cheap. Only an actual change (new series, or differing
+// precision/retention/fields) escalates to the exclusive define-and-reconcile.
+//
+// On that escalation path DefineSeries takes the Store lock exclusively: it
+// cannot run concurrently with writes, reads, or Maintain on the same Store,
+// which is what keeps a field deletion from racing a concurrent write into
+// orphan records.
 func (s *Store) DefineSeries(ctx context.Context, cfg Series) error {
 	if cfg.Name == "" {
 		return fmt.Errorf("series name cannot be empty")
@@ -46,9 +54,22 @@ func (s *Store) DefineSeries(ctx context.Context, cfg Series) error {
 	if cfg.Precision < time.Second {
 		return fmt.Errorf("precision must be at least 1 second, got %v", cfg.Precision)
 	}
+	// Fast path: a define identical to what is already stored changes nothing,
+	// so resolve it under the read lock and return without the exclusive lock or
+	// a write transaction. Invalid configs (duplicate field names, unknown
+	// aggregates) cannot match a stored definition, so they fall through to the
+	// exclusive path below where validateFields rejects them.
+	if unchanged, err := s.definitionUnchanged(ctx, cfg); err != nil {
+		return err
+	} else if unchanged {
+		return nil
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := s.validateFields(cfg.Fields); err != nil {
+		return err
+	}
+	if err := validateLabels(cfg.Labels); err != nil {
 		return err
 	}
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -64,8 +85,67 @@ func (s *Store) DefineSeries(ctx context.Context, cfg Series) error {
 		if err := tx.Where("name = ?", cfg.Name).First(&ser).Error; err != nil {
 			return err
 		}
-		return s.syncSeriesFields(tx, ser.ID, cfg.Fields)
+		if err := s.syncSeriesFields(tx, ser.ID, cfg.Fields); err != nil {
+			return err
+		}
+		return s.syncSeriesLabels(tx, ser.ID, cfg.Labels)
 	})
+}
+
+// definitionUnchanged reports whether the series named cfg.Name already exists
+// with a definition identical to cfg (same precision, retention, and field
+// set). It takes only the read lock, letting a redundant DefineSeries skip the
+// exclusive lock and write transaction. A missing series, or any difference,
+// reports false so the caller escalates to the full define-and-reconcile path.
+func (s *Store) definitionUnchanged(ctx context.Context, cfg Series) (bool, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var row dbSeries
+	if err := s.db.WithContext(ctx).Where("name = ?", cfg.Name).First(&row).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	if row.Precision != cfg.Precision || row.Retention != cfg.Retention {
+		return false, nil
+	}
+	fields, err := s.seriesFields(ctx, row.ID)
+	if err != nil {
+		return false, err
+	}
+	if !sameFieldSet(fields, cfg.Fields) {
+		return false, nil
+	}
+	labels, err := s.seriesLabels(ctx, row.ID)
+	if err != nil {
+		return false, err
+	}
+	return sameLabelSet(labels, cfg.Labels), nil
+}
+
+// sameFieldSet reports whether want describes exactly the stored field set,
+// matching on (name, aggregate) and ignoring order. A duplicate field name in
+// want makes it not a clean match (false), so the caller escalates and
+// validateFields rejects the invalid config.
+func sameFieldSet(stored, want []Field) bool {
+	if len(stored) != len(want) {
+		return false
+	}
+	wantByName := make(map[string]string, len(want))
+	for _, f := range want {
+		wantByName[f.Name] = f.Aggregate
+	}
+	if len(wantByName) != len(want) {
+		return false
+	}
+	for _, f := range stored {
+		agg, ok := wantByName[f.Name]
+		if !ok || agg != f.Aggregate {
+			return false
+		}
+	}
+	return true
 }
 
 // validateFields checks field names are non-empty, unique, and use known
@@ -160,15 +240,39 @@ func (s *Store) GetSeries(ctx context.Context, name string) (Series, error) {
 	if err != nil {
 		return Series{}, err
 	}
-	return Series{Name: row.Name, Precision: row.Precision, Retention: row.Retention, Fields: fields}, nil
+	labels, err := s.seriesLabels(ctx, row.ID)
+	if err != nil {
+		return Series{}, err
+	}
+	return Series{Name: row.Name, Precision: row.Precision, Retention: row.Retention, Fields: fields, Labels: labels}, nil
 }
 
-// ListSeries returns all series, each with its fields.
-func (s *Store) ListSeries(ctx context.Context) ([]Series, error) {
+// ListSeries returns series (each with its fields and labels). With no options
+// it returns all series; each MatchLabel option restricts the result, ANDing
+// together. Backward compatible: ListSeries(ctx) behaves as before.
+func (s *Store) ListSeries(ctx context.Context, opts ...ListOption) ([]Series, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
+	var f listFilter
+	for _, opt := range opts {
+		opt(&f)
+	}
+
+	q := s.db.WithContext(ctx).Order("name ASC")
+	if len(f.labels) > 0 {
+		matchIDs, err := s.matchingSeriesIDs(ctx, f.labels)
+		if err != nil {
+			return nil, err
+		}
+		if len(matchIDs) == 0 {
+			return nil, nil
+		}
+		q = q.Where("id IN ?", matchIDs)
+	}
+
 	var rows []dbSeries
-	if err := s.db.WithContext(ctx).Order("name ASC").Find(&rows).Error; err != nil {
+	if err := q.Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	if len(rows) == 0 {
@@ -186,9 +290,20 @@ func (s *Store) ListSeries(ctx context.Context) ([]Series, error) {
 	if err := s.db.WithContext(ctx).Where("series_id IN ?", ids).Order("name ASC").Find(&fields).Error; err != nil {
 		return nil, err
 	}
-	for _, f := range fields {
-		i := idx[f.SeriesID]
-		out[i].Fields = append(out[i].Fields, Field{Name: f.Name, Aggregate: f.AggregateFn})
+	for _, fl := range fields {
+		i := idx[fl.SeriesID]
+		out[i].Fields = append(out[i].Fields, Field{Name: fl.Name, Aggregate: fl.AggregateFn})
+	}
+	var labels []dbSeriesLabel
+	if err := s.db.WithContext(ctx).Where("series_id IN ?", ids).Find(&labels).Error; err != nil {
+		return nil, err
+	}
+	for _, lb := range labels {
+		i := idx[lb.SeriesID]
+		if out[i].Labels == nil {
+			out[i].Labels = make(map[string]string)
+		}
+		out[i].Labels[lb.Key] = lb.Value
 	}
 	return out, nil
 }
@@ -212,6 +327,9 @@ func (s *Store) DropSeries(ctx context.Context, name string) error {
 		if err := tx.Where("series_id = ?", row.ID).Delete(&dbField{}).Error; err != nil {
 			return err
 		}
+		if err := tx.Where("series_id = ?", row.ID).Delete(&dbSeriesLabel{}).Error; err != nil {
+			return err
+		}
 		return tx.Delete(&dbSeries{}, row.ID).Error
 	})
 }
@@ -229,6 +347,9 @@ func (s *Store) Wipe(ctx context.Context) error {
 			return err
 		}
 		if err := tx.Where("1 = 1").Delete(&dbField{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("1 = 1").Delete(&dbSeriesLabel{}).Error; err != nil {
 			return err
 		}
 		return tx.Where("1 = 1").Delete(&dbSeries{}).Error

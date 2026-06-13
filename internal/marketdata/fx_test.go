@@ -2,6 +2,7 @@ package marketdata
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -274,37 +275,35 @@ func TestEditRate(t *testing.T) {
 				}
 			})
 
-			t.Run("move to new time", func(t *testing.T) {
+			t.Run("editing a record's date is rejected", func(t *testing.T) {
 				base := time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC)
 				newTime := time.Date(2025, 7, 15, 0, 0, 0, 0, time.UTC)
 				mustRegisterPair(t, ctx, store, "CAD", "USD")
-				err := store.IngestRate(ctx, "CAD", "USD", base, 0.74)
-				if err != nil {
+				if err := store.IngestRate(ctx, "CAD", "USD", base, 0.74); err != nil {
 					t.Fatal(err)
 				}
 
-				err = store.EditRate(ctx, "CAD", "USD", base, RatePoint{Time: newTime, Rate: 0.75})
-				if err != nil {
-					t.Fatalf("unexpected error: %v", err)
+				// The date is the record's identity: an edit cannot move it to a new timestamp.
+				err := store.EditRate(ctx, "CAD", "USD", base, RatePoint{Time: newTime, Rate: 0.75})
+				if !errors.Is(err, ErrDateImmutable) {
+					t.Fatalf("EditRate with changed date err = %v, want ErrDateImmutable", err)
 				}
 
-				// Old time gone, new time present.
+				// Nothing changed: original rate intact at base, no record at newTime.
 				atOld, err := store.RateAt(ctx, "CAD", "USD", base)
 				if err != nil {
 					t.Fatal(err)
 				}
-				if atOld != nil {
-					t.Errorf("expected old record to be removed, got %+v", atOld)
+				if atOld == nil || atOld.Rate != 0.74 {
+					t.Errorf("expected original record unchanged (rate 0.74), got %+v", atOld)
 				}
+				// As-of read at newTime still carries the base value forward (no new 0.75 record).
 				atNew, err := store.RateAt(ctx, "CAD", "USD", newTime)
 				if err != nil {
 					t.Fatal(err)
 				}
-				if atNew == nil {
-					t.Fatal("expected record at new time, got nil")
-				}
-				if atNew.Rate != 0.75 {
-					t.Errorf("expected rate 0.75, got %f", atNew.Rate)
+				if atNew == nil || atNew.Rate != 0.74 {
+					t.Errorf("expected as-of rate at %v to remain 0.74 (no new record), got %+v", newTime, atNew)
 				}
 			})
 		})
@@ -346,6 +345,36 @@ func TestDeleteRateAt(t *testing.T) {
 					}
 				}
 			})
+
+			t.Run("delete missing record returns ErrRecordNotFound", func(t *testing.T) {
+				err := store.DeleteRateAt(ctx, "AUD", "USD", base)
+				if !errors.Is(err, ErrRecordNotFound) {
+					t.Fatalf("err = %v, want ErrRecordNotFound", err)
+				}
+			})
+		})
+	}
+}
+
+// TestListFXPairsDetailed asserts pairs come back structured from labels.
+func TestListFXPairsDetailed(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, err := NewStore(db.ConnDbName("TestListFXPairsDetailed"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := store.RegisterPair(ctx, "EUR", "USD"); err != nil {
+				t.Fatalf("RegisterPair: %v", err)
+			}
+			pairs, err := store.ListFXPairsDetailed(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(pairs) != 1 || pairs[0] != (FXPair{Main: "EUR", Secondary: "USD"}) {
+				t.Fatalf("got %+v, want [{EUR USD}]", pairs)
+			}
 		})
 	}
 }

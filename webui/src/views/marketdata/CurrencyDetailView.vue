@@ -370,9 +370,13 @@ function goBack() {
                                     :modelValue="dataDialogForm.date ? new Date(dataDialogForm.date + 'T12:00:00') : null"
                                     @update:modelValue="(d: any) => { dataDialogForm.date = d ? toLocalDateString(d) : '' }"
                                     :dateFormat="pickerDateFormat"
+                                    :disabled="dataDialogMode === 'edit'"
                                     showIcon
                                     class="w-full"
                                 />
+                                <small v-if="dataDialogMode === 'edit'" class="text-color-secondary">
+                                    To change the date, delete this record and add a new one.
+                                </small>
                             </div>
                             <div class="field">
                                 <label for="fx-data-rate">Rate</label>

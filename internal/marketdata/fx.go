@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/go-bumbu/timeseries"
@@ -25,6 +24,7 @@ func fxSeries(main, secondary string) timeseries.Series {
 		Name:      fxSeriesName(main, secondary),
 		Precision: defaultPrecision,
 		Retention: defaultRetention,
+		Labels:    map[string]string{labelType: typeFX, labelMain: main, labelSecondary: secondary},
 		Fields:    []timeseries.Field{{Name: fxField, Aggregate: timeseries.AggLast}},
 	}
 }
@@ -56,19 +56,41 @@ func (s *Store) RegisterPair(ctx context.Context, main, secondary string) error 
 	return nil
 }
 
-// ListFXPairs returns pairs that have a registered FX series (format "MAIN/SECONDARY").
-func (s *Store) ListFXPairs(ctx context.Context) ([]string, error) {
-	all, err := s.store.ListSeries(ctx)
+// FXPair identifies a currency pair (main/secondary).
+type FXPair struct {
+	Main      string
+	Secondary string
+}
+
+// ListFXPairsDetailed returns registered FX pairs as structured values, sourced
+// from series labels (no name parsing).
+func (s *Store) ListFXPairsDetailed(ctx context.Context) ([]FXPair, error) {
+	all, err := s.store.ListSeries(ctx, timeseries.MatchLabel(labelType, typeFX))
 	if err != nil {
 		return nil, fmt.Errorf("failed to list series: %w", err)
 	}
-	var pairs []string
+	var pairs []FXPair
 	for _, ts := range all {
-		if strings.HasPrefix(ts.Name, fxSeriesPrefix) {
-			pairs = append(pairs, strings.TrimPrefix(ts.Name, fxSeriesPrefix))
+		main, secondary := ts.Labels[labelMain], ts.Labels[labelSecondary]
+		if main == "" || secondary == "" {
+			continue
 		}
+		pairs = append(pairs, FXPair{Main: main, Secondary: secondary})
 	}
 	return pairs, nil
+}
+
+// ListFXPairs returns pairs that have a registered FX series (format "MAIN/SECONDARY").
+func (s *Store) ListFXPairs(ctx context.Context) ([]string, error) {
+	pairs, err := s.ListFXPairsDetailed(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, len(pairs))
+	for i, p := range pairs {
+		out[i] = p.Main + "/" + p.Secondary
+	}
+	return out, nil
 }
 
 // IngestRate records a single exchange rate for the pair (main/secondary). The pair's series must
@@ -152,22 +174,18 @@ func (s *Store) LatestRate(ctx context.Context, main, secondary string) (*RateRe
 	return &RateRecord{Main: main, Secondary: secondary, Time: last.Time, Rate: last.Value}, nil
 }
 
-// EditRate overwrites the rate for the pair at p.Time. If p.Time differs from oldTime, the old
-// timestamp is removed as part of the same write (an atomic move via the store). A zero oldTime
-// means "no prior timestamp to remove" and behaves as a plain write. Mirrors EditPrice.
+// EditRate overwrites the rate for the pair at p.Time. The date is the record's identity and
+// cannot be changed: if a non-zero oldTime differs from p.Time, EditRate returns ErrDateImmutable
+// and changes nothing. A zero oldTime, or oldTime equal to p.Time, is a plain upsert. Mirrors
+// EditPrice.
 func (s *Store) EditRate(ctx context.Context, main, secondary string, oldTime time.Time, p RatePoint) error {
 	if main == "" || secondary == "" {
 		return fmt.Errorf("main and secondary currency cannot be empty")
 	}
-	// Same time (or no prior time): a plain upsert, no move needed.
-	if oldTime.IsZero() || oldTime.Equal(p.Time) {
-		return s.IngestRate(ctx, main, secondary, p.Time, p.Rate)
+	if !oldTime.IsZero() && !oldTime.Equal(p.Time) {
+		return fmt.Errorf("cannot edit rate for %s/%s: %w", main, secondary, ErrDateImmutable)
 	}
-	// A move implies a record (and therefore the series) already exists, so no register needed.
-	if err := s.store.Move(ctx, fxSeriesName(main, secondary), oldTime, timeseries.Point{Time: p.Time, Values: map[string]float64{fxField: p.Rate}}); err != nil {
-		return fmt.Errorf("failed to move rate record for %s/%s: %w", main, secondary, err)
-	}
-	return nil
+	return s.IngestRate(ctx, main, secondary, p.Time, p.Rate)
 }
 
 // DeleteRateAt removes the rate record for the pair at exactly t. Mirrors DeletePriceAt.
@@ -175,8 +193,12 @@ func (s *Store) DeleteRateAt(ctx context.Context, main, secondary string, t time
 	if main == "" || secondary == "" {
 		return fmt.Errorf("main and secondary currency cannot be empty")
 	}
-	if err := s.store.Delete(ctx, fxSeriesName(main, secondary), t); err != nil {
+	deleted, err := s.store.Delete(ctx, fxSeriesName(main, secondary), t)
+	if err != nil {
 		return fmt.Errorf("failed to delete rate for %s/%s: %w", main, secondary, err)
+	}
+	if !deleted {
+		return fmt.Errorf("no rate for %s/%s at %s: %w", main, secondary, t.Format(time.DateOnly), ErrRecordNotFound)
 	}
 	return nil
 }

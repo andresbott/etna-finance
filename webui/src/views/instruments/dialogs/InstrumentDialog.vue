@@ -206,8 +206,10 @@ const onFormSubmit = (e) => {
                             name="symbol"
                             class="flex-1"
                             placeholder="e.g. AAPL"
+                            :disabled="isEdit"
                         />
                         <Button
+                            v-if="!isEdit"
                             type="button"
                             icon="ti ti-wand"
                             severity="secondary"
@@ -217,6 +219,9 @@ const onFormSubmit = (e) => {
                             @click="onAutofill($form.symbol?.value)"
                         />
                     </div>
+                    <Message v-if="isEdit" severity="secondary" size="small">
+                        The symbol cannot be changed after creation.
+                    </Message>
                     <Message v-if="$form.symbol?.invalid" severity="error" size="small">
                         {{ $form.symbol.error?.message }}
                     </Message>

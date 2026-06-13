@@ -633,9 +633,13 @@ function goBack() {
                                     :modelValue="dataDialogForm.date ? new Date(dataDialogForm.date + 'T12:00:00') : null"
                                     @update:modelValue="(d: any) => { dataDialogForm.date = d ? toLocalDateString(d) : '' }"
                                     :dateFormat="pickerDateFormat"
+                                    :disabled="dataDialogMode === 'edit'"
                                     showIcon
                                     class="w-full"
                                 />
+                                <small v-if="dataDialogMode === 'edit'" class="text-color-secondary">
+                                    To change the date, delete this record and add a new one.
+                                </small>
                             </div>
                             <div class="field">
                                 <label for="data-open">Open</label>
@@ -725,9 +729,13 @@ function goBack() {
                                     :modelValue="epsDialogForm.date ? new Date(epsDialogForm.date + 'T12:00:00') : null"
                                     @update:modelValue="(d: any) => { epsDialogForm.date = d ? toLocalDateString(d) : '' }"
                                     :dateFormat="pickerDateFormat"
+                                    :disabled="epsDialogMode === 'edit'"
                                     showIcon
                                     class="w-full"
                                 />
+                                <small v-if="epsDialogMode === 'edit'" class="text-color-secondary">
+                                    To change the date, delete this filing and add a new one.
+                                </small>
                             </div>
                             <div class="field">
                                 <label for="eps-basic">Basic EPS</label>

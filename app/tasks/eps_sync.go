@@ -12,10 +12,6 @@ import (
 	"github.com/go-bumbu/tempo"
 )
 
-// epsInstrumentType is the instrument type EPS applies to. EPS is extracted from SEC filings,
-// which only exist for individual stocks — ETFs, funds, currencies, etc. have no EPS.
-const epsInstrumentType = "stock"
-
 const EPSImportTaskName = "eps-import"
 
 // MaxEPSSyncDuration is the overall budget for the EPS import task.
@@ -60,8 +56,8 @@ func NewEPSImportTaskFn(store *marketdata.Store, client importer.FundamentalsCli
 		for _, inst := range instruments {
 			// EPS only exists for individual stocks; skip ETFs/funds/currencies/untyped instruments
 			// before spending an API call (and rate-limit budget) on them.
-			if !strings.EqualFold(inst.Type, epsInstrumentType) {
-				tempo.Info(ctx, fmt.Sprintf("EPS import: skip %s — type %q is not %s", inst.Symbol, inst.Type, epsInstrumentType))
+			if !strings.EqualFold(inst.Type, marketdata.StockInstrumentType) {
+				tempo.Info(ctx, fmt.Sprintf("EPS import: skip %s — type %q is not %s", inst.Symbol, inst.Type, marketdata.StockInstrumentType))
 				continue
 			}
 

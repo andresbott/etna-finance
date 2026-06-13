@@ -38,22 +38,25 @@ func pointToEPSRecord(symbol string, p timeseries.Point) EPSRecord {
 	}
 }
 
-// registerEPSSeries defines (creates or updates) the eps: series for the symbol. Unlike
-// RegisterInstrument it does not touch the price series or instrument metadata.
-func (s *Store) registerEPSSeries(ctx context.Context, symbol string) error {
+// RegisterEPSSeries defines (creates or updates) the eps: series for the symbol. Unlike
+// RegisterInstrument it does not touch the price series or instrument metadata. Adding the first
+// EPS point via the API is how the series is introduced for a symbol that was not auto-defined,
+// so the create handlers call this before ingest (mirroring RegisterPair for FX).
+func (s *Store) RegisterEPSSeries(ctx context.Context, symbol string) error {
+	if symbol == "" {
+		return fmt.Errorf("instrument symbol cannot be empty")
+	}
 	if err := s.store.DefineSeries(ctx, epsSeries(symbol)); err != nil {
 		return fmt.Errorf("failed to define EPS series for %q: %w", symbol, err)
 	}
 	return nil
 }
 
-// IngestEPS records a single EPS observation. Series is auto-registered.
+// IngestEPS records a single EPS observation. The EPS series must already exist (defined by
+// CreateInstrument for stock-type instruments); this does not auto-register it.
 func (s *Store) IngestEPS(ctx context.Context, symbol string, p EPSPoint) error {
 	if symbol == "" {
 		return fmt.Errorf("instrument symbol cannot be empty")
-	}
-	if err := s.registerEPSSeries(ctx, symbol); err != nil {
-		return err
 	}
 	if err := s.store.Write(ctx, epsSeriesName(symbol), timeseries.Point{Time: p.Time, Values: p.values()}); err != nil {
 		return fmt.Errorf("failed to write EPS for %q: %w", symbol, err)
@@ -61,16 +64,14 @@ func (s *Store) IngestEPS(ctx context.Context, symbol string, p EPSPoint) error 
 	return nil
 }
 
-// IngestEPSBulk records many EPS observations in one transaction. Series is auto-registered.
+// IngestEPSBulk records many EPS observations in one transaction. The EPS series must already exist
+// (defined by CreateInstrument for stock-type instruments); this does not auto-register it.
 func (s *Store) IngestEPSBulk(ctx context.Context, symbol string, points []EPSPoint) error {
 	if symbol == "" {
 		return fmt.Errorf("instrument symbol cannot be empty")
 	}
 	if len(points) == 0 {
 		return nil
-	}
-	if err := s.registerEPSSeries(ctx, symbol); err != nil {
-		return err
 	}
 	pts := make([]timeseries.Point, len(points))
 	for i, p := range points {
@@ -121,22 +122,17 @@ func (s *Store) LatestEPS(ctx context.Context, symbol string) (*EPSRecord, error
 	return &rec, nil
 }
 
-// EditEPS overwrites the EPS observation. If newTime differs from oldTime, the old timestamp is
-// removed as part of the same write (an atomic move). A zero oldTime behaves as a plain write.
+// EditEPS overwrites the EPS observation at its timestamp. The date is the record's identity and
+// cannot be changed: if a non-zero oldTime differs from p.Time, EditEPS returns ErrDateImmutable
+// and changes nothing. A zero oldTime, or oldTime equal to p.Time, is a plain upsert at p.Time.
 func (s *Store) EditEPS(ctx context.Context, symbol string, oldTime time.Time, p EPSPoint) error {
 	if symbol == "" {
 		return fmt.Errorf("instrument symbol cannot be empty")
 	}
-	if oldTime.IsZero() || oldTime.Equal(p.Time) {
-		return s.IngestEPS(ctx, symbol, p)
+	if !oldTime.IsZero() && !oldTime.Equal(p.Time) {
+		return fmt.Errorf("cannot edit EPS for %q: %w", symbol, ErrDateImmutable)
 	}
-	if err := s.registerEPSSeries(ctx, symbol); err != nil {
-		return err
-	}
-	if err := s.store.Move(ctx, epsSeriesName(symbol), oldTime, timeseries.Point{Time: p.Time, Values: p.values()}); err != nil {
-		return fmt.Errorf("failed to move EPS for %q: %w", symbol, err)
-	}
-	return nil
+	return s.IngestEPS(ctx, symbol, p)
 }
 
 // DeleteEPSAt removes the EPS observation at exactly t.
@@ -144,8 +140,12 @@ func (s *Store) DeleteEPSAt(ctx context.Context, symbol string, t time.Time) err
 	if symbol == "" {
 		return fmt.Errorf("instrument symbol cannot be empty")
 	}
-	if err := s.store.Delete(ctx, epsSeriesName(symbol), t); err != nil {
+	deleted, err := s.store.Delete(ctx, epsSeriesName(symbol), t)
+	if err != nil {
 		return fmt.Errorf("failed to delete EPS for %q: %w", symbol, err)
+	}
+	if !deleted {
+		return fmt.Errorf("no EPS for %q at %s: %w", symbol, t.Format(time.DateOnly), ErrRecordNotFound)
 	}
 	return nil
 }

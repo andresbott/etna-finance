@@ -1,11 +1,13 @@
 package marketdata
 
 import (
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/andresbott/etna/internal/marketdata/importer"
 	"github.com/go-bumbu/testdbs"
+	"github.com/go-bumbu/timeseries"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -241,29 +243,36 @@ func TestEditPrice(t *testing.T) {
 				}
 			})
 
-			t.Run("move to new time", func(t *testing.T) {
+			t.Run("editing a record's date is rejected", func(t *testing.T) {
 				base := time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC)
 				newTime := time.Date(2025, 7, 15, 0, 0, 0, 0, time.UTC)
 				if err := store.RegisterInstrument(ctx, "UPDT"); err != nil {
 					t.Fatalf("register: %v", err)
 				}
-				err := store.IngestPrice(ctx, "UPDT", PricePoint{Time: base, Close: 300.0})
-				if err != nil {
+				if err := store.IngestPrice(ctx, "UPDT", PricePoint{Time: base, Close: 300.0}); err != nil {
 					t.Fatal(err)
 				}
 
-				err = store.EditPrice(ctx, "UPDT", base, PricePoint{Time: newTime, Close: 310.0})
-				if err != nil {
-					t.Fatalf("unexpected error: %v", err)
+				// The date is the record's identity: an edit cannot move it to a new timestamp.
+				err := store.EditPrice(ctx, "UPDT", base, PricePoint{Time: newTime, Close: 310.0})
+				if !errors.Is(err, ErrDateImmutable) {
+					t.Fatalf("EditPrice with changed date err = %v, want ErrDateImmutable", err)
 				}
 
-				// Original time should be gone
+				// Nothing changed: the original record is intact and no record exists at newTime.
 				orig, err := store.PriceHistory(ctx, "UPDT", base, base)
 				if err != nil {
 					t.Fatal(err)
 				}
-				if len(orig) != 0 {
-					t.Errorf("expected old record to be removed, got %d records", len(orig))
+				if len(orig) != 1 || orig[0].Close != 300.0 {
+					t.Fatalf("expected original record unchanged (close 300), got %+v", orig)
+				}
+				atNew, err := store.PriceHistory(ctx, "UPDT", newTime, newTime)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(atNew) != 0 {
+					t.Fatalf("expected no record at new time, got %d", len(atNew))
 				}
 			})
 		})
@@ -303,6 +312,77 @@ func TestDeletePriceAt(t *testing.T) {
 					if r.Time.Equal(base) {
 						t.Error("record should have been deleted")
 					}
+				}
+			})
+
+			t.Run("delete missing record returns ErrRecordNotFound", func(t *testing.T) {
+				err := store.DeletePriceAt(ctx, "DEL", base)
+				if !errors.Is(err, ErrRecordNotFound) {
+					t.Fatalf("err = %v, want ErrRecordNotFound", err)
+				}
+			})
+		})
+	}
+}
+
+func TestPriceAt(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			dbCon := db.ConnDbName("TestPriceAt")
+			store, err := NewStore(dbCon)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			base := time.Date(2025, 4, 1, 0, 0, 0, 0, time.UTC)
+			if err := store.RegisterInstrument(ctx, "ASOF"); err != nil {
+				t.Fatalf("register: %v", err)
+			}
+
+			t.Run("no data at or before t returns nil", func(t *testing.T) {
+				rec, err := store.PriceAt(ctx, "ASOF", base)
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				if rec != nil {
+					t.Fatalf("expected nil record, got %+v", rec)
+				}
+			})
+
+			t.Run("full candle returns record", func(t *testing.T) {
+				if err := store.IngestPrice(ctx, "ASOF", PricePoint{
+					Time: base, Open: 10, High: 12, Low: 9, Close: 11, Volume: 500,
+				}); err != nil {
+					t.Fatal(err)
+				}
+				rec, err := store.PriceAt(ctx, "ASOF", base.Add(time.Hour))
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				if rec == nil {
+					t.Fatal("expected a record, got nil")
+				}
+				if rec.Open != 10 || rec.High != 12 || rec.Low != 9 || rec.Close != 11 || rec.Volume != 500 {
+					t.Fatalf("record = %+v, want full OHLCV 10/12/9/11/500", rec)
+				}
+			})
+
+			// A partial as-of snapshot (some OHLCV legs missing) must not be silently
+			// zero-filled into a real-looking candle — it is rejected as an anomaly.
+			t.Run("partial candle is rejected", func(t *testing.T) {
+				if err := store.RegisterInstrument(ctx, "PART"); err != nil {
+					t.Fatalf("register: %v", err)
+				}
+				// Write only close, leaving the other OHLCV legs absent at this time.
+				if err := store.store.Write(ctx, seriesName("PART"), timeseries.Point{
+					Time:   base,
+					Values: map[string]float64{"close": 11},
+				}); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := store.PriceAt(ctx, "PART", base.Add(time.Hour)); err == nil {
+					t.Fatal("expected error for partial candle, got nil")
 				}
 			})
 		})

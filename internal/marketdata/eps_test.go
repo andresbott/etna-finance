@@ -1,6 +1,7 @@
 package marketdata
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -16,6 +17,14 @@ func TestEPSStore(t *testing.T) {
 			store, err := NewStore(db.ConnDbName("TestEPSStore"))
 			if err != nil {
 				t.Fatal(err)
+			}
+
+			// EPS ingest no longer auto-registers; the series is defined at instrument creation for
+			// stocks. Define it here for the symbols these sub-cases ingest into (NOPE stays absent).
+			for _, sym := range []string{"AAA", "BBB", "CCC", "DDD"} {
+				if err := store.RegisterEPSSeries(ctx, sym); err != nil {
+					t.Fatalf("RegisterEPSSeries %s: %v", sym, err)
+				}
 			}
 
 			t.Run("empty symbol returns error", func(t *testing.T) {
@@ -94,23 +103,23 @@ func TestEPSStore(t *testing.T) {
 				}
 			})
 
-			t.Run("edit moves the timestamp, delete removes", func(t *testing.T) {
-				old := time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC)
-				moved := time.Date(2025, 3, 2, 0, 0, 0, 0, time.UTC)
-				if err := store.IngestEPS(ctx, "CCC", EPSPoint{Time: old, Basic: 3.0, Diluted: 2.9}); err != nil {
+			t.Run("edit overwrites in place, delete removes", func(t *testing.T) {
+				at := time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC)
+				if err := store.IngestEPS(ctx, "CCC", EPSPoint{Time: at, Basic: 3.0, Diluted: 2.9}); err != nil {
 					t.Fatal(err)
 				}
-				if err := store.EditEPS(ctx, "CCC", old, EPSPoint{Time: moved, Basic: 3.1, Diluted: 3.0}); err != nil {
+				// Editing at the same timestamp overwrites the values in place.
+				if err := store.EditEPS(ctx, "CCC", at, EPSPoint{Time: at, Basic: 3.1, Diluted: 3.0}); err != nil {
 					t.Fatalf("EditEPS: %v", err)
 				}
 				recs, err := store.EPSHistory(ctx, "CCC", time.Time{}, time.Time{})
 				if err != nil {
 					t.Fatal(err)
 				}
-				if len(recs) != 1 || !recs[0].Time.Equal(moved) || recs[0].Basic != 3.1 {
-					t.Errorf("expected single moved record at %v Basic=3.1, got %+v", moved, recs)
+				if len(recs) != 1 || !recs[0].Time.Equal(at) || recs[0].Basic != 3.1 {
+					t.Errorf("expected single overwritten record at %v Basic=3.1, got %+v", at, recs)
 				}
-				if err := store.DeleteEPSAt(ctx, "CCC", moved); err != nil {
+				if err := store.DeleteEPSAt(ctx, "CCC", at); err != nil {
 					t.Fatalf("DeleteEPSAt: %v", err)
 				}
 				recs, err = store.EPSHistory(ctx, "CCC", time.Time{}, time.Time{})
@@ -119,6 +128,31 @@ func TestEPSStore(t *testing.T) {
 				}
 				if len(recs) != 0 {
 					t.Errorf("expected 0 records after delete, got %d", len(recs))
+				}
+				// Deleting the now-absent record reports not-found rather than success.
+				if err := store.DeleteEPSAt(ctx, "CCC", at); !errors.Is(err, ErrRecordNotFound) {
+					t.Fatalf("DeleteEPSAt on missing record err = %v, want ErrRecordNotFound", err)
+				}
+			})
+
+			t.Run("editing a record's date is rejected", func(t *testing.T) {
+				seeded := time.Date(2025, 4, 1, 0, 0, 0, 0, time.UTC)
+				moved := time.Date(2025, 5, 2, 0, 0, 0, 0, time.UTC)
+				if err := store.IngestEPS(ctx, "DDD", EPSPoint{Time: seeded, Basic: 4.0, Diluted: 3.9}); err != nil {
+					t.Fatal(err)
+				}
+				// The date is the record's identity: an edit cannot move it to a new timestamp.
+				err := store.EditEPS(ctx, "DDD", seeded, EPSPoint{Time: moved, Basic: 4.1, Diluted: 4.0})
+				if !errors.Is(err, ErrDateImmutable) {
+					t.Fatalf("EditEPS with changed date err = %v, want ErrDateImmutable", err)
+				}
+				recs, err := store.EPSHistory(ctx, "DDD", time.Time{}, time.Time{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				// Only the original record remains, unchanged; no phantom at `moved`.
+				if len(recs) != 1 || !recs[0].Time.Equal(seeded) || recs[0].Basic != 4.0 {
+					t.Fatalf("expected only the original record (Basic=4.0) to remain, got %+v", recs)
 				}
 			})
 		})

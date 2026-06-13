@@ -231,10 +231,6 @@ func (h *Handler) UpdateInstrument(id uint) http.Handler {
 				http.Error(w, err.Error(), http.StatusNotFound)
 				return
 			}
-			if errors.Is(err, marketdata.ErrInstrumentSymbolDuplicate) {
-				http.Error(w, err.Error(), http.StatusConflict)
-				return
-			}
 			http.Error(w, fmt.Sprintf("unable to update instrument: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
