@@ -199,7 +199,15 @@ const onFormSubmit = (e) => {
         >
             <div v-focustrap class="flex flex-column gap-3">
                 <div>
-                    <label for="symbol" class="form-label">Symbol</label>
+                    <label for="symbol" class="form-label">
+                        Symbol
+                        <i
+                            v-if="isEdit"
+                            class="ti ti-help-circle ml-1"
+                            v-tooltip.top="'The symbol cannot be changed after creation.'"
+                            aria-label="The symbol cannot be changed after creation."
+                        />
+                    </label>
                     <div class="flex gap-2">
                         <InputText
                             id="symbol"
@@ -209,19 +217,15 @@ const onFormSubmit = (e) => {
                             :disabled="isEdit"
                         />
                         <Button
-                            v-if="!isEdit"
                             type="button"
                             icon="ti ti-wand"
                             severity="secondary"
                             :loading="autofilling"
-                            v-tooltip.bottom="'Autofill from symbol'"
-                            aria-label="Autofill from symbol"
-                            @click="onAutofill($form.symbol?.value)"
+                            v-tooltip.bottom="isEdit ? 'Regenerate data from symbol' : 'Autofill from symbol'"
+                            :aria-label="isEdit ? 'Regenerate data from symbol' : 'Autofill from symbol'"
+                            @click="onAutofill($form.symbol?.value || formValues.symbol)"
                         />
                     </div>
-                    <Message v-if="isEdit" severity="secondary" size="small">
-                        The symbol cannot be changed after creation.
-                    </Message>
                     <Message v-if="$form.symbol?.invalid" severity="error" size="small">
                         {{ $form.symbol.error?.message }}
                     </Message>
