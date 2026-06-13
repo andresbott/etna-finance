@@ -282,27 +282,39 @@ func (h *Handler) EditPrice(symbol, origDate string) http.Handler {
 	})
 }
 
+// deleteTimeseriesRecord is the shared body of DeletePrice/DeleteEPS. It validates the path params,
+// parses {date} and applies the store delete. recordNoun ("price"/"EPS") and notFoundMsg tailor the
+// user-facing errors; a missing record surfaces as ErrRecordNotFound → 404.
+func deleteTimeseriesRecord(
+	w http.ResponseWriter,
+	r *http.Request,
+	symbol, date, recordNoun, notFoundMsg string,
+	del func(context.Context, string, time.Time) error,
+) {
+	if symbol == "" || date == "" {
+		http.Error(w, "symbol and date are required", http.StatusBadRequest)
+		return
+	}
+	t, err := time.Parse(timeLayout, date)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("invalid date: %s", err.Error()), http.StatusBadRequest)
+		return
+	}
+	if err := del(r.Context(), symbol, t); err != nil {
+		if errors.Is(err, marketdata.ErrRecordNotFound) {
+			http.Error(w, notFoundMsg, http.StatusNotFound)
+			return
+		}
+		http.Error(w, fmt.Sprintf("unable to delete %s: %s", recordNoun, err.Error()), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
 // DeletePrice removes the candle for {symbol} at the given {date}.
 func (h *Handler) DeletePrice(symbol, date string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if symbol == "" || date == "" {
-			http.Error(w, "symbol and date are required", http.StatusBadRequest)
-			return
-		}
-		t, err := time.Parse(timeLayout, date)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("invalid date: %s", err.Error()), http.StatusBadRequest)
-			return
-		}
-		if err := h.Store.DeletePriceAt(r.Context(), symbol, t); err != nil {
-			if errors.Is(err, marketdata.ErrRecordNotFound) {
-				http.Error(w, "no price data found", http.StatusNotFound)
-				return
-			}
-			http.Error(w, fmt.Sprintf("unable to delete price: %s", err.Error()), http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
+		deleteTimeseriesRecord(w, r, symbol, date, "price", "no price data found", h.Store.DeletePriceAt)
 	})
 }
 
@@ -492,24 +504,7 @@ func (h *Handler) EditEPS(symbol, origDate string) http.Handler {
 // DeleteEPS removes the EPS observation for {symbol} at the given {date}. Mirrors DeletePrice.
 func (h *Handler) DeleteEPS(symbol, date string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if symbol == "" || date == "" {
-			http.Error(w, "symbol and date are required", http.StatusBadRequest)
-			return
-		}
-		t, err := time.Parse(timeLayout, date)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("invalid date: %s", err.Error()), http.StatusBadRequest)
-			return
-		}
-		if err := h.Store.DeleteEPSAt(r.Context(), symbol, t); err != nil {
-			if errors.Is(err, marketdata.ErrRecordNotFound) {
-				http.Error(w, "no EPS data found", http.StatusNotFound)
-				return
-			}
-			http.Error(w, fmt.Sprintf("unable to delete EPS: %s", err.Error()), http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
+		deleteTimeseriesRecord(w, r, symbol, date, "EPS", "no EPS data found", h.Store.DeleteEPSAt)
 	})
 }
 
