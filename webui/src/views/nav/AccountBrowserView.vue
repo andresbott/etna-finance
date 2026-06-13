@@ -6,8 +6,7 @@ import Column from 'primevue/column'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
-import { ResponsiveHorizontal } from '@go-bumbu/vue-layouts'
-import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
+import { ResponsiveHorizontal } from '@/components/layout'
 import { useAccounts } from '@/composables/useAccounts'
 import {
   ACCOUNT_TYPES,

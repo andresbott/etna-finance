@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import type { RouteLocationNormalized, NavigationGuardNext } from 'vue-router'
+import type { RouteLocationNormalized } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
 import { useSettingsStore } from '@/store/settingsStore'
 
@@ -80,11 +80,10 @@ const router = createRouter({
         },
         {
             path: '/categories',
-            name: 'categories',
             meta: { requiresAuth: true },
             component: () => import('@/views/categories/CategoriesView.vue'),
             children: [
-                { path: '', redirect: { name: 'settings-categories' } },
+                { path: '', name: 'categories', redirect: { name: 'settings-categories' } },
                 { path: 'expense', redirect: { name: 'settings-categories' } },
                 { path: 'income', redirect: { name: 'settings-categories' } },
                 { path: 'rules', redirect: { name: 'settings-category-rules' } },
@@ -155,13 +154,12 @@ const router = createRouter({
                 requiresAuth: true
             },
             component: () => import('@/views/marketdata/CurrencyDetailView.vue'),
-            beforeEnter: (to, _from, next) => {
+            beforeEnter: (to) => {
                 const validTabs = ['overview', 'raw-data']
                 if (to.params.tab && !validTabs.includes(to.params.tab as string)) {
-                    next({ path: `/market-data/currency-exchange/${to.params.currency}/overview` })
-                } else {
-                    next()
+                    return { path: `/market-data/currency-exchange/${to.params.currency}/overview` }
                 }
+                return true
             }
         },
         {
@@ -194,22 +192,20 @@ const router = createRouter({
                 requiresInstruments: true
             },
             component: () => import('@/views/marketdata/StockDetailView.vue'),
-            beforeEnter: (to, _from, next) => {
+            beforeEnter: (to) => {
                 const validTabs = ['overview', 'chart', 'raw-data', 'eps']
                 if (to.params.tab && !validTabs.includes(to.params.tab as string)) {
-                    next({ path: `/market-data/stock-market/${to.params.id}/overview` })
-                } else {
-                    next()
+                    return { path: `/market-data/stock-market/${to.params.id}/overview` }
                 }
+                return true
             }
         },
         {
             path: '/docs',
-            name: 'docs',
             meta: { requiresAuth: true },
             component: () => import('@/views/docs/DocsView.vue'),
             children: [
-                { path: '', redirect: { name: 'docs-overview' } },
+                { path: '', name: 'docs', redirect: { name: 'docs-overview' } },
                 { path: 'overview', name: 'docs-overview', component: () => import('@/views/docs/DocsOverviewView.vue') },
                 { path: 'getting-started/configuration', name: 'docs-configuration', component: () => import('@/views/docs/getting-started/ConfigurationView.vue') },
                 { path: 'guides/handling-rsus', name: 'docs-handling-rsus', component: () => import('@/views/docs/guides/HandlingRsusView.vue') },
@@ -222,11 +218,10 @@ const router = createRouter({
         },
         {
             path: '/settings',
-            name: 'settings',
             meta: { requiresAuth: true },
             component: () => import('@/views/settings/SettingsView.vue'),
             children: [
-                { path: '', redirect: { name: 'settings-configuration' } },
+                { path: '', name: 'settings', redirect: { name: 'settings-configuration' } },
                 { path: 'configuration', name: 'settings-configuration', component: () => import('@/views/settings/ConfigurationView.vue') },
                 { path: 'csv-profiles', name: 'csv-profiles', component: () => import('@/views/csvimport/CsvImportProfileView.vue') },
                 { path: 'categories', name: 'settings-categories', component: () => import('@/views/settings/SettingsCategoriesView.vue') },
@@ -279,49 +274,42 @@ const router = createRouter({
 // the same happens if the user is logged in he is redirected to the entry away from the login page
 // this relies on the user store
 // based on: https://stackoverflow.com/questions/52653337/vuejs-redirect-from-login-register-to-home-if-already-loggedin-redirect-from
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to) => {
     const user = useUserStore()
     const settings = useSettingsStore()
 
-    const navigate = function (to: RouteLocationNormalized, next: NavigationGuardNext) {
+    const navigate = (to: RouteLocationNormalized) => {
         if (to.matched.some((record) => record.meta.requiresAuth)) {
             if (!user.isLoggedIn) {
-                next({ name: 'login' })
+                return { name: 'login' }
             } else if (to.matched.some((record) => record.meta.requiresInstruments) && !settings.investmentInstruments) {
-                next({ name: 'reports-overview' })
+                return { name: 'reports-overview' }
             } else if (to.matched.some((record) => record.meta.requiresTools) && !settings.financialSimulator) {
-                next({ name: 'reports-overview' })
-            } else {
-                next() // go to wherever I'm going
+                return { name: 'reports-overview' }
             }
+            return true // go to wherever I'm going
         } else if (to.matched.some((record) => record.meta.hideFromAuth)) {
             if (user.isLoggedIn) {
-                next({ name: 'reports-overview' }) // hide logged-in users from hitting the login page
-            } else {
-                next()
+                return { name: 'reports-overview' } // hide logged-in users from hitting the login page
             }
-        } else {
-            next() // does not require auth, make sure to always call next()!
+            return true
         }
+        return true // does not require auth
+    }
+
+    if (user.isFirstLogin) {
+        user.setFirstLoginFalse()
+        await user.checkState().catch(() => { })
     }
 
     // When the route needs the instruments flag, ensure settings are loaded first (avoids
     // redirect on F5 when settings were not yet fetched).
     const needsSettingsCheck = to.matched.some((record) => record.meta.requiresInstruments || record.meta.requiresTools)
-    const ensureSettingsThenNavigate = () => {
-        if (needsSettingsCheck && !settings.isLoaded) {
-            settings.fetchSettings().then(() => navigate(to, next)).catch(() => navigate(to, next))
-        } else {
-            navigate(to, next)
-        }
+    if (needsSettingsCheck && !settings.isLoaded) {
+        await settings.fetchSettings().catch(() => { })
     }
 
-    if (user.isFirstLogin) {
-        user.setFirstLoginFalse()
-        user.checkState().then(() => ensureSettingsThenNavigate())
-    } else {
-        ensureSettingsThenNavigate()
-    }
+    return navigate(to)
 })
 
 export default router

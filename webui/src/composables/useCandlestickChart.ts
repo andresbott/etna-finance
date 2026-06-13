@@ -236,6 +236,9 @@ export function useCandlestickChart(
                 splitLine: { lineStyle: { type: 'dashed', opacity: 0.3 } },
                 axisLabel: { fontSize: 10 }
             })
+            // Advance the cursor to stay symmetric with the other panel blocks, so a
+            // panel added after P/E keeps the correct offset.
+            // eslint-disable-next-line no-useless-assignment
             top += subPanelHeight + GAP
 
             series.push({

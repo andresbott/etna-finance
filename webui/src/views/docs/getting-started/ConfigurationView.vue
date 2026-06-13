@@ -68,7 +68,7 @@ import Message from 'primevue/message'
 
                         <h4>DataDir</h4>
                         <p>
-                            Directory where the database, backups, attachments, and task logs are stored.
+                            Directory where the database, sessions, attachments, backups, and task logs are stored.
                             Default: <code>./data</code>. Created automatically if it does not exist.
                         </p>
 
@@ -77,7 +77,8 @@ import Message from 'primevue/message'
                             <li><code>MainCurrency</code> — Your primary currency as an ISO 4217 code (e.g. <code>EUR</code>, <code>USD</code>). Default: <code>CHF</code>.</li>
                             <li><code>AdditionalCurrencies</code> — A list of extra currencies to track alongside the main one.</li>
                             <li><code>DateFormat</code> — Display format for dates using <code>YYYY</code>, <code>MM</code>, <code>DD</code> tokens separated by <code>-</code>, <code>/</code>, or <code>.</code>. Default: <code>YYYY-MM-DD</code>.</li>
-                            <li><code>InvestmentInstruments</code> — Enable investment tracking (stocks, ETFs, restricted stock assets). Default: <code>false</code>.</li>
+                            <li><code>InvestmentInstruments</code> — Enable investment tracking (portfolio, stocks, ETFs). Automatically enabled if the database already contains investment accounts. Default: <code>false</code>.</li>
+                            <li><code>Rsu</code> — Enable RSU (Restricted Stock Units) features: the restricted stock account type and vest/forfeit operations. Enabling this also enables <code>InvestmentInstruments</code> (required dependency). Automatically enabled if the database already contains restricted stock accounts or vest/forfeit transactions. Default: <code>false</code>.</li>
                             <li><code>FinancialSimulator</code> — Enable financial simulator (portfolio simulator, real-estate simulator, etc.). Default: <code>false</code>.</li>
                             <li><code>MaxAttachmentSizeMB</code> — Maximum upload size for attachments in MB. Default: <code>10</code>.</li>
                         </ul>
@@ -90,8 +91,8 @@ import Message from 'primevue/message'
                         <ul>
                             <li><code>Enabled</code> — Set to <code>true</code> to require login. Default: <code>false</code>.</li>
                             <li><code>DefaultUser</code> — Username used when auth is disabled. Default: <code>default</code>.</li>
-                            <li><code>HashKey</code> — 64-character key for session encryption. Auto-generated if empty.</li>
-                            <li><code>BlockKey</code> — 32-character key for session encryption. Auto-generated if empty.</li>
+                            <li><code>HashKey</code> — Session encryption key, exactly 64 characters. Required when auth is enabled.</li>
+                            <li><code>BlockKey</code> — Session encryption key, exactly 32 characters. Required when auth is enabled.</li>
                             <li><code>UserStore</code> — Defines where users are stored:
                                 <ul>
                                     <li><code>Type: static</code> — Users are defined directly in the config file.</li>
@@ -100,8 +101,9 @@ import Message from 'primevue/message'
                             </li>
                         </ul>
                         <Message severity="warn" :closable="false" icon="ti ti-alert-triangle">
-                            If <code>HashKey</code> and <code>BlockKey</code> are left empty, random keys are generated
-                            at startup. This means user sessions will not survive application restarts.
+                            When auth is enabled, both <code>HashKey</code> (64 chars) and <code>BlockKey</code> (32 chars)
+                            must be set, otherwise the server will not start. Keep them stable across restarts so existing
+                            user sessions remain valid.
                         </Message>
 
                         <h4>Env</h4>
@@ -137,7 +139,7 @@ import Message from 'primevue/message'
                         </p>
                         <pre><code>ETNA_SERVER_PORT=8085
 ETNA_SETTINGS_MAINCURRENCY=USD
-ETNA_SETTINGS_INSTRUMENTS=true
+ETNA_SETTINGS_INVESTMENTINSTRUMENTS=true
 ETNA_AUTH_ENABLED=true
 ETNA_ENV_LOGLEVEL=debug</code></pre>
                     </section>

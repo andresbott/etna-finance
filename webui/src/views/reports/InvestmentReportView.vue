@@ -1,7 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { ResponsiveHorizontal } from '@go-bumbu/vue-layouts'
-import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
+import { ResponsiveHorizontal } from '@/components/layout'
 import Card from 'primevue/card'
 import TabView from 'primevue/tabview'
 import TabPanel from 'primevue/tabpanel'

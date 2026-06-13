@@ -35,7 +35,7 @@ defineProps({
 
 .app-text {
     font-size: 150%;
-    //font-weight: bold;
+    /* font-weight: bold; */
     color: var(--c-primary-50);
 }
 </style>

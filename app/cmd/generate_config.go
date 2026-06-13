@@ -10,7 +10,7 @@ import (
 const defaultConfigYAML = `# =============================================================================
 # etna-finance configuration file
 # =============================================================================
-# Generated with: etna generate-config
+# Generated with: etna config
 #
 # Configuration is loaded in this order (last wins):
 #   1. Built-in defaults

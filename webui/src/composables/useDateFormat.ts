@@ -116,7 +116,7 @@ export function useDateFormat() {
     const dateValidation = computed(() =>
         z.preprocess(
             (val) => parseDateString(val, settings.dateFormat),
-            z.coerce.date({ invalid_type_error: `Enter a valid date (${settings.dateFormat || 'DD/MM/YYYY'})` })
+            z.coerce.date({ error: `Enter a valid date (${settings.dateFormat || 'DD/MM/YYYY'})` })
         )
     )
 

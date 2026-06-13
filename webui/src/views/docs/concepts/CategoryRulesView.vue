@@ -57,8 +57,9 @@ import Card from 'primevue/card'
                         </p>
                         <p>
                             This lets you create specific rules that take precedence over broader catch-all
-                            patterns. For example, a rule for <em>Whole Foods</em> with priority 0 would win over
-                            a general <em>*.com</em> rule with priority 10.
+                            patterns. For example, a rule matching <em>amazon web services</em> with priority 0 would
+                            win over a broader <em>amazon</em> rule with priority 10, so cloud charges get their own
+                            category instead of being lumped in with general Amazon purchases.
                         </p>
                     </section>
 

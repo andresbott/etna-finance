@@ -1,7 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
 
 import { fetchIncomeExpense } from '@/composables/useIncomeExpense'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'

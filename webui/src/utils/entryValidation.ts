@@ -5,5 +5,5 @@ import { z } from 'zod'
  * Use in entry dialog forms when an account is required.
  */
 export const accountValidation = z
-    .union([z.null(), z.record(z.boolean())])
+    .union([z.null(), z.record(z.string(), z.boolean())])
     .refine((obj) => obj != null, { message: 'Account must be selected' })

@@ -44,9 +44,9 @@ import Message from 'primevue/message'
                             </li>
                         </ul>
                         <p>
-                            Both accounts must be linked to the same investment product (the company stock).
+                            Both accounts must be linked to the same instrument (the company stock).
                             Make sure the stock is configured under
-                            <router-link to="/market-data/stock-market">Investment Products</router-link>.
+                            <router-link to="/market-data/stock-market">Stock Market</router-link>.
                         </p>
                     </section>
 
@@ -67,8 +67,9 @@ import Message from 'primevue/message'
                         <h3>Step 2: Record the vesting</h3>
                         <p>
                             When a batch of RSUs vests, the shares move from being "promised" to being "owned".
-                            Record a <strong>Transfer instrument</strong> transaction to move the vested shares
-                            from your <strong>Restricted stocks</strong> account to your <strong>Investment</strong> account.
+                            Record a <strong>Vest shares</strong> transaction on your <strong>Restricted stocks</strong>
+                            account. This moves the vested shares into your <strong>Investment</strong> account, drawing
+                            down the relevant grant, and captures the fair market value at vesting as their cost basis.
                         </p>
                         <p>
                             This reflects that those shares are now yours — they sit in your investment account
@@ -78,6 +79,16 @@ import Message from 'primevue/message'
                             <strong>Note:</strong> Any benefit or loss is calculated at sell time, based on the difference between
                             the sale price and the fair market value at vesting.
                         </Message>
+                    </section>
+
+                    <section>
+                        <h3>Handling forfeited shares</h3>
+                        <p>
+                            If some RSUs are forfeited before they vest — for example if you leave the company before
+                            a vesting date — record a <strong>Forfeit shares</strong> transaction on your
+                            <strong>Restricted stocks</strong> account. This removes the unvested shares from the
+                            grant so they no longer appear as promised holdings.
+                        </p>
                     </section>
 
 

@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { ResponsiveHorizontal } from '@go-bumbu/vue-layouts'
-import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
+import { ResponsiveHorizontal } from '@/components/layout'
 import { ref, computed, watch, watchEffect } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import Card from 'primevue/card'

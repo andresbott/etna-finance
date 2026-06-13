@@ -1,7 +1,7 @@
 <script setup>
 
 import { onMounted, onUnmounted } from 'vue'
-import { VerticalLayout } from '@go-bumbu/vue-layouts'
+import { VerticalLayout } from '@/components/layout'
 import Topbar from './views/TopBar.vue'
 import SidebarMenu from './components/SidebarMenu.vue'
 import { useUiStore } from '@/store/uiStore.js'
