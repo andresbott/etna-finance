@@ -8,9 +8,10 @@ import {
     createPricesBulk,
     updatePrice,
     deletePrice,
+    getEpsHistory,
     type PriceRecord,
     type CreatePriceDTO,
-    type UpdatePriceDTO,
+    type EpsRecord,
 } from './MarketData'
 
 vi.mock('./client', () => ({
@@ -22,10 +23,13 @@ beforeEach(() => vi.clearAllMocks())
 const BASE = '/fin/marketdata'
 
 const mockPrice: PriceRecord = {
-    id: 1,
     symbol: 'AAPL',
     time: '2025-01-15T10:00:00Z',
-    price: 198.5,
+    open: 195.0,
+    high: 200.0,
+    low: 194.0,
+    close: 198.5,
+    volume: 1234567,
 }
 
 /* ------------------------------------------------------------------ */
@@ -183,7 +187,10 @@ describe('getLatestPrice', () => {
 /* ------------------------------------------------------------------ */
 describe('createPrice', () => {
     it('calls POST with encoded symbol and payload', async () => {
-        const payload: CreatePriceDTO = { time: '2025-01-15T10:00:00Z', price: 198.5 };
+        const payload: CreatePriceDTO = {
+            time: '2025-01-15T10:00:00Z',
+            open: 195.0, high: 200.0, low: 194.0, close: 198.5, volume: 1234567
+        };
         (apiClient.post as Mock).mockResolvedValue({})
 
         await createPrice('AAPL', payload)
@@ -193,7 +200,10 @@ describe('createPrice', () => {
     })
 
     it('URL-encodes symbols with special characters', async () => {
-        const payload: CreatePriceDTO = { time: '2025-01-15T10:00:00Z', price: 42000 };
+        const payload: CreatePriceDTO = {
+            time: '2025-01-15T10:00:00Z',
+            open: 40000, high: 42500, low: 39500, close: 42000, volume: 500
+        };
         (apiClient.post as Mock).mockResolvedValue({})
 
         await createPrice('BTC/USD', payload)
@@ -204,7 +214,10 @@ describe('createPrice', () => {
     it('returns void', async () => {
         (apiClient.post as Mock).mockResolvedValue({})
 
-        const result = await createPrice('AAPL', { time: '2025-01-15T10:00:00Z', price: 198.5 })
+        const result = await createPrice('AAPL', {
+            time: '2025-01-15T10:00:00Z',
+            open: 195.0, high: 200.0, low: 194.0, close: 198.5, volume: 1234567
+        })
 
         expect(result).toBeUndefined()
     })
@@ -217,8 +230,8 @@ describe('createPricesBulk', () => {
     it('calls POST with encoded symbol and bulk payload', async () => {
         const payload = {
             points: [
-                { time: '2025-01-15T10:00:00Z', price: 198.5 },
-                { time: '2025-01-16T10:00:00Z', price: 200.0 },
+                { time: '2025-01-15T10:00:00Z', open: 195.0, high: 200.0, low: 194.0, close: 198.5, volume: 1000 },
+                { time: '2025-01-16T10:00:00Z', open: 198.0, high: 202.0, low: 197.0, close: 200.0, volume: 1200 },
             ],
         };
         (apiClient.post as Mock).mockResolvedValue({})
@@ -230,7 +243,7 @@ describe('createPricesBulk', () => {
     })
 
     it('URL-encodes symbols with special characters', async () => {
-        const payload = { points: [{ time: '2025-01-15T10:00:00Z', price: 42000 }] };
+        const payload = { points: [{ time: '2025-01-15T10:00:00Z', open: 40000, high: 42500, low: 39500, close: 42000, volume: 500 }] };
         (apiClient.post as Mock).mockResolvedValue({})
 
         await createPricesBulk('BTC/USD', payload)
@@ -251,29 +264,35 @@ describe('createPricesBulk', () => {
 /*  updatePrice                                                        */
 /* ------------------------------------------------------------------ */
 describe('updatePrice', () => {
-    it('calls PUT /fin/marketdata/prices/:id with payload', async () => {
-        const payload: UpdatePriceDTO = { price: 205.0 };
+    it('calls PUT /fin/marketdata/{symbol}/prices/{date} with payload', async () => {
+        const payload: CreatePriceDTO = {
+            time: '2025-01-15', open: 195.0, high: 200.0, low: 194.0, close: 205.0, volume: 1000
+        };
         (apiClient.put as Mock).mockResolvedValue({})
 
-        await updatePrice(1, payload)
+        await updatePrice('AAPL', '2025-01-15', payload)
 
-        expect(apiClient.put).toHaveBeenCalledWith(`${BASE}/prices/1`, payload)
+        expect(apiClient.put).toHaveBeenCalledWith(`${BASE}/AAPL/prices/2025-01-15`, payload)
         expect(apiClient.put).toHaveBeenCalledTimes(1)
     })
 
-    it('sends partial payload with only time', async () => {
-        const payload: UpdatePriceDTO = { time: '2025-02-01T00:00:00Z' };
+    it('URL-encodes symbol with special characters', async () => {
+        const payload: CreatePriceDTO = {
+            time: '2025-02-01', open: 40000, high: 42500, low: 39500, close: 41000, volume: 500
+        };
         (apiClient.put as Mock).mockResolvedValue({})
 
-        await updatePrice(42, payload)
+        await updatePrice('BTC/USD', '2025-02-01', payload)
 
-        expect(apiClient.put).toHaveBeenCalledWith(`${BASE}/prices/42`, payload)
+        expect(apiClient.put).toHaveBeenCalledWith(`${BASE}/BTC%2FUSD/prices/2025-02-01`, payload)
     })
 
     it('returns void', async () => {
         (apiClient.put as Mock).mockResolvedValue({})
 
-        const result = await updatePrice(1, { price: 205.0 })
+        const result = await updatePrice('AAPL', '2025-01-15', {
+            time: '2025-01-15', open: 195.0, high: 200.0, low: 194.0, close: 205.0, volume: 1000
+        })
 
         expect(result).toBeUndefined()
     })
@@ -283,20 +302,92 @@ describe('updatePrice', () => {
 /*  deletePrice                                                        */
 /* ------------------------------------------------------------------ */
 describe('deletePrice', () => {
-    it('calls DELETE /fin/marketdata/prices/:id', async () => {
+    it('calls DELETE /fin/marketdata/{symbol}/prices/{date}', async () => {
         (apiClient.delete as Mock).mockResolvedValue({})
 
-        await deletePrice(1)
+        await deletePrice('AAPL', '2025-01-15')
 
-        expect(apiClient.delete).toHaveBeenCalledWith(`${BASE}/prices/1`)
+        expect(apiClient.delete).toHaveBeenCalledWith(`${BASE}/AAPL/prices/2025-01-15`)
         expect(apiClient.delete).toHaveBeenCalledTimes(1)
+    })
+
+    it('URL-encodes symbol with special characters', async () => {
+        (apiClient.delete as Mock).mockResolvedValue({})
+
+        await deletePrice('BTC/USD', '2025-01-15')
+
+        expect(apiClient.delete).toHaveBeenCalledWith(`${BASE}/BTC%2FUSD/prices/2025-01-15`)
     })
 
     it('returns void', async () => {
         (apiClient.delete as Mock).mockResolvedValue({})
 
-        const result = await deletePrice(99)
+        const result = await deletePrice('AAPL', '2025-01-15')
 
         expect(result).toBeUndefined()
+    })
+})
+
+/* ------------------------------------------------------------------ */
+/*  getEpsHistory                                                      */
+/* ------------------------------------------------------------------ */
+describe('getEpsHistory', () => {
+    const mockEps: EpsRecord = { time: '2025-02-01', eps_basic: 6.42, eps_diluted: 6.38 }
+
+    it('calls GET with encoded symbol and no query params when dates omitted', async () => {
+        (apiClient.get as Mock).mockResolvedValue({ data: { items: [mockEps] } })
+
+        const result = await getEpsHistory('AAPL')
+
+        expect(apiClient.get).toHaveBeenCalledWith(`${BASE}/AAPL/eps`)
+        expect(result).toEqual([mockEps])
+    })
+
+    it('appends start query param only', async () => {
+        (apiClient.get as Mock).mockResolvedValue({ data: { items: [] } })
+
+        await getEpsHistory('AAPL', '2023-01-01')
+
+        expect(apiClient.get).toHaveBeenCalledWith(`${BASE}/AAPL/eps?start=2023-01-01`)
+    })
+
+    it('appends end query param only', async () => {
+        (apiClient.get as Mock).mockResolvedValue({ data: { items: [] } })
+
+        await getEpsHistory('AAPL', undefined, '2025-12-31')
+
+        expect(apiClient.get).toHaveBeenCalledWith(`${BASE}/AAPL/eps?end=2025-12-31`)
+    })
+
+    it('appends both start and end query params', async () => {
+        (apiClient.get as Mock).mockResolvedValue({ data: { items: [] } })
+
+        await getEpsHistory('AAPL', '2023-01-01', '2025-12-31')
+
+        expect(apiClient.get).toHaveBeenCalledWith(`${BASE}/AAPL/eps?start=2023-01-01&end=2025-12-31`)
+    })
+
+    it('URL-encodes symbols with special characters', async () => {
+        (apiClient.get as Mock).mockResolvedValue({ data: { items: [] } })
+
+        await getEpsHistory('BRK/B')
+
+        expect(apiClient.get).toHaveBeenCalledWith(`${BASE}/BRK%2FB/eps`)
+    })
+
+    it('returns empty array when items is undefined', async () => {
+        (apiClient.get as Mock).mockResolvedValue({ data: {} })
+
+        const result = await getEpsHistory('AAPL')
+
+        expect(result).toEqual([])
+    })
+
+    it('returns empty array when items is null', async () => {
+        (apiClient.get as Mock).mockResolvedValue({ data: { items: null } })
+
+        const result = await getEpsHistory('AAPL')
+
+        expect(result).toEqual([])
     })
 })

@@ -413,7 +413,7 @@ func writeInstruments(ctx context.Context, zw *zipWriter, mdStore *marketdata.St
 }
 
 func writePriceHistory(ctx context.Context, zw *zipWriter, mdStore *marketdata.Store) error {
-	symbols, err := mdStore.ListPriceSymbols()
+	symbols, err := mdStore.ListPriceSymbols(ctx)
 	if err != nil {
 		return err
 	}
@@ -427,7 +427,11 @@ func writePriceHistory(ctx context.Context, zw *zipWriter, mdStore *marketdata.S
 			jsonData = append(jsonData, priceRecordV1{
 				Symbol: rec.Symbol,
 				Time:   rec.Time,
-				Price:  rec.Price,
+				Open:   rec.Open,
+				High:   rec.High,
+				Low:    rec.Low,
+				Close:  rec.Close,
+				Volume: rec.Volume,
 			})
 		}
 	}
@@ -438,19 +442,15 @@ func writePriceHistory(ctx context.Context, zw *zipWriter, mdStore *marketdata.S
 }
 
 func writeFXRates(ctx context.Context, zw *zipWriter, mdStore *marketdata.Store) error {
-	pairs, err := mdStore.ListFXPairs()
+	pairs, err := mdStore.ListFXPairsDetailed(ctx)
 	if err != nil {
 		return err
 	}
 	var jsonData []fxRateRecordV1
 	for _, pair := range pairs {
-		parts := strings.SplitN(pair, "/", 2)
-		if len(parts) != 2 {
-			continue
-		}
-		records, err := mdStore.RateHistory(ctx, parts[0], parts[1], time.Time{}, time.Time{})
+		records, err := mdStore.RateHistory(ctx, pair.Main, pair.Secondary, time.Time{}, time.Time{})
 		if err != nil {
-			return fmt.Errorf("failed to get FX history for %s: %w", pair, err)
+			return fmt.Errorf("failed to get FX history for %s/%s: %w", pair.Main, pair.Secondary, err)
 		}
 		for _, rec := range records {
 			jsonData = append(jsonData, fxRateRecordV1{

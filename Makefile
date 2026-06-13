@@ -28,7 +28,7 @@ COVERAGE_THRESHOLD ?= 70
 .PHONY: coverage
 coverage:
 	@fail=0; \
-	for pkg in $$(go list ./internal/... ./libs/...); do \
+	for pkg in $$(go list ./internal/...); do \
 		go test -coverprofile=coverage.out -covermode=atomic $$pkg > /dev/null; \
 		if [ -f coverage.out ]; then \
 			coverage=$$(go tool cover -func=coverage.out | grep total: | awk '{print $$3}' | sed 's/%//'); \

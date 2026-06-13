@@ -43,7 +43,7 @@ import Message from 'primevue/message'
                         </ul>
                         <p>
                             Make sure the company stock is configured under
-                            <router-link to="/settings/instruments">Investment Products</router-link>.
+                            <router-link to="/market-data/stock-market">Stock Market</router-link>.
                         </p>
                     </section>
 

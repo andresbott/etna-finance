@@ -1,9 +1,8 @@
 <script setup>
 
 import { onMounted, onUnmounted } from 'vue'
-import { VerticalLayout } from '@go-bumbu/vue-layouts'
+import { VerticalLayout } from '@/components/layout'
 import Topbar from './views/TopBar.vue'
-import Footer from './views/parts/AppFooter.vue'
 import SidebarMenu from './components/SidebarMenu.vue'
 import { useUiStore } from '@/store/uiStore.js'
 import { useUserStore } from '@/store/userStore'
@@ -33,9 +32,6 @@ onUnmounted(() => {
                 <SidebarMenu v-if="user.isLoggedIn" id="sidebar-menu" />
                 <router-view />
             </div>
-        </template>
-        <template #footer>
-            <Footer />
         </template>
     </VerticalLayout>
 <!--    <VueQueryDevtools  />-->

@@ -19,7 +19,7 @@ type TaskDef struct {
 }
 
 // AvailableTasks is the full list of task definitions (including dev-only). Use AvailableTaskDefs(production) to filter.
-var AvailableTasks = []TaskDef{BackupTaskDef, FinancialImportTaskDef, FinancialBackfillTaskDef, FXImportTaskDef, FXBackfillTaskDef, LogOnlyTaskDef, LogOnlyLongTaskDef, DebugFailTaskDef}
+var AvailableTasks = []TaskDef{BackupTaskDef, FinancialImportTaskDef, FinancialBackfillTaskDef, FXImportTaskDef, FXBackfillTaskDef, EPSImportTaskDef, LogOnlyTaskDef, LogOnlyLongTaskDef, DebugFailTaskDef}
 
 // DevOnlyTaskIDs are task IDs hidden in production (non-prod only).
 var DevOnlyTaskIDs = map[string]bool{
@@ -94,7 +94,14 @@ func pricePointsNewDays(points []importer.PricePoint, existingDays map[time.Time
 	for _, p := range points {
 		day := dayNormalize(p.Time)
 		if _, exists := existingDays[day]; !exists {
-			out = append(out, marketdata.PricePoint{Time: p.Time, Price: p.Price})
+			out = append(out, marketdata.PricePoint{
+				Time:   p.Time,
+				Open:   p.Open,
+				High:   p.High,
+				Low:    p.Low,
+				Close:  p.Close,
+				Volume: p.Volume,
+			})
 			existingDays[day] = struct{}{}
 		}
 	}
@@ -108,6 +115,19 @@ func ratePointsNewDays(points []importer.RatePoint, existingDays map[time.Time]s
 		day := dayNormalize(p.Time)
 		if _, exists := existingDays[day]; !exists {
 			out = append(out, marketdata.RatePoint{Time: p.Time, Rate: p.Rate})
+			existingDays[day] = struct{}{}
+		}
+	}
+	return out
+}
+
+// epsPointsNewDays returns EPS points whose day is not in existingDays, and adds those days to existingDays.
+func epsPointsNewDays(points []importer.EPSPoint, existingDays map[time.Time]struct{}) []marketdata.EPSPoint {
+	var out []marketdata.EPSPoint
+	for _, p := range points {
+		day := dayNormalize(p.Time)
+		if _, exists := existingDays[day]; !exists {
+			out = append(out, marketdata.EPSPoint{Time: p.Time, Basic: p.Basic, Diluted: p.Diluted})
 			existingDays[day] = struct{}{}
 		}
 	}

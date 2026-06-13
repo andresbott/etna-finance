@@ -9,7 +9,7 @@ import {
     deleteRate as deleteRateApi,
     parsePair
 } from '@/lib/api/CurrencyRates'
-import type { CreateRateDTO, UpdateRateDTO, RateRecord } from '@/lib/api/CurrencyRates'
+import type { CreateRateDTO, RateRecord } from '@/lib/api/CurrencyRates'
 import { lastDaysRange, rangeToStartEnd } from '@/utils/dateRange'
 
 export { formatPct, getChangeSeverity } from '@/utils/format'
@@ -31,7 +31,7 @@ export function useFXOverview() {
     const { start, end } = lastDaysRange(30)
 
     const pairsQuery = useQuery({
-        queryKey: [FX_OVERVIEW_QUERY_KEY],
+        queryKey: FX_OVERVIEW_QUERY_KEY,
         queryFn: getFXPairs,
         enabled: true
     })
@@ -129,7 +129,7 @@ export function useFXMutations(main: MaybeRefOrGetter<string>, secondary: MaybeR
     const getSecondary = () => (typeof secondary === 'function' ? secondary() : unref(secondary))
 
     const invalidate = () => {
-        queryClient.invalidateQueries({ queryKey: [FX_OVERVIEW_QUERY_KEY] })
+        queryClient.invalidateQueries({ queryKey: FX_OVERVIEW_QUERY_KEY })
         queryClient.invalidateQueries({
             queryKey: [FX_RATE_HISTORY_QUERY_KEY, getMain(), getSecondary()]
         })
@@ -140,12 +140,12 @@ export function useFXMutations(main: MaybeRefOrGetter<string>, secondary: MaybeR
         onSuccess: invalidate
     })
     const updateMutation = useMutation({
-        mutationFn: ({ id, payload }: { id: number; payload: UpdateRateDTO }) =>
-            updateRateApi(id, payload),
+        mutationFn: ({ origDate, payload }: { origDate: string; payload: CreateRateDTO }) =>
+            updateRateApi(getMain(), getSecondary(), origDate, payload),
         onSuccess: invalidate
     })
     const deleteMutation = useMutation({
-        mutationFn: (id: number) => deleteRateApi(id),
+        mutationFn: (date: string) => deleteRateApi(getMain(), getSecondary(), date),
         onSuccess: invalidate
     })
 

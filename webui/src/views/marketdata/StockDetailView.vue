@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { ResponsiveHorizontal } from '@go-bumbu/vue-layouts'
-import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
+import { ResponsiveHorizontal } from '@/components/layout'
 import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Card from 'primevue/card'
@@ -16,6 +15,7 @@ import Dialog from 'primevue/dialog'
 import DatePicker from 'primevue/datepicker'
 import InputNumber from 'primevue/inputnumber'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import StockChartTab from '@/views/marketdata/StockChartTab.vue'
 import { useDateFormat } from '@/composables/useDateFormat'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
@@ -31,15 +31,17 @@ import {
     useMarketInstruments,
     usePriceHistory,
     useMarketDataMutations,
+    useEpsHistory,
+    useEpsMutations,
     toLocalDateString,
     formatPrice,
+    formatVolume,
     formatPct,
     formatChange,
     getChangeSeverity,
     type MarketInstrument,
     type PriceHistoryRange
 } from '@/composables/useMarketData'
-import type { PriceRecord } from '@/lib/api/MarketData'
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent, MarkLineComponent])
 
@@ -47,7 +49,7 @@ const route = useRoute()
 const router = useRouter()
 const { instruments, isLoading } = useMarketInstruments()
 const { formatDate, pickerDateFormat } = useDateFormat()
-const TAB_NAMES = ['overview', 'raw-data'] as const
+const TAB_NAMES = ['overview', 'chart', 'raw-data', 'eps'] as const
 
 const leftSidebarCollapsed = ref(true)
 const activeTabIndex = ref(0)
@@ -104,59 +106,96 @@ const {
 const priceHistory = computed(() => priceHistoryData.value)
 
 const rangeChange = computed(() => {
-    const prices = priceHistoryData.value.prices
-    if (prices.length < 2) return null
-    return prices[prices.length - 1] - prices[0]
+    const closes = priceHistoryData.value.closes
+    if (closes.length < 2) return null
+    return closes[closes.length - 1] - closes[0]
 })
 
 const rangeChangePct = computed(() => {
-    const prices = priceHistoryData.value.prices
-    if (prices.length < 2) return null
-    const first = prices[0]
+    const closes = priceHistoryData.value.closes
+    if (closes.length < 2) return null
+    const first = closes[0]
     if (first === 0) return null
-    return ((prices[prices.length - 1] - first) / first) * 100
+    return ((closes[closes.length - 1] - first) / first) * 100
 })
 
-const rawDataRows = computed(() => {
+interface RawDataRow {
+    date: string
+    open: number
+    high: number
+    low: number
+    close: number
+    volume: number
+}
+
+const rawDataRows = computed<RawDataRow[]>(() => {
     const { records } = priceHistoryData.value
-    const rows = (records ?? []).map((r: PriceRecord) => ({ id: r.id, date: r.time, price: r.price }))
+    const rows = (records ?? []).map((r) => ({
+        date: r.time,
+        open: r.open,
+        high: r.high,
+        low: r.low,
+        close: r.close,
+        volume: r.volume
+    }))
     return rows.sort((a, b) => b.date.localeCompare(a.date))
 })
 
 const dataDialogVisible = ref(false)
 const dataDialogMode = ref<'add' | 'edit'>('add')
-const dataDialogForm = ref<{ id?: number; date: string; price: number }>({ date: '', price: 0 })
-const dataDialogEditRecord = ref<{ id: number; date: string; price: number } | null>(null)
+const dataDialogForm = ref<{
+    origDate?: string
+    date: string
+    open: number
+    high: number
+    low: number
+    close: number
+    volume: number
+}>({ date: '', open: 0, high: 0, low: 0, close: 0, volume: 0 })
 
 function openAddDataDialog() {
     dataDialogMode.value = 'add'
-    dataDialogForm.value = { date: '', price: 0 }
+    dataDialogForm.value = { date: '', open: 0, high: 0, low: 0, close: 0, volume: 0 }
     dataDialogVisible.value = true
 }
 
-function openEditDataDialog(record: { id: number; date: string; price: number }) {
+function openEditDataDialog(record: RawDataRow) {
     dataDialogMode.value = 'edit'
-    dataDialogForm.value = { id: record.id, date: record.date, price: record.price }
-    dataDialogEditRecord.value = record
+    dataDialogForm.value = {
+        origDate: record.date,
+        date: record.date,
+        open: record.open,
+        high: record.high,
+        low: record.low,
+        close: record.close,
+        volume: record.volume
+    }
     dataDialogVisible.value = true
 }
 
 async function saveDataDialog() {
     const sym = instrument.value?.symbol
     if (!sym) return
-    const { date, price } = dataDialogForm.value
-    if (!date) {
+    const f = dataDialogForm.value
+    if (!f.date) {
         dataDialogVisible.value = false
         return
     }
     // Use date as-is (already local YYYY-MM-DD from picker); avoid UTC shift
-    const time = date.includes('T') ? toLocalDateString(new Date(date)) : date
+    const time = f.date.includes('T') ? toLocalDateString(new Date(f.date)) : f.date
+    const payload = {
+        time,
+        open: f.open,
+        high: f.high,
+        low: f.low,
+        close: f.close,
+        volume: f.volume
+    }
     try {
         if (dataDialogMode.value === 'add') {
-            await createPriceMutation({ time, price })
+            await createPriceMutation(payload)
         } else {
-            const id = dataDialogForm.value.id ?? dataDialogEditRecord.value?.id
-            if (id != null) await updatePriceMutation({ id, payload: { time, price } })
+            await updatePriceMutation({ origDate: f.origDate!, payload })
         }
         dataDialogVisible.value = false
         await refetchPriceHistory()
@@ -166,9 +205,9 @@ async function saveDataDialog() {
 }
 
 const deleteDialogVisible = ref(false)
-const deleteTargetRecord = ref<{ id: number; date: string; price: number } | null>(null)
+const deleteTargetRecord = ref<RawDataRow | null>(null)
 
-function openDeleteDataDialog(record: { id: number; date: string; price: number }) {
+function openDeleteDataDialog(record: RawDataRow) {
     deleteTargetRecord.value = record
     deleteDialogVisible.value = true
 }
@@ -177,7 +216,7 @@ async function confirmDeleteData() {
     const rec = deleteTargetRecord.value
     if (rec) {
         try {
-            await deletePriceMutation(rec.id)
+            await deletePriceMutation(rec.date)
             deleteTargetRecord.value = null
             deleteDialogVisible.value = false
             await refetchPriceHistory()
@@ -191,8 +230,108 @@ function formatTableDate(isoDate: string) {
     return isoDate ? formatDate(isoDate) : '-'
 }
 
+// --- EPS (earnings per share) ----------------------------------------------
+// EPS is quarterly, so we fetch the full history (no date range) and edit it directly.
+const { data: epsHistoryData } = useEpsHistory(symbol)
+const {
+    createEps: createEpsMutation,
+    updateEps: updateEpsMutation,
+    deleteEps: deleteEpsMutation,
+    isCreating: isEpsCreating,
+    isUpdating: isEpsUpdating,
+    isDeleting: isEpsDeleting
+} = useEpsMutations(symbol)
+
+interface EpsRow {
+    date: string
+    basic: number
+    diluted: number
+}
+
+const epsRows = computed<EpsRow[]>(() => {
+    const rows = epsHistoryData.value.map((r) => ({
+        date: r.time,
+        basic: r.eps_basic,
+        diluted: r.eps_diluted
+    }))
+    return rows.sort((a, b) => b.date.localeCompare(a.date))
+})
+
+const epsDialogVisible = ref(false)
+const epsDialogMode = ref<'add' | 'edit'>('add')
+const epsDialogForm = ref<{ origDate?: string; date: string; basic: number; diluted: number }>({
+    date: '',
+    basic: 0,
+    diluted: 0
+})
+
+function openAddEpsDialog() {
+    epsDialogMode.value = 'add'
+    epsDialogForm.value = { date: '', basic: 0, diluted: 0 }
+    epsDialogVisible.value = true
+}
+
+function openEditEpsDialog(record: EpsRow) {
+    epsDialogMode.value = 'edit'
+    epsDialogForm.value = {
+        origDate: record.date,
+        date: record.date,
+        basic: record.basic,
+        diluted: record.diluted
+    }
+    epsDialogVisible.value = true
+}
+
+async function saveEpsDialog() {
+    const sym = instrument.value?.symbol
+    if (!sym) return
+    const f = epsDialogForm.value
+    if (!f.date) {
+        epsDialogVisible.value = false
+        return
+    }
+    const time = f.date.includes('T') ? toLocalDateString(new Date(f.date)) : f.date
+    const payload = { time, eps_basic: f.basic, eps_diluted: f.diluted }
+    try {
+        if (epsDialogMode.value === 'add') {
+            await createEpsMutation(payload)
+        } else {
+            await updateEpsMutation({ origDate: f.origDate!, payload })
+        }
+        epsDialogVisible.value = false
+    } catch (_) {
+        // Error surfaced by mutation
+    }
+}
+
+const epsDeleteDialogVisible = ref(false)
+const epsDeleteTarget = ref<EpsRow | null>(null)
+
+function openDeleteEpsDialog(record: EpsRow) {
+    epsDeleteTarget.value = record
+    epsDeleteDialogVisible.value = true
+}
+
+async function confirmDeleteEps() {
+    const rec = epsDeleteTarget.value
+    if (rec) {
+        try {
+            await deleteEpsMutation(rec.date)
+            epsDeleteTarget.value = null
+            epsDeleteDialogVisible.value = false
+        } catch (_) {
+            // Error surfaced by mutation
+        }
+    }
+}
+
+function formatEps(value: number | null | undefined): string {
+    if (value == null) return '-'
+    return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 const chartOption = computed(() => {
-    const { dates, prices } = priceHistory.value
+    const { dates, closes } = priceHistory.value
     if (!dates.length || !instrument.value) return {}
 
     const inst = instrument.value
@@ -215,7 +354,7 @@ const chartOption = computed(() => {
             trigger: 'axis',
             formatter: (params: any) => {
                 const p = params[0]
-                return `<strong>${p.axisValueLabel}</strong><br/>
+                return `<strong>${formatDate(p.axisValue ?? p.name ?? '')}</strong><br/>
                     Price: <strong>${p.value.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong> ${inst.currency || ''}`
             }
         },
@@ -224,7 +363,8 @@ const chartOption = computed(() => {
             data: dates,
             axisLabel: {
                 rotate: 45,
-                fontSize: 11
+                fontSize: 11,
+                formatter: (v: string) => formatDate(v)
             },
             boundaryGap: false
         },
@@ -240,7 +380,7 @@ const chartOption = computed(() => {
         },
         series: [{
             type: 'line',
-            data: prices,
+            data: closes,
             smooth: 0.3,
             showSymbol: false,
             lineStyle: { color: lineColor, width: 2 },
@@ -352,6 +492,10 @@ function goBack() {
                             </div>
                         </TabPanel>
 
+                        <TabPanel header="Chart" value="chart">
+                            <StockChartTab v-if="symbol" :symbol="symbol" class="chart-tab-host" />
+                        </TabPanel>
+
                         <TabPanel header="Raw data" value="raw-data">
                             <div class="raw-data-toolbar mb-3">
                                 <Button label="Add" icon="ti ti-plus" :loading="isCreating" @click="openAddDataDialog" />
@@ -361,7 +505,7 @@ function goBack() {
                                 stripedRows
                                 :paginator="rawDataRows.length > 10"
                                 :rows="10"
-                                dataKey="id"
+                                dataKey="date"
                                 class="p-datatable-sm"
                             >
                                 <Column field="date" header="Date">
@@ -369,9 +513,29 @@ function goBack() {
                                         {{ formatTableDate(data.date) }}
                                     </template>
                                 </Column>
-                                <Column field="price" header="Price">
+                                <Column field="open" header="Open">
                                     <template #body="{ data }">
-                                        {{ formatPrice(data.price) }}
+                                        {{ formatPrice(data.open) }}
+                                    </template>
+                                </Column>
+                                <Column field="high" header="High">
+                                    <template #body="{ data }">
+                                        {{ formatPrice(data.high) }}
+                                    </template>
+                                </Column>
+                                <Column field="low" header="Low">
+                                    <template #body="{ data }">
+                                        {{ formatPrice(data.low) }}
+                                    </template>
+                                </Column>
+                                <Column field="close" header="Close">
+                                    <template #body="{ data }">
+                                        {{ formatPrice(data.close) }}
+                                    </template>
+                                </Column>
+                                <Column field="volume" header="Volume">
+                                    <template #body="{ data }">
+                                        {{ formatVolume(data.volume) }}
                                     </template>
                                 </Column>
                                 <Column header="Actions" style="width: 120px">
@@ -396,6 +560,61 @@ function goBack() {
                                 </Column>
                             </DataTable>
                         </TabPanel>
+
+                        <TabPanel header="EPS" value="eps">
+                            <div class="raw-data-toolbar mb-3">
+                                <Button label="Add" icon="ti ti-plus" :loading="isEpsCreating" @click="openAddEpsDialog" />
+                            </div>
+                            <DataTable
+                                :value="epsRows"
+                                stripedRows
+                                :paginator="epsRows.length > 10"
+                                :rows="10"
+                                dataKey="date"
+                                class="p-datatable-sm"
+                            >
+                                <template #empty>
+                                    <div class="text-center p-3 text-color-secondary">
+                                        No EPS data. Add a filing or run the <code>eps-import</code> task.
+                                    </div>
+                                </template>
+                                <Column field="date" header="Filing date">
+                                    <template #body="{ data }">
+                                        {{ formatTableDate(data.date) }}
+                                    </template>
+                                </Column>
+                                <Column field="basic" header="Basic EPS">
+                                    <template #body="{ data }">
+                                        {{ formatEps(data.basic) }}
+                                    </template>
+                                </Column>
+                                <Column field="diluted" header="Diluted EPS">
+                                    <template #body="{ data }">
+                                        {{ formatEps(data.diluted) }}
+                                    </template>
+                                </Column>
+                                <Column header="Actions" style="width: 120px">
+                                    <template #body="{ data }">
+                                        <Button
+                                            icon="ti ti-pencil"
+                                            text
+                                            size="small"
+                                            severity="secondary"
+                                            :loading="isEpsUpdating"
+                                            @click="openEditEpsDialog(data)"
+                                        />
+                                        <Button
+                                            icon="ti ti-trash"
+                                            text
+                                            size="small"
+                                            severity="danger"
+                                            :loading="isEpsDeleting"
+                                            @click="openDeleteEpsDialog(data)"
+                                        />
+                                    </template>
+                                </Column>
+                            </DataTable>
+                        </TabPanel>
                     </TabView>
 
                     <Dialog
@@ -413,18 +632,69 @@ function goBack() {
                                     :modelValue="dataDialogForm.date ? new Date(dataDialogForm.date + 'T12:00:00') : null"
                                     @update:modelValue="(d: any) => { dataDialogForm.date = d ? toLocalDateString(d) : '' }"
                                     :dateFormat="pickerDateFormat"
+                                    :disabled="dataDialogMode === 'edit'"
                                     showIcon
+                                    class="w-full"
+                                />
+                                <small v-if="dataDialogMode === 'edit'" class="text-color-secondary">
+                                    To change the date, delete this record and add a new one.
+                                </small>
+                            </div>
+                            <div class="field">
+                                <label for="data-open">Open</label>
+                                <InputNumber
+                                    id="data-open"
+                                    v-model="dataDialogForm.open"
+                                    mode="decimal"
+                                    :minFractionDigits="2"
+                                    :maxFractionDigits="2"
+                                    :min="0"
                                     class="w-full"
                                 />
                             </div>
                             <div class="field">
-                                <label for="data-price">Price</label>
+                                <label for="data-high">High</label>
                                 <InputNumber
-                                    id="data-price"
-                                    v-model="dataDialogForm.price"
+                                    id="data-high"
+                                    v-model="dataDialogForm.high"
                                     mode="decimal"
                                     :minFractionDigits="2"
                                     :maxFractionDigits="2"
+                                    :min="0"
+                                    class="w-full"
+                                />
+                            </div>
+                            <div class="field">
+                                <label for="data-low">Low</label>
+                                <InputNumber
+                                    id="data-low"
+                                    v-model="dataDialogForm.low"
+                                    mode="decimal"
+                                    :minFractionDigits="2"
+                                    :maxFractionDigits="2"
+                                    :min="0"
+                                    class="w-full"
+                                />
+                            </div>
+                            <div class="field">
+                                <label for="data-close">Close</label>
+                                <InputNumber
+                                    id="data-close"
+                                    v-model="dataDialogForm.close"
+                                    mode="decimal"
+                                    :minFractionDigits="2"
+                                    :maxFractionDigits="2"
+                                    :min="0"
+                                    class="w-full"
+                                />
+                            </div>
+                            <div class="field">
+                                <label for="data-volume">Volume</label>
+                                <InputNumber
+                                    id="data-volume"
+                                    v-model="dataDialogForm.volume"
+                                    :minFractionDigits="0"
+                                    :maxFractionDigits="0"
                                     :min="0"
                                     class="w-full"
                                 />
@@ -441,6 +711,65 @@ function goBack() {
                         title="Delete market data"
                         message="Remove this data point?"
                         @confirm="confirmDeleteData"
+                    />
+
+                    <Dialog
+                        v-model:visible="epsDialogVisible"
+                        :header="epsDialogMode === 'add' ? 'Add EPS filing' : 'Edit EPS filing'"
+                        modal
+                        class="entry-dialog"
+                        @hide="epsDialogVisible = false"
+                    >
+                        <div class="flex flex-column gap-3 py-2">
+                            <div class="field">
+                                <label for="eps-date">Filing date</label>
+                                <DatePicker
+                                    :id="'eps-date'"
+                                    :modelValue="epsDialogForm.date ? new Date(epsDialogForm.date + 'T12:00:00') : null"
+                                    @update:modelValue="(d: any) => { epsDialogForm.date = d ? toLocalDateString(d) : '' }"
+                                    :dateFormat="pickerDateFormat"
+                                    :disabled="epsDialogMode === 'edit'"
+                                    showIcon
+                                    class="w-full"
+                                />
+                                <small v-if="epsDialogMode === 'edit'" class="text-color-secondary">
+                                    To change the date, delete this filing and add a new one.
+                                </small>
+                            </div>
+                            <div class="field">
+                                <label for="eps-basic">Basic EPS</label>
+                                <InputNumber
+                                    id="eps-basic"
+                                    v-model="epsDialogForm.basic"
+                                    mode="decimal"
+                                    :minFractionDigits="2"
+                                    :maxFractionDigits="2"
+                                    class="w-full"
+                                />
+                            </div>
+                            <div class="field">
+                                <label for="eps-diluted">Diluted EPS</label>
+                                <InputNumber
+                                    id="eps-diluted"
+                                    v-model="epsDialogForm.diluted"
+                                    mode="decimal"
+                                    :minFractionDigits="2"
+                                    :maxFractionDigits="2"
+                                    class="w-full"
+                                />
+                            </div>
+                        </div>
+                        <template #footer>
+                            <Button label="Cancel" text severity="secondary" @click="epsDialogVisible = false" />
+                            <Button label="Save" icon="ti ti-check" :loading="isEpsCreating || isEpsUpdating" @click="saveEpsDialog" />
+                        </template>
+                    </Dialog>
+
+                    <ConfirmDialog
+                        v-model:visible="epsDeleteDialogVisible"
+                        title="Delete EPS filing"
+                        message="Remove this EPS filing?"
+                        @confirm="confirmDeleteEps"
                     />
                 </template>
             </Card>
@@ -518,6 +847,14 @@ function goBack() {
 .price-chart {
     height: 400px;
     width: 100%;
+}
+
+.chart-tab-host {
+    display: flex;
+    flex-direction: column;
+    /* Definite height (not min-height) so the inner flex:1 chart-wrapper and the
+       VChart's height:100% resolve; min-height is indefinite and collapses the chart. */
+    height: 600px;
 }
 
 .raw-data-toolbar {

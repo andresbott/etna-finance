@@ -1,10 +1,21 @@
 <script setup>
+import { computed } from 'vue'
 import Card from 'primevue/card'
 import Tag from 'primevue/tag'
 import Message from 'primevue/message'
+import { useQuery } from '@tanstack/vue-query'
 import { useSettingsStore } from '@/store/settingsStore'
+import { featureTag } from '@/utils/featureTag'
+import { getStats } from '@/lib/api/Stats'
 
 const settings = useSettingsStore()
+
+const statsQuery = useQuery({
+    queryKey: ['app-stats'],
+    queryFn: getStats,
+})
+
+const logLevelDisplay = computed(() => statsQuery.data?.value?.logLevel || '—')
 </script>
 
 <template>
@@ -85,10 +96,7 @@ const settings = useSettingsStore()
                                 <span>Investment Instruments</span>
                             </div>
                             <div class="setting-value">
-                                <Tag
-                                    :value="settings.investmentInstruments ? 'Enabled' : 'Disabled'"
-                                    :severity="settings.investmentInstruments ? 'success' : 'secondary'"
-                                />
+                                <Tag v-bind="featureTag(settings.investmentInstruments, 'investmentInstruments', settings.autoEnabled)" />
                             </div>
                         </div>
 
@@ -98,10 +106,7 @@ const settings = useSettingsStore()
                                 <span>RSU (Restricted Stock Units)</span>
                             </div>
                             <div class="setting-value">
-                                <Tag
-                                    :value="settings.rsu ? 'Enabled' : 'Disabled'"
-                                    :severity="settings.rsu ? 'success' : 'secondary'"
-                                />
+                                <Tag v-bind="featureTag(settings.rsu, 'rsu', settings.autoEnabled)" />
                             </div>
                         </div>
 
@@ -111,10 +116,20 @@ const settings = useSettingsStore()
                                 <span>Financial Simulator</span>
                             </div>
                             <div class="setting-value">
-                                <Tag
-                                    :value="settings.financialSimulator ? 'Enabled' : 'Disabled'"
-                                    :severity="settings.financialSimulator ? 'success' : 'secondary'"
-                                />
+                                <Tag v-bind="featureTag(settings.financialSimulator, 'financialSimulator', settings.autoEnabled)" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <h4 class="text-sm font-semibold text-color-secondary mt-3 mb-2">Runtime</h4>
+                    <div class="settings-list">
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <i class="ti ti-file-text mr-2"></i>
+                                <span>Log Level</span>
+                            </div>
+                            <div class="setting-value">
+                                <code>{{ logLevelDisplay }}</code>
                             </div>
                         </div>
                     </div>

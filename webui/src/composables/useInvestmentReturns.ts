@@ -158,9 +158,17 @@ export function useInvestmentReturns() {
         let totalReturn = 0
         let realizedGL = 0
         let unrealizedGL = 0
+        const missingRateCurrencies = new Set<string>()
 
         for (const r of returnRows.value) {
-            const fx = r.currency === main ? 1 : (rates[r.currency] ? 1 / rates[r.currency] : 0)
+            // A row in a non-main currency needs an FX rate. If it is missing we
+            // skip the row and flag the currency rather than silently treating it
+            // as a zero contribution, which would understate the totals.
+            if (r.currency !== main && !rates[r.currency]) {
+                missingRateCurrencies.add(r.currency)
+                continue
+            }
+            const fx = r.currency === main ? 1 : 1 / rates[r.currency]
             totalInvested += r.totalInvested * fx
             totalReturn += r.totalReturn * fx
             realizedGL += r.realizedGL * fx
@@ -182,7 +190,15 @@ export function useInvestmentReturns() {
                 annualizedReturn = (Math.pow(1 + totalReturnRatio, 365 / holdingDays) - 1) * 100
             }
         }
-        return { totalInvested, totalReturn, realizedGL, unrealizedGL, annualizedReturn, currency: main }
+        return {
+            totalInvested,
+            totalReturn,
+            realizedGL,
+            unrealizedGL,
+            annualizedReturn,
+            currency: main,
+            missingRateCurrencies: Array.from(missingRateCurrencies).sort()
+        }
     })
 
     return {

@@ -1,6 +1,5 @@
 <script setup>
-import { HorizontalLayout, Placeholder } from '@go-bumbu/vue-layouts'
-import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
+import { HorizontalLayout, Placeholder } from '@/components/layout'
 
 import Card from 'primevue/card'
 import Button from 'primevue/button'

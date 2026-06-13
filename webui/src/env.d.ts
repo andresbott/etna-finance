@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 interface ImportMetaEnv {
     readonly VITE_SERVER_URL_V0: string
     readonly VITE_AUTH_PATH: string

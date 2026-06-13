@@ -14,6 +14,11 @@ type AppSettings struct {
 	FinancialSimulator    bool     `json:"financialSimulator"`
 	MaxAttachmentSizeMB   float64  `json:"maxAttachmentSizeMB"`
 	Version               string   `json:"version"`
+	// AutoEnabled lists feature keys ("rsu", "investmentInstruments") that the server
+	// turned on at startup despite the config disabling them, because the database
+	// contained data requiring them. Effective state still lives in the booleans above;
+	// this only conveys provenance so the UI can label them "Auto-enabled".
+	AutoEnabled []string `json:"autoEnabled,omitempty"`
 }
 
 // SettingsResponse is the payload for GET /settings. It extends AppSettings with

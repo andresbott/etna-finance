@@ -31,22 +31,41 @@ func (c *testDBPostgres) Close(name string) error {
 	if !exists {
 		return fmt.Errorf("db connection with name %s not found", name)
 	}
-	under, err := db.DB()
+	underlyingDb, err := db.DB()
 	if err != nil {
 		return fmt.Errorf("unable to get underlying DB: %w", err)
 	}
-	return under.Close()
+
+	// Set the max connections to zero before closing
+	underlyingDb.SetMaxOpenConns(1)
+	underlyingDb.SetMaxIdleConns(0)
+	underlyingDb.SetConnMaxLifetime(time.Microsecond)
+
+	// Wait a little to allow existing connections to close
+	time.Sleep(100 * time.Millisecond)
+
+	// Close the database connection
+	err = underlyingDb.Close()
+	if err != nil {
+		return fmt.Errorf("error closing database connection: %w", err)
+	}
+
+	// Remove from pool
+	delete(c.pool, name)
+
+	return nil
 }
 
 func (c *testDBPostgres) CloseAll() error {
 	defer c.clean()
 	var merr error
-	for name, _ := range c.pool {
+	for name := range c.pool {
 		err := c.Close(name)
 		if err != nil {
 			merr = multierror.Append(merr, err)
 		}
 	}
+	c.pool = nil
 	return merr
 }
 
@@ -74,7 +93,13 @@ func (c *testDBPostgres) Init(logger logger.Interface) {
 				"POSTGRES_PASSWORD": postgresPassword,
 				"POSTGRES_DB":       defaultDbName,
 			},
-			WaitingFor: wait.ForListeningPort("5432/tcp").WithStartupTimeout(60 * time.Second),
+			// postgres:13 starts a temporary server during initdb, then restarts
+			// the real one. Waiting only for the port races into that init window.
+			// "ready to accept connections" is logged twice: wait for the second.
+			WaitingFor: wait.ForAll(
+				wait.ForLog("database system is ready to accept connections").WithOccurrence(2).WithStartupTimeout(60*time.Second),
+				wait.ForListeningPort("5432/tcp").WithStartupTimeout(60*time.Second),
+			),
 		}
 
 		postgresContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
@@ -111,7 +136,7 @@ func (c *testDBPostgres) Init(logger logger.Interface) {
 			}
 		}
 		c.clean = cleanFn
-		c.pool[defaultDbName] = db
+		c.pool[normalizeDbName(defaultDbName)] = db
 	})
 }
 
@@ -127,12 +152,23 @@ func (c *testDBPostgres) ConnDbName(name string) *gorm.DB {
 	}
 
 	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s  sslmode=disable", c.host, c.port, postgresUser, postgresPassword, defaultDbName)
-	DB, _ := gorm.Open(postgres.Open(dsn), &gorm.Config{
+	admin, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		Logger: c.logger,
 	})
+	if err != nil {
+		panic(fmt.Sprintf("failed to connect to PostgreSQL test database: %v", err))
+	}
 
 	createDatabaseCommand := fmt.Sprintf("CREATE DATABASE %s", name)
-	DB.Exec(createDatabaseCommand)
+	admin.Exec(createDatabaseCommand)
+
+	// Close the admin connection used only to create the database. Without this
+	// its pool stays open for the life of the process, so creating many test
+	// databases exhausts the server's connection limit ("too many clients
+	// already"). MySQL's ConnDbName already does this via defer.
+	if sqlDB, err := admin.DB(); err == nil {
+		_ = sqlDB.Close()
+	}
 
 	dsn = fmt.Sprintf("host=%s port=%s user=%s dbname=%s password=%s sslmode=disable", c.host, c.port, postgresUser, name, postgresPassword)
 	gormDb, err := gorm.Open(postgres.Open(dsn), &gorm.Config{

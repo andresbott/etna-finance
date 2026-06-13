@@ -1,6 +1,5 @@
 <script setup>
-import { VerticalLayout, HorizontalLayout } from '@go-bumbu/vue-layouts'
-import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
+import { VerticalLayout, HorizontalLayout } from '@/components/layout'
 import UserLogin from '@/lib/user/UserLogin.vue'
 </script>
 

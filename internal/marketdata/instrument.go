@@ -17,6 +17,8 @@ type Instrument struct {
 	Name                 string
 	Currency             currency.Unit
 	Notes                string
+	Type                 string
+	Exchange             string
 }
 
 type dbInstrument struct {
@@ -30,6 +32,8 @@ type dbInstrument struct {
 	Name     string
 	Currency string
 	Notes    string
+	Type     string
+	Exchange string
 }
 
 func (dbInstrument) TableName() string { return "db_instruments" }
@@ -42,6 +46,8 @@ func dbToInstrument(in dbInstrument) Instrument {
 		Name:                 in.Name,
 		Currency:             currency.MustParseISO(in.Currency),
 		Notes:                in.Notes,
+		Type:                 in.Type,
+		Exchange:             in.Exchange,
 	}
 }
 
@@ -60,6 +66,8 @@ type InstrumentUpdatePayload struct {
 	Name     *string
 	Currency *string
 	Notes    *string
+	Type     *string
+	Exchange *string
 }
 
 func (s *Store) CreateInstrument(ctx context.Context, item Instrument) (uint, error) {
@@ -76,16 +84,7 @@ func (s *Store) CreateInstrument(ctx context.Context, item Instrument) (uint, er
 		First(&existing).Error
 	if err == nil {
 		if existing.DeletedAt.Valid {
-			// Restore the soft-deleted row and update fields
-			existing.DeletedAt = gorm.DeletedAt{}
-			existing.ProviderID = item.InstrumentProviderID
-			existing.Name = item.Name
-			existing.Currency = item.Currency.String()
-			existing.Notes = item.Notes
-			if u := s.db.WithContext(ctx).Unscoped().Save(&existing); u.Error != nil {
-				return 0, u.Error
-			}
-			return existing.ID, nil
+			return s.restoreSoftDeletedInstrument(ctx, existing, item)
 		}
 		return 0, ErrInstrumentSymbolDuplicate
 	}
@@ -98,12 +97,38 @@ func (s *Store) CreateInstrument(ctx context.Context, item Instrument) (uint, er
 		Name:       item.Name,
 		Currency:   item.Currency.String(),
 		Notes:      item.Notes,
+		Type:       item.Type,
+		Exchange:   item.Exchange,
 	}
 	d := s.db.WithContext(ctx).Create(&payload)
 	if d.Error != nil {
 		return 0, d.Error
 	}
+	// Define the series now (price always; EPS for stocks) so ingest paths never need to
+	// auto-register on the write path.
+	if err := s.defineInstrumentSeries(ctx, payload.Symbol, payload.Type); err != nil {
+		return 0, err
+	}
 	return payload.ID, nil
+}
+
+// restoreSoftDeletedInstrument revives a soft-deleted instrument row with the new field values and
+// (re)defines its series (price always; EPS for stocks), mirroring the create path.
+func (s *Store) restoreSoftDeletedInstrument(ctx context.Context, existing dbInstrument, item Instrument) (uint, error) {
+	existing.DeletedAt = gorm.DeletedAt{}
+	existing.ProviderID = item.InstrumentProviderID
+	existing.Name = item.Name
+	existing.Currency = item.Currency.String()
+	existing.Notes = item.Notes
+	existing.Type = item.Type
+	existing.Exchange = item.Exchange
+	if u := s.db.WithContext(ctx).Unscoped().Save(&existing); u.Error != nil {
+		return 0, u.Error
+	}
+	if err := s.defineInstrumentSeries(ctx, existing.Symbol, existing.Type); err != nil {
+		return 0, err
+	}
+	return existing.ID, nil
 }
 
 func (s *Store) GetInstrument(ctx context.Context, id uint) (Instrument, error) {
@@ -132,16 +157,35 @@ func (s *Store) ListInstruments(ctx context.Context) ([]Instrument, error) {
 	return out, nil
 }
 
+// checkSymbolImmutable enforces that the symbol is non-empty and unchanged. The price/EPS time
+// series are keyed by symbol, so a rename would orphan an instrument's history and break ingestion
+// (the series for the new symbol does not exist). Renaming a series is not yet supported, so the
+// symbol is immutable after creation; an unchanged symbol in the payload is a harmless no-op.
+func (s *Store) checkSymbolImmutable(ctx context.Context, id uint, symbol string) error {
+	if symbol == "" {
+		return ErrValidation("symbol cannot be empty")
+	}
+	var current dbInstrument
+	if err := s.db.WithContext(ctx).Select("symbol").Where("id = ?", id).First(&current).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrInstrumentNotFound
+		}
+		return err
+	}
+	if symbol != current.Symbol {
+		return ErrValidation("symbol cannot be changed")
+	}
+	return nil
+}
+
 func (s *Store) UpdateInstrument(ctx context.Context, id uint, item InstrumentUpdatePayload) error {
 	updateStruct := dbInstrument{}
 	var selectedFields []string
 
 	if item.Symbol != nil {
-		if *item.Symbol == "" {
-			return ErrValidation("symbol cannot be empty")
+		if err := s.checkSymbolImmutable(ctx, id, *item.Symbol); err != nil {
+			return err
 		}
-		updateStruct.Symbol = *item.Symbol
-		selectedFields = append(selectedFields, "Symbol")
 	}
 	if item.Name != nil {
 		updateStruct.Name = *item.Name
@@ -158,20 +202,16 @@ func (s *Store) UpdateInstrument(ctx context.Context, id uint, item InstrumentUp
 		updateStruct.Notes = *item.Notes
 		selectedFields = append(selectedFields, "Notes")
 	}
+	if item.Type != nil {
+		updateStruct.Type = *item.Type
+		selectedFields = append(selectedFields, "Type")
+	}
+	if item.Exchange != nil {
+		updateStruct.Exchange = *item.Exchange
+		selectedFields = append(selectedFields, "Exchange")
+	}
 	if len(selectedFields) == 0 {
 		return ErrNoChanges
-	}
-
-	if item.Symbol != nil {
-		var count int64
-		if err := s.db.WithContext(ctx).Model(&dbInstrument{}).
-			Where("symbol = ? AND id != ?", *item.Symbol, id).
-			Count(&count).Error; err != nil {
-			return err
-		}
-		if count > 0 {
-			return ErrInstrumentSymbolDuplicate
-		}
 	}
 
 	res := s.db.WithContext(ctx).Model(&dbInstrument{}).
@@ -183,6 +223,18 @@ func (s *Store) UpdateInstrument(ctx context.Context, id uint, item InstrumentUp
 	}
 	if res.RowsAffected == 0 {
 		return ErrInstrumentNotFound
+	}
+	// Switching an instrument to a stock means it now has EPS: define the series so a later EPS
+	// ingest does not fail (ingest no longer auto-registers). Resolve the current symbol, which may
+	// have changed in this same update. DefineSeries is an idempotent no-op if it already exists.
+	if item.Type != nil && isStockType(*item.Type) {
+		var inst dbInstrument
+		if err := s.db.WithContext(ctx).Select("symbol").Where("id = ?", id).First(&inst).Error; err != nil {
+			return err
+		}
+		if err := s.RegisterEPSSeries(ctx, inst.Symbol); err != nil {
+			return err
+		}
 	}
 	return nil
 }

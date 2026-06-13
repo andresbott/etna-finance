@@ -1,13 +1,17 @@
 import { computed, unref, type MaybeRefOrGetter } from 'vue'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/vue-query'
 import { useInstruments } from '@/composables/useInstruments'
 import {
     getPriceHistory,
+    getEpsHistory,
     createPrice as createPriceApi,
     updatePrice as updatePriceApi,
-    deletePrice as deletePriceApi
+    deletePrice as deletePriceApi,
+    createEps as createEpsApi,
+    updateEps as updateEpsApi,
+    deleteEps as deleteEpsApi
 } from '@/lib/api/MarketData'
-import type { CreatePriceDTO, UpdatePriceDTO, PriceRecord } from '@/lib/api/MarketData'
+import type { CreatePriceDTO, PriceRecord, EpsRecord, CreateEpsDTO } from '@/lib/api/MarketData'
 import { lastDaysRange, rangeToStartEnd, type PriceHistoryRange } from '@/utils/dateRange'
 
 export type { PriceHistoryRange } from '@/utils/dateRange'
@@ -20,6 +24,8 @@ export interface MarketInstrument {
     name: string
     notes: string
     currency: string
+    type: string
+    exchange: string
     lastPrice: number
     change: number | null
     changePct: number | null
@@ -33,8 +39,12 @@ export interface MarketInstrument {
 
 export interface PriceHistory {
     dates: string[]
-    prices: number[]
+    opens: number[]
+    highs: number[]
+    lows: number[]
+    closes: number[]
     volumes: number[]
+    records: PriceRecord[]
 }
 
 const MARKET_INSTRUMENTS_QUERY_KEY = ['marketInstruments']
@@ -44,9 +54,14 @@ export function useMarketInstruments() {
     const { start, end } = lastDaysRange(30)
 
     const marketInstrumentsQuery = useQuery({
+        // Key on instrument *content* (not just ids) so that editing a name/type/exchange/
+        // currency/symbol reactively busts this cache once the instruments query refetches.
+        // Keying on ids alone would only refetch on add/remove, leaving edits stale.
         queryKey: computed(() => [
             ...MARKET_INSTRUMENTS_QUERY_KEY,
-            (instrumentsData.value ?? []).map((i) => i.id).join(',')
+            (instrumentsData.value ?? [])
+                .map((i) => `${i.id}:${i.symbol}:${i.name}:${i.type}:${i.exchange}:${i.currency}`)
+                .join('|')
         ]),
         queryFn: async (): Promise<MarketInstrument[]> => {
             const list = instrumentsData.value ?? []
@@ -55,12 +70,12 @@ export function useMarketInstruments() {
                 list.map(async (inst) => {
                     const items = await getPriceHistory(inst.symbol, start, end)
                     const n = items.length
-                    const lastPrice = n > 0 ? items[n - 1].price : 0
+                    const lastPrice = n > 0 ? items[n - 1].close : 0
                     const lastUpdate = n > 0 ? items[n - 1].time : ''
                     let change: number | null = null
                     let changePct: number | null = null
                     if (n >= 2) {
-                        const prevPrice = items[n - 2].price
+                        const prevPrice = items[n - 2].close
                         change = lastPrice - prevPrice
                         changePct = prevPrice !== 0 ? (change / prevPrice) * 100 : null
                     }
@@ -70,10 +85,12 @@ export function useMarketInstruments() {
                         name: inst.name,
                         notes: inst.notes ?? '',
                         currency: inst.currency,
+                        type: inst.type,
+                        exchange: inst.exchange,
                         lastPrice,
                         change,
                         changePct,
-                        volume: 0,
+                        volume: n > 0 ? items[n - 1].volume : 0,
                         peRatio: null as number | null,
                         dividendYield: 0,
                         week52High: 0,
@@ -84,7 +101,10 @@ export function useMarketInstruments() {
             )
             return withLatest
         },
-        enabled: computed(() => (instrumentsData.value?.length ?? 0) > 0)
+        enabled: computed(() => (instrumentsData.value?.length ?? 0) > 0),
+        // Keep showing the previous rows while a content-key change (edit/add/delete) or a
+        // price update triggers a refetch, so the table does not flash empty mid-refetch.
+        placeholderData: keepPreviousData
     })
 
     const instruments = computed<MarketInstrument[]>(() => {
@@ -118,8 +138,15 @@ export function usePriceHistory(
             const { start, end } = rangeToStartEnd(r)
             const items = await getPriceHistory(sym, start, end)
             const dates = items.map((r) => r.time)
-            const prices = items.map((r) => r.price)
-            return { dates, prices, volumes: [] as number[], records: items }
+            return {
+                dates,
+                opens: items.map(r => r.open),
+                highs: items.map(r => r.high),
+                lows: items.map(r => r.low),
+                closes: items.map(r => r.close),
+                volumes: items.map(r => r.volume),
+                records: items
+            }
         },
         enabled: computed(() => !!(typeof symbol === 'function' ? symbol() : unref(symbol)))
     })
@@ -129,7 +156,10 @@ export function usePriceHistory(
             () =>
                 historyQuery.data.value ?? {
                     dates: [],
-                    prices: [],
+                    opens: [],
+                    highs: [],
+                    lows: [],
+                    closes: [],
                     volumes: [],
                     records: [] as PriceRecord[]
                 }
@@ -139,16 +169,72 @@ export function usePriceHistory(
     }
 }
 
+export function useEpsHistory(symbol: MaybeRefOrGetter<string>) {
+    const getSymbol = () => (typeof symbol === 'function' ? symbol() : unref(symbol))
+
+    // EPS filings power the trailing-twelve-month P/E line. The series is tiny (quarterly), so we
+    // fetch all of it with no date bounds — TTM then works for any selected chart range.
+    const epsQuery = useQuery({
+        queryKey: computed(() => ['eps', getSymbol()]),
+        queryFn: () => getEpsHistory(getSymbol()),
+        enabled: computed(() => !!getSymbol())
+    })
+
+    return {
+        data: computed<EpsRecord[]>(() => epsQuery.data.value ?? []),
+        isLoading: epsQuery.isLoading
+    }
+}
+
+export function useEpsMutations(symbol: MaybeRefOrGetter<string>) {
+    const queryClient = useQueryClient()
+
+    const getSymbol = () => (typeof symbol === 'function' ? symbol() : unref(symbol))
+
+    // Invalidate this instrument's EPS history so the EPS table and the chart's TTM P/E line
+    // (both keyed on ['eps', symbol]) refresh after a create/update/delete.
+    const invalidateEps = () => {
+        queryClient.invalidateQueries({ queryKey: ['eps', getSymbol()] })
+    }
+
+    const createEpsMutation = useMutation({
+        mutationFn: (payload: CreateEpsDTO) => createEpsApi(getSymbol(), payload),
+        onSuccess: invalidateEps
+    })
+
+    const updateEpsMutation = useMutation({
+        mutationFn: ({ origDate, payload }: { origDate: string; payload: CreateEpsDTO }) =>
+            updateEpsApi(getSymbol(), origDate, payload),
+        onSuccess: invalidateEps
+    })
+
+    const deleteEpsMutation = useMutation({
+        mutationFn: (date: string) => deleteEpsApi(getSymbol(), date),
+        onSuccess: invalidateEps
+    })
+
+    return {
+        createEps: createEpsMutation.mutateAsync,
+        updateEps: updateEpsMutation.mutateAsync,
+        deleteEps: deleteEpsMutation.mutateAsync,
+        isCreating: createEpsMutation.isPending,
+        isUpdating: updateEpsMutation.isPending,
+        isDeleting: deleteEpsMutation.isPending
+    }
+}
+
 export function useMarketDataMutations(symbol: MaybeRefOrGetter<string>) {
     const queryClient = useQueryClient()
 
     const getSymbol = () => (typeof symbol === 'function' ? symbol() : unref(symbol))
 
-    // Invalidate this instrument's price history and the market instruments list so the list view
-    // and detail overview (lastPrice, lastUpdate) stay in sync after create/update/delete.
+    // Invalidate this instrument's price history, the candlestick chart series, and the market
+    // instruments list so the list view, detail overview (lastPrice, lastUpdate), and Chart tab
+    // all stay in sync after create/update/delete.
     const invalidateMarketData = () => {
         const sym = getSymbol()
         queryClient.invalidateQueries({ queryKey: ['priceHistory', sym] })
+        queryClient.invalidateQueries({ queryKey: ['tsdbPrices', sym] })
         queryClient.invalidateQueries({ queryKey: MARKET_INSTRUMENTS_QUERY_KEY })
     }
 
@@ -158,13 +244,13 @@ export function useMarketDataMutations(symbol: MaybeRefOrGetter<string>) {
     })
 
     const updatePriceMutation = useMutation({
-        mutationFn: ({ id, payload }: { id: number; payload: UpdatePriceDTO }) =>
-            updatePriceApi(id, payload),
+        mutationFn: ({ origDate, payload }: { origDate: string; payload: CreatePriceDTO }) =>
+            updatePriceApi(getSymbol(), origDate, payload),
         onSuccess: invalidateMarketData
     })
 
     const deletePriceMutation = useMutation({
-        mutationFn: (id: number) => deletePriceApi(id),
+        mutationFn: (date: string) => deletePriceApi(getSymbol(), date),
         onSuccess: invalidateMarketData
     })
 
@@ -194,4 +280,27 @@ export function formatChange(value: number | null | undefined): string {
     if (value == null) return '-'
     const sign = value >= 0 ? '+' : ''
     return sign + value.toFixed(2)
+}
+
+export interface MarketInstrumentFilters {
+    search: string
+    types: string[]
+    exchanges: string[]
+}
+
+export function filterMarketInstruments(
+    instruments: MarketInstrument[],
+    filters: MarketInstrumentFilters
+): MarketInstrument[] {
+    const search = (filters.search ?? '').trim().toLowerCase()
+    return instruments.filter((inst) => {
+        const matchesSearch =
+            search === '' ||
+            inst.symbol.toLowerCase().includes(search) ||
+            inst.name.toLowerCase().includes(search)
+        const matchesType = filters.types.length === 0 || filters.types.includes(inst.type)
+        const matchesExchange =
+            filters.exchanges.length === 0 || filters.exchanges.includes(inst.exchange)
+        return matchesSearch && matchesType && matchesExchange
+    })
 }

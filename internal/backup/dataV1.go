@@ -126,7 +126,22 @@ type instrumentV1 struct {
 type priceRecordV1 struct {
 	Symbol string    `json:"symbol"`
 	Time   time.Time `json:"time"`
-	Price  float64   `json:"price"`
+	Open   float64   `json:"open"`
+	High   float64   `json:"high"`
+	Low    float64   `json:"low"`
+	Close  float64   `json:"close"`
+	Volume float64   `json:"volume"`
+	// Price is the legacy single-value field used by pre-OHLCV backups (schema 1.0.0).
+	// Newer backups carry full OHLCV instead; see hasOHLCV.
+	Price *float64 `json:"price,omitempty"`
+}
+
+// hasOHLCV reports whether the record carries a real OHLCV candle (any leg non-zero).
+// Pre-OHLCV backups carry only a legacy single "price" value and no OHLCV: those records
+// are not imported, leaving the series empty so the financial-backfill job can refill them
+// with real OHLCV candles from the provider. See importPriceHistory.
+func (p priceRecordV1) hasOHLCV() bool {
+	return p.Open != 0 || p.High != 0 || p.Low != 0 || p.Close != 0 || p.Volume != 0
 }
 
 type fxRateRecordV1 struct {

@@ -40,28 +40,30 @@ import Message from 'primevue/message'
                     <section>
                         <h3>Account types</h3>
                         <p>
-                            Etna Finance supports six account types, each designed for a different financial purpose:
+                            Etna Finance supports eight account types, each designed for a different financial purpose:
                         </p>
 
                         <h4>Cash accounts: Cash, Checking, Savings, and Lent</h4>
                         <p>
-                            These four account types all behave the same way — they hold money in a given currency
-                            and support the same transactions: income, expenses, and transfers between accounts.
-                            The distinction between them is purely organizational, helping you label the purpose of
-                            each account:
+                            These account types hold money in a given currency and support everyday transactions:
+                            income, expenses, transfers between accounts, and balance corrections. The distinction
+                            between them is mainly organizational, helping you label the purpose of each account:
                         </p>
                         <ul>
                             <li><strong>Cash</strong> — Physical money or cash equivalents, such as a wallet or petty cash fund.</li>
                             <li><strong>Checking</strong> — A bank account for day-to-day use, typically where your salary is deposited and everyday expenses are paid.</li>
-                            <li><strong>Savings</strong> — A bank account where money is set aside, usually earning interest over time. Use this for emergency funds or goal-based saving.</li>
+                            <li><strong>Savings</strong> — A bank account where money is set aside, usually earning interest over time. Use this for emergency funds or goal-based saving. Savings accounts additionally support revaluation entries to record interest or value adjustments.</li>
                             <li><strong>Lent</strong> — Money you have lent to others. This money is still yours, but it is not held in any of your bank or brokerage accounts. Use this to track outstanding loans and repayments.</li>
                         </ul>
+                        <p>
+                            CSV import is available for Cash, Checking, and Savings accounts.
+                        </p>
 
                         <h4>Investment accounts: Investment and Restricted stocks</h4>
                         <p>
                             These two account types track investment assets such as stocks, ETFs, or mutual funds.
-                            Both work together with
-                            <router-link to="/settings/instruments">investment instruments</router-link> to track
+                            Both work together with instruments managed on the
+                            <router-link to="/market-data/stock-market">Stock Market</router-link> page to track
                             quantities, cost basis, and market value of your holdings.
                         </p>
                         <ul>
@@ -76,6 +78,15 @@ import Message from 'primevue/message'
                             Restricted stock assets are not included in financial reports. Only
                             once they are transferred to an Investment account do they count towards your portfolio
                             value and performance.
+                        </Message>
+
+                        <h4>Other accounts: Pension and Prepaid expense</h4>
+                        <ul>
+                            <li><strong>Pension</strong> — A pension or retirement fund. You add money to it via transfers from other accounts, and its value changes over time are recorded with revaluation entries (it does not support direct income or expense transactions).</li>
+                            <li><strong>Prepaid expense</strong> — Prepaid obligations such as tax pre-payments. The money is still yours but is not liquid. Supports income, expenses, transfers, and balance corrections.</li>
+                        </ul>
+                        <Message severity="info" :closable="false" icon="ti ti-info-circle">
+                            Prepaid expense accounts are excluded from net-worth totals in reports.
                         </Message>
 
                     </section>

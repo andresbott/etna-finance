@@ -290,7 +290,10 @@ func (store *Store) convertDelta(ctx context.Context, delta float64, accountCurr
 	if store.marketStore == nil || store.mainCurrency == "" || accountCurrency == store.mainCurrency {
 		return delta, false
 	}
-	rec, err := store.marketStore.RateAt(ctx, store.mainCurrency, accountCurrency, t)
+	// The market store (timeseries) rejects non-UTC times. t may be in a non-UTC zone
+	// (e.g. the report handler's default time.Now()); .UTC() preserves the instant while
+	// satisfying that contract.
+	rec, err := store.marketStore.RateAt(ctx, store.mainCurrency, accountCurrency, t.UTC())
 	if err != nil || rec == nil || rec.Rate == 0 {
 		return delta, true
 	}
@@ -412,13 +415,15 @@ func (store *Store) investmentValueAtDate(ctx context.Context, accountID uint, d
 			continue
 		}
 
-		priceRec, err := store.marketStore.PriceAt(ctx, inst.Symbol, endOfDay(date))
+		// .UTC() satisfies the market store's UTC-only contract without shifting the instant
+		// (date may be in a non-UTC zone from the handler's default time.Now()).
+		priceRec, err := store.marketStore.PriceAt(ctx, inst.Symbol, endOfDay(date).UTC())
 		if err != nil || priceRec == nil {
 			anyUnconverted = true
 			continue
 		}
 
-		value := pos.quantity * priceRec.Price
+		value := pos.quantity * priceRec.Close
 		instCurrency := inst.Currency.String()
 
 		converted, unconverted := store.convertDelta(ctx, value, instCurrency, date)

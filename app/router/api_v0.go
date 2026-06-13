@@ -1,6 +1,7 @@
 package router
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 	csvimportHandler "github.com/andresbott/etna/app/router/handlers/csvimport"
 	finHandler "github.com/andresbott/etna/app/router/handlers/finance"
 	mktHandler "github.com/andresbott/etna/app/router/handlers/marketdata"
+	statsHandler "github.com/andresbott/etna/app/router/handlers/stats"
 	taskHandler "github.com/andresbott/etna/app/router/handlers/tasks"
 	toolsDataHandler "github.com/andresbott/etna/app/router/handlers/toolsdata"
 	"github.com/go-bumbu/userauth/authenticator"
@@ -32,6 +34,7 @@ func (h *MainAppHandler) attachApiV0(r *mux.Router) error {
 
 	// attach api paths to api/v0
 	h.settingsApi(r)
+	h.statsApi(r)
 	h.accountingAPI(r)
 	h.marketDataAPI(r)
 	h.backupApi(r)
@@ -50,8 +53,15 @@ func (h *MainAppHandler) attachApiV0(r *mux.Router) error {
 const settingsPath = "/settings"
 
 func (h *MainAppHandler) settingsApi(r *mux.Router) {
-	getSymbols := func() ([]string, error) { return h.marketStore.ListPriceSymbols() }
+	getSymbols := func() ([]string, error) { return h.marketStore.ListPriceSymbols(context.Background()) }
 	r.Path(settingsPath).Methods(http.MethodGet).Handler(handlrs.SettingsHandlerWithMarketData(h.appSettings, getSymbols))
+}
+
+const statsPath = "/stats"
+
+func (h *MainAppHandler) statsApi(r *mux.Router) {
+	statsHndlr := statsHandler.Handler{DB: h.db, MarketStore: h.marketStore, FileStore: h.attachmentStore, LogLevel: h.logLevel}
+	r.Path(statsPath).Methods(http.MethodGet).Handler(statsHndlr.Stats())
 }
 
 const finProviderPath = "/fin/provider"
@@ -69,7 +79,7 @@ const finReport = "/fin/report"
 //nolint:gocognit,gocyclo // the function is quite big and verbose but easy to follow
 func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 
-	finHndlr := finHandler.Handler{Store: h.finStore, InstrumentStore: h.marketStore, FileStore: h.attachmentStore}
+	finHndlr := finHandler.Handler{Store: h.finStore, InstrumentStore: h.marketStore, FileStore: h.attachmentStore, Reference: h.referenceClient}
 
 	// ==========================================================================
 	// Account Providers
@@ -416,6 +426,15 @@ func (h *MainAppHandler) accountingAPI(r *mux.Router) {
 			finHndlr.CreateInstrument().ServeHTTP(w, r)
 		})
 
+		r.Path(fmt.Sprintf("%s/lookup", finInstrumentPath)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, err := sessionauth.CtxGetUserData(r)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("unable to read user data: %s", err.Error()), http.StatusInternalServerError)
+				return
+			}
+			finHndlr.LookupInstrument().ServeHTTP(w, r)
+		})
+
 		r.Path(fmt.Sprintf("%s/{id}", finInstrumentPath)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			_, err := sessionauth.CtxGetUserData(r)
 			if err != nil {
@@ -535,24 +554,56 @@ func (h *MainAppHandler) marketDataAPI(r *mux.Router) {
 		mktHndlr.LatestPrice(symbol).ServeHTTP(w, r)
 	})
 
-	// PUT /fin/marketdata/prices/{id}
-	r.Path(fmt.Sprintf("%s/prices/{id}", finMarketDataPath)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		itemId, httpErr := getId(r)
-		if httpErr != nil {
-			http.Error(w, httpErr.Error, httpErr.Code)
-			return
-		}
-		mktHndlr.UpdatePrice(itemId).ServeHTTP(w, r)
+	// PUT /fin/marketdata/{symbol}/prices/{date}
+	r.Path(fmt.Sprintf("%s/{symbol}/prices/{date}", finMarketDataPath)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		v := mux.Vars(r)
+		mktHndlr.EditPrice(v["symbol"], v["date"]).ServeHTTP(w, r)
 	})
 
-	// DELETE /fin/marketdata/prices/{id}
-	r.Path(fmt.Sprintf("%s/prices/{id}", finMarketDataPath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		itemId, httpErr := getId(r)
-		if httpErr != nil {
-			http.Error(w, httpErr.Error, httpErr.Code)
-			return
-		}
-		mktHndlr.DeletePrice(itemId).ServeHTTP(w, r)
+	// DELETE /fin/marketdata/{symbol}/prices/{date}
+	r.Path(fmt.Sprintf("%s/{symbol}/prices/{date}", finMarketDataPath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		v := mux.Vars(r)
+		mktHndlr.DeletePrice(v["symbol"], v["date"]).ServeHTTP(w, r)
+	})
+
+	// ==========================================================================
+	// EPS (earnings per share) — mirrors price routes above
+	// ==========================================================================
+
+	// GET /fin/marketdata/{symbol}/eps?start=YYYY-MM-DD&end=YYYY-MM-DD
+	r.Path(fmt.Sprintf("%s/{symbol}/eps", finMarketDataPath)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		symbol := mux.Vars(r)["symbol"]
+		mktHndlr.ListEPS(symbol).ServeHTTP(w, r)
+	})
+
+	// POST /fin/marketdata/{symbol}/eps  (single point)
+	r.Path(fmt.Sprintf("%s/{symbol}/eps", finMarketDataPath)).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		symbol := mux.Vars(r)["symbol"]
+		mktHndlr.CreateEPS(symbol).ServeHTTP(w, r)
+	})
+
+	// POST /fin/marketdata/{symbol}/eps/bulk
+	r.Path(fmt.Sprintf("%s/{symbol}/eps/bulk", finMarketDataPath)).Methods(http.MethodPost).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		symbol := mux.Vars(r)["symbol"]
+		mktHndlr.CreateEPSBulk(symbol).ServeHTTP(w, r)
+	})
+
+	// GET /fin/marketdata/{symbol}/eps/latest (must be before /eps/{date})
+	r.Path(fmt.Sprintf("%s/{symbol}/eps/latest", finMarketDataPath)).Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		symbol := mux.Vars(r)["symbol"]
+		mktHndlr.LatestEPS(symbol).ServeHTTP(w, r)
+	})
+
+	// PUT /fin/marketdata/{symbol}/eps/{date}
+	r.Path(fmt.Sprintf("%s/{symbol}/eps/{date}", finMarketDataPath)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		v := mux.Vars(r)
+		mktHndlr.EditEPS(v["symbol"], v["date"]).ServeHTTP(w, r)
+	})
+
+	// DELETE /fin/marketdata/{symbol}/eps/{date}
+	r.Path(fmt.Sprintf("%s/{symbol}/eps/{date}", finMarketDataPath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		v := mux.Vars(r)
+		mktHndlr.DeleteEPS(v["symbol"], v["date"]).ServeHTTP(w, r)
 	})
 
 	// ==========================================================================
@@ -582,23 +633,15 @@ func (h *MainAppHandler) marketDataAPI(r *mux.Router) {
 		v := mux.Vars(r)
 		mktHndlr.CreateFXRate(v["main"], v["secondary"]).ServeHTTP(w, r)
 	})
-	// PUT /fin/fx/rates/{id}
-	r.Path(fmt.Sprintf("%s/rates/{id}", finFXPath)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		itemId, httpErr := getId(r)
-		if httpErr != nil {
-			http.Error(w, httpErr.Error, httpErr.Code)
-			return
-		}
-		mktHndlr.UpdateFXRate(itemId).ServeHTTP(w, r)
+	// PUT /fin/fx/{main}/{secondary}/rates/{date}
+	r.Path(fmt.Sprintf("%s/{main}/{secondary}/rates/{date}", finFXPath)).Methods(http.MethodPut).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		v := mux.Vars(r)
+		mktHndlr.EditFXRate(v["main"], v["secondary"], v["date"]).ServeHTTP(w, r)
 	})
-	// DELETE /fin/fx/rates/{id}
-	r.Path(fmt.Sprintf("%s/rates/{id}", finFXPath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		itemId, httpErr := getId(r)
-		if httpErr != nil {
-			http.Error(w, httpErr.Error, httpErr.Code)
-			return
-		}
-		mktHndlr.DeleteFXRate(itemId).ServeHTTP(w, r)
+	// DELETE /fin/fx/{main}/{secondary}/rates/{date}
+	r.Path(fmt.Sprintf("%s/{main}/{secondary}/rates/{date}", finFXPath)).Methods(http.MethodDelete).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		v := mux.Vars(r)
+		mktHndlr.DeleteFXRate(v["main"], v["secondary"], v["date"]).ServeHTTP(w, r)
 	})
 }
 

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { RouterView } from 'vue-router'
-import { ResponsiveHorizontal } from '@go-bumbu/vue-layouts'
-import '@go-bumbu/vue-layouts/dist/vue-layouts.css'
+import { ResponsiveHorizontal } from '@/components/layout'
 import { ref } from 'vue'
 import DocsNavSidebar from '@/components/docs/DocsNavSidebar.vue'
 

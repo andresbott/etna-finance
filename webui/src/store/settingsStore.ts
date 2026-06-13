@@ -16,6 +16,9 @@ export const useSettingsStore = defineStore('settings', () => {
     const investmentInstruments = ref<boolean>(false)
     const rsu = ref<boolean>(false)
     const financialSimulator = ref<boolean>(false)
+    // Feature keys the server turned on at startup despite the config disabling them.
+    // The flags above remain the source of truth for gating; this is display-only provenance.
+    const autoEnabled = ref<string[]>([])
     const marketDataSymbols = ref<string[]>([])
     const version = ref<string>('')
     const maxAttachmentSizeMB = ref<number>(10)
@@ -33,6 +36,7 @@ export const useSettingsStore = defineStore('settings', () => {
             investmentInstruments.value = res.data.investmentInstruments
             rsu.value = res.data.rsu
             financialSimulator.value = res.data.financialSimulator
+            autoEnabled.value = res.data.autoEnabled ?? []
             marketDataSymbols.value = res.data.marketDataSymbols ?? []
             version.value = res.data.version ?? ''
             maxAttachmentSizeMB.value = res.data.maxAttachmentSizeMB || 10
@@ -55,6 +59,7 @@ export const useSettingsStore = defineStore('settings', () => {
         investmentInstruments.value = false
         rsu.value = false
         financialSimulator.value = false
+        autoEnabled.value = []
         marketDataSymbols.value = []
         version.value = ''
         maxAttachmentSizeMB.value = 10
@@ -71,6 +76,7 @@ export const useSettingsStore = defineStore('settings', () => {
         investmentInstruments,
         rsu,
         financialSimulator,
+        autoEnabled,
         marketDataSymbols,
         version,
         maxAttachmentSizeMB,

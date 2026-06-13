@@ -4,10 +4,8 @@ import { useRouter } from 'vue-router'
 import Card from 'primevue/card'
 import Button from 'primevue/button'
 import Divider from 'primevue/divider'
-import { useSettingsStore } from '@/store/settingsStore'
 
 const router = useRouter()
-const settings = useSettingsStore()
 
 const sections = computed(() => {
     const result = [
@@ -33,15 +31,6 @@ const sections = computed(() => {
             ]
         },
     ]
-
-    if (settings.investmentInstruments) {
-        result.push({
-            title: 'Investments',
-            items: [
-                { label: 'Investment Products', icon: 'ti ti-chart-bar', route: '/settings/instruments' }
-            ]
-        })
-    }
 
     result.push({
         title: 'Maintenance',

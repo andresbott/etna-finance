@@ -49,6 +49,11 @@ func TestCreateInstrument(t *testing.T) {
 					input:  Instrument{Symbol: "NFLX", Name: "Netflix", Currency: currency.USD, Notes: "streaming; high volatility"},
 				},
 				{
+					name:   "create security with type and exchange",
+					tenant: tenant1,
+					input:  Instrument{Symbol: "TSLA", Name: "Tesla", Currency: currency.USD, Type: "Stock", Exchange: "NASDAQ"},
+				},
+				{
 					name:    "want error on empty symbol",
 					tenant:  tenant1,
 					input:   Instrument{Symbol: "", Name: "Unknown", Currency: currency.USD},
@@ -99,9 +104,9 @@ func TestCreateInstrument(t *testing.T) {
 					if err != nil {
 						t.Fatalf("expected security to be found, but got error: %v", err)
 					}
-					if got.Symbol != tc.input.Symbol || got.Name != tc.input.Name || got.Currency.String() != tc.input.Currency.String() || got.Notes != tc.input.Notes {
-						t.Errorf("got Instrument Symbol=%q Name=%q Currency=%q Notes=%q, want Symbol=%q Name=%q Currency=%q Notes=%q",
-							got.Symbol, got.Name, got.Currency.String(), got.Notes, tc.input.Symbol, tc.input.Name, tc.input.Currency.String(), tc.input.Notes)
+					if got.Symbol != tc.input.Symbol || got.Name != tc.input.Name || got.Currency.String() != tc.input.Currency.String() || got.Notes != tc.input.Notes || got.Type != tc.input.Type || got.Exchange != tc.input.Exchange {
+						t.Errorf("got Instrument Symbol=%q Name=%q Currency=%q Notes=%q Type=%q Exchange=%q, want Symbol=%q Name=%q Currency=%q Notes=%q Type=%q Exchange=%q",
+							got.Symbol, got.Name, got.Currency.String(), got.Notes, got.Type, got.Exchange, tc.input.Symbol, tc.input.Name, tc.input.Currency.String(), tc.input.Notes, tc.input.Type, tc.input.Exchange)
 					}
 				})
 			}
@@ -259,14 +264,13 @@ func TestUpdateInstrument(t *testing.T) {
 					want: Instrument{ID: id, Symbol: "OLD", Name: "New Name", Currency: currency.USD},
 				},
 				{
-					name:   "update symbol and currency",
+					name:   "update currency only",
 					id:     id,
 					tenant: tenant1,
 					payload: InstrumentUpdatePayload{
-						Symbol:   ptr("NEW"),
 						Currency: ptr("EUR"),
 					},
-					want: Instrument{ID: id, Symbol: "NEW", Name: "New Name", Currency: currency.EUR},
+					want: Instrument{ID: id, Symbol: "OLD", Name: "New Name", Currency: currency.EUR},
 				},
 				{
 					name:   "update notes only",
@@ -275,7 +279,17 @@ func TestUpdateInstrument(t *testing.T) {
 					payload: InstrumentUpdatePayload{
 						Notes: ptr("some details"),
 					},
-					want: Instrument{ID: id, Symbol: "NEW", Name: "New Name", Currency: currency.EUR, Notes: "some details"},
+					want: Instrument{ID: id, Symbol: "OLD", Name: "New Name", Currency: currency.EUR, Notes: "some details"},
+				},
+				{
+					name:   "update type and exchange",
+					id:     id,
+					tenant: tenant1,
+					payload: InstrumentUpdatePayload{
+						Type:     ptr("Stock"),
+						Exchange: ptr("NASDAQ"),
+					},
+					want: Instrument{ID: id, Symbol: "OLD", Name: "New Name", Currency: currency.EUR, Notes: "some details", Type: "Stock", Exchange: "NASDAQ"},
 				},
 				{
 					name:    "empty symbol rejected",
@@ -306,11 +320,18 @@ func TestUpdateInstrument(t *testing.T) {
 					wantErr: ErrInstrumentNotFound.Error(),
 				},
 				{
-					name:    "duplicate symbol rejected",
+					name:    "symbol change rejected",
 					id:      id,
 					tenant:  tenant1,
 					payload: InstrumentUpdatePayload{Symbol: ptr("TAKEN")},
-					wantErr: ErrInstrumentSymbolDuplicate.Error(),
+					wantErr: "symbol cannot be changed",
+				},
+				{
+					name:    "unchanged symbol allows other edits",
+					id:      id,
+					tenant:  tenant1,
+					payload: InstrumentUpdatePayload{Symbol: ptr("OLD"), Name: ptr("Renamed")},
+					want:    Instrument{ID: id, Symbol: "OLD", Name: "Renamed", Currency: currency.EUR, Notes: "some details", Type: "Stock", Exchange: "NASDAQ"},
 				},
 			}
 
@@ -333,9 +354,9 @@ func TestUpdateInstrument(t *testing.T) {
 					if err != nil {
 						t.Fatalf("get after update: %v", err)
 					}
-					if got.Symbol != tc.want.Symbol || got.Name != tc.want.Name || got.Currency.String() != tc.want.Currency.String() || got.Notes != tc.want.Notes {
-						t.Errorf("got Symbol=%q Name=%q Currency=%q Notes=%q, want Symbol=%q Name=%q Currency=%q Notes=%q",
-							got.Symbol, got.Name, got.Currency.String(), got.Notes, tc.want.Symbol, tc.want.Name, tc.want.Currency.String(), tc.want.Notes)
+					if got.Symbol != tc.want.Symbol || got.Name != tc.want.Name || got.Currency.String() != tc.want.Currency.String() || got.Notes != tc.want.Notes || got.Type != tc.want.Type || got.Exchange != tc.want.Exchange {
+						t.Errorf("got Symbol=%q Name=%q Currency=%q Notes=%q Type=%q Exchange=%q, want Symbol=%q Name=%q Currency=%q Notes=%q Type=%q Exchange=%q",
+							got.Symbol, got.Name, got.Currency.String(), got.Notes, got.Type, got.Exchange, tc.want.Symbol, tc.want.Name, tc.want.Currency.String(), tc.want.Notes, tc.want.Type, tc.want.Exchange)
 					}
 				})
 			}

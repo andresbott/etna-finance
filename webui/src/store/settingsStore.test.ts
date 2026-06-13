@@ -36,6 +36,7 @@ describe('settingsStore', () => {
             expect(store.currencies).toEqual([])
             expect(store.investmentInstruments).toBe(false)
             expect(store.rsu).toBe(false)
+            expect(store.autoEnabled).toEqual([])
             expect(store.marketDataSymbols).toEqual([])
             expect(store.version).toBe('')
         })
@@ -54,6 +55,7 @@ describe('settingsStore', () => {
                 currencies: ['USD', 'EUR', 'GBP'],
                 investmentInstruments: true,
                 rsu: true,
+                autoEnabled: ['rsu', 'investmentInstruments'],
                 marketDataSymbols: ['AAPL', 'GOOGL'],
                 version: '1.2.3',
             },
@@ -73,8 +75,26 @@ describe('settingsStore', () => {
             expect(store.currencies).toEqual(['USD', 'EUR', 'GBP'])
             expect(store.investmentInstruments).toBe(true)
             expect(store.rsu).toBe(true)
+            expect(store.autoEnabled).toEqual(['rsu', 'investmentInstruments'])
             expect(store.marketDataSymbols).toEqual(['AAPL', 'GOOGL'])
             expect(store.version).toBe('1.2.3')
+        })
+
+        it('defaults autoEnabled to empty array when not provided', async () => {
+            mockedAxios.get.mockResolvedValue({
+                data: {
+                    dateFormat: 'DD/MM/YYYY',
+                    mainCurrency: 'EUR',
+                    currencies: ['EUR'],
+                    investmentInstruments: true,
+                    rsu: true,
+                },
+            })
+            const store = await importStore()
+
+            await store.fetchSettings()
+
+            expect(store.autoEnabled).toEqual([])
         })
 
         it('calls the correct endpoint', async () => {
@@ -264,6 +284,7 @@ describe('settingsStore', () => {
                     currencies: ['USD', 'EUR'],
                     investmentInstruments: true,
                     rsu: true,
+                    autoEnabled: ['rsu'],
                     marketDataSymbols: ['AAPL'],
                     version: '2.0.0',
                 },
@@ -273,6 +294,7 @@ describe('settingsStore', () => {
             await store.fetchSettings()
             expect(store.isLoaded).toBe(true)
             expect(store.mainCurrency).toBe('USD')
+            expect(store.autoEnabled).toEqual(['rsu'])
 
             store.$reset()
 
@@ -284,6 +306,7 @@ describe('settingsStore', () => {
             expect(store.currencies).toEqual([])
             expect(store.investmentInstruments).toBe(false)
             expect(store.rsu).toBe(false)
+            expect(store.autoEnabled).toEqual([])
             expect(store.marketDataSymbols).toEqual([])
             expect(store.version).toBe('')
             expect(store.hasMultipleCurrencies).toBe(false)

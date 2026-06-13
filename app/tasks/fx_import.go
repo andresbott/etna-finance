@@ -19,6 +19,27 @@ const FXBackfillDays = 7
 // MaxFXTaskDuration is the maximum duration for the FX import task.
 const MaxFXTaskDuration = 1 * time.Hour
 
+// registerFXPairs defines the series for every configured secondary currency against mainCurrency.
+// Series are created explicitly (ingest no longer auto-registers) so manual entry and later imports
+// have a series to write to. Registration failures are reported via onErr (best-effort) and do not
+// abort. Returns the number of pairs successfully registered.
+func registerFXPairs(ctx context.Context, store *marketdata.Store, mainCurrency string, currencies []string, onErr func(secondary string, err error)) int {
+	registered := 0
+	for _, secondary := range currencies {
+		if secondary == mainCurrency {
+			continue
+		}
+		if err := store.RegisterPair(ctx, mainCurrency, secondary); err != nil {
+			if onErr != nil {
+				onErr(secondary, err)
+			}
+			continue
+		}
+		registered++
+	}
+	return registered
+}
+
 // FXImportTaskDef is the task definition for the FX import task.
 var FXImportTaskDef = TaskDef{
 	ID:          FXImportTaskName,
@@ -42,17 +63,9 @@ func NewFXImportTaskFn(store *marketdata.Store, mainCurrency string, currencies 
 
 		if mainCurrency != "" && len(currencies) > 0 {
 			// Ensure all configured pairs are registered (so series exist for manual entry or future import).
-			registered := 0
-			for _, secondary := range currencies {
-				if secondary == mainCurrency {
-					continue
-				}
-				if err := store.RegisterPair(mainCurrency, secondary); err != nil {
-					tempo.Info(ctx, fmt.Sprintf("fx import: register %s/%s: %v", mainCurrency, secondary, err))
-					continue
-				}
-				registered++
-			}
+			registered := registerFXPairs(ctx, store, mainCurrency, currencies, func(secondary string, err error) {
+				tempo.Info(ctx, fmt.Sprintf("fx import: register %s/%s: %v", mainCurrency, secondary, err))
+			})
 			if registered > 0 {
 				tempo.Info(ctx, fmt.Sprintf("fx import: registered %d pair(s) for %s", registered, mainCurrency))
 			}

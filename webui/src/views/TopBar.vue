@@ -1,5 +1,5 @@
 <script setup>
-import { HorizontalLayout as HL } from '@go-bumbu/vue-layouts'
+import { HorizontalLayout as HL } from '@/components/layout'
 
 import { useUserStore } from '@/store/userStore'
 import Button from 'primevue/button'

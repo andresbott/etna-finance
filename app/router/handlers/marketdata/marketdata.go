@@ -1,7 +1,9 @@
 package marketdata
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -17,20 +19,22 @@ type Handler struct {
 }
 
 type pricePayload struct {
-	ID     uint    `json:"id"`
 	Symbol string  `json:"symbol"`
 	Time   string  `json:"time"`
-	Price  float64 `json:"price"`
+	Open   float64 `json:"open"`
+	High   float64 `json:"high"`
+	Low    float64 `json:"low"`
+	Close  float64 `json:"close"`
+	Volume float64 `json:"volume"`
 }
 
 type priceCreatePayload struct {
-	Time  string  `json:"time"`
-	Price float64 `json:"price"`
-}
-
-type priceUpdatePayload struct {
-	Time  *string  `json:"time,omitempty"`
-	Price *float64 `json:"price,omitempty"`
+	Time   string  `json:"time"`
+	Open   float64 `json:"open"`
+	High   float64 `json:"high"`
+	Low    float64 `json:"low"`
+	Close  float64 `json:"close"`
+	Volume float64 `json:"volume"`
 }
 
 type bulkCreatePayload struct {
@@ -39,10 +43,18 @@ type bulkCreatePayload struct {
 
 const timeLayout = "2006-01-02"
 
+func (p priceCreatePayload) toPoint() (marketdata.PricePoint, error) {
+	t, err := time.Parse(timeLayout, p.Time)
+	if err != nil {
+		return marketdata.PricePoint{}, err
+	}
+	return marketdata.PricePoint{Time: t, Open: p.Open, High: p.High, Low: p.Low, Close: p.Close, Volume: p.Volume}, nil
+}
+
 // ListSymbols returns the list of instrument symbols that have price data.
 func (h *Handler) ListSymbols() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		symbols, err := h.Store.ListPriceSymbols()
+		symbols, err := h.Store.ListPriceSymbols(r.Context())
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to list symbols: %s", err.Error()), http.StatusInternalServerError)
 			return
@@ -59,15 +71,16 @@ func (h *Handler) ListSymbols() http.Handler {
 
 func recordToPayload(r marketdata.PriceRecord) pricePayload {
 	return pricePayload{
-		ID:     r.ID,
 		Symbol: r.Symbol,
 		Time:   r.Time.Format(timeLayout),
-		Price:  r.Price,
+		Open:   r.Open, High: r.High, Low: r.Low, Close: r.Close, Volume: r.Volume,
 	}
 }
 
 // ListPrices returns the price history for the given symbol.
 // Query parameters "start" and "end" (YYYY-MM-DD) bound the range.
+//
+//nolint:dupl // intentionally parallel to ListEPS; the price and EPS read handlers mirror each other
 func (h *Handler) ListPrices(symbol string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if symbol == "" {
@@ -90,7 +103,8 @@ func (h *Handler) ListPrices(symbol string) http.Handler {
 				http.Error(w, fmt.Sprintf("invalid end date: %s", err.Error()), http.StatusBadRequest)
 				return
 			}
-			end = t
+			// Treat end as inclusive of that calendar day
+			end = t.Add(24*time.Hour - time.Nanosecond)
 		}
 
 		records, err := h.Store.PriceHistory(r.Context(), symbol, start, end)
@@ -155,24 +169,20 @@ func (h *Handler) CreatePrice(symbol string) http.Handler {
 			return
 		}
 
-		t, err := time.Parse(timeLayout, payload.Time)
+		pt, err := payload.toPoint()
 		if err != nil {
 			http.Error(w, fmt.Sprintf("invalid time: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
 
-		if err := h.Store.IngestPrice(r.Context(), symbol, t, payload.Price); err != nil {
+		if err := h.Store.IngestPrice(r.Context(), symbol, pt); err != nil {
 			http.Error(w, fmt.Sprintf("unable to ingest price: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(pricePayload{
-			Symbol: symbol,
-			Time:   t.Format(timeLayout),
-			Price:  payload.Price,
-		})
+		_ = json.NewEncoder(w).Encode(recordToPayload(marketdata.PriceRecord{Symbol: symbol, Time: pt.Time, Open: pt.Open, High: pt.High, Low: pt.Low, Close: pt.Close, Volume: pt.Volume}))
 	})
 }
 
@@ -200,12 +210,12 @@ func (h *Handler) CreatePricesBulk(symbol string) http.Handler {
 
 		points := make([]marketdata.PricePoint, len(payload.Points))
 		for i, p := range payload.Points {
-			t, err := time.Parse(timeLayout, p.Time)
+			pt, err := p.toPoint()
 			if err != nil {
 				http.Error(w, fmt.Sprintf("invalid time at index %d: %s", i, err.Error()), http.StatusBadRequest)
 				return
 			}
-			points[i] = marketdata.PricePoint{Time: t, Price: p.Price}
+			points[i] = pt
 		}
 
 		if err := h.Store.IngestPricesBulk(r.Context(), symbol, points); err != nil {
@@ -217,59 +227,284 @@ func (h *Handler) CreatePricesBulk(symbol string) http.Handler {
 	})
 }
 
-// UpdatePrice applies a partial update to a price record.
-//nolint:dupl // parallel to UpdateFXRate by design
-func (h *Handler) UpdatePrice(id uint) http.Handler {
+// editTimeseriesRecord is the shared body of EditPrice/EditEPS. It validates the path params, parses
+// {origDate}, decodes the body into a payload, converts it to a point and applies the store edit.
+// recordNoun ("price"/"EPS") and immutableMsg tailor the user-facing errors; the date is the
+// record's identity, so a body time that differs from {origDate} surfaces as ErrDateImmutable → 400.
+func editTimeseriesRecord[T, P any](
+	w http.ResponseWriter,
+	r *http.Request,
+	symbol, origDate, recordNoun, immutableMsg string,
+	toPoint func(T) (P, error),
+	edit func(context.Context, string, time.Time, P) error,
+) {
+	if symbol == "" || origDate == "" {
+		http.Error(w, "symbol and date are required", http.StatusBadRequest)
+		return
+	}
+	oldTime, err := time.Parse(timeLayout, origDate)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("invalid date: %s", err.Error()), http.StatusBadRequest)
+		return
+	}
+	if r.Body == nil {
+		http.Error(w, "request had empty body", http.StatusBadRequest)
+		return
+	}
+	var payload T
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, fmt.Sprintf("unable to decode json: %s", err.Error()), http.StatusBadRequest)
+		return
+	}
+	pt, err := toPoint(payload)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("invalid time: %s", err.Error()), http.StatusBadRequest)
+		return
+	}
+	if err := edit(r.Context(), symbol, oldTime, pt); err != nil {
+		if errors.Is(err, marketdata.ErrDateImmutable) {
+			http.Error(w, immutableMsg, http.StatusBadRequest)
+			return
+		}
+		http.Error(w, fmt.Sprintf("unable to update %s: %s", recordNoun, err.Error()), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+// EditPrice upserts the candle for {symbol} at {date}. The body carries the full candle; its time
+// must match {date} — the date is the record's identity and an edit cannot change it (returns 400).
+func (h *Handler) EditPrice(symbol, origDate string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if id == 0 {
-			http.Error(w, "valid record id is required", http.StatusBadRequest)
+		editTimeseriesRecord(w, r, symbol, origDate, "price",
+			"a price record's date cannot be changed; delete it and create a new one",
+			priceCreatePayload.toPoint, h.Store.EditPrice)
+	})
+}
+
+// deleteTimeseriesRecord is the shared body of DeletePrice/DeleteEPS. It validates the path params,
+// parses {date} and applies the store delete. recordNoun ("price"/"EPS") and notFoundMsg tailor the
+// user-facing errors; a missing record surfaces as ErrRecordNotFound → 404.
+func deleteTimeseriesRecord(
+	w http.ResponseWriter,
+	r *http.Request,
+	symbol, date, recordNoun, notFoundMsg string,
+	del func(context.Context, string, time.Time) error,
+) {
+	if symbol == "" || date == "" {
+		http.Error(w, "symbol and date are required", http.StatusBadRequest)
+		return
+	}
+	t, err := time.Parse(timeLayout, date)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("invalid date: %s", err.Error()), http.StatusBadRequest)
+		return
+	}
+	if err := del(r.Context(), symbol, t); err != nil {
+		if errors.Is(err, marketdata.ErrRecordNotFound) {
+			http.Error(w, notFoundMsg, http.StatusNotFound)
+			return
+		}
+		http.Error(w, fmt.Sprintf("unable to delete %s: %s", recordNoun, err.Error()), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+// DeletePrice removes the candle for {symbol} at the given {date}.
+func (h *Handler) DeletePrice(symbol, date string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		deleteTimeseriesRecord(w, r, symbol, date, "price", "no price data found", h.Store.DeletePriceAt)
+	})
+}
+
+// =============================================================================
+// EPS endpoints (mirrors the price endpoints; powers the TTM P·E chart line)
+// =============================================================================
+
+type epsPayload struct {
+	Time       string  `json:"time"`
+	EPSBasic   float64 `json:"eps_basic"`
+	EPSDiluted float64 `json:"eps_diluted"`
+}
+
+func (p epsPayload) toPoint() (marketdata.EPSPoint, error) {
+	t, err := time.Parse(timeLayout, p.Time)
+	if err != nil {
+		return marketdata.EPSPoint{}, err
+	}
+	return marketdata.EPSPoint{Time: t, Basic: p.EPSBasic, Diluted: p.EPSDiluted}, nil
+}
+
+type epsBulkCreatePayload struct {
+	Points []epsPayload `json:"points"`
+}
+
+func epsRecordToPayload(r marketdata.EPSRecord) epsPayload {
+	return epsPayload{Time: r.Time.Format(timeLayout), EPSBasic: r.Basic, EPSDiluted: r.Diluted}
+}
+
+// ListEPS returns the EPS history for the given symbol. Query params "start"/"end" (YYYY-MM-DD) bound the range.
+//
+//nolint:dupl // intentionally parallel to ListPrices; the price and EPS read handlers mirror each other
+func (h *Handler) ListEPS(symbol string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if symbol == "" {
+			http.Error(w, "symbol is required", http.StatusBadRequest)
+			return
+		}
+		var start, end time.Time
+		if v := r.URL.Query().Get("start"); v != "" {
+			t, err := time.Parse(timeLayout, v)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("invalid start date: %s", err.Error()), http.StatusBadRequest)
+				return
+			}
+			start = t
+		}
+		if v := r.URL.Query().Get("end"); v != "" {
+			t, err := time.Parse(timeLayout, v)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("invalid end date: %s", err.Error()), http.StatusBadRequest)
+				return
+			}
+			end = t.Add(24*time.Hour - time.Nanosecond) // inclusive of that calendar day
+		}
+		records, err := h.Store.EPSHistory(r.Context(), symbol, start, end)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to list EPS: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		out := make([]epsPayload, len(records))
+		for i, rec := range records {
+			out[i] = epsRecordToPayload(rec)
+		}
+		type response struct {
+			Items []epsPayload `json:"items"`
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(response{Items: out}); err != nil {
+			http.Error(w, fmt.Sprintf("error encoding JSON: %s", err.Error()), http.StatusInternalServerError)
+		}
+	})
+}
+
+// LatestEPS returns the most recent EPS record for the given symbol.
+func (h *Handler) LatestEPS(symbol string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if symbol == "" {
+			http.Error(w, "symbol is required", http.StatusBadRequest)
+			return
+		}
+		rec, err := h.Store.LatestEPS(r.Context(), symbol)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to get latest EPS: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		if rec == nil {
+			http.Error(w, "no EPS data found", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(epsRecordToPayload(*rec))
+	})
+}
+
+// CreateEPS ingests a single EPS observation for the given symbol.
+func (h *Handler) CreateEPS(symbol string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if symbol == "" {
+			http.Error(w, "symbol is required", http.StatusBadRequest)
 			return
 		}
 		if r.Body == nil {
 			http.Error(w, "request had empty body", http.StatusBadRequest)
 			return
 		}
-
-		var payload priceUpdatePayload
+		var payload epsPayload
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			http.Error(w, fmt.Sprintf("unable to decode json: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
-
-		var update marketdata.PriceUpdate
-		if payload.Time != nil {
-			t, err := time.Parse(timeLayout, *payload.Time)
-			if err != nil {
-				http.Error(w, fmt.Sprintf("invalid time: %s", err.Error()), http.StatusBadRequest)
-				return
-			}
-			update.Time = &t
-		}
-		update.Price = payload.Price
-
-		if err := h.Store.UpdatePrice(r.Context(), id, update); err != nil {
-			http.Error(w, fmt.Sprintf("unable to update price: %s", err.Error()), http.StatusInternalServerError)
+		pt, err := payload.toPoint()
+		if err != nil {
+			http.Error(w, fmt.Sprintf("invalid time: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
-
-		w.WriteHeader(http.StatusOK)
+		// Adding the first EPS point is how the series is introduced for a symbol that was not
+		// auto-defined (e.g. a manually annotated non-stock), so ensure the series exists.
+		if err := h.Store.RegisterEPSSeries(r.Context(), symbol); err != nil {
+			http.Error(w, fmt.Sprintf("unable to register EPS series: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		if err := h.Store.IngestEPS(r.Context(), symbol, pt); err != nil {
+			http.Error(w, fmt.Sprintf("unable to ingest EPS: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(epsRecordToPayload(marketdata.EPSRecord{Symbol: symbol, Time: pt.Time, Basic: pt.Basic, Diluted: pt.Diluted}))
 	})
 }
 
-// DeletePrice removes a price record by ID.
-func (h *Handler) DeletePrice(id uint) http.Handler {
+// CreateEPSBulk ingests multiple EPS observations for the given symbol.
+func (h *Handler) CreateEPSBulk(symbol string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if id == 0 {
-			http.Error(w, "valid record id is required", http.StatusBadRequest)
+		if symbol == "" {
+			http.Error(w, "symbol is required", http.StatusBadRequest)
 			return
 		}
-
-		if err := h.Store.DeletePrice(r.Context(), id); err != nil {
-			http.Error(w, fmt.Sprintf("unable to delete price: %s", err.Error()), http.StatusInternalServerError)
+		if r.Body == nil {
+			http.Error(w, "request had empty body", http.StatusBadRequest)
 			return
 		}
+		var payload epsBulkCreatePayload
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, fmt.Sprintf("unable to decode json: %s", err.Error()), http.StatusBadRequest)
+			return
+		}
+		if len(payload.Points) == 0 {
+			http.Error(w, "no EPS points provided", http.StatusBadRequest)
+			return
+		}
+		points := make([]marketdata.EPSPoint, len(payload.Points))
+		for i, p := range payload.Points {
+			pt, err := p.toPoint()
+			if err != nil {
+				http.Error(w, fmt.Sprintf("invalid time at index %d: %s", i, err.Error()), http.StatusBadRequest)
+				return
+			}
+			points[i] = pt
+		}
+		// Adding the first EPS point is how the series is introduced for a symbol that was not
+		// auto-defined (e.g. a manually annotated non-stock), so ensure the series exists.
+		if err := h.Store.RegisterEPSSeries(r.Context(), symbol); err != nil {
+			http.Error(w, fmt.Sprintf("unable to register EPS series: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		if err := h.Store.IngestEPSBulk(r.Context(), symbol, points); err != nil {
+			http.Error(w, fmt.Sprintf("unable to bulk ingest EPS: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+	})
+}
 
-		w.WriteHeader(http.StatusOK)
+// EditEPS upserts the EPS observation for {symbol} at {date}. The body carries the full point; its
+// time must match {date} — the date is the record's identity and an edit cannot change it (400).
+// Mirrors EditPrice.
+func (h *Handler) EditEPS(symbol, origDate string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		editTimeseriesRecord(w, r, symbol, origDate, "EPS",
+			"an EPS record's date cannot be changed; delete it and create a new one",
+			epsPayload.toPoint, h.Store.EditEPS)
+	})
+}
+
+// DeleteEPS removes the EPS observation for {symbol} at the given {date}. Mirrors DeletePrice.
+func (h *Handler) DeleteEPS(symbol, date string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		deleteTimeseriesRecord(w, r, symbol, date, "EPS", "no EPS data found", h.Store.DeleteEPSAt)
 	})
 }
 
@@ -278,7 +513,6 @@ func (h *Handler) DeletePrice(id uint) http.Handler {
 // =============================================================================
 
 type fxRatePayload struct {
-	ID        uint    `json:"id"`
 	Main      string  `json:"main"`
 	Secondary string  `json:"secondary"`
 	Time      string  `json:"time"`
@@ -290,9 +524,12 @@ type fxRateCreatePayload struct {
 	Rate float64 `json:"rate"`
 }
 
-type fxRateUpdatePayload struct {
-	Time *string  `json:"time,omitempty"`
-	Rate *float64 `json:"rate,omitempty"`
+func (p fxRateCreatePayload) toPoint() (marketdata.RatePoint, error) {
+	t, err := time.Parse(timeLayout, p.Time)
+	if err != nil {
+		return marketdata.RatePoint{}, err
+	}
+	return marketdata.RatePoint{Time: t, Rate: p.Rate}, nil
 }
 
 type fxBulkCreatePayload struct {
@@ -327,7 +564,6 @@ func (h *Handler) ListFXPairs() http.Handler {
 
 func fxRecordToPayload(rec marketdata.RateRecord) fxRatePayload {
 	return fxRatePayload{
-		ID:        rec.ID,
 		Main:      rec.Main,
 		Secondary: rec.Secondary,
 		Time:      rec.Time.Format(timeLayout),
@@ -414,12 +650,17 @@ func (h *Handler) CreateFXRate(main, secondary string) http.Handler {
 			http.Error(w, fmt.Sprintf("unable to decode json: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
-		t, err := time.Parse(timeLayout, payload.Time)
+		pt, err := payload.toPoint()
 		if err != nil {
 			http.Error(w, fmt.Sprintf("invalid time: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
-		if err := h.Store.IngestRate(r.Context(), main, secondary, t, payload.Rate); err != nil {
+		// Adding a rate is how an FX pair is first introduced via the API, so ensure the series exists.
+		if err := h.Store.RegisterPair(r.Context(), main, secondary); err != nil {
+			http.Error(w, fmt.Sprintf("unable to register pair: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+		if err := h.Store.IngestRate(r.Context(), main, secondary, pt.Time, pt.Rate); err != nil {
 			http.Error(w, fmt.Sprintf("unable to ingest rate: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
@@ -427,7 +668,7 @@ func (h *Handler) CreateFXRate(main, secondary string) http.Handler {
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(fxRatePayload{
 			Main: main, Secondary: secondary,
-			Time: t.Format(timeLayout), Rate: payload.Rate,
+			Time: pt.Time.Format(timeLayout), Rate: pt.Rate,
 		})
 	})
 }
@@ -454,12 +695,17 @@ func (h *Handler) CreateFXRatesBulk(main, secondary string) http.Handler {
 		}
 		points := make([]marketdata.RatePoint, len(payload.Points))
 		for i, p := range payload.Points {
-			t, err := time.Parse(timeLayout, p.Time)
+			pt, err := p.toPoint()
 			if err != nil {
 				http.Error(w, fmt.Sprintf("invalid time at index %d: %s", i, err.Error()), http.StatusBadRequest)
 				return
 			}
-			points[i] = marketdata.RatePoint{Time: t, Rate: p.Rate}
+			points[i] = pt
+		}
+		// Adding rates is how an FX pair is first introduced via the API, so ensure the series exists.
+		if err := h.Store.RegisterPair(r.Context(), main, secondary); err != nil {
+			http.Error(w, fmt.Sprintf("unable to register pair: %s", err.Error()), http.StatusInternalServerError)
+			return
 		}
 		if err := h.Store.IngestRatesBulk(r.Context(), main, secondary, points); err != nil {
 			http.Error(w, fmt.Sprintf("unable to bulk ingest rates: %s", err.Error()), http.StatusInternalServerError)
@@ -469,34 +715,39 @@ func (h *Handler) CreateFXRatesBulk(main, secondary string) http.Handler {
 	})
 }
 
-// UpdateFXRate applies a partial update to a rate record.
-//nolint:dupl // parallel to UpdatePrice by design
-func (h *Handler) UpdateFXRate(id uint) http.Handler {
+// EditFXRate upserts the rate for {main}/{secondary} at the given original {date}. Body carries the
+// full rate point; its time must match {date} — the date is the record's identity and an edit
+// cannot change it (returns 400). Mirrors EditPrice.
+func (h *Handler) EditFXRate(main, secondary, origDate string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if id == 0 {
-			http.Error(w, "valid record id is required", http.StatusBadRequest)
+		if main == "" || secondary == "" || origDate == "" {
+			http.Error(w, "main, secondary and date are required", http.StatusBadRequest)
+			return
+		}
+		oldTime, err := time.Parse(timeLayout, origDate)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("invalid date: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
 		if r.Body == nil {
 			http.Error(w, "request had empty body", http.StatusBadRequest)
 			return
 		}
-		var payload fxRateUpdatePayload
+		var payload fxRateCreatePayload
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			http.Error(w, fmt.Sprintf("unable to decode json: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
-		var update marketdata.RateUpdate
-		if payload.Time != nil {
-			t, err := time.Parse(timeLayout, *payload.Time)
-			if err != nil {
-				http.Error(w, fmt.Sprintf("invalid time: %s", err.Error()), http.StatusBadRequest)
+		pt, err := payload.toPoint()
+		if err != nil {
+			http.Error(w, fmt.Sprintf("invalid time: %s", err.Error()), http.StatusBadRequest)
+			return
+		}
+		if err := h.Store.EditRate(r.Context(), main, secondary, oldTime, pt); err != nil {
+			if errors.Is(err, marketdata.ErrDateImmutable) {
+				http.Error(w, "a rate record's date cannot be changed; delete it and create a new one", http.StatusBadRequest)
 				return
 			}
-			update.Time = &t
-		}
-		update.Rate = payload.Rate
-		if err := h.Store.UpdateRate(r.Context(), id, update); err != nil {
 			http.Error(w, fmt.Sprintf("unable to update rate: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}
@@ -504,14 +755,23 @@ func (h *Handler) UpdateFXRate(id uint) http.Handler {
 	})
 }
 
-// DeleteFXRate removes a rate record by ID.
-func (h *Handler) DeleteFXRate(id uint) http.Handler {
+// DeleteFXRate removes the rate record for {main}/{secondary} at the given {date}. Mirrors DeletePrice.
+func (h *Handler) DeleteFXRate(main, secondary, date string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if id == 0 {
-			http.Error(w, "valid record id is required", http.StatusBadRequest)
+		if main == "" || secondary == "" || date == "" {
+			http.Error(w, "main, secondary and date are required", http.StatusBadRequest)
 			return
 		}
-		if err := h.Store.DeleteRate(r.Context(), id); err != nil {
+		t, err := time.Parse(timeLayout, date)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("invalid date: %s", err.Error()), http.StatusBadRequest)
+			return
+		}
+		if err := h.Store.DeleteRateAt(r.Context(), main, secondary, t); err != nil {
+			if errors.Is(err, marketdata.ErrRecordNotFound) {
+				http.Error(w, "no rate data found", http.StatusNotFound)
+				return
+			}
 			http.Error(w, fmt.Sprintf("unable to delete rate: %s", err.Error()), http.StatusInternalServerError)
 			return
 		}

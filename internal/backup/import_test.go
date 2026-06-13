@@ -223,11 +223,20 @@ func assertImportedPriceHistory(t *testing.T, mdStore *marketdata.Store) {
 	if len(records) < 1 {
 		t.Fatalf("expected at least 1 price record, got %d", len(records))
 	}
+	// Verify the imported records carry real OHLCV values (not just row counts).
+	for i, r := range records {
+		if r.Close == 0 {
+			t.Errorf("record[%d]: Close is zero, expected non-zero", i)
+		}
+		if r.Volume == 0 {
+			t.Errorf("record[%d]: Volume is zero, expected non-zero", i)
+		}
+	}
 }
 
 func assertImportedFXRates(t *testing.T, mdStore *marketdata.Store) {
 	t.Helper()
-	pairs, err := mdStore.ListFXPairs()
+	pairs, err := mdStore.ListFXPairs(t.Context())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -315,7 +324,7 @@ func sampleDataNoise(t *testing.T, store *accounting.Store, mdStore *marketdata.
 	_, _ = mdStore.CreateInstrument(t.Context(), marketdata.Instrument{
 		Symbol: "NOISE", Name: "Noise Corp", Currency: currency.EUR,
 	})
-	_ = mdStore.IngestPrice(t.Context(), "NOISE", time.Now(), 999.0)
+	_ = mdStore.IngestPrice(t.Context(), "NOISE", marketdata.PricePoint{Time: time.Now(), Open: 998.0, High: 1001.0, Low: 997.0, Close: 999.0, Volume: 500})
 
 	// csvimport noise
 	_, _ = csvStore.CreateProfile(t.Context(), csvimport.ImportProfile{

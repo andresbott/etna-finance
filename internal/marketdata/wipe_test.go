@@ -25,12 +25,18 @@ func TestWipeData(t *testing.T) {
 			}
 
 			// Ingest a price
-			err = store.IngestPrice(ctx, "AAPL", time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), 150.0)
+			err = store.IngestPrice(ctx, "AAPL", PricePoint{
+				Time:  time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+				Close: 150.0,
+			})
 			if err != nil {
 				t.Fatalf("ingest price: %v", err)
 			}
 
 			// Ingest an FX rate
+			if err := store.RegisterPair(ctx, "EUR", "USD"); err != nil {
+				t.Fatalf("register pair: %v", err)
+			}
 			err = store.IngestRate(ctx, "EUR", "USD", time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), 1.08)
 			if err != nil {
 				t.Fatalf("ingest rate: %v", err)
@@ -45,7 +51,7 @@ func TestWipeData(t *testing.T) {
 				t.Fatal("expected at least one instrument before wipe")
 			}
 
-			symbols, err := store.ListPriceSymbols()
+			symbols, err := store.ListPriceSymbols(ctx)
 			if err != nil {
 				t.Fatalf("list price symbols before wipe: %v", err)
 			}
@@ -53,7 +59,7 @@ func TestWipeData(t *testing.T) {
 				t.Fatal("expected at least one price symbol before wipe")
 			}
 
-			pairs, err := store.ListFXPairs()
+			pairs, err := store.ListFXPairs(ctx)
 			if err != nil {
 				t.Fatalf("list FX pairs before wipe: %v", err)
 			}
@@ -77,7 +83,7 @@ func TestWipeData(t *testing.T) {
 			}
 
 			// Assert price symbols list is empty
-			symbols, err = store.ListPriceSymbols()
+			symbols, err = store.ListPriceSymbols(ctx)
 			if err != nil {
 				t.Fatalf("list price symbols after wipe: %v", err)
 			}
@@ -86,7 +92,7 @@ func TestWipeData(t *testing.T) {
 			}
 
 			// Assert FX pairs list is empty
-			pairs, err = store.ListFXPairs()
+			pairs, err = store.ListFXPairs(ctx)
 			if err != nil {
 				t.Fatalf("list FX pairs after wipe: %v", err)
 			}

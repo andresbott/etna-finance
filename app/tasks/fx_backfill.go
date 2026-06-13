@@ -57,6 +57,12 @@ func NewFXBackfillTaskFn(store *marketdata.Store, l *slog.Logger, mainCurrency s
 				pairs++
 			}
 		}
+		// Ensure all configured pairs are registered before ingesting (ingest no longer
+		// auto-registers); a newly configured currency may not have a series yet.
+		registerFXPairs(ctx, store, mainCurrency, currencies, func(secondary string, err error) {
+			taskLogWarn(ctx, l, FXBackfillTaskName, fmt.Sprintf("fx backfill: register %s/%s: %v", mainCurrency, secondary, err),
+				slog.String("pair", mainCurrency+"/"+secondary), slog.String("error", err.Error()))
+		})
 		taskLogInfo(ctx, l, FXBackfillTaskName, fmt.Sprintf("fx backfill: range %s to %s, %d pairs, batches of %d days", start.Format(dateFmt), end.Format(dateFmt), pairs, FXBackfillBatchSize),
 			slog.String("start", start.Format(dateFmt)), slog.String("end", end.Format(dateFmt)), slog.Int("pairs", pairs), slog.Int("batchSizeDays", FXBackfillBatchSize))
 

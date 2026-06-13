@@ -12,6 +12,7 @@ import (
 	"github.com/andresbott/etna/internal/csvimport"
 	"github.com/andresbott/etna/internal/filestore"
 	"github.com/andresbott/etna/internal/marketdata"
+	"github.com/andresbott/etna/internal/marketdata/importer"
 	"github.com/andresbott/etna/internal/taskrunner"
 	"github.com/andresbott/etna/internal/toolsdata"
 	"github.com/go-bumbu/http/middleware"
@@ -28,6 +29,7 @@ type Cfg struct {
 	AuthDisabled      bool   // when true, no login required; all operations use DefaultUser
 	DefaultUser       string // used when AuthDisabled=true
 	Logger            *slog.Logger
+	LogLevel          string // human-readable log level, surfaced on the about page
 	BackupDestination string
 	ProductionMode    bool
 	AppSettings       handlrs.AppSettings
@@ -43,6 +45,8 @@ type Cfg struct {
 	CsvImportStore  *csvimport.Store
 	AttachmentStore *filestore.Store
 	ToolsDataStore  *toolsdata.Store
+	// ReferenceClient: optional. When set, enables instrument symbol autofill (GET /fin/instrument/lookup).
+	ReferenceClient importer.ReferenceClient
 }
 
 // MainAppHandler is the entrypoint http handler for the whole application
@@ -56,6 +60,7 @@ type MainAppHandler struct {
 	authDisabled      bool
 	defaultUser       string
 	logger            *slog.Logger
+	logLevel          string
 	backupDestination string
 	productionMode    bool
 	appSettings       handlrs.AppSettings
@@ -66,6 +71,7 @@ type MainAppHandler struct {
 	csvImportStore    *csvimport.Store
 	attachmentStore   *filestore.Store
 	toolsDataStore    *toolsdata.Store
+	referenceClient   importer.ReferenceClient
 }
 
 func (h *MainAppHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -82,6 +88,7 @@ func New(cfg Cfg) (*MainAppHandler, error) {
 		authDisabled:      cfg.AuthDisabled,
 		defaultUser:       cfg.DefaultUser,
 		logger:            cfg.Logger,
+		logLevel:          cfg.LogLevel,
 		backupDestination: cfg.BackupDestination,
 		productionMode:    cfg.ProductionMode,
 		appSettings:       cfg.AppSettings,
@@ -92,6 +99,7 @@ func New(cfg Cfg) (*MainAppHandler, error) {
 		csvImportStore:    cfg.CsvImportStore,
 		attachmentStore:   cfg.AttachmentStore,
 		toolsDataStore:    cfg.ToolsDataStore,
+		referenceClient:   cfg.ReferenceClient,
 	}
 
 	if cfg.MarketStore == nil || cfg.FinStore == nil {
