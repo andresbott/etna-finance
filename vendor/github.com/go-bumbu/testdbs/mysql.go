@@ -42,7 +42,7 @@ func (c *testDBMysql) Close(name string) error {
 func (c *testDBMysql) CloseAll() error {
 	defer c.clean()
 	var merr error
-	for name, _ := range c.pool {
+	for name := range c.pool {
 		err := c.Close(name)
 		if err != nil {
 			merr = multierror.Append(merr, err)
@@ -76,7 +76,14 @@ func (c *testDBMysql) Init(logger logger.Interface) {
 				"MYSQL_USER":          mysqlUser,
 				"MYSQL_PASSWORD":      mysqlPassword,
 			},
-			WaitingFor: wait.ForListeningPort("3306/tcp").WithStartupTimeout(60 * time.Second),
+			// mysql:8.0 opens port 3306 for a temporary init server, then
+			// restarts the real one. Waiting only for the port races into that
+			// init window (intermittent "unexpected EOF" / "invalid connection").
+			// "ready for connections" is logged twice: wait for the second.
+			WaitingFor: wait.ForAll(
+				wait.ForLog(".*ready for connections.*").AsRegexp().WithOccurrence(2).WithStartupTimeout(60*time.Second),
+				wait.ForListeningPort("3306/tcp").WithStartupTimeout(60*time.Second),
+			),
 		}
 		mysqlContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 			ContainerRequest: req,
@@ -111,7 +118,7 @@ func (c *testDBMysql) Init(logger logger.Interface) {
 			}
 		}
 		c.clean = cleanFn
-		c.pool[defaultDbName] = db
+		c.pool[normalizeDbName(defaultDbName)] = db
 	})
 }
 
@@ -131,7 +138,7 @@ func (c *testDBMysql) ConnDbName(name string) *gorm.DB {
 	if err != nil {
 		panic(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	_, err = db.Exec("CREATE DATABASE IF NOT EXISTS " + name)
 	if err != nil {
 		panic(err)

@@ -103,20 +103,25 @@ func (s *Store) EPSHistory(ctx context.Context, symbol string, start, end time.T
 	return out, nil
 }
 
-// LatestEPS returns the most recent EPS record, or nil if none.
+// LatestEPS returns the most recent EPS record, or nil if none. A partial record
+// (the newest timestamp missing the basic or diluted leg) is rejected with an
+// error rather than zero-filled.
 func (s *Store) LatestEPS(ctx context.Context, symbol string) (*EPSRecord, error) {
 	if symbol == "" {
 		return nil, fmt.Errorf("instrument symbol cannot be empty")
 	}
-	p, found, err := s.store.Latest(ctx, epsSeriesName(symbol))
+	p, cov, err := s.store.Latest(ctx, epsSeriesName(symbol))
 	if err != nil {
 		if errors.Is(err, timeseries.ErrSeriesNotFound) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to get latest EPS for %q: %w", symbol, err)
 	}
-	if !found {
+	switch cov {
+	case timeseries.CoverageNone:
 		return nil, nil
+	case timeseries.CoveragePartial:
+		return nil, fmt.Errorf("partial EPS record for %q at latest timestamp", symbol)
 	}
 	rec := pointToEPSRecord(symbol, p)
 	return &rec, nil

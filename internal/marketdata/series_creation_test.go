@@ -164,7 +164,7 @@ func TestIngestRate_RequiresRegisteredPair(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			err = store.IngestRate(ctx, "EUR", "USD", time.Now(), 1.1)
+			err = store.IngestRate(ctx, "EUR", "USD", time.Now().UTC(), 1.1)
 			if err == nil {
 				t.Fatal("expected error ingesting rate for an unregistered pair, got nil")
 			}
@@ -173,7 +173,7 @@ func TestIngestRate_RequiresRegisteredPair(t *testing.T) {
 			if err := store.RegisterPair(ctx, "EUR", "USD"); err != nil {
 				t.Fatalf("RegisterPair: %v", err)
 			}
-			if err := store.IngestRate(ctx, "EUR", "USD", time.Now(), 1.1); err != nil {
+			if err := store.IngestRate(ctx, "EUR", "USD", time.Now().UTC(), 1.1); err != nil {
 				t.Fatalf("IngestRate after RegisterPair: %v", err)
 			}
 		})

@@ -31,10 +31,6 @@ type PriceRecord struct {
 	Volume float64
 }
 
-// priceFields are the OHLCV field names of a price series, in candle order.
-// A complete candle has all of them; PriceAt rejects a snapshot missing any.
-var priceFields = []string{"open", "high", "low", "close", "volume"}
-
 func (p PricePoint) values() map[string]float64 {
 	return map[string]float64{
 		"open": p.Open, "high": p.High, "low": p.Low, "close": p.Close, "volume": p.Volume,
@@ -104,20 +100,25 @@ func (s *Store) PriceHistory(ctx context.Context, symbol string, start, end time
 	return out, nil
 }
 
-// LatestPrice returns the most recent candle, or nil if none.
+// LatestPrice returns the most recent candle, or nil if none. As with PriceAt, a
+// partial candle (the newest timestamp missing an OHLCV leg) is rejected with an
+// error rather than zero-filled, so it can never silently feed a corrupt price.
 func (s *Store) LatestPrice(ctx context.Context, symbol string) (*PriceRecord, error) {
 	if symbol == "" {
 		return nil, fmt.Errorf("instrument symbol cannot be empty")
 	}
-	p, found, err := s.store.Latest(ctx, seriesName(symbol))
+	p, cov, err := s.store.Latest(ctx, seriesName(symbol))
 	if err != nil {
 		if errors.Is(err, timeseries.ErrSeriesNotFound) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to get latest price for %q: %w", symbol, err)
 	}
-	if !found {
+	switch cov {
+	case timeseries.CoverageNone:
 		return nil, nil
+	case timeseries.CoveragePartial:
+		return nil, fmt.Errorf("partial price candle for %q at latest timestamp", symbol)
 	}
 	rec := pointToPriceRecord(symbol, p)
 	return &rec, nil
@@ -130,25 +131,23 @@ func (s *Store) LatestPrice(ctx context.Context, symbol string) (*PriceRecord, e
 // (some OHLCV legs missing) when a field has a gap in its history. Since candles
 // are always written whole, a partial snapshot is an anomaly: rather than
 // silently zero-filling the missing legs into a real-looking candle (which would
-// corrupt valuation), PriceAt rejects it with an error.
+// corrupt valuation), PriceAt rejects anything short of full coverage.
 func (s *Store) PriceAt(ctx context.Context, symbol string, t time.Time) (*PriceRecord, error) {
 	if symbol == "" {
 		return nil, fmt.Errorf("instrument symbol cannot be empty")
 	}
-	p, found, err := s.store.At(ctx, seriesName(symbol), t)
+	p, cov, err := s.store.At(ctx, seriesName(symbol), t)
 	if err != nil {
 		if errors.Is(err, timeseries.ErrSeriesNotFound) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to get price for %q at %v: %w", symbol, t, err)
 	}
-	if !found {
+	switch cov {
+	case timeseries.CoverageNone:
 		return nil, nil
-	}
-	for _, field := range priceFields {
-		if _, ok := p.Values[field]; !ok {
-			return nil, fmt.Errorf("partial price candle for %q at %v: missing %q", symbol, t, field)
-		}
+	case timeseries.CoveragePartial:
+		return nil, fmt.Errorf("partial price candle for %q at %v", symbol, t)
 	}
 	rec := pointToPriceRecord(symbol, p)
 	return &rec, nil

@@ -693,6 +693,56 @@ func TestAccountBalance_InvestmentMarketValue(t *testing.T) {
 	}
 }
 
+// TestAccountBalance_InvestmentNonUTCEndDate guards against the regression where a non-UTC
+// endDate (e.g. the overview handler's default time.Now(), which is in the machine's local
+// zone) caused the market-data reads to fail. The timeseries store rejects non-UTC times, and
+// report.go swallowed those errors (dropping the position's market value and skipping FX
+// conversion), so balances silently came out wrong. The report must normalize to UTC before
+// querying the market store, so a non-UTC endDate yields the same balance as the UTC one.
+func TestAccountBalance_InvestmentNonUTCEndDate(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			dbCon := db.ConnDbName("TestInvBalanceNonUTC")
+			store, mktStore := newAccountingStoreWithMarketData(t, dbCon)
+			ctx := t.Context()
+
+			// Main currency CHF, instrument in USD, so the report must also do an FX lookup
+			// (RateAt) — exercising both swallowed-error paths.
+			store.mainCurrency = "CHF"
+
+			investmentAccountID, _ := setupInvestmentBalanceTest(t, ctx, store, mktStore)
+
+			if err := mktStore.RegisterPair(ctx, "CHF", "USD"); err != nil {
+				t.Fatal(err)
+			}
+			if err := mktStore.IngestRate(ctx, "CHF", "USD", getDate("2025-03-01"), 0.85); err != nil {
+				t.Fatal(err)
+			}
+
+			// endDate is the 2025-03-01 calendar day, but in a non-UTC zone (UTC+2 at noon),
+			// matching what the handler produces from a local time.Now().
+			loc := time.FixedZone("UTC+2", 2*60*60)
+			nonUTCEnd := time.Date(2025, 3, 1, 12, 0, 0, 0, loc)
+
+			got, err := store.AccountBalance(ctx, investmentAccountID, 1, time.Time{}, nonUTCEnd)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got) != 1 {
+				t.Fatalf("expected 1 result, got %d", len(got))
+			}
+			// 10 shares × $150 = $1500 USD / 0.85 = ~1764.71 CHF — same as the UTC case.
+			want := 1500.0 / 0.85
+			if diff := got[0].Sum - want; diff > 0.01 || diff < -0.01 {
+				t.Errorf("got Sum=%v, want ~%v (non-UTC endDate must match UTC result)", got[0].Sum, want)
+			}
+			if got[0].Unconverted {
+				t.Error("expected Unconverted=false; non-UTC endDate must not break FX conversion")
+			}
+		})
+	}
+}
+
 func TestAccountBalance_InvestmentWithFX(t *testing.T) {
 	for _, db := range testdbs.DBs() {
 		t.Run(db.DbType(), func(t *testing.T) {
