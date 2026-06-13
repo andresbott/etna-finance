@@ -18,6 +18,7 @@ import (
 	"github.com/andresbott/etna/internal/marketdata"
 	"github.com/andresbott/etna/internal/taskrunner"
 	"github.com/andresbott/etna/internal/toolsdata"
+	"github.com/go-bumbu/tempo"
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/text/currency"
 )
@@ -569,8 +570,17 @@ func importPriceHistory(ctx context.Context, mdStore *marketdata.Store, r *zip.R
 	if err != nil {
 		return err
 	}
+	// Pre-OHLCV backups carry a single legacy "price" value rather than a candle. We do not
+	// synthesize flat candles from those: instead we skip them, leaving the series empty so the
+	// financial-backfill job refills the window with real OHLCV from the provider. (Backfill only
+	// reaches ~1 year, so legacy history older than that is intentionally dropped in this migration.)
 	bySymbol := map[string][]marketdata.PricePoint{}
+	var skippedLegacy int
 	for _, rec := range records {
+		if !rec.hasOHLCV() {
+			skippedLegacy++
+			continue
+		}
 		bySymbol[rec.Symbol] = append(bySymbol[rec.Symbol], marketdata.PricePoint{
 			Time:   rec.Time,
 			Open:   rec.Open,
@@ -579,6 +589,9 @@ func importPriceHistory(ctx context.Context, mdStore *marketdata.Store, r *zip.R
 			Close:  rec.Close,
 			Volume: rec.Volume,
 		})
+	}
+	if skippedLegacy > 0 {
+		tempo.Info(ctx, fmt.Sprintf("backup restore: skipped %d legacy price-only record(s) without OHLCV; run the financial-backfill task to refill candles", skippedLegacy))
 	}
 	for symbol, points := range bySymbol {
 		if err := mdStore.IngestPricesBulk(ctx, symbol, points); err != nil {

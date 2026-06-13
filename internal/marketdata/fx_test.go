@@ -77,6 +77,27 @@ func TestIngestRatesBulk(t *testing.T) {
 					}
 				}
 			})
+
+			t.Run("non-UTC times are normalized to UTC", func(t *testing.T) {
+				cet := time.FixedZone("CET", 60*60)
+				local := time.Date(2025, 1, 10, 1, 0, 0, 0, cet) // == 00:00 UTC
+				if err := store.RegisterPair(ctx, "CHF", "USD"); err != nil {
+					t.Fatalf("register: %v", err)
+				}
+				if err := store.IngestRatesBulk(ctx, "CHF", "USD", []RatePoint{{Time: local, Rate: 1.13}}); err != nil {
+					t.Fatalf("unexpected error ingesting non-UTC time: %v", err)
+				}
+				records, err := store.RateHistory(ctx, "CHF", "USD", time.Time{}, time.Time{})
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				if len(records) != 1 {
+					t.Fatalf("expected 1 record, got %d", len(records))
+				}
+				if !records[0].Time.Equal(local) || records[0].Time.Location() != time.UTC {
+					t.Errorf("expected UTC instant %v, got %v (%q)", local, records[0].Time, records[0].Time.Location())
+				}
+			})
 		})
 	}
 }

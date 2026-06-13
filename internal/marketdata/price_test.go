@@ -64,6 +64,31 @@ func TestIngestPricesBulk(t *testing.T) {
 						r.Open, r.High, r.Low, r.Close, r.Volume)
 				}
 			})
+
+			t.Run("non-UTC times are normalized to UTC", func(t *testing.T) {
+				cet := time.FixedZone("CET", 60*60)
+				// 01:00 CET is the same instant as 00:00 UTC.
+				local := time.Date(2025, 1, 10, 1, 0, 0, 0, cet)
+				if err := store.RegisterInstrument(ctx, "TZ"); err != nil {
+					t.Fatalf("register: %v", err)
+				}
+				if err := store.IngestPricesBulk(ctx, "TZ", []PricePoint{{Time: local, Close: 50.0}}); err != nil {
+					t.Fatalf("unexpected error ingesting non-UTC time: %v", err)
+				}
+				records, err := store.PriceHistory(ctx, "TZ", time.Time{}, time.Time{})
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				if len(records) != 1 {
+					t.Fatalf("expected 1 record, got %d", len(records))
+				}
+				if !records[0].Time.Equal(local) {
+					t.Errorf("instant changed: got %v want %v", records[0].Time, local)
+				}
+				if records[0].Time.Location() != time.UTC {
+					t.Errorf("expected UTC location, got %q", records[0].Time.Location())
+				}
+			})
 		})
 	}
 }

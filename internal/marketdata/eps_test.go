@@ -21,7 +21,7 @@ func TestEPSStore(t *testing.T) {
 
 			// EPS ingest no longer auto-registers; the series is defined at instrument creation for
 			// stocks. Define it here for the symbols these sub-cases ingest into (NOPE stays absent).
-			for _, sym := range []string{"AAA", "BBB", "CCC", "DDD"} {
+			for _, sym := range []string{"AAA", "BBB", "CCC", "DDD", "EEE"} {
 				if err := store.RegisterEPSSeries(ctx, sym); err != nil {
 					t.Fatalf("RegisterEPSSeries %s: %v", sym, err)
 				}
@@ -66,6 +66,24 @@ func TestEPSStore(t *testing.T) {
 				}
 				if latest == nil || latest.Basic != 1.2 {
 					t.Errorf("expected latest Basic=1.2, got %+v", latest)
+				}
+			})
+
+			t.Run("non-UTC times are normalized to UTC", func(t *testing.T) {
+				cet := time.FixedZone("CET", 60*60)
+				local := time.Date(2024, 5, 1, 1, 0, 0, 0, cet) // == 00:00 UTC
+				if err := store.IngestEPSBulk(ctx, "EEE", []EPSPoint{{Time: local, Basic: 1.0, Diluted: 0.95}}); err != nil {
+					t.Fatalf("unexpected error ingesting non-UTC time: %v", err)
+				}
+				recs, err := store.EPSHistory(ctx, "EEE", time.Time{}, time.Time{})
+				if err != nil {
+					t.Fatalf("EPSHistory: %v", err)
+				}
+				if len(recs) != 1 {
+					t.Fatalf("expected 1 record, got %d", len(recs))
+				}
+				if !recs[0].Time.Equal(local) || recs[0].Time.Location() != time.UTC {
+					t.Errorf("expected UTC instant %v, got %v (%q)", local, recs[0].Time, recs[0].Time.Location())
 				}
 			})
 

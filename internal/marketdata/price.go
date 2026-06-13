@@ -55,7 +55,7 @@ func (s *Store) IngestPrice(ctx context.Context, symbol string, p PricePoint) er
 	if symbol == "" {
 		return fmt.Errorf("instrument symbol cannot be empty")
 	}
-	if err := s.store.Write(ctx, seriesName(symbol), timeseries.Point{Time: p.Time, Values: p.values()}); err != nil {
+	if err := s.store.Write(ctx, seriesName(symbol), timeseries.Point{Time: p.Time.UTC(), Values: p.values()}); err != nil {
 		return fmt.Errorf("failed to write price for %q: %w", symbol, err)
 	}
 	return nil
@@ -72,7 +72,7 @@ func (s *Store) IngestPricesBulk(ctx context.Context, symbol string, points []Pr
 	}
 	pts := make([]timeseries.Point, len(points))
 	for i, p := range points {
-		pts[i] = timeseries.Point{Time: p.Time, Values: p.values()}
+		pts[i] = timeseries.Point{Time: p.Time.UTC(), Values: p.values()}
 	}
 	if err := s.store.WriteMany(ctx, seriesName(symbol), pts); err != nil {
 		return fmt.Errorf("failed to bulk write prices for %q: %w", symbol, err)

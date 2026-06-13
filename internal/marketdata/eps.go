@@ -58,7 +58,7 @@ func (s *Store) IngestEPS(ctx context.Context, symbol string, p EPSPoint) error 
 	if symbol == "" {
 		return fmt.Errorf("instrument symbol cannot be empty")
 	}
-	if err := s.store.Write(ctx, epsSeriesName(symbol), timeseries.Point{Time: p.Time, Values: p.values()}); err != nil {
+	if err := s.store.Write(ctx, epsSeriesName(symbol), timeseries.Point{Time: p.Time.UTC(), Values: p.values()}); err != nil {
 		return fmt.Errorf("failed to write EPS for %q: %w", symbol, err)
 	}
 	return nil
@@ -75,7 +75,7 @@ func (s *Store) IngestEPSBulk(ctx context.Context, symbol string, points []EPSPo
 	}
 	pts := make([]timeseries.Point, len(points))
 	for i, p := range points {
-		pts[i] = timeseries.Point{Time: p.Time, Values: p.values()}
+		pts[i] = timeseries.Point{Time: p.Time.UTC(), Values: p.values()}
 	}
 	if err := s.store.WriteMany(ctx, epsSeriesName(symbol), pts); err != nil {
 		return fmt.Errorf("failed to bulk write EPS for %q: %w", symbol, err)

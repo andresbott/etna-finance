@@ -99,7 +99,7 @@ func (s *Store) IngestRate(ctx context.Context, main, secondary string, t time.T
 	if main == "" || secondary == "" {
 		return fmt.Errorf("main and secondary currency cannot be empty")
 	}
-	return s.store.Write(ctx, fxSeriesName(main, secondary), timeseries.Point{Time: t, Values: map[string]float64{fxField: rate}})
+	return s.store.Write(ctx, fxSeriesName(main, secondary), timeseries.Point{Time: t.UTC(), Values: map[string]float64{fxField: rate}})
 }
 
 // IngestRatesBulk records multiple rate points for the given pair in one operation. The pair's
@@ -113,7 +113,7 @@ func (s *Store) IngestRatesBulk(ctx context.Context, main, secondary string, poi
 	}
 	pts := make([]timeseries.Point, len(points))
 	for i, p := range points {
-		pts[i] = timeseries.Point{Time: p.Time, Values: map[string]float64{fxField: p.Rate}}
+		pts[i] = timeseries.Point{Time: p.Time.UTC(), Values: map[string]float64{fxField: p.Rate}}
 	}
 	return s.store.WriteMany(ctx, fxSeriesName(main, secondary), pts)
 }
