@@ -256,6 +256,10 @@ const (
 	LotClosed  LotStatus = 3
 )
 
+// lotQtyEpsilon is the share-quantity tolerance used to treat residual amounts from
+// floating-point accumulation as zero. Allocations/quantities at or below this are dust.
+const lotQtyEpsilon = 0.0001
+
 type dbLot struct {
 	Id           uint      `gorm:"primaryKey"`
 	TradeID      uint      `gorm:"not null;index"`
@@ -361,12 +365,18 @@ func (store *Store) allocateLotsForSell(ctx context.Context, tx *gorm.DB, accoun
 	}
 
 	for i := range lots {
-		if remaining <= 0 {
+		if remaining <= lotQtyEpsilon {
 			break
 		}
 
 		lot := &lots[i]
 		allocQty := math.Min(lot.Quantity, remaining)
+		// Skip dust allocations from floating-point accumulation: they create
+		// meaningless disposal records that later block deletion of the source vest.
+		if allocQty <= lotQtyEpsilon {
+			remaining -= allocQty
+			continue
+		}
 		allocCost := roundMoney(allocQty * lot.CostPerShare)
 		allocProceeds := roundMoney(proceeds * (allocQty / sellQty))
 		realizedGL := roundMoney(allocProceeds - allocCost)

@@ -26,11 +26,6 @@ const handleLogout = () => {
 
 const sections = computed(() => {
     const appDataItems = [
-        {
-            label: 'CSV Import',
-            icon: 'ti ti-file-import',
-            route: '/setup/csv-profiles'
-        },
         { label: 'Categories', icon: 'ti ti-tags', route: '/categories' },
         { label: 'Account Setup', icon: 'ti ti-wallet', route: '/accounts' },
     ]

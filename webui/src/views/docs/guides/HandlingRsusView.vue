@@ -35,12 +35,12 @@ import Message from 'primevue/message'
                             <li>
                                 <strong>Restricted stocks</strong> account — Holds the granted shares that haven't vested yet.
                                 Create an account with type
-                                <router-link to="/settings/accounts">Restricted stocks</router-link>.
+                                <router-link to="/nav/accounts">Restricted stocks</router-link>.
                             </li>
                             <li>
                                 <strong>Investment</strong> account — Holds the vested shares you actually own.
                                 Create an account with type
-                                <router-link to="/settings/accounts">Investment</router-link>.
+                                <router-link to="/nav/accounts">Investment</router-link>.
                             </li>
                         </ul>
                         <p>

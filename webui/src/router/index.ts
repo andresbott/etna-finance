@@ -25,11 +25,11 @@ const router = createRouter({
         },
         {
             path: '/accounts',
-            redirect: { name: 'settings-accounts' }
+            redirect: { name: 'nav-accounts' }
         },
         {
-            path: '/nav/account-browser',
-            name: 'nav-account-browser',
+            path: '/nav/accounts',
+            name: 'nav-accounts',
             meta: { requiresAuth: true },
             component: () => import('@/views/nav/AccountBrowserView.vue')
         },
@@ -65,14 +65,6 @@ const router = createRouter({
                 requiresInstruments: true
             },
             component: () => import('@/views/reports/InvestmentReportView.vue')
-        },
-        {
-            path: '/reports/balances',
-            name: 'reports-balances',
-            meta: {
-                requiresAuth: true
-            },
-            component: () => import('@/views/reports/BalancesView.vue')
         },
         {
             path: '/reports',
@@ -130,10 +122,6 @@ const router = createRouter({
         {
             path: '/tasks/:id',
             redirect: { name: 'settings-tasks' }
-        },
-        {
-            path: '/setup/csv-profiles',
-            redirect: '/settings/csv-profiles'
         },
         {
             path: '/market-data/currency-exchange',
@@ -223,10 +211,8 @@ const router = createRouter({
             children: [
                 { path: '', name: 'settings', redirect: { name: 'settings-configuration' } },
                 { path: 'configuration', name: 'settings-configuration', component: () => import('@/views/settings/ConfigurationView.vue') },
-                { path: 'csv-profiles', name: 'csv-profiles', component: () => import('@/views/csvimport/CsvImportProfileView.vue') },
                 { path: 'categories', name: 'settings-categories', component: () => import('@/views/settings/SettingsCategoriesView.vue') },
                 { path: 'category-rules', name: 'settings-category-rules', component: () => import('@/views/categories/CategoryRulesView.vue') },
-                { path: 'accounts', name: 'settings-accounts', component: () => import('@/views/accounts/AccountsView.vue') },
                 { path: 'backup-restore', name: 'settings-backup-restore', component: () => import('@/views/backup/BackupRestoreView.vue') },
                 { path: 'tasks', name: 'settings-tasks', component: () => import('@/views/tasks/TasksView.vue') },
                 { path: 'about', name: 'settings-about', component: () => import('@/views/settings/AboutView.vue') },

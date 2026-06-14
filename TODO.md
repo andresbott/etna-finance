@@ -16,6 +16,3 @@ Track items to verify, refactor, or implement later.
 - [ ] **Scheduled operations** — Recurring transactions, e.g. rent payment, salary income
 - [ ] Mortgage tracking
 - [ ] Adjust the dashboard to inflation
-
-check again timeseries use-case
-test export-import with new TS

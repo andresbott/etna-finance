@@ -55,10 +55,30 @@ body {
         outline: 0;
         outline-offset: 0;
     }
-    input.p-inputtext {
+
+    /*
+     * Unified form-control height.
+     *
+     * Every form control shares the same vertical padding and border from the
+     * theme, so the only thing that makes Select / MultiSelect / TreeSelect
+     * render taller than InputText (and Button shorter) is the line-box of
+     * their text: the select labels inherit the body's prose typography
+     * (15px / 1.6) and the button uses `line-height: normal`. Pin the text
+     * element of each control to one shared metric so they all compute to the
+     * same height app-wide, rather than hardcoding a height per component.
+     */
+    .p-inputtext,
+    .p-button-label,
+    .p-multiselect-label,
+    .p-select-label,
+    .p-treeselect-label,
+    .p-inputnumber-input,
+    .p-datepicker-input,
+    .p-textarea {
+        font-size: 1rem;
         line-height: 1.5rem;
     }
-    
+
     /* Disable focus outline/halo for dropdowns and selects */
     .p-select:enabled:focus,
     .p-select:not(.p-disabled).p-focus,
