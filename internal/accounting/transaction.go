@@ -1676,10 +1676,17 @@ func (store *Store) guardVestHasDownstream(ctx context.Context, tx *gorm.DB, tra
 		for i, tl := range targetLots {
 			targetLotIDs[i] = tl.Id
 		}
-		// Check for sells (lot disposals)
+		// Check for sells (lot disposals). Ignore disposals that:
+		//  - reference a sell trade that no longer exists (orphans left behind when a
+		//    sell could not be fully cascaded), and
+		//  - have a negligible (dust) quantity from floating-point accumulation in FIFO
+		//    allocation; these represent no real shares but would otherwise block the
+		//    vest from ever being deleted.
 		var disposalCount int64
 		if err := tx.WithContext(ctx).Model(&dbLotDisposal{}).
 			Where("lot_id IN ?", targetLotIDs).
+			Where("sell_trade_id IN (?)", tx.Model(&dbTrade{}).Select("id")).
+			Where("quantity > ?", lotQtyEpsilon).
 			Count(&disposalCount).Error; err != nil {
 			return err
 		}
@@ -1724,9 +1731,14 @@ func (store *Store) guardTransferHasDownstream(ctx context.Context, tx *gorm.DB,
 		for i, tl := range targetLots {
 			targetLotIDs[i] = tl.Id
 		}
+		// Only count disposals whose sell trade still exists and that represent a
+		// non-negligible quantity; orphaned or dust disposals must not permanently
+		// block deletion of the transfer.
 		var disposalCount int64
 		if err := tx.WithContext(ctx).Model(&dbLotDisposal{}).
 			Where("lot_id IN ?", targetLotIDs).
+			Where("sell_trade_id IN (?)", tx.Model(&dbTrade{}).Select("id")).
+			Where("quantity > ?", lotQtyEpsilon).
 			Count(&disposalCount).Error; err != nil {
 			return err
 		}

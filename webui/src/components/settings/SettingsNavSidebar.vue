@@ -17,13 +17,6 @@ const sections = computed(() => {
             ]
         },
         {
-            title: 'Accounts',
-            items: [
-                { label: 'Account Setup', icon: 'ti ti-wallet', route: '/settings/accounts' },
-                { label: 'CSV Import', icon: 'ti ti-file-import', route: '/settings/csv-profiles' },
-            ]
-        },
-        {
             title: 'Categories',
             items: [
                 { label: 'Categories', icon: 'ti ti-tags', route: '/settings/categories' },

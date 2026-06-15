@@ -179,7 +179,7 @@ const adhocDialogRef = ref(null)
                         :icon="filtersExpanded ? 'ti ti-filter-off' : 'ti ti-filter'"
                         :severity="filtersExpanded ? 'primary' : 'secondary'"
                         :outlined="!filtersExpanded"
-                        class="filter-btn"
+                        class="toolbar-btn"
                         @click="filtersExpanded = !filtersExpanded"
                         v-tooltip.bottom="'Filters'"
                     />
@@ -187,7 +187,7 @@ const adhocDialogRef = ref(null)
                         icon="ti ti-bolt"
                         severity="secondary"
                         outlined
-                        class="filter-btn"
+                        class="toolbar-btn"
                         @click="adhocDialogRef?.open()"
                         v-tooltip.bottom="'Apply Ad-hoc Rule'"
                     />
@@ -291,10 +291,6 @@ const adhocDialogRef = ref(null)
     align-items: center;
     margin-left: auto;
     gap: 0.5rem;
-}
-
-.filter-btn {
-    align-self: stretch;
 }
 
 .filter-bar {

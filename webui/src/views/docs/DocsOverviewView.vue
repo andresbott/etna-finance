@@ -48,7 +48,7 @@ import Card from 'primevue/card'
                         <ol>
                             <li>
                                 <strong>Create a provider</strong> — Add the bank or institution that holds your accounts
-                                under <router-link to="/settings/accounts">Settings &gt; Accounts</router-link>.
+                                under <router-link to="/nav/accounts">Accounts</router-link>.
                             </li>
                             <li>
                                 <strong>Create accounts</strong> — Add your checking, savings, or investment accounts

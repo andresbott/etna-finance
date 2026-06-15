@@ -27,3 +27,16 @@ export function formatCurrency(
 export function formatAmount(amount: number): string {
     return formatCurrency(amount, 2, 2)
 }
+
+/**
+ * Format a number in compact, human-readable notation (e.g. 4.73M, 1.2K)
+ * @param value - The number to format
+ * @param maximumFractionDigits - Max decimal places (default: 2)
+ * @returns Compact formatted string
+ */
+export function formatCompact(value: number, maximumFractionDigits: number = 2): string {
+    return value.toLocaleString(undefined, {
+        notation: 'compact',
+        maximumFractionDigits
+    })
+}

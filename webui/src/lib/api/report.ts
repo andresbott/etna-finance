@@ -13,6 +13,30 @@ export const getBalanceReport = async (
     return data
 }
 
+/**
+ * Current balance for many accounts in a single request.
+ * Returns a map of accountId -> balance (0 when an account has no data).
+ * @param accountIds - Account IDs to fetch balances for
+ * @param date - YYYY-MM-DD; balance is computed up to and including this date
+ */
+export const getAccountBalances = async (
+    accountIds: number[],
+    date: string
+): Promise<Record<number, number>> => {
+    const result: Record<number, number> = {}
+    if (accountIds.length === 0) return result
+
+    const idsParam = accountIds.join(',')
+    const { data } = await apiClient.get(
+        `/fin/report/balance?accountIds=${idsParam}&steps=1&endDate=${date}`
+    )
+
+    for (const id of accountIds) {
+        result[id] = data?.accounts?.[id]?.[0]?.sum ?? 0
+    }
+    return result
+}
+
 export const getAccountBalance = async (
     accountId: number,
     date: string

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, computed, onMounted } from 'vue'
+import { ref, watch, computed } from 'vue'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import Textarea from 'primevue/textarea'
@@ -14,7 +14,6 @@ import { getApiErrorMessage } from '@/utils/apiError'
 import IconSelect from '@/components/common/IconSelect.vue'
 import { ACCOUNT_TYPES, ACCOUNT_TYPE_LABELS, getAccountTypeLabel } from '@/types/account'
 import { useSettingsStore } from '@/store/settingsStore'
-import { getProfiles } from '@/lib/api/CsvImport'
 
 const { accounts, createAccount, updateAccount, isCreating, isUpdating } = useAccounts()
 const settingsStore = useSettingsStore()
@@ -28,7 +27,6 @@ const props = defineProps({
     type: { type: String, default: 'cash' },
     icon: { type: String, default: 'wallet' },
     notes: { type: String, default: '' },
-    importProfileId: { type: Number, default: 0 },
     visible: { type: Boolean, default: false },
     providerId: { type: Number, required: true }
 })
@@ -68,23 +66,6 @@ const selectedIcon = ref(props.icon)
 // Notes
 const notesValue = ref(props.notes)
 
-// Import profiles
-const profiles = ref([])
-const selectedProfileId = ref(props.importProfileId)
-
-const profileOptions = computed(() => [
-    { label: 'None', value: 0 },
-    ...profiles.value.map(p => ({ label: p.name, value: p.id }))
-])
-
-onMounted(async () => {
-    try {
-        profiles.value = await getProfiles()
-    } catch {
-        /* ignore - profiles are optional */
-    }
-})
-
 const formValues = ref({
     name: props.name,
     currency: props.currency,
@@ -97,7 +78,6 @@ watch(props, (newProps) => {
     selectedIcon.value = newProps.icon || 'wallet'
     notesValue.value = newProps.notes || ''
     selectedProviderId.value = newProps.providerId
-    selectedProfileId.value = newProps.importProfileId || 0
 })
 
 const resolver = computed(() =>
@@ -117,8 +97,7 @@ const onFormSubmit = async (e) => {
             icon: selectedIcon.value,
             notes: notesValue.value,
             accountId: props.accountId,
-            providerId: selectedProviderId.value,
-            importProfileId: selectedProfileId.value
+            providerId: selectedProviderId.value
         }
 
         backendError.value = ''
@@ -131,8 +110,7 @@ const onFormSubmit = async (e) => {
                     type: formData.type,
                     icon: formData.icon,
                     notes: formData.notes,
-                    providerId: formData.providerId,
-                    importProfileId: formData.importProfileId
+                    providerId: formData.providerId
                 })
                 emit('update:visible', false)
             } catch (error) {
@@ -147,8 +125,7 @@ const onFormSubmit = async (e) => {
                     type: formData.type,
                     icon: formData.icon,
                     notes: formData.notes,
-                    providerId: formData.providerId,
-                    importProfileId: formData.importProfileId
+                    providerId: formData.providerId
                 })
                 emit('update:visible', false)
             } catch (error) {
@@ -235,16 +212,6 @@ const onFormSubmit = async (e) => {
                         <Message v-if="$form.currency?.invalid" severity="error" size="small">{{
                             $form.currency.error?.message
                         }}</Message>
-                    </div>
-                    <div>
-                        <label class="form-label">Import Profile</label>
-                        <Select
-                            v-model="selectedProfileId"
-                            :options="profileOptions"
-                            optionLabel="label"
-                            optionValue="value"
-                            placeholder="No import profile"
-                        />
                     </div>
                     <div>
                         <label class="form-label">Notes</label>

@@ -33,7 +33,7 @@ import Message from 'primevue/message'
                         </p>
                         <p>
                             Providers can be managed under
-                            <router-link to="/settings/accounts">Settings &gt; Accounts</router-link>.
+                            <router-link to="/nav/accounts">Accounts</router-link>.
                         </p>
                     </section>
 

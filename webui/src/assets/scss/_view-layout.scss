@@ -25,3 +25,11 @@
     margin-left: 2.375rem;
     width: calc(100% - 2.375rem);
 }
+
+/* Toolbar buttons (icon-only or labeled) sitting in a flex action strip next to
+   inputs/date-pickers. Stretching to the row height keeps icon-only buttons the
+   same size as labeled buttons and form controls, instead of shrinking to fit a
+   bare icon. Apply to every button in a toolbar action strip for consistency. */
+.toolbar-btn {
+    align-self: stretch;
+}

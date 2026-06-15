@@ -3938,6 +3938,180 @@ func TestRSU_Scenario4_DeleteGrantAfterVestAndSell(t *testing.T) {
 	}
 }
 
+// TestRSU_DeleteVestWithOrphanedDisposal verifies that an orphaned lot disposal
+// (one whose sell_trade_id references a trade that no longer exists) does not
+// permanently block deletion of the vest. Such orphans can be left behind when a
+// sell is not fully cascaded; the deletion guard must ignore them.
+func TestRSU_DeleteVestWithOrphanedDisposal(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("rsuOrphanDisposal"))
+			unvestedID, investmentID, _, instrumentID, categoryID := rsuTestSetup(t, ctx, store, mktStore)
+
+			// Grant 100
+			if _, err := store.CreateStockGrant(ctx, StockGrant{
+				Description:     "RSU Grant 100",
+				Date:            getDate("2025-01-01"),
+				AccountID:       unvestedID,
+				InstrumentID:    instrumentID,
+				Quantity:        100,
+				FairMarketValue: 50.0,
+			}); err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+
+			srcLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots: %v", err)
+			}
+
+			// Vest 60
+			vestID, err := store.CreateStockVest(ctx, StockVest{
+				Description:     "Vest 60",
+				Date:            getDate("2025-06-01"),
+				SourceAccountID: unvestedID,
+				TargetAccountID: investmentID,
+				InstrumentID:    instrumentID,
+				VestingPrice:    75.0,
+				CategoryID:      categoryID,
+				LotSelections:   []LotSelection{{LotID: srcLots[0].Id, Quantity: 60}},
+			})
+			if err != nil {
+				t.Fatalf("CreateStockVest: %v", err)
+			}
+
+			// Find the vest's target lot and attach an orphaned disposal whose
+			// sell_trade_id points to a non-existent trade.
+			tgtLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: investmentID, InstrumentID: instrumentID})
+			if err != nil || len(tgtLots) == 0 {
+				t.Fatalf("ListLots(target): %v (n=%d)", err, len(tgtLots))
+			}
+			if err := store.db.WithContext(ctx).Create(&dbLotDisposal{
+				LotID:       tgtLots[0].Id,
+				SellTradeID: 99999, // does not reference any existing trade
+				Quantity:    10,
+				Proceeds:    1000,
+				RealizedGL:  250,
+				Date:        getDate("2025-07-01"),
+			}).Error; err != nil {
+				t.Fatalf("create orphan disposal: %v", err)
+			}
+
+			// The orphan must not block deletion of the vest.
+			if err := store.DeleteTransaction(ctx, vestID); err != nil {
+				t.Fatalf("DeleteTransaction(vest): %v", err)
+			}
+
+			// Source lots restored to 100, target lots gone.
+			srcLots, err = store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots(source) after vest delete: %v", err)
+			}
+			if got := sumLotQuantity(t, srcLots); got != 100 {
+				t.Errorf("source lots after vest delete: got %v, want 100", got)
+			}
+			tgtLots, err = store.ListLots(ctx, ListLotsOpts{AccountID: investmentID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots(target) after vest delete: %v", err)
+			}
+			if len(tgtLots) != 0 {
+				t.Errorf("expected 0 target lots after vest delete, got %d", len(tgtLots))
+			}
+		})
+	}
+}
+
+// TestRSU_DeleteVestWithDustDisposal verifies that a negligible (dust) disposal left
+// on a vest's target lot — e.g. a ~1e-15 share allocation from floating-point
+// accumulation during FIFO sell allocation — does not block deletion of the vest,
+// even though its sell trade still exists.
+func TestRSU_DeleteVestWithDustDisposal(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			ctx := t.Context()
+			store, mktStore := newAccountingStoreWithMarketData(t, db.ConnDbName("rsuDustDisposal"))
+			unvestedID, investmentID, cashID, instrumentID, categoryID := rsuTestSetup(t, ctx, store, mktStore)
+
+			if _, err := store.CreateStockGrant(ctx, StockGrant{
+				Description: "RSU Grant 100", Date: getDate("2025-01-01"),
+				AccountID: unvestedID, InstrumentID: instrumentID, Quantity: 100, FairMarketValue: 50.0,
+			}); err != nil {
+				t.Fatalf("CreateStockGrant: %v", err)
+			}
+			srcLots, err := store.ListLots(ctx, ListLotsOpts{AccountID: unvestedID, InstrumentID: instrumentID})
+			if err != nil {
+				t.Fatalf("ListLots: %v", err)
+			}
+
+			// Vest A → the lot we will try to delete.
+			vestA, err := store.CreateStockVest(ctx, StockVest{
+				Description: "Vest A 30", Date: getDate("2025-06-01"),
+				SourceAccountID: unvestedID, TargetAccountID: investmentID, InstrumentID: instrumentID,
+				VestingPrice: 75.0, CategoryID: categoryID,
+				LotSelections: []LotSelection{{LotID: srcLots[0].Id, Quantity: 30}},
+			})
+			if err != nil {
+				t.Fatalf("CreateStockVest A: %v", err)
+			}
+			lotsAfterA, err := store.ListLots(ctx, ListLotsOpts{AccountID: investmentID, InstrumentID: instrumentID})
+			if err != nil || len(lotsAfterA) != 1 {
+				t.Fatalf("ListLots after vest A: %v (n=%d)", err, len(lotsAfterA))
+			}
+			lotA := lotsAfterA[0].Id
+
+			// Vest B → a separate lot, the one an actual sell will consume.
+			if _, err := store.CreateStockVest(ctx, StockVest{
+				Description: "Vest B 30", Date: getDate("2025-06-15"),
+				SourceAccountID: unvestedID, TargetAccountID: investmentID, InstrumentID: instrumentID,
+				VestingPrice: 80.0, CategoryID: categoryID,
+				LotSelections: []LotSelection{{LotID: srcLots[0].Id, Quantity: 30}},
+			}); err != nil {
+				t.Fatalf("CreateStockVest B: %v", err)
+			}
+			var lotB uint
+			lotsAfterB, _ := store.ListLots(ctx, ListLotsOpts{AccountID: investmentID, InstrumentID: instrumentID})
+			for _, l := range lotsAfterB {
+				if l.Id != lotA {
+					lotB = l.Id
+				}
+			}
+
+			// A real, still-existing sell that consumes lot B (not lot A).
+			sellID, err := store.CreateStockSell(ctx, StockSell{
+				Description: "Sell 30", Date: getDate("2025-07-01"),
+				InvestmentAccountID: investmentID, CashAccountID: cashID, InstrumentID: instrumentID,
+				Quantity: 30, TotalAmount: 3000,
+				LotSelections: []LotSelection{{LotID: lotB, Quantity: 30}},
+			})
+			if err != nil {
+				t.Fatalf("CreateStockSell: %v", err)
+			}
+			var sellTrade dbTrade
+			if err := store.db.WithContext(ctx).Where("transaction_id = ? AND trade_type = ?", sellID, SellTrade).First(&sellTrade).Error; err != nil {
+				t.Fatalf("find sell trade: %v", err)
+			}
+
+			// Inject a dust disposal on lot A referencing the live sell trade — the
+			// kind of residual FIFO allocation that currently blocks vest deletion.
+			if err := store.db.WithContext(ctx).Create(&dbLotDisposal{
+				LotID:       lotA,
+				SellTradeID: sellTrade.Id,
+				Quantity:    7.105427357601002e-15,
+				Date:        getDate("2025-07-01"),
+			}).Error; err != nil {
+				t.Fatalf("create dust disposal: %v", err)
+			}
+
+			// The dust disposal must not block deletion of vest A, even though the
+			// sell trade it references still exists.
+			if err := store.DeleteTransaction(ctx, vestA); err != nil {
+				t.Fatalf("DeleteTransaction(vest A): %v", err)
+			}
+		})
+	}
+}
+
 // TestRSU_Scenario5_DeleteSellThenVest verifies the full restoration chain:
 // grant 100, vest 60, sell 30, delete sell, delete vest -> source lot = 100.
 func TestRSU_Scenario5_DeleteSellThenVest(t *testing.T) {

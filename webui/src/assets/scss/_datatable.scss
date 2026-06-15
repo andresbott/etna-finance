@@ -1,5 +1,5 @@
 // Shared DataTable overrides so components don't repeat :deep(.p-datatable...) rules.
-// - Add class "datatable-compact" on the DataTable (or a wrapper) for compact rows + hover.
+// - Add class "datatable-compact" on the DataTable (or a wrapper) for compact rows.
 // - Use class .amount-column / .balance-column / .price-column / .actions-column on Column for right-aligned header.
 
 .datatable-compact .p-datatable-tbody > tr > td {
@@ -7,9 +7,24 @@
     padding-bottom: 0;
 }
 
-.datatable-compact.p-datatable .p-datatable-tbody > tr:hover,
-.datatable-compact .p-datatable .p-datatable-tbody > tr:hover {
-    background-color: rgba(0, 0, 0, 0.1) !important;
+// Generic row hover for every DataTable and TreeTable in the app. A translucent
+// overlay keeps the highlight visible on striped rows and in both light and dark
+// themes (dark overlay on light surfaces, light overlay on dark surfaces).
+// Applied to the cells too so it overrides per-cell striped backgrounds.
+.p-datatable-tbody > tr:hover,
+.p-datatable-tbody > tr:hover > td,
+.p-treetable-tbody > tr:hover,
+.p-treetable-tbody > tr:hover > td {
+    background-color: rgba(0, 0, 0, 0.06) !important;
+}
+
+.dark-mode {
+    .p-datatable-tbody > tr:hover,
+    .p-datatable-tbody > tr:hover > td,
+    .p-treetable-tbody > tr:hover,
+    .p-treetable-tbody > tr:hover > td {
+        background-color: rgba(255, 255, 255, 0.08) !important;
+    }
 }
 
 .amount-column .p-datatable-column-title,

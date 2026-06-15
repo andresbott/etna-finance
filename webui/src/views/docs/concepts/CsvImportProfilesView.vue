@@ -53,7 +53,7 @@ import Card from 'primevue/card'
                         <h3>Linking a profile to an account</h3>
                         <p>
                             Each account can be linked to one import profile under
-                            <router-link to="/settings/accounts">Settings &gt; Accounts</router-link>.
+                            <router-link to="/nav/accounts">Accounts</router-link>.
                             Once linked, importing a CSV into that account will use the profile to parse the file
                             without any additional configuration.
                         </p>
@@ -72,10 +72,10 @@ import Card from 'primevue/card'
                     <section>
                         <h3>Managing profiles</h3>
                         <p>
-                            Profiles can be created, edited, and tested under
-                            <router-link to="/settings/csv-profiles">Settings &gt; CSV Profiles</router-link>.
-                            You can upload a sample CSV file to preview how the profile parses it before using it
-                            for a real import.
+                            Profiles are created and edited per account from the
+                            <router-link to="/nav/accounts">Accounts</router-link> page, using the
+                            import-profile button on each account row. You can upload a sample CSV file to
+                            preview how the profile parses it before using it for a real import.
                         </p>
                     </section>
                 </div>

@@ -4,6 +4,7 @@ import type { OhlcvData } from '@/composables/useTsdbPrices'
 import type { IndicatorParams, BollingerResult, MACDResult } from '@/composables/useIndicators'
 import { getGreenColor, getRedColor } from '@/utils/chartColors'
 import { useDateFormat } from '@/composables/useDateFormat'
+import { formatCompact } from '@/utils/currency'
 
 interface IndicatorData {
     sma1: (number | null)[]
@@ -289,18 +290,31 @@ export function useCandlestickChart(
                     if (!Array.isArray(params) || params.length === 0) return ''
                     const date = formatDate(params[0].axisValue ?? params[0].name ?? '')
                     let html = `<div style="font-weight:600;margin-bottom:4px">${date}</div>`
+                    // Render OHLC first, then Volume, then the remaining series so the
+                    // tooltip order stays readable regardless of ECharts' series order.
+                    const candle = params.find((p: any) => p.seriesType === 'candlestick' && Array.isArray(p.data))
+                    if (candle) {
+                        // ECharts prepends the data index to candlestick tooltip data,
+                        // so p.data is [dataIndex, open, close, low, high] — skip the index.
+                        const [, open, close, low, high] = candle.data.map((v: number) => v.toFixed(2))
+                        html += `${candle.marker ?? ''} O: ${open}  H: ${high}  L: ${low}  C: ${close}<br/>`
+                    }
+                    const volume = params.find((p: any) => p.seriesName === 'Volume')
+                    if (volume) {
+                        const raw = typeof volume.value === 'number' ? volume.value
+                            : typeof volume.value?.value === 'number' ? volume.value.value
+                            : null
+                        html += `${volume.marker ?? ''} Volume: ${raw === null ? volume.value : formatCompact(raw)}<br/>`
+                    }
                     for (const p of params) {
+                        if (p === candle || p === volume) continue
                         const marker = p.marker ?? ''
                         const name = p.seriesName ?? ''
-                        if (p.seriesType === 'candlestick' && Array.isArray(p.data)) {
-                            const [open, close, low, high] = p.data.map((v: number) => v.toFixed(3))
-                            html += `${marker} O: ${open}  H: ${high}  L: ${low}  C: ${close}<br/>`
-                        } else {
-                            const val = typeof p.value === 'number' ? p.value.toFixed(3)
-                                : typeof p.value?.value === 'number' ? p.value.value.toFixed(3)
-                                : p.value
-                            html += `${marker} ${name}: ${val}<br/>`
-                        }
+                        const raw = typeof p.value === 'number' ? p.value
+                            : typeof p.value?.value === 'number' ? p.value.value
+                            : null
+                        const val = raw === null ? p.value : raw.toFixed(3)
+                        html += `${marker} ${name}: ${val}<br/>`
                     }
                     return html
                 }

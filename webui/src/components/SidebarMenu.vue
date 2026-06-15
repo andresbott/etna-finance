@@ -14,12 +14,6 @@
                         </router-link>
                     </li>
                     <li>
-                        <router-link to="/reports/balances" class="menu-item">
-                            <i class="ti ti-wallet menu-icon"></i>
-                            <span class="menu-label">Balances</span>
-                        </router-link>
-                    </li>
-                    <li>
                         <router-link to="/reports/income-expense" class="menu-item">
                             <i class="ti ti-chart-line menu-icon"></i>
                             <span class="menu-label">Income/Expense</span>
@@ -33,15 +27,20 @@
                     </li>
                     <li class="menu-spacer"></li>
 
+                    <!-- ACCOUNTS SECTION -->
+                    <li class="menu-section">
+                        <div class="menu-section-label">Accounts</div>
+                    </li>
+                    <li>
+                        <router-link to="/nav/accounts" class="menu-item">
+                            <i class="ti ti-building-bank menu-icon"></i>
+                            <span class="menu-label">Overview</span>
+                        </router-link>
+                    </li>
+
                     <!-- TRANSACTIONS SECTION -->
                     <li class="menu-section">
                         <div class="menu-section-label">Transactions</div>
-                    </li>
-                    <li>
-                        <router-link to="/nav/account-browser" class="menu-item">
-                            <i class="ti ti-list-search menu-icon"></i>
-                            <span class="menu-label">Account Browser</span>
-                        </router-link>
                     </li>
                     <li>
                         <router-link to="/entries" class="menu-item">

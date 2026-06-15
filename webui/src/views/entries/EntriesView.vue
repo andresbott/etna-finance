@@ -108,7 +108,7 @@ const filtersExpanded = ref(
                         :icon="filtersExpanded ? 'ti ti-filter-off' : 'ti ti-filter'"
                         :severity="filtersExpanded ? 'primary' : 'secondary'"
                         :outlined="!filtersExpanded"
-                        class="filter-btn"
+                        class="toolbar-btn"
                         @click="filtersExpanded = !filtersExpanded"
                         v-tooltip.bottom="'Filters'"
                     />
@@ -206,9 +206,5 @@ const filtersExpanded = ref(
     flex: 1;
     overflow: auto;
     padding: 1rem;
-}
-
-.filter-btn {
-    align-self: stretch;
 }
 </style>
