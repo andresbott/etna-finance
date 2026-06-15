@@ -6,7 +6,7 @@ import { toLocalDateString } from '@/utils/date'
 
 export { toLocalDateString } from '@/utils/date'
 
-export type PriceHistoryRange = '7d' | '1m' | '3m' | '6m' | '1y' | 'max'
+export type PriceHistoryRange = '7d' | '1m' | '3m' | '6m' | 'ytd' | '1y' | 'max'
 
 export function lastDaysRange(days: number): { start: string; end: string } {
     const end = new Date()
@@ -35,6 +35,9 @@ export function rangeToStartEnd(range: PriceHistoryRange): { start: string; end:
             break
         case '6m':
             start.setMonth(start.getMonth() - 6)
+            break
+        case 'ytd':
+            start.setMonth(0, 1)
             break
         case '1y':
             start.setFullYear(start.getFullYear() - 1)
