@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import Card from 'primevue/card'
 import SelectButton from 'primevue/selectbutton'
+import MultiSelect from 'primevue/multiselect'
 import Tag from 'primevue/tag'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
@@ -34,9 +35,33 @@ const settings = useSettingsStore()
 
 const dateRangeOptions = [
     { value: '3m', label: '3M' },
+    { value: 'ytd', label: 'YTD' },
     { value: '1y', label: '1Y' }
 ]
-const selectedRange = ref('3m')
+const selectedRange = ref('ytd')
+
+// Provider selection for the chart (empty = show all)
+const selectedProviders = ref([])
+
+const providerOptions = computed(() => {
+    if (!accounts.value) return []
+    return accounts.value
+        .filter((provider) => provider.accounts && provider.accounts.length > 0)
+        .map((provider) => ({ label: provider.name, value: provider.name }))
+})
+
+// Default to all providers selected once the options are available
+const providersInitialized = ref(false)
+watch(
+    providerOptions,
+    (options) => {
+        if (!providersInitialized.value && options.length > 0) {
+            selectedProviders.value = options.map((o) => o.value)
+            providersInitialized.value = true
+        }
+    },
+    { immediate: true }
+)
 
 const stepsForRange = (_range) => 90
 
@@ -163,16 +188,22 @@ const chartOption = computed(() => {
     const surfaceColor = getSurfaceColor()
 
     const series =
-        providerData.value?.map((provider, index) => ({
-            name: provider.name,
-            type: 'line',
-            smooth: 0.1,
-            showSymbol: false,
-            data: provider.reportData.map((r) => r.sum),
-            lineStyle: { color: getColor(index) },
-            itemStyle: { color: getColor(index) },
-            yAxisIndex: 0
-        })) || []
+        providerData.value
+            ?.filter(
+                (provider) =>
+                    selectedProviders.value.length === 0 ||
+                    selectedProviders.value.includes(provider.name)
+            )
+            .map((provider, index) => ({
+                name: provider.name,
+                type: 'line',
+                smooth: 0.1,
+                showSymbol: false,
+                data: provider.reportData.map((r) => r.sum),
+                lineStyle: { color: getColor(index) },
+                itemStyle: { color: getColor(index) },
+                yAxisIndex: 0
+            })) || []
 
     // Sum of accounts excluding restricted stock & prepaid per date point
     const reports = totalAccountReports.value
@@ -202,10 +233,10 @@ const chartOption = computed(() => {
         animation: true,
         animationDuration: 500,
         grid: {
-            left: '3%',
-            right: '19%',
-            bottom: '3%',
-            top: '3%',
+            left: '2%',
+            right: '2%',
+            bottom: '5%',
+            top: '5%',
             containLabel: true
         },
         tooltip: {
@@ -219,18 +250,7 @@ const chartOption = computed(() => {
                 return result
             }
         },
-        legend: {
-            type: 'scroll',
-            orient: 'vertical',
-            right: 10,
-            top: 'middle',
-            textStyle: { color: textColor },
-            icon: 'circle',
-            itemWidth: 10,
-            itemHeight: 10,
-            itemGap: 12,
-            selectedMode: 'multiple'
-        },
+        legend: { show: false },
         xAxis: {
             type: 'category',
             data: labels,
@@ -298,12 +318,26 @@ watch(
                         {{ formatChange(totalChange) }}
                     </span>
                 </div>
-                <SelectButton
-                    v-model="selectedRange"
-                    :options="dateRangeOptions"
-                    optionLabel="label"
-                    optionValue="value"
-                />
+                <div class="selectors">
+                    <MultiSelect
+                        v-model="selectedProviders"
+                        :options="providerOptions"
+                        optionLabel="label"
+                        optionValue="value"
+                        placeholder="All accounts"
+                        class="account-select"
+                        :showToggleAll="false"
+                        :maxSelectedLabels="2"
+                        selectedItemsLabel="{0} accounts"
+                        scrollHeight="20rem"
+                    />
+                    <SelectButton
+                        v-model="selectedRange"
+                        :options="dateRangeOptions"
+                        optionLabel="label"
+                        optionValue="value"
+                    />
+                </div>
             </div>
             <VChart
                 :option="chartOption"
@@ -328,6 +362,17 @@ watch(
     display: flex;
     align-items: center;
     gap: 0.25rem;
+}
+
+.selectors {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.account-select {
+    min-width: 12rem;
 }
 
 .current-price {
