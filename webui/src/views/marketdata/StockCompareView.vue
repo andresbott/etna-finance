@@ -20,6 +20,8 @@ import { useCompareSelection } from '@/store/compareSelection'
 import { useMarketInstruments } from '@/composables/useMarketData'
 import { useCompareSeries } from '@/composables/useCompareSeries'
 import { useCompareChart, type CompareView, type CompareChartSeries } from '@/composables/useCompareChart'
+import { useCompareStats } from '@/composables/useCompareStats'
+import CompareStatsTable from '@/components/marketdata/CompareStatsTable.vue'
 import type { PriceHistoryRange } from '@/utils/dateRange'
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent, MarkLineComponent])
@@ -91,6 +93,8 @@ const chartInput = computed<CompareChartSeries[]>(() =>
 
 const { chartOption } = useCompareChart(chartInput, view, period, visibleStartDate)
 
+const { rows: statsRows } = useCompareStats(series, visibleStartDate, currencyBySymbol)
+
 function goBack() {
     router.push({ name: 'stock-market' })
 }
@@ -141,15 +145,18 @@ function goBack() {
                         <Message v-else-if="isError" severity="error" :closable="false">
                             Failed to load comparison data.
                         </Message>
-                        <div v-else class="chart-wrapper">
+                        <div v-else>
                             <!-- notMerge so switching view (e.g. RSI->Price) fully replaces the
                                  option; otherwise ECharts keeps the old yAxis min/max and markLine. -->
-                            <VChart
-                                :option="chartOption"
-                                :update-options="{ notMerge: true }"
-                                autoresize
-                                class="compare-chart"
-                            />
+                            <div class="chart-wrapper">
+                                <VChart
+                                    :option="chartOption"
+                                    :update-options="{ notMerge: true }"
+                                    autoresize
+                                    class="compare-chart"
+                                />
+                            </div>
+                            <CompareStatsTable :rows="statsRows" class="mt-4" />
                         </div>
                     </template>
                 </Card>
