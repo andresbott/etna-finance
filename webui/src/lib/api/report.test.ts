@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { getBalanceReport, getAccountBalance, getIncomeExpenseReport } from '@/lib/api/report'
+import { getBalanceReport, getAccountBalance, getAccountBalances, getIncomeExpenseReport } from '@/lib/api/report'
 
 vi.mock('./client', () => ({
     apiClient: { get: vi.fn() },
@@ -48,7 +48,7 @@ describe('getBalanceReport', () => {
     })
 
     it('returns the data from the response', async () => {
-        const payload = { accounts: { 1: [{ sum:100 }] } }
+        const payload = { accounts: { 1: [{ nativeBalance: 100, mainCurrencyBalance: 90 }] } }
         mockGet.mockResolvedValue({ data: payload })
 
         const result = await getBalanceReport([1], 1, '2025-01-01')
@@ -68,7 +68,7 @@ describe('getBalanceReport', () => {
 // ---------------------------------------------------------------------------
 describe('getAccountBalance', () => {
     it('builds URL with single accountId, steps=1, and endDate', async () => {
-        mockGet.mockResolvedValue({ data: { accounts: { 5: [{ sum:250 }] } } })
+        mockGet.mockResolvedValue({ data: { accounts: { 5: [{ nativeBalance: 250 }] } } })
 
         await getAccountBalance(5, '2025-03-10')
 
@@ -77,14 +77,25 @@ describe('getAccountBalance', () => {
         )
     })
 
-    it('extracts the Sum from the first entry of the matching account', async () => {
+    it('extracts the native balance from the first entry of the matching account', async () => {
         mockGet.mockResolvedValue({
-            data: { accounts: { 7: [{ sum:1234.56 }] } },
+            data: { accounts: { 7: [{ nativeBalance: 1234.56 }] } },
         })
 
         const result = await getAccountBalance(7, '2025-01-01')
 
         expect(result).toBe(1234.56)
+    })
+
+    it('returns the balance in the account currency, not the main-currency one', async () => {
+        // Regression: a EUR account's opening balance came back converted to CHF.
+        mockGet.mockResolvedValue({
+            data: { accounts: { 2: [{ nativeBalance: 27309.96, mainCurrencyBalance: 25689.66 }] } },
+        })
+
+        const result = await getAccountBalance(2, '2026-09-07')
+
+        expect(result).toBe(27309.96)
     })
 
     it('returns 0 when the account key is missing', async () => {
@@ -103,9 +114,9 @@ describe('getAccountBalance', () => {
         expect(result).toBe(0)
     })
 
-    it('returns 0 when Sum is missing from the first entry', async () => {
+    it('returns 0 when the native balance is missing, without falling back to the main-currency one', async () => {
         mockGet.mockResolvedValue({
-            data: { accounts: { 10: [{ Other: 500 }] } },
+            data: { accounts: { 10: [{ mainCurrencyBalance: 500 }] } },
         })
 
         const result = await getAccountBalance(10, '2025-01-01')
@@ -113,9 +124,9 @@ describe('getAccountBalance', () => {
         expect(result).toBe(0)
     })
 
-    it('returns 0 when Sum is 0', async () => {
+    it('returns 0 when the native balance is 0', async () => {
         mockGet.mockResolvedValue({
-            data: { accounts: { 10: [{ sum:0 }] } },
+            data: { accounts: { 10: [{ nativeBalance: 0 }] } },
         })
 
         const result = await getAccountBalance(10, '2025-01-01')
@@ -141,7 +152,7 @@ describe('getAccountBalance', () => {
 
     it('uses only the first entry even when multiple entries exist', async () => {
         mockGet.mockResolvedValue({
-            data: { accounts: { 3: [{ sum:100 }, { sum:999 }] } },
+            data: { accounts: { 3: [{ nativeBalance: 100 }, { nativeBalance: 999 }] } },
         })
 
         const result = await getAccountBalance(3, '2025-01-01')
@@ -153,6 +164,51 @@ describe('getAccountBalance', () => {
         mockGet.mockRejectedValue(new Error('timeout'))
 
         await expect(getAccountBalance(1, '2025-01-01')).rejects.toThrow('timeout')
+    })
+})
+
+// ---------------------------------------------------------------------------
+// getAccountBalances
+// ---------------------------------------------------------------------------
+describe('getAccountBalances', () => {
+    it('builds the URL with comma-joined account IDs, steps=1, and endDate', async () => {
+        mockGet.mockResolvedValue({ data: { accounts: {} } })
+
+        await getAccountBalances([1, 2], '2026-10-13')
+
+        expect(mockGet).toHaveBeenCalledWith(
+            '/fin/report/balance?accountIds=1,2&steps=1&endDate=2026-10-13'
+        )
+    })
+
+    it('returns each account balance in its own currency', async () => {
+        mockGet.mockResolvedValue({
+            data: {
+                accounts: {
+                    1: [{ nativeBalance: 500, mainCurrencyBalance: 500 }],
+                    2: [{ nativeBalance: 27309.96, mainCurrencyBalance: 25424.48 }],
+                },
+            },
+        })
+
+        const result = await getAccountBalances([1, 2], '2026-10-13')
+
+        expect(result).toEqual({ 1: 500, 2: 27309.96 })
+    })
+
+    it('returns 0 for accounts missing from the response', async () => {
+        mockGet.mockResolvedValue({ data: { accounts: {} } })
+
+        const result = await getAccountBalances([4], '2026-10-13')
+
+        expect(result).toEqual({ 4: 0 })
+    })
+
+    it('does not call the API when no account IDs are given', async () => {
+        const result = await getAccountBalances([], '2026-10-13')
+
+        expect(result).toEqual({})
+        expect(mockGet).not.toHaveBeenCalled()
     })
 })
 

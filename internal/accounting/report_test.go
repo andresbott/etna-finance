@@ -2,6 +2,7 @@ package accounting
 
 import (
 	"context"
+	"math"
 	"sort"
 	"testing"
 	"time"
@@ -262,28 +263,28 @@ func TestAccountBalanceSingle(t *testing.T) {
 			accountId: 1,
 			date:      getDate("2022-01-30"),
 			tenant:    tenant1,
-			want:      AccountBalance{Date: getDate("2022-01-30"), Sum: 604.5, Count: 5},
+			want:      AccountBalance{Date: getDate("2022-01-30"), NativeBalance: 604.5, MainCurrencyBalance: 604.5, EntryCount: 5},
 		},
 		{
 			name:      "asert over all time on account 2",
 			accountId: 2,
 			date:      getDate("2022-01-30"),
 			tenant:    tenant1,
-			want:      AccountBalance{Date: getDate("2022-01-30"), Sum: 247.2, Count: 5},
+			want:      AccountBalance{Date: getDate("2022-01-30"), NativeBalance: 247.2, MainCurrencyBalance: 247.2, EntryCount: 5},
 		},
 		{
 			name:      "asert account 1 at day 4",
 			accountId: 1,
 			date:      getDate("2022-01-04"),
 			tenant:    tenant1,
-			want:      AccountBalance{Date: getDate("2022-01-04"), Sum: 374.5, Count: 4},
+			want:      AccountBalance{Date: getDate("2022-01-04"), NativeBalance: 374.5, MainCurrencyBalance: 374.5, EntryCount: 4},
 		},
 		{
 			name:      "initial balance before any action",
 			accountId: 1,
 			date:      getDate("2021-01-30"),
 			tenant:    tenant1,
-			want:      AccountBalance{Date: getDate("2021-01-30"), Sum: 0, Count: 0},
+			want:      AccountBalance{Date: getDate("2021-01-30"), NativeBalance: 0, MainCurrencyBalance: 0, EntryCount: 0},
 		},
 	}
 
@@ -358,7 +359,7 @@ func TestAccountBalance(t *testing.T) {
 			endDate:   getDate("2022-01-31"),
 			tenant:    tenant1,
 			want: []AccountBalance{
-				{Date: getDate("2022-01-31"), Sum: -120, Count: 12},
+				{Date: getDate("2022-01-31"), NativeBalance: -120, MainCurrencyBalance: -120, EntryCount: 12},
 			},
 		},
 		{
@@ -368,7 +369,7 @@ func TestAccountBalance(t *testing.T) {
 			count:     1,
 			tenant:    tenant1,
 			want: []AccountBalance{
-				{Date: getDate("2022-01-31"), Sum: -120, Count: 12},
+				{Date: getDate("2022-01-31"), NativeBalance: -120, MainCurrencyBalance: -120, EntryCount: 12},
 			},
 		},
 		{
@@ -377,7 +378,7 @@ func TestAccountBalance(t *testing.T) {
 			endDate:   getDate("2023-01-31"),
 			tenant:    tenant1,
 			want: []AccountBalance{
-				{Date: getDate("2023-01-31"), Sum: -5, Count: 5},
+				{Date: getDate("2023-01-31"), NativeBalance: -5, MainCurrencyBalance: -5, EntryCount: 5},
 			},
 		},
 		{
@@ -386,7 +387,7 @@ func TestAccountBalance(t *testing.T) {
 			endDate:   getDate("2021-01-30"),
 			tenant:    tenant1,
 			want: []AccountBalance{
-				{Date: getDate("2021-01-30"), Sum: 0, Count: 0},
+				{Date: getDate("2021-01-30"), NativeBalance: 0, MainCurrencyBalance: 0, EntryCount: 0},
 			},
 		},
 		{
@@ -395,7 +396,7 @@ func TestAccountBalance(t *testing.T) {
 			endDate:   getDate("2022-01-26"),
 			tenant:    tenant1,
 			want: []AccountBalance{
-				{Date: getDate("2022-01-26"), Sum: -70, Count: 7},
+				{Date: getDate("2022-01-26"), NativeBalance: -70, MainCurrencyBalance: -70, EntryCount: 7},
 			},
 		},
 		{
@@ -406,8 +407,8 @@ func TestAccountBalance(t *testing.T) {
 			count:     2,
 			tenant:    tenant1,
 			want: []AccountBalance{
-				{Date: getDate("2022-01-02"), Sum: -20, Count: 2},
-				{Date: getDate("2022-01-31"), Sum: -120, Count: 10},
+				{Date: getDate("2022-01-02"), NativeBalance: -20, MainCurrencyBalance: -20, EntryCount: 2},
+				{Date: getDate("2022-01-31"), NativeBalance: -120, MainCurrencyBalance: -120, EntryCount: 10},
 			},
 		},
 		{
@@ -418,9 +419,9 @@ func TestAccountBalance(t *testing.T) {
 			count:     3,
 			tenant:    tenant1,
 			want: []AccountBalance{
-				{Date: getDate("2022-01-02"), Sum: -20, Count: 2},
-				{Date: getDate("2022-01-16"), Sum: -40, Count: 2},
-				{Date: getDate("2022-01-31"), Sum: -120, Count: 8},
+				{Date: getDate("2022-01-02"), NativeBalance: -20, MainCurrencyBalance: -20, EntryCount: 2},
+				{Date: getDate("2022-01-16"), NativeBalance: -40, MainCurrencyBalance: -40, EntryCount: 2},
+				{Date: getDate("2022-01-31"), NativeBalance: -120, MainCurrencyBalance: -120, EntryCount: 8},
 			},
 		},
 		{
@@ -430,9 +431,9 @@ func TestAccountBalance(t *testing.T) {
 			count:     3,
 			tenant:    tenant1,
 			want: []AccountBalance{
-				{Date: getDate("2022-01-29"), Sum: -100, Count: 10},
-				{Date: getDate("2022-01-30"), Sum: -110, Count: 1},
-				{Date: getDate("2022-01-31"), Sum: -120, Count: 1},
+				{Date: getDate("2022-01-29"), NativeBalance: -100, MainCurrencyBalance: -100, EntryCount: 10},
+				{Date: getDate("2022-01-30"), NativeBalance: -110, MainCurrencyBalance: -110, EntryCount: 1},
+				{Date: getDate("2022-01-31"), NativeBalance: -120, MainCurrencyBalance: -120, EntryCount: 1},
 			},
 		},
 
@@ -444,11 +445,11 @@ func TestAccountBalance(t *testing.T) {
 			count:     5,
 			tenant:    tenant1,
 			want: []AccountBalance{
-				{Date: getDate("2022-01-02"), Sum: -20, Count: 2},
-				{Date: getDate("2022-01-09"), Sum: -40, Count: 2},
-				{Date: getDate("2022-01-16"), Sum: -40, Count: 0},
-				{Date: getDate("2022-01-23"), Sum: -40, Count: 0},
-				{Date: getDate("2022-01-31"), Sum: -120, Count: 8},
+				{Date: getDate("2022-01-02"), NativeBalance: -20, MainCurrencyBalance: -20, EntryCount: 2},
+				{Date: getDate("2022-01-09"), NativeBalance: -40, MainCurrencyBalance: -40, EntryCount: 2},
+				{Date: getDate("2022-01-16"), NativeBalance: -40, MainCurrencyBalance: -40, EntryCount: 0},
+				{Date: getDate("2022-01-23"), NativeBalance: -40, MainCurrencyBalance: -40, EntryCount: 0},
+				{Date: getDate("2022-01-31"), NativeBalance: -120, MainCurrencyBalance: -120, EntryCount: 8},
 			},
 		},
 		{
@@ -459,10 +460,10 @@ func TestAccountBalance(t *testing.T) {
 			count:     4,
 			tenant:    tenant1,
 			want: []AccountBalance{
-				{Date: getDate("2022-02-28"), Sum: -230, Count: 23},
-				{Date: getDate("2022-03-02"), Sum: -240, Count: 1},
-				{Date: getDate("2022-03-03"), Sum: -240, Count: 0},
-				{Date: getDate("2022-03-05"), Sum: -240, Count: 0},
+				{Date: getDate("2022-02-28"), NativeBalance: -230, MainCurrencyBalance: -230, EntryCount: 23},
+				{Date: getDate("2022-03-02"), NativeBalance: -240, MainCurrencyBalance: -240, EntryCount: 1},
+				{Date: getDate("2022-03-03"), NativeBalance: -240, MainCurrencyBalance: -240, EntryCount: 0},
+				{Date: getDate("2022-03-05"), NativeBalance: -240, MainCurrencyBalance: -240, EntryCount: 0},
 			},
 		},
 		{
@@ -471,7 +472,7 @@ func TestAccountBalance(t *testing.T) {
 			endDate:   getDate("2024-01-31"),
 			tenant:    tenant1,
 			want: []AccountBalance{
-				{Date: getDate("2024-01-31"), Sum: -90, Count: 2},
+				{Date: getDate("2024-01-31"), NativeBalance: -90, MainCurrencyBalance: -90, EntryCount: 2},
 			},
 		},
 		{
@@ -480,7 +481,7 @@ func TestAccountBalance(t *testing.T) {
 			endDate:   getDate("2024-01-31"),
 			tenant:    tenant1,
 			want: []AccountBalance{
-				{Date: getDate("2024-01-31"), Sum: 85, Count: 3},
+				{Date: getDate("2024-01-31"), NativeBalance: 85, MainCurrencyBalance: 85, EntryCount: 3},
 			},
 		},
 	}
@@ -652,8 +653,8 @@ func TestAccountBalance_InvestmentMarketValue(t *testing.T) {
 				}
 				// 10 shares × $150 = $1500 (same currency, no FX conversion)
 				want := 1500.0
-				if got[0].Sum != want {
-					t.Errorf("got Sum=%v, want %v", got[0].Sum, want)
+				if got[0].NativeBalance != want {
+					t.Errorf("got NativeBalance=%v, want %v", got[0].NativeBalance, want)
 				}
 			})
 
@@ -667,16 +668,16 @@ func TestAccountBalance_InvestmentMarketValue(t *testing.T) {
 					t.Fatalf("expected 3 results, got %d", len(got))
 				}
 				// Step 1 (Jan 1): no shares yet (bought Jan 15), value = 0
-				if got[0].Sum != 0 {
-					t.Errorf("step 0: got Sum=%v, want 0", got[0].Sum)
+				if got[0].NativeBalance != 0 {
+					t.Errorf("step 0: got NativeBalance=%v, want 0", got[0].NativeBalance)
 				}
 				// Step 2 (~Jan 31): 10 shares, last known price is Jan 15 = $100 → $1000
-				if got[1].Sum != 1000 {
-					t.Errorf("step 1: got Sum=%v, want 1000", got[1].Sum)
+				if got[1].NativeBalance != 1000 {
+					t.Errorf("step 1: got NativeBalance=%v, want 1000", got[1].NativeBalance)
 				}
 				// Step 3 (Mar 1): 10 shares, price at Mar 1 = $150 → $1500
-				if got[2].Sum != 1500 {
-					t.Errorf("step 2: got Sum=%v, want 1500", got[2].Sum)
+				if got[2].NativeBalance != 1500 {
+					t.Errorf("step 2: got NativeBalance=%v, want 1500", got[2].NativeBalance)
 				}
 			})
 
@@ -685,8 +686,8 @@ func TestAccountBalance_InvestmentMarketValue(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if got[0].Sum != 0 {
-					t.Errorf("got Sum=%v, want 0", got[0].Sum)
+				if got[0].NativeBalance != 0 {
+					t.Errorf("got NativeBalance=%v, want 0", got[0].NativeBalance)
 				}
 			})
 		})
@@ -733,11 +734,11 @@ func TestAccountBalance_InvestmentNonUTCEndDate(t *testing.T) {
 			}
 			// 10 shares × $150 = $1500 USD / 0.85 = ~1764.71 CHF — same as the UTC case.
 			want := 1500.0 / 0.85
-			if diff := got[0].Sum - want; diff > 0.01 || diff < -0.01 {
-				t.Errorf("got Sum=%v, want ~%v (non-UTC endDate must match UTC result)", got[0].Sum, want)
+			if diff := got[0].MainCurrencyBalance - want; diff > 0.01 || diff < -0.01 {
+				t.Errorf("got MainCurrencyBalance=%v, want ~%v (non-UTC endDate must match UTC result)", got[0].MainCurrencyBalance, want)
 			}
-			if got[0].Unconverted {
-				t.Error("expected Unconverted=false; non-UTC endDate must not break FX conversion")
+			if got[0].HasUnconvertedAmounts {
+				t.Error("expected HasUnconvertedAmounts=false; non-UTC endDate must not break FX conversion")
 			}
 		})
 	}
@@ -773,11 +774,23 @@ func TestAccountBalance_InvestmentWithFX(t *testing.T) {
 				}
 				// 10 shares × $150 = $1500 USD / 0.85 rate = 1764.71 CHF
 				want := 1500.0 / 0.85
-				if diff := got[0].Sum - want; diff > 0.01 || diff < -0.01 {
-					t.Errorf("got Sum=%v, want ~%v", got[0].Sum, want)
+				if diff := got[0].MainCurrencyBalance - want; diff > 0.01 || diff < -0.01 {
+					t.Errorf("got MainCurrencyBalance=%v, want ~%v", got[0].MainCurrencyBalance, want)
 				}
-				if got[0].Unconverted {
-					t.Error("expected Unconverted=false")
+				if got[0].HasUnconvertedAmounts {
+					t.Error("expected HasUnconvertedAmounts=false")
+				}
+			})
+
+			t.Run("native value stays in the account currency", func(t *testing.T) {
+				got, err := store.AccountBalance(ctx, investmentAccountID, 1, time.Time{}, getDate("2025-03-01"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				// The USD account holds a USD instrument: 10 shares × $150 = $1500, no FX involved.
+				want := 1500.0
+				if got[0].NativeBalance != want {
+					t.Errorf("got NativeBalance=%v, want %v", got[0].NativeBalance, want)
 				}
 			})
 		})
@@ -836,8 +849,20 @@ func TestAccountBalance_CashWithFX(t *testing.T) {
 				}
 				// $1000 / 0.85 = 1176.47 CHF (converted at Mar rate, not Jan rate)
 				want := 1000.0 / 0.85
-				if diff := got[0].Sum - want; diff > 0.01 || diff < -0.01 {
-					t.Errorf("got Sum=%v, want ~%v", got[0].Sum, want)
+				if math.Abs(got[0].MainCurrencyBalance-want) > 0.01 {
+					t.Errorf("got MainCurrencyBalance=%v, want ~%v", got[0].MainCurrencyBalance, want)
+				}
+			})
+
+			t.Run("native balance stays in the account currency", func(t *testing.T) {
+				// Regression: the entries view used the main-currency value as the opening balance of
+				// a non-main-currency account, mixing CHF into USD amounts.
+				got, err := store.AccountBalanceSingle(ctx, accountID, getDate("2025-03-01"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got.NativeBalance != 1000 {
+					t.Errorf("got NativeBalance=%v, want 1000 (USD, unconverted)", got.NativeBalance)
 				}
 			})
 
@@ -851,13 +876,81 @@ func TestAccountBalance_CashWithFX(t *testing.T) {
 				}
 				// Step 1 (Jan 20): $1000 / 0.90 = 1111.11 CHF
 				wantJan := 1000.0 / 0.90
-				if diff := got[0].Sum - wantJan; diff > 0.01 || diff < -0.01 {
-					t.Errorf("step 0: got Sum=%v, want ~%v", got[0].Sum, wantJan)
+				if math.Abs(got[0].MainCurrencyBalance-wantJan) > 0.01 {
+					t.Errorf("step 0: got MainCurrencyBalance=%v, want ~%v", got[0].MainCurrencyBalance, wantJan)
 				}
 				// Step 2 (Mar 1): $1000 / 0.85 = 1176.47 CHF
 				wantMar := 1000.0 / 0.85
-				if diff := got[1].Sum - wantMar; diff > 0.01 || diff < -0.01 {
-					t.Errorf("step 1: got Sum=%v, want ~%v", got[1].Sum, wantMar)
+				if math.Abs(got[1].MainCurrencyBalance-wantMar) > 0.01 {
+					t.Errorf("step 1: got MainCurrencyBalance=%v, want ~%v", got[1].MainCurrencyBalance, wantMar)
+				}
+				// The native balance does not move with the FX rate.
+				for i, step := range got {
+					if step.NativeBalance != 1000 {
+						t.Errorf("step %d: got NativeBalance=%v, want 1000", i, step.NativeBalance)
+					}
+				}
+			})
+		})
+	}
+}
+
+func TestStore_ConvertAmount(t *testing.T) {
+	for _, db := range testdbs.DBs() {
+		t.Run(db.DbType(), func(t *testing.T) {
+			dbCon := db.ConnDbName("TestConvertAmount")
+			store, mktStore := newAccountingStoreWithMarketData(t, dbCon)
+			ctx := t.Context()
+
+			store.mainCurrency = "CHF"
+
+			// Rates are stored against the main currency: CHF/X = how many X per 1 CHF.
+			for _, r := range []struct {
+				secondary string
+				rate      float64
+			}{
+				{"USD", 0.80},
+				{"EUR", 0.95},
+			} {
+				if err := mktStore.RegisterPair(ctx, "CHF", r.secondary); err != nil {
+					t.Fatal(err)
+				}
+				if err := mktStore.IngestRate(ctx, "CHF", r.secondary, getDate("2025-01-01"), r.rate); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			tcs := []struct {
+				name            string
+				from            string
+				to              string
+				want            float64
+				wantUnconverted bool
+			}{
+				{name: "same currency is not converted", from: "USD", to: "USD", want: 100},
+				{name: "to the main currency", from: "USD", to: "CHF", want: 100 / 0.80},
+				{name: "from the main currency", from: "CHF", to: "USD", want: 100 * 0.80},
+				{name: "between two other currencies via the main currency", from: "EUR", to: "USD", want: 100 / 0.95 * 0.80},
+				{name: "missing source rate keeps the original amount", from: "GBP", to: "CHF", want: 100, wantUnconverted: true},
+				{name: "missing target rate keeps the original amount", from: "USD", to: "GBP", want: 100, wantUnconverted: true},
+			}
+			for _, tc := range tcs {
+				t.Run(tc.name, func(t *testing.T) {
+					got, unconverted := store.convertAmount(ctx, 100, tc.from, tc.to, getDate("2025-03-01"))
+					if math.Abs(got-tc.want) > 0.0001 {
+						t.Errorf("got %v, want %v", got, tc.want)
+					}
+					if unconverted != tc.wantUnconverted {
+						t.Errorf("got unconverted=%v, want %v", unconverted, tc.wantUnconverted)
+					}
+				})
+			}
+
+			t.Run("no main currency configured keeps the original amount", func(t *testing.T) {
+				store.mainCurrency = ""
+				got, unconverted := store.convertAmount(ctx, 100, "USD", "EUR", getDate("2025-03-01"))
+				if got != 100 || unconverted {
+					t.Errorf("got (%v, %v), want (100, false)", got, unconverted)
 				}
 			})
 		})
@@ -895,8 +988,8 @@ func TestAccountBalance_InvestmentAfterPartialSell(t *testing.T) {
 				}
 				// 6 remaining shares × $150 = $900
 				want := 900.0
-				if got[0].Sum != want {
-					t.Errorf("got Sum=%v, want %v", got[0].Sum, want)
+				if got[0].NativeBalance != want {
+					t.Errorf("got NativeBalance=%v, want %v", got[0].NativeBalance, want)
 				}
 			})
 
@@ -907,8 +1000,8 @@ func TestAccountBalance_InvestmentAfterPartialSell(t *testing.T) {
 				}
 				// 10 shares × $120 = $1200
 				want := 1200.0
-				if got[0].Sum != want {
-					t.Errorf("got Sum=%v, want %v", got[0].Sum, want)
+				if got[0].NativeBalance != want {
+					t.Errorf("got NativeBalance=%v, want %v", got[0].NativeBalance, want)
 				}
 			})
 		})

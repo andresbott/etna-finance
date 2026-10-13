@@ -1,12 +1,13 @@
 import { apiClient } from '@/lib/api/client'
+import type { BalanceReport } from '@/types/report'
 
 export const getBalanceReport = async (
     accountIds: number[],
     steps: number,
     startDate: string
-): Promise<{ accounts: Record<number, Array<{ date: string; sum: number; count: number; unconverted: boolean }>> }> => {
+): Promise<BalanceReport> => {
     const idsParam = accountIds.join(',')
-    const { data } = await apiClient.get(
+    const { data } = await apiClient.get<BalanceReport>(
         `/fin/report/balance?accountIds=${idsParam}&steps=${steps}&startDate=${startDate}`
     )
 
@@ -14,7 +15,7 @@ export const getBalanceReport = async (
 }
 
 /**
- * Current balance for many accounts in a single request.
+ * Current balance for many accounts in a single request, each in the account's own currency.
  * Returns a map of accountId -> balance (0 when an account has no data).
  * @param accountIds - Account IDs to fetch balances for
  * @param date - YYYY-MM-DD; balance is computed up to and including this date
@@ -27,21 +28,24 @@ export const getAccountBalances = async (
     if (accountIds.length === 0) return result
 
     const idsParam = accountIds.join(',')
-    const { data } = await apiClient.get(
+    const { data } = await apiClient.get<BalanceReport>(
         `/fin/report/balance?accountIds=${idsParam}&steps=1&endDate=${date}`
     )
 
     for (const id of accountIds) {
-        result[id] = data?.accounts?.[id]?.[0]?.sum ?? 0
+        result[id] = data?.accounts?.[id]?.[0]?.nativeBalance ?? 0
     }
     return result
 }
 
+/**
+ * Balance of one account in its own currency, up to and including the given date (YYYY-MM-DD).
+ */
 export const getAccountBalance = async (
     accountId: number,
     date: string
 ): Promise<number> => {
-    const { data } = await apiClient.get(
+    const { data } = await apiClient.get<BalanceReport>(
         `/fin/report/balance?accountIds=${accountId}&steps=1&endDate=${date}`
     )
 
@@ -50,9 +54,9 @@ export const getAccountBalance = async (
     if (!accountData || accountData.length === 0) {
         return 0
     }
-    
-    // Return the Sum from the first (and only) entry
-    return accountData[0]?.sum ?? 0
+
+    // Return the native balance from the first (and only) entry
+    return accountData[0]?.nativeBalance ?? 0
 }
 
 /**

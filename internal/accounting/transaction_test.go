@@ -2644,8 +2644,8 @@ func TestStore_BalanceStatus_DoesNotAffectBalance(t *testing.T) {
 				t.Fatalf("unexpected error getting balance after: %v", err)
 			}
 
-			if balBefore.Sum != balAfter.Sum {
-				t.Errorf("balance changed after adding balance status: before=%f, after=%f", balBefore.Sum, balAfter.Sum)
+			if balBefore.NativeBalance != balAfter.NativeBalance {
+				t.Errorf("balance changed after adding balance status: before=%f, after=%f", balBefore.NativeBalance, balAfter.NativeBalance)
 			}
 		})
 	}
@@ -2890,8 +2890,8 @@ func TestStore_BalanceConsistentAcrossDateRanges(t *testing.T) {
 
 			// Verify the final balance is correct.
 			wantBalance := 3500.0
-			if math.Abs(finalBalance.Sum-wantBalance) > 0.01 {
-				t.Fatalf("final balance = %v, want %v", finalBalance.Sum, wantBalance)
+			if math.Abs(finalBalance.NativeBalance-wantBalance) > 0.01 {
+				t.Fatalf("final balance = %v, want %v", finalBalance.NativeBalance, wantBalance)
 			}
 
 			// Now verify the split invariant for various split dates.
@@ -2925,11 +2925,11 @@ func TestStore_BalanceConsistentAcrossDateRanges(t *testing.T) {
 						t.Fatalf("sum entries after %s: %v", sd, err)
 					}
 
-					got := splitBal.Sum + remainder.Sum
-					if math.Abs(got-finalBalance.Sum) > 0.01 {
+					got := splitBal.NativeBalance + remainder.Sum
+					if math.Abs(got-finalBalance.NativeBalance) > 0.01 {
 						t.Errorf("balance(%s) + entries(%s..%s) = %v, want %v (balance(%s)=%v, entries=%v)",
-							sd, sd, "2025-12-31", got, finalBalance.Sum,
-							sd, splitBal.Sum, remainder.Sum)
+							sd, sd, "2025-12-31", got, finalBalance.NativeBalance,
+							sd, splitBal.NativeBalance, remainder.Sum)
 					}
 				})
 			}

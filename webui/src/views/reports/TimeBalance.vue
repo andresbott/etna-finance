@@ -99,8 +99,8 @@ const providerData = computed(() => {
             // Sum balances across accounts per date point
             const reportData = accountReports[0].reportData.map((point, i) => ({
                 date: point.date,
-                sum: accountReports.reduce((total, a) => total + (a.reportData[i]?.sum || 0), 0),
-                unconverted: accountReports.some((a) => a.reportData[i]?.unconverted)
+                sum: accountReports.reduce((total, a) => total + (a.reportData[i]?.mainCurrencyBalance || 0), 0),
+                unconverted: accountReports.some((a) => a.reportData[i]?.hasUnconvertedAmounts)
             }))
 
             return {
@@ -144,7 +144,7 @@ const totalCurrentValue = computed(() => {
 const totalFirstValue = computed(() => {
     const reports = totalAccountReports.value
     if (reports.length === 0) return null
-    return reports.reduce((sum, r) => sum + (r[0]?.sum || 0), 0)
+    return reports.reduce((sum, r) => sum + (r[0]?.mainCurrencyBalance || 0), 0)
 })
 
 const totalChange = computed(() => {
@@ -208,7 +208,7 @@ const chartOption = computed(() => {
     // Sum of accounts excluding restricted stock & prepaid per date point
     const reports = totalAccountReports.value
     const totalData = labels.map((_, i) =>
-        reports.reduce((sum, r) => sum + (r[i]?.sum || 0), 0)
+        reports.reduce((sum, r) => sum + (r[i]?.mainCurrencyBalance || 0), 0)
     )
 
     series.push({
