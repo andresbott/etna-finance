@@ -13,8 +13,11 @@ See [Vite Configuration Reference](https://vitejs.dev/config/).
 ## Project Setup
 
 ```sh
-npm install
+nvm use   # Node/npm version pinned in ../.nvmrc
+npm ci
 ```
+
+Run `npm install` only to add or update dependencies, and commit the `package-lock.json` it writes.
 
 ### Compile and Hot-Reload for Development
 

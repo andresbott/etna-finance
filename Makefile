@@ -9,7 +9,7 @@ default: help
 test: ## run fast go tests
 	@go test ./... -cover
 
-ui-test: ## run webui unit tests
+ui-test: webui/node_modules/.installed ## run webui unit tests
 	@cd webui && npm test
 
 it-test: ## run db IT tests
@@ -79,11 +79,17 @@ package-ui: build-ui ## build the web and copy into Go pacakge
 	mkdir -p ./app/spa/files/ui
 	cp -r ./webui/dist/* ./app/spa/files/ui/
 	touch ./app/spa/files/ui/.gitkeep
-build-ui:
+build-ui: webui/node_modules/.installed
 	@cd webui && \
-	npm install && \
 	export VITE_BASE="/ui" && \
 	npm run build
+
+install-ui: webui/node_modules/.installed ## install webui dependencies from the lockfile (npm ci)
+
+# npm ci never rewrites package-lock.json; the stamp re-runs it only when package.json or the lockfile change.
+webui/node_modules/.installed: webui/package.json webui/package-lock.json
+	@cd webui && npm ci
+	@touch $@
 
 build: package-ui ## use goreleaser to build to current OS/Arch
 	@goreleaser build --snapshot --clean --single-target
