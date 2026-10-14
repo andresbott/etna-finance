@@ -157,11 +157,21 @@ func getAccountIdsCurrencyMap(in []Account) map[currency.Unit][]uint {
 	return accountsByCurrency
 }
 
+// AccountBalance is the balance of an account at a point in time, in the account's own currency and in the
+// main currency.
 type AccountBalance struct {
-	Date        time.Time
-	Sum         float64
-	Count       uint
-	Unconverted bool // true if this step's delta could not be converted to the main currency
+	Date time.Time
+	// NativeBalance is the balance in the account's own currency.
+	NativeBalance float64
+	// MainCurrencyBalance is the balance converted to the main currency at the FX rate of Date. It equals
+	// NativeBalance when the account uses the main currency or no main currency is configured.
+	MainCurrencyBalance float64
+	// HasUnconvertedAmounts is true when an FX rate (or, for investment accounts, a price) was missing, so
+	// some amounts are included unconverted (or, without a price, left out).
+	HasUnconvertedAmounts bool
+	// EntryCount is the number of entries summed for this step; the first step counts every entry up to Date.
+	// Investment accounts are valued from positions and leave it at 0.
+	EntryCount uint
 }
 
 // entry types used when calling sum entries for balance purposes
@@ -187,8 +197,9 @@ func (store *Store) AccountBalanceSingle(ctx context.Context, accountID uint, en
 // If zero or 1 steps are selected, a slice with size 1 is returned that contains the balance at end date.
 // For cash-like accounts, the implementation sums delta entries for every step.
 // For investment/restricted-stock accounts, it reconstructs position market value at each step.
-// When a main currency is configured, amounts are converted using the FX rate at the step's end date.
-// If no FX rate is available for a step, the delta is used unconverted and AccountBalance.Unconverted is set to true.
+// Every step carries the balance in the account's own currency and in the main currency; the main-currency
+// value uses the FX rate at the step's end date. If no FX rate is available for a step, the unconverted value
+// is used and AccountBalance.HasUnconvertedAmounts is set to true.
 func (store *Store) AccountBalance(ctx context.Context, accountID uint, steps int, startDate, endDate time.Time) ([]AccountBalance, error) {
 
 	if endDate.Before(startDate) {
@@ -198,33 +209,30 @@ func (store *Store) AccountBalance(ctx context.Context, accountID uint, steps in
 	if err != nil {
 		return nil, err
 	}
+	accountCurrency := account.Currency.String()
 
 	// Investment and restricted-stock accounts: use market-value-based calculation
 	if isInvestmentType(account.Type) {
-		return store.investmentBalanceSteps(ctx, accountID, steps, startDate, endDate)
+		return store.investmentBalanceSteps(ctx, accountID, accountCurrency, steps, startDate, endDate)
 	}
 
 	// Cash-like accounts: accumulate balance in original currency, convert total at each step's FX rate
-	accountCurrency := account.Currency.String()
 	return store.cashBalanceSteps(ctx, accountID, accountCurrency, steps, startDate, endDate)
 }
 
 // investmentBalanceSteps calculates market-value-based balance for investment accounts
 // at each step date, using the same step-splitting logic as the cash-flow methods.
-func (store *Store) investmentBalanceSteps(ctx context.Context, accountID uint, steps int, startDate, endDate time.Time) ([]AccountBalance, error) {
+func (store *Store) investmentBalanceSteps(ctx context.Context, accountID uint, accountCurrency string, steps int, startDate, endDate time.Time) ([]AccountBalance, error) {
 	dates := store.computeStepDates(steps, startDate, endDate)
 
 	results := make([]AccountBalance, len(dates))
 	for i, date := range dates {
-		value, unconverted, err := store.investmentValueAtDate(ctx, accountID, date)
+		value, err := store.investmentValueAtDate(ctx, accountID, accountCurrency, date)
 		if err != nil {
 			return nil, err
 		}
-		results[i] = AccountBalance{
-			Date:        toDate(date),
-			Sum:         value,
-			Unconverted: unconverted,
-		}
+		value.Date = toDate(date)
+		results[i] = value
 	}
 	return results, nil
 }
@@ -282,28 +290,53 @@ func (store *Store) computeStepDates(steps int, startDate, endDate time.Time) []
 	return dates
 }
 
-// convertDelta converts a delta amount from accountCurrency to the store's main currency using the FX rate
-// at time t. The rate convention is "main/account" (e.g. "CHF/USD" = how many USD per 1 CHF), so
-// conversion is delta / rate. Returns the original delta and unconverted=true when conversion is not
-// possible: no market store, no main currency configured, same currency, missing rate, or rate is zero.
-func (store *Store) convertDelta(ctx context.Context, delta float64, accountCurrency string, t time.Time) (float64, bool) {
-	if store.marketStore == nil || store.mainCurrency == "" || accountCurrency == store.mainCurrency {
-		return delta, false
+// convertAmount converts an amount from one currency to another using the FX rate at time t. Rates are
+// stored against the main currency with the convention "main/X" (e.g. "CHF/USD" = how many USD per 1 CHF),
+// so an amount in X converts to the main currency as amount / rate, and a conversion between two
+// non-main currencies goes through the main currency.
+// Returns the original amount and unconverted=false when there is nothing to convert: same currency,
+// or no market store or main currency configured. Returns the original amount and unconverted=true when
+// a needed rate is missing or zero.
+func (store *Store) convertAmount(ctx context.Context, amount float64, from, to string, t time.Time) (float64, bool) {
+	if from == to || store.marketStore == nil || store.mainCurrency == "" {
+		return amount, false
 	}
 	// The market store (timeseries) rejects non-UTC times. t may be in a non-UTC zone
 	// (e.g. the report handler's default time.Now()); .UTC() preserves the instant while
 	// satisfying that contract.
-	rec, err := store.marketStore.RateAt(ctx, store.mainCurrency, accountCurrency, t.UTC())
-	if err != nil || rec == nil || rec.Rate == 0 {
-		return delta, true
+	t = t.UTC()
+
+	inMain := amount
+	if from != store.mainCurrency {
+		rate, ok := store.mainCurrencyRate(ctx, from, t)
+		if !ok {
+			return amount, true
+		}
+		inMain = amount / rate
 	}
-	return delta / rec.Rate, false
+	if to == store.mainCurrency {
+		return inMain, false
+	}
+	rate, ok := store.mainCurrencyRate(ctx, to, t)
+	if !ok {
+		return amount, true
+	}
+	return inMain * rate, false
+}
+
+// mainCurrencyRate returns the "main/secondary" FX rate at time t, or false when it is missing or zero.
+func (store *Store) mainCurrencyRate(ctx context.Context, secondary string, t time.Time) (float64, bool) {
+	rec, err := store.marketStore.RateAt(ctx, store.mainCurrency, secondary, t)
+	if err != nil || rec == nil || rec.Rate == 0 {
+		return 0, false
+	}
+	return rec.Rate, true
 }
 
 // cashBalanceSteps calculates cash-flow-based balance for cash-like accounts at each step date.
 // At each step it accumulates the raw balance in the account's original currency, then converts
-// the entire balance to main currency using the FX rate at that step's date. This correctly
-// reflects FX movements on the full balance, not just on each delta.
+// the entire balance to main currency using the FX rate at that step's date, and returns both. This
+// correctly reflects FX movements on the full balance, not just on each delta.
 func (store *Store) cashBalanceSteps(ctx context.Context, accountID uint, accountCurrency string, steps int, startDate, endDate time.Time) ([]AccountBalance, error) {
 	dates := store.computeStepDates(steps, startDate, endDate)
 
@@ -331,13 +364,14 @@ func (store *Store) cashBalanceSteps(ctx context.Context, accountID uint, accoun
 
 		rawBalance += sum.Sum // accumulate in original currency
 		// Convert the entire balance at this step's FX rate
-		converted, unconverted := store.convertDelta(ctx, rawBalance, accountCurrency, dateTo)
+		converted, unconverted := store.convertAmount(ctx, rawBalance, accountCurrency, store.mainCurrency, dateTo)
 
 		results = append(results, AccountBalance{
-			Date:        toDate(dateTo),
-			Sum:         converted,
-			Count:       sum.Count,
-			Unconverted: unconverted,
+			Date:                  toDate(dateTo),
+			NativeBalance:         rawBalance,
+			MainCurrencyBalance:   converted,
+			HasUnconvertedAmounts: unconverted,
+			EntryCount:            sum.Count,
 		})
 
 		prevDateTo = dateTo
@@ -348,12 +382,12 @@ func (store *Store) cashBalanceSteps(ctx context.Context, accountID uint, accoun
 
 // investmentValueAtDate calculates the total market value of an investment/restricted-stock
 // account at a given date. It reconstructs positions from lots and disposals, then multiplies
-// by the instrument price at that date, converting to main currency.
-// Returns (value, unconverted, error). unconverted is true if any position could not be
-// fully converted (missing price or FX rate).
-func (store *Store) investmentValueAtDate(ctx context.Context, accountID uint, date time.Time) (float64, bool, error) {
+// by the instrument price at that date, converting to the account currency and to the main currency.
+// The returned AccountBalance has no Date set. HasUnconvertedAmounts is true if any position could
+// not be fully converted (missing price or FX rate).
+func (store *Store) investmentValueAtDate(ctx context.Context, accountID uint, accountCurrency string, date time.Time) (AccountBalance, error) {
 	if store.marketStore == nil {
-		return 0, true, nil
+		return AccountBalance{HasUnconvertedAmounts: true}, nil
 	}
 
 	// Get all lots for this account opened on or before the date
@@ -363,7 +397,7 @@ func (store *Store) investmentValueAtDate(ctx context.Context, accountID uint, d
 		BeforeDate: &beforeDate,
 	})
 	if err != nil {
-		return 0, false, fmt.Errorf("failed to list lots: %w", err)
+		return AccountBalance{}, fmt.Errorf("failed to list lots: %w", err)
 	}
 
 	// For each lot, calculate quantity held at the given date by subtracting disposals
@@ -385,7 +419,7 @@ func (store *Store) investmentValueAtDate(ctx context.Context, accountID uint, d
 		if err := store.db.WithContext(ctx).
 			Where("lot_id = ? AND date <= ?", lot.Id, endOfDay(date)).
 			Find(&disposals).Error; err != nil {
-			return 0, false, fmt.Errorf("failed to query disposals: %w", err)
+			return AccountBalance{}, fmt.Errorf("failed to query disposals: %w", err)
 		}
 		for _, d := range disposals {
 			disposedQty += d.Quantity
@@ -405,13 +439,12 @@ func (store *Store) investmentValueAtDate(ctx context.Context, accountID uint, d
 	}
 
 	// Calculate market value for each instrument position
-	var totalValue float64
-	anyUnconverted := false
+	var total AccountBalance
 
 	for instrumentID, pos := range positions {
 		inst, err := store.marketStore.GetInstrument(ctx, instrumentID)
 		if err != nil {
-			anyUnconverted = true
+			total.HasUnconvertedAmounts = true
 			continue
 		}
 
@@ -419,21 +452,23 @@ func (store *Store) investmentValueAtDate(ctx context.Context, accountID uint, d
 		// (date may be in a non-UTC zone from the handler's default time.Now()).
 		priceRec, err := store.marketStore.PriceAt(ctx, inst.Symbol, endOfDay(date).UTC())
 		if err != nil || priceRec == nil {
-			anyUnconverted = true
+			total.HasUnconvertedAmounts = true
 			continue
 		}
 
 		value := pos.quantity * priceRec.Close
 		instCurrency := inst.Currency.String()
 
-		converted, unconverted := store.convertDelta(ctx, value, instCurrency, date)
-		if unconverted {
-			anyUnconverted = true
+		native, nativeUnconverted := store.convertAmount(ctx, value, instCurrency, accountCurrency, date)
+		converted, unconverted := store.convertAmount(ctx, value, instCurrency, store.mainCurrency, date)
+		if nativeUnconverted || unconverted {
+			total.HasUnconvertedAmounts = true
 		}
-		totalValue += converted
+		total.NativeBalance += native
+		total.MainCurrencyBalance += converted
 	}
 
-	return totalValue, anyUnconverted, nil
+	return total, nil
 }
 
 // isInvestmentType returns true for account types that hold positions valued at market price.

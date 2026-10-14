@@ -3,8 +3,10 @@ package finance
 import (
 	"encoding/json"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
@@ -233,7 +235,7 @@ func TestFinanceHandler_AccountBalance(t *testing.T) {
 				for key, values := range tc.wantValue {
 					gotVals := make([]float64, len(response.Accounts[key]))
 					for i, val := range response.Accounts[key] {
-						gotVals[i] = val.Sum
+						gotVals[i] = val.NativeBalance
 					}
 					if diff := cmp.Diff(values, gotVals); diff != "" {
 						t.Errorf("unexpected value for account id %d (+want -got):\n%s", key, diff)
@@ -241,5 +243,35 @@ func TestFinanceHandler_AccountBalance(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestFinanceHandler_AccountBalanceKeys locks the field names the frontend reads: every balance point says
+// which currency each value is in, so callers cannot mix the account currency with the main currency.
+func TestFinanceHandler_AccountBalanceKeys(t *testing.T) {
+	h, end := SampleHandler(t)
+	defer end()
+
+	recorder := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/report?accountIds=1", nil)
+	h.AccountBalance().ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("handler returned wrong status code: got %v want %v, body: %s", recorder.Code, http.StatusOK, recorder.Body)
+	}
+
+	var response struct {
+		Accounts map[string][]map[string]any `json:"accounts"`
+	}
+	if err := json.NewDecoder(recorder.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	points := response.Accounts["1"]
+	if len(points) != 1 {
+		t.Fatalf("expected 1 balance point, got %d", len(points))
+	}
+
+	want := []string{"date", "entryCount", "hasUnconvertedAmounts", "mainCurrencyBalance", "nativeBalance"}
+	if diff := cmp.Diff(want, slices.Sorted(maps.Keys(points[0]))); diff != "" {
+		t.Errorf("unexpected response keys (-want +got):\n%s", diff)
 	}
 }

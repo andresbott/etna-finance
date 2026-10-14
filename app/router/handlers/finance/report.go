@@ -138,10 +138,11 @@ type accountBalancesResponse struct {
 }
 
 type accountBalance struct {
-	Date        time.Time `json:"date"`
-	Sum         float64   `json:"sum"`
-	Count       uint      `json:"count"`
-	Unconverted bool      `json:"unconverted"`
+	Date                  time.Time `json:"date"`
+	NativeBalance         float64   `json:"nativeBalance"`       // in the account's own currency
+	MainCurrencyBalance   float64   `json:"mainCurrencyBalance"` // in the main currency
+	HasUnconvertedAmounts bool      `json:"hasUnconvertedAmounts"`
+	EntryCount            uint      `json:"entryCount"`
 }
 
 func (h *Handler) AccountBalance() http.Handler {
@@ -211,10 +212,11 @@ func transformAccountBalance(in []accounting.AccountBalance) []accountBalance {
 	out := make([]accountBalance, len(in))
 	for i := 0; i < len(in); i++ {
 		out[i] = accountBalance{
-			Date:        in[i].Date,
-			Sum:         in[i].Sum,
-			Count:       in[i].Count,
-			Unconverted: in[i].Unconverted,
+			Date:                  in[i].Date,
+			NativeBalance:         in[i].NativeBalance,
+			MainCurrencyBalance:   in[i].MainCurrencyBalance,
+			HasUnconvertedAmounts: in[i].HasUnconvertedAmounts,
+			EntryCount:            in[i].EntryCount,
 		}
 	}
 	return out

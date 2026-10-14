@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/vue-query'
 import { useAccounts } from '@/composables/useAccounts'
 import { useSettingsStore } from '@/store/settingsStore'
 import { getBalanceReport } from '@/lib/api/report'
+import type { BalancePoint } from '@/types/report'
 import { toLocalDateString } from '@/utils/date'
 import { ACCOUNT_TYPES } from '@/types/account'
 
@@ -43,9 +44,9 @@ export function useAccountTypesData() {
 
     const balanceReport = computed(() => balanceReportQuery.data.value)
 
-    function getLatestBalance(reportData: Array<{ sum: number }>): number {
+    function getLatestBalance(reportData: BalancePoint[]): number {
         if (reportData.length === 0) return 0
-        return reportData[reportData.length - 1]?.sum ?? 0
+        return reportData[reportData.length - 1]?.mainCurrencyBalance ?? 0
     }
 
     const ACCOUNT_TYPE_ORDER: string[] = [
@@ -59,8 +60,8 @@ export function useAccountTypesData() {
         ACCOUNT_TYPES.RESTRICTED_STOCK,
     ]
 
-    // Balance report values are already converted to main currency by the backend,
-    // so we sum them directly per account type without additional FX conversion.
+    // mainCurrencyBalance is already converted to the main currency by the backend,
+    // so we sum it directly per account type without additional FX conversion.
     const accountsByType = computed<AccountTypeRow[]>(() => {
         if (!allAccounts.value) return []
         const grouped: Record<string, AccountTypeRow> = {}

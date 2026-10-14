@@ -104,6 +104,9 @@ These are enforced by Cursor rules (`.cursor/rules/`) and project docs (`docs/pr
   adding an account type/field.
 - **Linting**: `golangci-lint` v2; `gocyclo`/`gocognit`/`nestif` thresholds are tightened (20/20/5).
   `nolint` directives require a specific linter and an explanation.
+- **Node/npm toolchain**: the version is pinned in `.nvmrc` (`nvm use`) and enforced by `devEngines`
+  in `webui/package.json`. Install with `make install-ui` (`npm ci`); run `npm install` only to add
+  or update dependencies, and commit the lockfile it writes.
 
 `docs/project/patterns.md` and `docs/project/decisions.md` document multi-step full-stack patterns
 (adding account types/fields across store → handler → backup → frontend) and notable decisions
